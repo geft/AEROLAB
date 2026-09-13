@@ -80,6 +80,17 @@ export function getDatabase(dbPath?: string): Database.Database {
     // Non-fatal if table not created yet
   }
 
+  // Ensure athlete_profile columns exist
+  try {
+    const profCols = db.prepare("PRAGMA table_info(athlete_profile)").all() as Array<{ name: string }>;
+    const profColNames = new Set(profCols.map(c => c.name));
+    if (!profColNames.has('is_configured')) db.exec("ALTER TABLE athlete_profile ADD COLUMN is_configured INTEGER DEFAULT 0");
+    if (!profColNames.has('gender')) db.exec("ALTER TABLE athlete_profile ADD COLUMN gender TEXT DEFAULT 'Prefer not to say'");
+    if (!profColNames.has('is_max_hr_estimated')) db.exec("ALTER TABLE athlete_profile ADD COLUMN is_max_hr_estimated INTEGER DEFAULT 0");
+  } catch (err) {
+    // Non-fatal
+  }
+
   // Automatic backfill: compute core centroid for any existing runs missing workout coordinates
   try {
     const unbackfilled = db.prepare('SELECT id, duration_seconds FROM activities WHERE workout_lat IS NULL').all() as any[];

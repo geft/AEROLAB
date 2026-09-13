@@ -5,6 +5,7 @@ import { ProgressView } from './components/ProgressView';
 import { StatsView } from './components/StatsView';
 import { ProfileView } from './components/ProfileView';
 import { UploadModal } from './components/UploadModal';
+import { BaselineSetupModal } from './components/BaselineSetupModal';
 import { Footer } from './components/Footer';
 
 export const App: React.FC = () => {
@@ -12,6 +13,7 @@ export const App: React.FC = () => {
   const [activities, setActivities] = useState<ActivitySummary[]>([]);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState<boolean>(false);
+  const [showBaselineSetup, setShowBaselineSetup] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
 
   // Theme state: persisted in localStorage, defaults to dark
@@ -28,6 +30,18 @@ export const App: React.FC = () => {
 
   const toggleTheme = () => {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
+  const checkProfileConfigured = async () => {
+    try {
+      const res = await fetch('/api/profile');
+      const data = await res.json();
+      if (data && data.isConfigured === false) {
+        setShowBaselineSetup(true);
+      }
+    } catch (err) {
+      console.error('Failed to check profile configuration status:', err);
+    }
   };
 
   const fetchActivities = async () => {
@@ -50,6 +64,7 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     fetchActivities();
+    checkProfileConfigured();
   }, []);
 
   const handleActivityUpdated = (updated: any) => {
@@ -91,6 +106,14 @@ export const App: React.FC = () => {
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
         onUploadSuccess={fetchActivities}
+      />
+
+      <BaselineSetupModal
+        isOpen={showBaselineSetup}
+        onCompleted={() => {
+          setShowBaselineSetup(false);
+          fetchActivities();
+        }}
       />
     </div>
   );

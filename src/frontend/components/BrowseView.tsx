@@ -537,7 +537,65 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
 
       {/* Right Main Panel: Run Details */}
       <main className="detail-panel">
-        {loadingDetail || !act ? (
+        {activities.length === 0 ? (
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '4rem 2rem',
+              background: 'var(--bg-card)',
+              borderRadius: 14,
+              border: '1px dashed var(--border-subtle)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '1rem',
+              boxShadow: 'var(--card-shadow)'
+            }}
+          >
+            <div
+              style={{
+                width: 60,
+                height: 60,
+                borderRadius: 16,
+                background: 'rgba(6, 182, 212, 0.12)',
+                border: '1px solid rgba(6, 182, 212, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <HeartPulse size={30} color="#38bdf8" />
+            </div>
+            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+              Ready for Your First Run
+            </h3>
+            <p style={{ maxWidth: 460, color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.55, margin: 0 }}>
+              Your cardiovascular baselines are calibrated and ready. Import your Garmin <code>.fit</code> or <code>.csv</code> workout files to inspect your aerobic decoupling, running economy, and AI coach debriefs.
+            </p>
+            <button
+              onClick={onOpenUpload}
+              style={{
+                marginTop: '0.5rem',
+                padding: '0.7rem 1.4rem',
+                fontSize: '0.88rem',
+                fontWeight: 700,
+                borderRadius: 8,
+                background: 'linear-gradient(135deg, #0284c7, #06b6d4)',
+                border: 'none',
+                color: '#ffffff',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                boxShadow: '0 4px 14px 0 rgba(6, 182, 212, 0.35)'
+              }}
+            >
+              <Plus size={16} />
+              <span>Import First Workout (.FIT / .CSV)</span>
+            </button>
+          </div>
+        ) : loadingDetail || !act ? (
           <div className="overview-card loading-skeleton" style={{ height: 350 }}></div>
         ) : (
           <>

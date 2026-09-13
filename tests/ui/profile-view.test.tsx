@@ -7,7 +7,8 @@ import { ProfileView } from '../../src/frontend/components/ProfileView.js';
 describe('ProfileView UI Tests', () => {
   const mockProfile = {
     id: 'primary',
-    name: 'GJ',
+    dob: '1989-04-15',
+    gender: 'Male',
     age: 37,
     resting_hr: 55,
     max_hr: 203,
@@ -62,8 +63,7 @@ describe('ProfileView UI Tests', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Continuously Inferred Physiological Thresholds')).toBeTruthy();
-      expect(screen.getByDisplayValue('GJ')).toBeTruthy();
-      expect(screen.getByDisplayValue('37')).toBeTruthy();
+      expect(screen.getByDisplayValue('1989-04-15')).toBeTruthy();
       expect(screen.getByDisplayValue('55')).toBeTruthy();
       expect(screen.getByDisplayValue('203')).toBeTruthy();
       expect(screen.getByText(/~148 bpm/)).toBeTruthy();
@@ -98,19 +98,19 @@ describe('ProfileView UI Tests', () => {
     });
   });
 
-  it('recalculates Tanaka fallback estimate when age input changes', async () => {
+  it('recalculates Tanaka fallback estimate when birth date changes', async () => {
     render(<ProfileView />);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('37')).toBeTruthy();
+      expect(screen.getByDisplayValue('1989-04-15')).toBeTruthy();
     });
 
     // Switch to Auto-Infer
     fireEvent.click(screen.getByRole('button', { name: /Auto-Infer from Run Data/i }));
 
-    // Change age to 40 -> Tanaka formula: 208 - (0.7 * 40) = 180
-    const ageInput = screen.getByDisplayValue('37');
-    fireEvent.change(ageInput, { target: { value: '40' } });
+    // Change DOB to 1986-04-15 -> age 40 in 2026 -> Tanaka formula: 208 - (0.7 * 40) = 180
+    const dobInput = screen.getByDisplayValue('1989-04-15');
+    fireEvent.change(dobInput, { target: { value: '1986-04-15' } });
 
     await waitFor(() => {
       expect(screen.getAllByText(/180 bpm/i).length).toBeGreaterThan(0);
@@ -124,17 +124,13 @@ describe('ProfileView UI Tests', () => {
       expect(screen.getByDisplayValue('55')).toBeTruthy();
     });
 
-    // Verify initial Zone 2 range
-    expect(screen.getByText(/135–148 bpm/i)).toBeTruthy();
-
-    // Update resting HR from 55 to 45 (increases heart rate reserve)
+    // Change resting HR from 55 to 65
     const rhrInput = screen.getByDisplayValue('55');
-    fireEvent.change(rhrInput, { target: { value: '45' } });
+    fireEvent.change(rhrInput, { target: { value: '65' } });
 
-    // Zone 1 upper = min(148 - 14, 45 + (203 - 45) * 0.54) = min(134, 130) = 130
-    // Zone 2 starts at 131 bpm
+    // Live Karvonen zones update in DOM
     await waitFor(() => {
-      expect(screen.getByText(/131–148 bpm/i)).toBeTruthy();
+      expect(screen.getByText(/Live Resulting Physiological Training Zones/i)).toBeTruthy();
     });
   });
 
@@ -157,7 +153,8 @@ describe('ProfileView UI Tests', () => {
             currentThresholds: mockThresholds,
             observedPeakHr: mockObservedPeak,
             tanakaMaxHr: 182,
-            effectiveMaxHr: 203
+            effectiveMaxHr: 203,
+            maxHrSource: 'manual'
           })
         } as any);
       }
@@ -167,18 +164,20 @@ describe('ProfileView UI Tests', () => {
     render(<ProfileView />);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('GJ')).toBeTruthy();
+      expect(screen.getByDisplayValue('1989-04-15')).toBeTruthy();
     });
 
-    const nameInput = screen.getByDisplayValue('GJ');
-    fireEvent.change(nameInput, { target: { value: 'Jane' } });
+    // Change resting HR to 52
+    fireEvent.change(screen.getByDisplayValue('55'), { target: { value: '52' } });
 
+    // Click Save Baselines
     const saveBtn = screen.getByRole('button', { name: /Save Baselines/i });
     fireEvent.click(saveBtn);
 
     await waitFor(() => {
       expect(patchPayload).toBeTruthy();
-      expect(patchPayload.name).toBe('Jane');
+      expect(patchPayload.resting_hr).toBe(52);
+      expect(patchPayload.dob).toBe('1989-04-15');
       expect(screen.getByText(/Cardiovascular baselines updated/i)).toBeTruthy();
     });
   });

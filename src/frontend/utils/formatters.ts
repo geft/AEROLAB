@@ -53,3 +53,25 @@ export function formatEfficiency(ef: number | null | undefined): string {
   if (!ef || isNaN(ef) || ef <= 0) return '—';
   return Number(ef).toFixed(2);
 }
+
+/**
+ * Calculates dynamic age in years from a birth date string (YYYY-MM-DD or YYYY-MM).
+ */
+export function calculateAgeFromDob(dob?: string | null, fallbackAge: number = 35): number {
+  if (!dob) return fallbackAge;
+  const parts = dob.trim().split('-');
+  const year = parseInt(parts[0], 10);
+  const month = parts[1] ? parseInt(parts[1], 10) - 1 : 0;
+  const day = parts[2] ? parseInt(parts[2], 10) : 1;
+  if (isNaN(year) || year < 1900 || year > 2100) return fallbackAge;
+
+  const birthDate = new Date(year, month, day);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age > 0 ? age : fallbackAge;
+}
+

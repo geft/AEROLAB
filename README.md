@@ -365,12 +365,25 @@ Calculated after trimming the first 20% (warmup) and final 15% (cooldown) to que
 AEROLAB is designed with local-first data isolation:
 1. **Git Protection**: `data/*.db` and `data/*.db-*` are strictly listed in `.gitignore`.
 2. **Fresh Clone**: When your spouse or running partner clones the repository on their own machine, they receive an empty `data/` folder and start with a fresh, clean database on first run.
-3. **Shared Machine Setup**: If you share the same PC:
+### 3. Shared Machine Setup: If you share the same PC:
    - Keep two separate project clones (e.g. `C:\gemini-projects\run-progress-GJ` and `C:\gemini-projects\run-progress-wife`).
    - Or configure the `DATABASE_PATH` environment variable in `.env`:
      ```bash
      DATABASE_PATH=data/wife_runs.db
      ```
+
+---
+
+## First-Launch Onboarding & Baseline Calibration
+
+When launching AEROLAB on a fresh install (or with a clean database):
+1. **Mandatory Baseline Wizard**: AEROLAB prompts the athlete to configure their physiological baseline before accessing empty dashboards:
+   - **Date of Birth (`dob`)**: Automatically derives current age year after year without manual updates.
+   - **Biological Gender**: Calibrates normative aerobic ranges.
+   - **Resting & Maximum Heart Rate**: Custom benchmark or auto-calculated via the Tanaka formula ($208 - 0.7 \times \text{age}$).
+   - **Starting VO2 Max & Training Focus**: Informs race prediction models.
+2. **Zero-Name Privacy**: No athlete name or personal identifiers are stored or required.
+3. **Empty State Guidance**: Once configured, the activity list guides new users to import their initial `.FIT` or `.CSV` workout via the primary navigation or quick-action cards.
 
 ---
 

@@ -130,12 +130,16 @@ CREATE INDEX IF NOT EXISTS idx_thresholds_date ON physiological_thresholds(effec
 
 CREATE TABLE IF NOT EXISTS athlete_profile (
   id TEXT PRIMARY KEY DEFAULT 'primary',
+  name TEXT DEFAULT 'Runner',
+  gender TEXT DEFAULT 'Prefer not to say',
   age INTEGER DEFAULT 37,
   dob TEXT DEFAULT '1989-04',
   height_cm REAL DEFAULT 165,
   weight_kg REAL DEFAULT 55,
   resting_hr INTEGER DEFAULT 55,
   max_hr INTEGER DEFAULT 203,
+  is_max_hr_estimated INTEGER DEFAULT 0,
+  is_configured INTEGER DEFAULT 0,
   lt1_hr INTEGER DEFAULT 148,
   lt2_hr INTEGER DEFAULT 167,
   lt1_min_hr INTEGER DEFAULT 147,

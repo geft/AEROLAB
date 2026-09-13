@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { User, Heart, Zap, Save, CheckCircle, AlertCircle, Info, ShieldCheck, Activity, Flame } from 'lucide-react';
-import { formatPace } from '../utils/formatters.js';
+import { User, Heart, Zap, Save, CheckCircle, AlertCircle, Info, ShieldCheck, Activity, Flame, Calendar } from 'lucide-react';
+import { formatPace, calculateAgeFromDob } from '../utils/formatters.js';
 
 interface ObservedPeakData {
   peakHr: number;
@@ -11,7 +11,8 @@ interface ObservedPeakData {
 }
 
 interface ProfileData {
-  name?: string;
+  dob?: string;
+  gender?: string;
   age?: number;
   resting_hr?: number;
   max_hr?: number;
@@ -24,8 +25,8 @@ export const ProfileView: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Form local state
-  const [name, setName] = useState('GJ');
-  const [age, setAge] = useState(37);
+  const [dob, setDob] = useState('1989-04-15');
+  const [gender, setGender] = useState('Prefer not to say');
   const [restingHr, setRestingHr] = useState(55);
   const [manualMaxHr, setManualMaxHr] = useState(203);
   const [isAutoMaxHr, setIsAutoMaxHr] = useState(true);
@@ -45,8 +46,8 @@ export const ProfileView: React.FC = () => {
       const res = await fetch('/api/profile');
       const data = await res.json();
       if (data.profile) {
-        setName(data.profile.name || 'GJ');
-        setAge(Number(data.profile.age) || 37);
+        setDob(data.profile.dob || '1989-04-15');
+        setGender(data.profile.gender || 'Prefer not to say');
         setRestingHr(Number(data.profile.resting_hr) || 55);
         setManualMaxHr(Number(data.profile.max_hr) || 203);
         setIsAutoMaxHr(Boolean(data.profile.is_max_hr_estimated));
@@ -68,10 +69,15 @@ export const ProfileView: React.FC = () => {
     }
   };
 
+  // Dynamic age calculation from DOB
+  const computedAge = useMemo(() => {
+    return calculateAgeFromDob(dob, 37);
+  }, [dob]);
+
   // Live Tanaka formula calculation based on current form age: 208 - 0.7 * age
   const liveTanaka = useMemo(() => {
-    return Math.round(208 - 0.7 * (Number(age) || 35));
-  }, [age]);
+    return Math.round(208 - 0.7 * computedAge);
+  }, [computedAge]);
 
   // Effective Max HR used across UI and zones
   const effectiveMaxHr = useMemo(() => {
@@ -107,8 +113,9 @@ export const ProfileView: React.FC = () => {
       setStatusMessage(null);
 
       const payload = {
-        name: name.trim(),
-        age: Number(age),
+        dob,
+        gender,
+        age: computedAge,
         resting_hr: Number(restingHr),
         max_hr: effectiveMaxHr,
         is_max_hr_estimated: isAutoMaxHr,
@@ -155,7 +162,7 @@ export const ProfileView: React.FC = () => {
             <Heart size={28} color="#06b6d4" />
           </div>
           <div>
-            <h1 className="profile-header-title">{name || 'Athlete Profile'}</h1>
+            <h1 className="profile-header-title">Cardiovascular Baselines</h1>
             <p className="profile-header-subtitle">
               Cardiovascular baselines &amp; physiological threshold anchors. Only cardio parameters affect your running zones, efficiency index, and workout execution scores.
             </p>
@@ -180,24 +187,19 @@ export const ProfileView: React.FC = () => {
         </div>
       )}
 
-      {/* 1. Inferred Physiological Thresholds (Strictly Non-Editable) */}
-      <section className="profile-card thresholds-showcase-card">
+      {/* 1. Inferred Thresholds Card (Non-Editable Reference) */}
+      <section className="profile-card" style={{ marginBottom: '1.5rem' }}>
         <div className="profile-card-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Zap size={18} color="#10b981" />
+            <Zap size={18} color="#f59e0b" />
             <h2 className="profile-card-title">Continuously Inferred Physiological Thresholds</h2>
           </div>
-          <span className="profile-sync-badge">
-            <ShieldCheck size={13} /> Derived from Workout Data
-          </span>
+          <span className="profile-badge-calibrated">Derived from Run Data</span>
         </div>
 
-        <div className="thresholds-info-callout">
-          <Info size={18} color="#06b6d4" style={{ flexShrink: 0, marginTop: 2 }} />
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-            <b>Physiological thresholds are never manually configured.</b> AEROLAB automatically infers and continuously tracks your <b>Aerobic Base (LT1)</b> and <b>Lactate Threshold (LT2)</b> from your steady-state aerobic runs and quality threshold workouts to preserve objective physiological tracking.
-          </p>
-        </div>
+        <p className="profile-card-desc">
+          Lactate thresholds are derived continuously from your actual steady runs and tempo workouts via aerodynamic &amp; cardiac inflection. They are not manually edited here to prevent optimistic target drift.
+        </p>
 
         <div className="threshold-pills-row">
           <div className="threshold-pill-item">
@@ -240,36 +242,41 @@ export const ProfileView: React.FC = () => {
         <section className="profile-card">
           <div className="profile-card-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <User size={18} color="#06b6d4" />
-              <h2 className="profile-card-title">Runner Identity &amp; Resting Baseline</h2>
+              <Calendar size={18} color="#06b6d4" />
+              <h2 className="profile-card-title">Biological Anchors &amp; Resting Pulse</h2>
             </div>
           </div>
 
           <div className="profile-form-grid">
             <div className="form-group">
-              <label className="form-label">Athlete Name</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                <label className="form-label">Date of Birth</label>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#38bdf8' }}>
+                  Age: {computedAge} yrs (auto-computed)
+                </span>
+              </div>
               <input
-                type="text"
+                type="date"
                 className="form-input"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="e.g. GJ or Wife"
+                value={dob}
+                onChange={e => setDob(e.target.value)}
               />
-              <span className="form-hint">Allows family members or partners to switch runner profiles.</span>
+              <span className="form-hint">Used for Tanaka formula (208 - 0.7 × age = {liveTanaka} bpm). Automatically keeps age up to date.</span>
             </div>
 
             <div className="form-group">
-              <label className="form-label">Age</label>
-              <input
-                type="number"
+              <label className="form-label">Biological Gender</label>
+              <select
                 className="form-input"
-                value={age}
-                onChange={e => setAge(Number(e.target.value))}
-                placeholder="Age in years"
-                min="12"
-                max="99"
-              />
-              <span className="form-hint">Used for Tanaka formula fallback (208 - 0.7 × age = {liveTanaka} bpm).</span>
+                value={gender}
+                onChange={e => setGender(e.target.value)}
+              >
+                <option value="Prefer not to say">Prefer not to say</option>
+                <option value="Female">Female</option>
+                <option value="Male">Male</option>
+                <option value="Non-binary">Non-binary</option>
+              </select>
+              <span className="form-hint">Cardiovascular and VO2 Max distribution baseline.</span>
             </div>
 
             <div className="form-group" style={{ gridColumn: 'span 2' }}>

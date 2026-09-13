@@ -152,7 +152,7 @@ describe('AEROLAB App Full Integration Tests', () => {
     fireEvent.click(profileTab!);
 
     await waitFor(() => {
-      expect(screen.getByText(/Runner Identity & Resting Baseline/i)).toBeTruthy();
+      expect(screen.getByText(/Biological Anchors & Resting Pulse/i)).toBeTruthy();
       expect(screen.getByText(/Continuously Inferred Physiological Thresholds/i)).toBeTruthy();
     });
 

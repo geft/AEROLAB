@@ -45,6 +45,24 @@ export function getObservedPeakHeartRate(db: any, age: number = 37): ObservedPea
   }
 }
 
+export function calculateAgeFromDob(dob?: string | null, fallbackAge: number = 35): number {
+  if (!dob) return fallbackAge;
+  const parts = dob.trim().split('-');
+  const year = parseInt(parts[0], 10);
+  const month = parts[1] ? parseInt(parts[1], 10) - 1 : 0;
+  const day = parts[2] ? parseInt(parts[2], 10) : 1;
+  if (isNaN(year) || year < 1900 || year > 2100) return fallbackAge;
+
+  const birthDate = new Date(year, month, day);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age > 0 ? age : fallbackAge;
+}
+
 // GET /api/profile - return athlete profile and calculated HRR zones reflecting current LT1/LT2
 profileRouter.get('/', (req, res) => {
   try {
@@ -55,10 +73,13 @@ profileRouter.get('/', (req, res) => {
       return res.status(404).json({ error: 'Profile not found' });
     }
 
+    const activityCount = (db.prepare('SELECT COUNT(*) as count FROM activities').get() as any)?.count || 0;
+    const isConfigured = profile.is_configured === 1 || activityCount > 0;
+
     const currentThresholds = getCurrentThresholds(db);
-    const ageVal = Number(profile.age) || 37;
-    const tanakaMaxHr = Math.round(208 - 0.7 * ageVal);
-    const observedPeak = getObservedPeakHeartRate(db, ageVal);
+    const dynamicAge = calculateAgeFromDob(profile.dob, Number(profile.age) || 35);
+    const tanakaMaxHr = Math.round(208 - 0.7 * dynamicAge);
+    const observedPeak = getObservedPeakHeartRate(db, dynamicAge);
 
     let effectiveMaxHr = profile.max_hr || 203;
     let maxHrSource: 'manual' | 'observed_run' | 'tanaka_formula' = 'manual';
@@ -83,6 +104,8 @@ profileRouter.get('/', (req, res) => {
     res.json({
       profile: {
         ...profile,
+        age: dynamicAge,
+        is_configured: isConfigured ? 1 : 0,
         max_hr: effectiveMaxHr,
         schedule: profile.schedule_json ? JSON.parse(profile.schedule_json) : null,
         preferences: profile.preferences_json ? JSON.parse(profile.preferences_json) : null
@@ -92,7 +115,8 @@ profileRouter.get('/', (req, res) => {
       observedPeakHr: observedPeak,
       tanakaMaxHr,
       effectiveMaxHr,
-      maxHrSource
+      maxHrSource,
+      isConfigured
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -110,11 +134,20 @@ profileRouter.patch('/', (req, res) => {
       'is_max_hr_estimated', 'hr_metric', 'vo2_max',
       'goal_marathon', 'upcoming_benchmark', 'pb_5k', 'pb_hm',
       'shoe_threshold', 'shoe_easy', 'shoe_retired', 'location',
-      'favorite_route'
+      'favorite_route', 'is_configured'
     ];
 
     const existing = db.prepare('SELECT * FROM athlete_profile WHERE id = ?').get('primary') as any;
-    const ageVal = Number(updates.age) || Number(existing?.age) || 37;
+    
+    // Dynamically derive age from DOB if DOB is provided
+    let ageVal: number;
+    if (updates.dob) {
+      ageVal = calculateAgeFromDob(updates.dob, Number(updates.age) || Number(existing?.age) || 35);
+      updates.age = ageVal;
+    } else {
+      ageVal = Number(updates.age) || calculateAgeFromDob(existing?.dob, Number(existing?.age) || 35);
+    }
+
     const tanakaMax = Math.round(208 - 0.7 * ageVal);
     const observedPeak = getObservedPeakHeartRate(db, ageVal);
 
