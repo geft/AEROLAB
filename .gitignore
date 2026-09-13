@@ -3,6 +3,14 @@ node_modules/
 
 # Production build
 dist/
+dist-backend/
+release/
+
+# Test coverage
+coverage/
+
+# Local scratch scripts
+scratch/
 
 # Local databases
 data/*.db

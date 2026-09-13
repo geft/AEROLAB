@@ -54,18 +54,29 @@ describe('API Server Integration Tests', () => {
       .send({
         name: 'Morning Aerobic Base + PCN Strides',
         notes: 'Felt very smooth, high humidity around 80%. Elastic bounce maintained.',
-        tags: ['Easy Base', 'Strides', 'Morning Run']
+        tags: ['Easy Base', 'Strides', 'Recovery']
       });
 
     expect(patchRes.status).toBe(200);
     expect(patchRes.body.activity.name).toBe('Morning Aerobic Base + PCN Strides');
     expect(patchRes.body.activity.notes).toContain('Elastic bounce maintained');
-    expect(JSON.parse(patchRes.body.activity.tags)).toEqual(['Easy Base', 'Strides', 'Morning Run']);
+    expect(JSON.parse(patchRes.body.activity.tags)).toEqual(['Easy Base', 'Strides', 'Recovery']);
 
     // Confirm persisted via GET
     const getRes = await request(app).get('/api/activities/24321232759');
     expect(getRes.body.activity.name).toBe('Morning Aerobic Base + PCN Strides');
     expect(getRes.body.activity.notes).toContain('Elastic bounce maintained');
+  });
+
+  it('PATCH /api/activities/:id rejects unknown/new custom tags with 400', async () => {
+    const patchRes = await request(app)
+      .patch('/api/activities/24321232759')
+      .send({
+        tags: ['Easy Base', 'Brand New Tag', 'Custom Random']
+      });
+
+    expect(patchRes.status).toBe(400);
+    expect(patchRes.body.error).toContain('Only existing tags are allowed');
   });
 
   it('GET /api/activities?type=easy_base filters correctly', async () => {
@@ -150,6 +161,61 @@ describe('API Server Integration Tests', () => {
     expect(res.body.syncedActivitiesCount).toBeGreaterThanOrEqual(1);
   });
 
+  it('PATCH /api/profile auto-estimates max HR with Tanaka formula when is_max_hr_estimated is true', async () => {
+    // Tanaka formula: 208 - (0.7 * 40) = 180
+    const res = await request(app)
+      .patch('/api/profile')
+      .send({
+        age: 40,
+        is_max_hr_estimated: true
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.profile.age).toBe(40);
+    expect(res.body.profile.max_hr).toBe(180);
+    expect(res.body.profile.is_max_hr_estimated).toBe(1);
+
+    // Revert back
+    await request(app)
+      .patch('/api/profile')
+      .send({
+        age: 37,
+        max_hr: 203,
+        is_max_hr_estimated: false
+      });
+  });
+
+  it('auto-infers Max HR from actual peak workout efforts (e.g. 5k TT / race) when available', async () => {
+    const db = getDatabase();
+    // Insert a high-effort race with peak heart rate 199
+    db.prepare(`
+      INSERT OR REPLACE INTO activities (
+        id, start_time, name, run_type, distance_meters, duration_seconds, calories, avg_heart_rate, max_heart_rate
+      ) VALUES ('race-tt-test', '2026-09-01 07:00:00', 'Park Time Trial 5k', 'race', 5000, 1300, 400, 175, 199)
+    `).run();
+
+    const patchRes = await request(app)
+      .patch('/api/profile')
+      .send({
+        is_max_hr_estimated: true,
+        age: 37
+      });
+
+    expect(patchRes.status).toBe(200);
+    // Should prefer observed peak (199 bpm) over hardcoded Tanaka (182 bpm)
+    expect(patchRes.body.profile.max_hr).toBe(199);
+
+    const getRes = await request(app).get('/api/profile');
+    expect(getRes.body.observedPeakHr).toBeDefined();
+    expect(getRes.body.observedPeakHr.peakHr).toBe(199);
+    expect(getRes.body.maxHrSource).toBe('observed_run');
+    expect(getRes.body.effectiveMaxHr).toBe(199);
+
+    // Clean up test activity and restore profile
+    db.prepare('DELETE FROM activities WHERE id = ?').run('race-tt-test');
+    await request(app).patch('/api/profile').send({ max_hr: 203, is_max_hr_estimated: false });
+  });
+
   it('POST /api/activities/:id/weather/refresh fetches historical microclimate weather', async () => {
     const res = await request(app).post('/api/activities/24321232759/weather/refresh');
     expect(res.status).toBe(200);
@@ -184,6 +250,208 @@ describe('API Server Integration Tests', () => {
     const threshRes = await request(app).get('/api/activities/progress-history?run_type=threshold');
     expect(threshRes.status).toBe(200);
     expect(threshRes.body.months).toHaveLength(0);
+  });
+
+  it('POST /api/ingest/upload rejects invalid .fit buffer with 422', async () => {
+    const res = await request(app)
+      .post('/api/ingest/upload')
+      .send({ content: Buffer.from('invalid-fit-bytes').toString('base64'), filename: 'corrupted.fit' });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error).toContain('FIT parser error');
+  });
+
+  it('POST /api/ingest/upload ingests a base64-encoded native .fit running workout', async () => {
+    // Generate valid synthetic running FIT binary
+    const garminSec = 1126080000;
+    const defSession = [
+      0x40, 0x00, 0x00, 18, 0, 5,
+      253, 4, 0x86, 2, 4, 0x86, 5, 1, 0x00, 9, 4, 0x86, 8, 4, 0x86
+    ];
+    const sessionData = Buffer.alloc(1 + 17);
+    sessionData.writeUInt8(0x00, 0);
+    sessionData.writeUInt32LE(garminSec, 1);
+    sessionData.writeUInt32LE(garminSec, 5);
+    sessionData.writeUInt8(1, 9); // sport = running
+    sessionData.writeUInt32LE(500000, 10); // 5000m
+    sessionData.writeUInt32LE(1500000, 14); // 1500s
+
+    const defRecord = [
+      0x41, 0x00, 0x00, 20, 0, 4,
+      253, 4, 0x86, 3, 1, 0x02, 4, 1, 0x02, 5, 4, 0x86
+    ];
+    const recData = Buffer.alloc(1 + 10);
+    recData.writeUInt8(0x01, 0);
+    recData.writeUInt32LE(garminSec, 1);
+    recData.writeUInt8(142, 5); // 142 bpm
+    recData.writeUInt8(88, 6);  // cadence
+    recData.writeUInt32LE(20000, 7);
+
+    const payload = Buffer.concat([Buffer.from(defSession), sessionData, Buffer.from(defRecord), recData]);
+    const header = Buffer.alloc(14);
+    header.writeUInt8(14, 0);
+    header.writeUInt8(0x20, 1);
+    header.writeUInt16LE(0x0824, 2);
+    header.writeUInt32LE(payload.length, 4);
+    header.write('.FIT', 8, 'ascii');
+
+    const fitBase64 = Buffer.concat([header, payload]).toString('base64');
+
+    const res = await request(app)
+      .post('/api/ingest/upload')
+      .send({ content: fitBase64, filename: 'garmin_run_test.fit' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.result.status).toBe('imported');
+    expect(['easy_base', 'recovery']).toContain(res.body.result.runType);
+  });
+
+  it('POST /api/ingest/upload auto-detects FIT algorithm via magic bytes even without .fit extension', async () => {
+    // Re-use synthetic FIT with force: true and non-.fit filename
+    const garminSec = 1126080000;
+    const defSession = [
+      0x40, 0x00, 0x00, 18, 0, 5,
+      253, 4, 0x86, 2, 4, 0x86, 5, 1, 0x00, 9, 4, 0x86, 8, 4, 0x86
+    ];
+    const sessionData = Buffer.alloc(1 + 17);
+    sessionData.writeUInt8(0x00, 0);
+    sessionData.writeUInt32LE(garminSec, 1);
+    sessionData.writeUInt32LE(garminSec, 5);
+    sessionData.writeUInt8(1, 9);
+    sessionData.writeUInt32LE(500000, 10);
+    sessionData.writeUInt32LE(1500000, 14);
+
+    const defRecord = [
+      0x41, 0x00, 0x00, 20, 0, 4,
+      253, 4, 0x86, 3, 1, 0x02, 4, 1, 0x02, 5, 4, 0x86
+    ];
+    const recData = Buffer.alloc(1 + 10);
+    recData.writeUInt8(0x01, 0);
+    recData.writeUInt32LE(garminSec, 1);
+    recData.writeUInt8(142, 5);
+    recData.writeUInt8(88, 6);
+    recData.writeUInt32LE(20000, 7);
+
+    const payload = Buffer.concat([Buffer.from(defSession), sessionData, Buffer.from(defRecord), recData]);
+    const header = Buffer.alloc(14);
+    header.writeUInt8(14, 0);
+    header.writeUInt8(0x20, 1);
+    header.writeUInt16LE(0x0824, 2);
+    header.writeUInt32LE(payload.length, 4);
+    header.write('.FIT', 8, 'ascii');
+
+    const fitBase64 = Buffer.concat([header, payload]).toString('base64');
+
+    const res = await request(app)
+      .post('/api/ingest/upload')
+      .send({ content: fitBase64, filename: 'activity_data_file.dat', force: true });
+
+    expect(res.status).toBe(200);
+    expect(res.body.result.status).toBe('imported');
+  });
+
+  it('POST /api/ingest/scan scans data/raw and returns results array', async () => {
+    const res = await request(app).post('/api/ingest/scan');
+    expect(res.status).toBe(200);
+    expect(res.body.results).toBeDefined();
+    expect(Array.isArray(res.body.results)).toBe(true);
+  });
+
+  it('POST /api/ingest/upload returns 400 when content is missing', async () => {
+    const res = await request(app).post('/api/ingest/upload').send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('Missing content field');
+  });
+
+  it('POST /api/ingest/upload rejects non-running FIT activities with 422', async () => {
+    const garminSec = 1126080000;
+    const defSession = [
+      0x40, 0x00, 0x00, 18, 0, 5,
+      253, 4, 0x86, 2, 4, 0x86, 5, 1, 0x00, 9, 4, 0x86, 8, 4, 0x86
+    ];
+    const cycleSessionData = Buffer.alloc(1 + 17);
+    cycleSessionData.writeUInt8(0x00, 0);
+    cycleSessionData.writeUInt32LE(garminSec, 1);
+    cycleSessionData.writeUInt32LE(garminSec, 5);
+    cycleSessionData.writeUInt8(2, 9); // sport = cycling
+    cycleSessionData.writeUInt32LE(1500000, 10);
+    cycleSessionData.writeUInt32LE(3600000, 14);
+
+    const cyclePayload = Buffer.concat([Buffer.from(defSession), cycleSessionData]);
+    const header = Buffer.alloc(14);
+    header.writeUInt8(14, 0);
+    header.writeUInt8(0x20, 1);
+    header.writeUInt16LE(0x0824, 2);
+    header.writeUInt32LE(cyclePayload.length, 4);
+    header.write('.FIT', 8, 'ascii');
+
+    const cycleBase64 = Buffer.concat([header, cyclePayload]).toString('base64');
+    const res = await request(app)
+      .post('/api/ingest/upload')
+      .send({ content: cycleBase64, filename: 'cycling.fit' });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error).toContain('does not contain a supported running session');
+  });
+
+  it('POST /api/ingest/upload returns 400 when FIT content payload is invalid type', async () => {
+    const res = await request(app)
+      .post('/api/ingest/upload')
+      .send({ content: 123456 as any, filename: 'corrupt_type.fit' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('Invalid FIT content format');
+  });
+
+  it('POST /api/ingest/upload accepts data URI prefixed base64 content', async () => {
+    const garminSec = 1126080000;
+    const defSession = [
+      0x40, 0x00, 0x00, 18, 0, 5,
+      253, 4, 0x86, 2, 4, 0x86, 5, 1, 0x00, 9, 4, 0x86, 8, 4, 0x86
+    ];
+    const sessionData = Buffer.alloc(1 + 17);
+    sessionData.writeUInt8(0x00, 0);
+    sessionData.writeUInt32LE(garminSec, 1);
+    sessionData.writeUInt32LE(garminSec, 5);
+    sessionData.writeUInt8(1, 9);
+    sessionData.writeUInt32LE(500000, 10);
+    sessionData.writeUInt32LE(1500000, 14);
+
+    const defRecord = [
+      0x41, 0x00, 0x00, 20, 0, 4,
+      253, 4, 0x86, 3, 1, 0x02, 4, 1, 0x02, 5, 4, 0x86
+    ];
+    const recData = Buffer.alloc(1 + 10);
+    recData.writeUInt8(0x01, 0);
+    recData.writeUInt32LE(garminSec, 1);
+    recData.writeUInt8(142, 5);
+    recData.writeUInt8(88, 6);
+    recData.writeUInt32LE(20000, 7);
+
+    const payload = Buffer.concat([Buffer.from(defSession), sessionData, Buffer.from(defRecord), recData]);
+    const header = Buffer.alloc(14);
+    header.writeUInt8(14, 0);
+    header.writeUInt8(0x20, 1);
+    header.writeUInt16LE(0x0824, 2);
+    header.writeUInt32LE(payload.length, 4);
+    header.write('.FIT', 8, 'ascii');
+
+    const dataUri = `data:application/octet-stream;base64,${Buffer.concat([header, payload]).toString('base64')}`;
+    const res = await request(app)
+      .post('/api/ingest/upload')
+      .send({ content: dataUri, filename: 'data_uri_workout.fit', force: true });
+
+    expect(res.status).toBe(200);
+    expect(res.body.result.status).toBe('imported');
+  });
+
+  it('POST /api/ingest/upload returns 422 when CSV content fails parsing', async () => {
+    const res = await request(app)
+      .post('/api/ingest/upload')
+      .send({ content: '# comment only with no columns', filename: 'broken.csv' });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error).toContain('CSV file contains no valid records');
   });
 });
 

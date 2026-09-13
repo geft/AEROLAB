@@ -25,17 +25,38 @@ export function evaluateThresholdUpdate(
   let estimatedLt2Hr: number | null = null;
   let estimatedLt2Pace: number | null = null;
 
-  // 1. LT1 Candidate: Steady Base Run with low decoupling (< 4.5%)
+  // Retrieve athlete profile for baseline reference
+  let baselineLt1Hr: number | null = null;
+  try {
+    const prof = db.prepare('SELECT lt1_hr, max_hr, resting_hr FROM athlete_profile WHERE id = ?').get('primary') as any;
+    if (prof?.lt1_hr) baselineLt1Hr = prof.lt1_hr;
+  } catch {}
+
+  // 1. LT1 Candidate: Sustained Steady Aerobic Run with low decoupling (< 4.5%)
   const totalDuration = metadata.totalDurationSeconds || economy.movingDurationSeconds || 0;
+  const avgHr = economy.avgMovingHeartRate || 0;
+  const avgPace = economy.avgMovingPaceSecKm || 0;
+
+  // A genuine LT1 calibration effort requires steady state running near the aerobic threshold
+  // If athlete profile exists, low-intensity recovery jogs (e.g. 128-135 bpm) are sub-LT1 and do not depress the LT1 ceiling.
+  const isNearLt1 = baselineLt1Hr ? (avgHr >= Math.max(140, baselineLt1Hr - 6)) : true;
   const isLt1Candidate =
     (runType === 'easy_base' || runType === 'long_run') &&
     economy.aerobicDecouplingPct !== null &&
     economy.aerobicDecouplingPct < 4.5 &&
-    totalDuration >= 1500; // at least 25 mins
+    totalDuration >= 1500 && // at least 25 mins
+    isNearLt1;
 
-  if (isLt1Candidate && economy.avgMovingHeartRate && economy.avgMovingPaceSecKm) {
-    estimatedLt1Hr = Math.round(economy.avgMovingHeartRate);
-    estimatedLt1Pace = Math.round(economy.avgMovingPaceSecKm);
+  if (isLt1Candidate && avgHr && avgPace) {
+    estimatedLt1Hr = Math.round(avgHr);
+    estimatedLt1Pace = Math.round(avgPace);
+  } else if (baselineLt1Hr && (runType === 'easy_base' || runType === 'long_run') && economy.efficiencyFactor && economy.aerobicDecouplingPct !== null && economy.aerobicDecouplingPct < 4.5 && totalDuration >= 1500) {
+    // For very steady sub-LT1 runs, estimate pace at baseline LT1 using current economy without shifting LT1 HR
+    const speedMpsAtLt1 = (economy.efficiencyFactor * baselineLt1Hr) / 60;
+    if (speedMpsAtLt1 > 0) {
+      estimatedLt1Pace = Math.round(1000 / speedMpsAtLt1);
+      estimatedLt1Hr = baselineLt1Hr;
+    }
   }
 
   // 2. LT2 Candidate: Threshold run, quality intervals, or continuous race effort
@@ -179,15 +200,16 @@ export function getCurrentThresholds(db: Database.Database): {
 
     const profile = db.prepare('SELECT lt1_hr, lt2_hr, lt1_min_hr, lt1_max_hr FROM athlete_profile WHERE id = ?').get('primary') as any;
 
-    const lt1Hr = latest?.lt1_hr || profile?.lt1_hr || 148;
-    const lt2Hr = latest?.lt2_hr || profile?.lt2_hr || 167;
+    const baselineLt1 = profile?.lt1_hr || 148;
     const minLt1 = profile?.lt1_min_hr || 147;
     const maxLt1 = profile?.lt1_max_hr || 149;
+    const lt1Hr = (latest?.lt1_hr && latest.lt1_hr >= minLt1 && latest.lt1_hr <= maxLt1 + 3) ? latest.lt1_hr : baselineLt1;
+    const lt2Hr = latest?.lt2_hr || profile?.lt2_hr || 167;
 
     return {
       lt1Hr,
       lt2Hr,
-      lt1Range: [Math.min(minLt1, lt1Hr - 1), Math.max(maxLt1, lt1Hr + 1)],
+      lt1Range: [minLt1, maxLt1],
       lt1PaceSecKm: latest?.lt1_pace_sec_km || null,
       lt2PaceSecKm: latest?.lt2_pace_sec_km || null,
       confidence: latest?.confidence || 1.0,

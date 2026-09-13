@@ -264,4 +264,45 @@ describe('ProgressView UI Tests', () => {
       expect(screen.getByText('Singapore - Long Run (17.8 km)')).toBeDefined();
     });
   });
+
+  it('filters historical calibrations by LT1 Base and LT2 Threshold with dynamic count badge', async () => {
+    render(<ProgressView />);
+
+    await waitFor(() => {
+      expect(screen.getByText('2 of 2')).toBeDefined();
+    });
+
+    expect(screen.getByText('Singapore - Long Run (17.8 km)')).toBeDefined();
+    expect(screen.getByText('Singapore - Threshold (14.6 km)')).toBeDefined();
+
+    // Click LT1 Base filter
+    const lt1Btn = screen.getByRole('button', { name: 'LT1 Base' });
+    fireEvent.click(lt1Btn);
+
+    await waitFor(() => {
+      expect(screen.getByText('1 of 2')).toBeDefined();
+      expect(screen.getByText('Singapore - Long Run (17.8 km)')).toBeDefined();
+      expect(screen.queryByText('Singapore - Threshold (14.6 km)')).toBeNull();
+    });
+
+    // Click LT2 Threshold filter
+    const lt2Btn = screen.getByRole('button', { name: 'LT2 Threshold' });
+    fireEvent.click(lt2Btn);
+
+    await waitFor(() => {
+      expect(screen.getByText('1 of 2')).toBeDefined();
+      expect(screen.getByText('Singapore - Threshold (14.6 km)')).toBeDefined();
+      expect(screen.queryByText('Singapore - Long Run (17.8 km)')).toBeNull();
+    });
+
+    // Click All filter to reset
+    const allBtn = screen.getByRole('button', { name: 'All' });
+    fireEvent.click(allBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('2 of 2')).toBeDefined();
+      expect(screen.getByText('Singapore - Long Run (17.8 km)')).toBeDefined();
+      expect(screen.getByText('Singapore - Threshold (14.6 km)')).toBeDefined();
+    });
+  });
 });

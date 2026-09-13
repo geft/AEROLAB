@@ -23,6 +23,7 @@ export const ProgressView: React.FC = () => {
   const [data, setData] = useState<ThresholdData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [historyViewMode, setHistoryViewMode] = useState<'cards' | 'table'>('cards');
+  const [calFilter, setCalFilter] = useState<'all' | 'lt1' | 'lt2' | 'race'>('all');
   const [isEconomyGuideOpen, setIsEconomyGuideOpen] = useState<boolean>(false);
   const [isVdotGuideOpen, setIsVdotGuideOpen] = useState<boolean>(false);
 
@@ -51,6 +52,17 @@ export const ProgressView: React.FC = () => {
     });
   }, [data?.history]);
 
+  const filteredHistory = React.useMemo(() => {
+    return uniqueHistory.filter(h => {
+      const isLt2 = !!h.lt2_pace_sec_km;
+      const isRace = h.notes?.toLowerCase().includes('race') || h.activity_name?.toLowerCase().includes('time trial');
+      if (calFilter === 'lt1') return !isLt2 && !isRace;
+      if (calFilter === 'lt2') return isLt2 && !isRace;
+      if (calFilter === 'race') return isRace;
+      return true;
+    });
+  }, [uniqueHistory, calFilter]);
+
   if (loading || !data) {
     return (
       <div className="progress-grid">
@@ -72,7 +84,7 @@ export const ProgressView: React.FC = () => {
             Calibrated at {data.currentThresholds?.lt1Range ? `${data.currentThresholds.lt1Range[0]}–${data.currentThresholds.lt1Range[1]}` : (data.latest.lt1?.lt1_hr ?? '147–149')} bpm (Zone 2 Ceiling)
           </span>
           <div className="threshold-marker-badge">
-            <ShieldCheck size={12} /> Zone 2 Ceiling: 147–149 bpm
+            <ShieldCheck size={12} /> Zone 2 Ceiling: {data.currentThresholds?.lt1Range ? `${data.currentThresholds.lt1Range[0]}–${data.currentThresholds.lt1Range[1]}` : '147–149'} bpm
           </div>
         </div>
 
@@ -151,44 +163,79 @@ export const ProgressView: React.FC = () => {
 
       {/* Reorganized Historical Threshold Progression Milestones */}
       <section className="data-table-card">
-        <div className="sidebar-header" style={{ flexWrap: 'wrap', gap: '0.75rem' }}>
+        <div className="sidebar-header" style={{ flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Award size={18} color="#06b6d4" />
-              <span className="sidebar-title">Historical Threshold Calibrations ({uniqueHistory.length})</span>
+              <span className="sidebar-title">Historical Threshold Calibrations</span>
+              <span className="calibration-count-badge">
+                {filteredHistory.length} of {uniqueHistory.length}
+              </span>
             </div>
             <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
               Organized timeline of physiological threshold recalibrations detected across your quality and steady runs.
             </p>
           </div>
 
-          <div className="view-mode-toggle">
-            <button
-              className={`view-mode-btn ${historyViewMode === 'cards' ? 'active' : ''}`}
-              onClick={() => setHistoryViewMode('cards')}
-              title="Organized Milestone Cards"
-            >
-              <LayoutGrid size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-              Milestones
-            </button>
-            <button
-              className={`view-mode-btn ${historyViewMode === 'table' ? 'active' : ''}`}
-              onClick={() => setHistoryViewMode('table')}
-              title="Data Table View"
-            >
-              <List size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-              Table
-            </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+            {/* Type Filter Pills */}
+            <div className="calibration-filter-pills">
+              <button
+                className={`cal-filter-btn ${calFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setCalFilter('all')}
+              >
+                All
+              </button>
+              <button
+                className={`cal-filter-btn ${calFilter === 'lt1' ? 'active' : ''}`}
+                onClick={() => setCalFilter('lt1')}
+              >
+                LT1 Base
+              </button>
+              <button
+                className={`cal-filter-btn ${calFilter === 'lt2' ? 'active' : ''}`}
+                onClick={() => setCalFilter('lt2')}
+              >
+                LT2 Threshold
+              </button>
+              <button
+                className={`cal-filter-btn ${calFilter === 'race' ? 'active' : ''}`}
+                onClick={() => setCalFilter('race')}
+              >
+                Race Benchmark
+              </button>
+            </div>
+
+            {/* View Mode Toggle */}
+            <div className="view-mode-toggle">
+              <button
+                className={`view-mode-btn ${historyViewMode === 'cards' ? 'active' : ''}`}
+                onClick={() => setHistoryViewMode('cards')}
+                title="Organized Milestone Cards"
+              >
+                <LayoutGrid size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                Milestones
+              </button>
+              <button
+                className={`view-mode-btn ${historyViewMode === 'table' ? 'active' : ''}`}
+                onClick={() => setHistoryViewMode('table')}
+                title="Data Table View"
+              >
+                <List size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                Table
+              </button>
+            </div>
           </div>
         </div>
 
-        {historyViewMode === 'cards' ? (
-          <div className="calibration-timeline">
-            {uniqueHistory.map((h, idx) => {
-              const isLt2 = !!h.lt2_pace_sec_km;
-              const isRace = h.notes?.toLowerCase().includes('race') || h.activity_name?.toLowerCase().includes('time trial');
-              const cardClass = isRace ? 'race-card' : (isLt2 ? 'lt2-card' : 'lt1-card');
-              const distKm = h.distance_meters ? (h.distance_meters / 1000).toFixed(1) : null;
+        <div className="calibration-scroll-container">
+          {historyViewMode === 'cards' ? (
+            <div className="calibration-timeline">
+              {filteredHistory.map((h, idx) => {
+                const isLt2 = !!h.lt2_pace_sec_km;
+                const isRace = h.notes?.toLowerCase().includes('race') || h.activity_name?.toLowerCase().includes('time trial');
+                const cardClass = isRace ? 'race-card' : (isLt2 ? 'lt2-card' : 'lt1-card');
+                const distKm = h.distance_meters ? (h.distance_meters / 1000).toFixed(1) : null;
 
               return (
                 <div key={h.id || idx} className={`calibration-milestone-card ${cardClass}`}>
@@ -286,7 +333,7 @@ export const ProgressView: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {uniqueHistory.map((h, i) => (
+                {filteredHistory.map((h, i) => (
                   <tr key={h.id || i}>
                     <td><b>{formatDate(h.effective_date)}</b></td>
                     <td>{h.activity_name || 'Steady calibration run'}</td>
@@ -299,10 +346,10 @@ export const ProgressView: React.FC = () => {
                   </tr>
                 ))}
 
-                {uniqueHistory.length === 0 && (
+                {filteredHistory.length === 0 && (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', color: '#64748b' }}>
-                      Thresholds will automatically record here after your first steady Zone 2 or threshold run.
+                    <td colSpan={8} style={{ textAlign: 'center', color: '#64748b', padding: '2rem' }}>
+                      No threshold calibrations match the selected filter.
                     </td>
                   </tr>
                 )}
@@ -310,6 +357,7 @@ export const ProgressView: React.FC = () => {
             </table>
           </div>
         )}
+        </div>
       </section>
 
       <EconomyGuideModal

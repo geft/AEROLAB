@@ -96,7 +96,7 @@ describe('Navbar & Theme Switcher UI Component Tests', () => {
     expect(onToggleTheme).toHaveBeenCalledTimes(1);
   });
 
-  it('triggers onOpenUpload when Import CSV button is clicked', () => {
+  it('triggers onOpenUpload when Import FIT / CSV button is clicked', () => {
     const onOpenUpload = vi.fn();
     render(
       <Navbar
@@ -110,6 +110,7 @@ describe('Navbar & Theme Switcher UI Component Tests', () => {
 
     const uploadBtn = document.getElementById('nav-upload-btn');
     expect(uploadBtn).toBeTruthy();
+    expect(uploadBtn?.textContent).toContain('Import FIT / CSV');
     fireEvent.click(uploadBtn!);
     expect(onOpenUpload).toHaveBeenCalledTimes(1);
   });

@@ -3,6 +3,7 @@ import { Navbar, TabType } from './components/Navbar';
 import { BrowseView, ActivitySummary } from './components/BrowseView';
 import { ProgressView } from './components/ProgressView';
 import { StatsView } from './components/StatsView';
+import { ProfileView } from './components/ProfileView';
 import { UploadModal } from './components/UploadModal';
 import { Footer } from './components/Footer';
 
@@ -80,6 +81,8 @@ export const App: React.FC = () => {
         {activeTab === 'progress' && <ProgressView />}
 
         {activeTab === 'stats' && <StatsView />}
+
+        {activeTab === 'profile' && <ProfileView />}
       </main>
 
       <Footer />

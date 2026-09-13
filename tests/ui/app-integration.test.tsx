@@ -74,6 +74,29 @@ describe('AEROLAB App Full Integration Tests', () => {
           json: async () => mockDetail
         } as any;
       }
+      if (urlStr.includes('/api/profile')) {
+        return {
+          ok: true,
+          json: async () => ({
+            profile: {
+              id: 'primary',
+              name: 'GJ',
+              gender: 'Male',
+              age: 37,
+              resting_hr: 55,
+              max_hr: 203,
+              is_max_hr_estimated: 0,
+              goal_marathon: 'Sub-4'
+            },
+            currentThresholds: {
+              lt1Hr: 148,
+              lt2Hr: 172,
+              lt1PaceSecKm: 350,
+              lt2PaceSecKm: 250
+            }
+          })
+        } as any;
+      }
       if (urlStr.includes('/api/activities')) {
         return {
           ok: true,
@@ -123,8 +146,17 @@ describe('AEROLAB App Full Integration Tests', () => {
       expect(screen.getByText(/anaerobic \(lt2\) threshold/i)).toBeTruthy();
     });
 
-    // Switch back to Browse View
+    // Switch to Profile View
+    const profileTab = document.getElementById('tab-profile-btn');
+    expect(profileTab).toBeTruthy();
+    fireEvent.click(profileTab!);
 
+    await waitFor(() => {
+      expect(screen.getByText(/Runner Identity & Resting Baseline/i)).toBeTruthy();
+      expect(screen.getByText(/Continuously Inferred Physiological Thresholds/i)).toBeTruthy();
+    });
+
+    // Switch back to Browse View
     const browseTab = document.getElementById('tab-browse-btn');
     expect(browseTab).toBeTruthy();
     fireEvent.click(browseTab!);
@@ -136,6 +168,10 @@ describe('AEROLAB App Full Integration Tests', () => {
 
   it('persists Day Mode theme toggle to documentElement and localStorage', async () => {
     render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Easy Aerobic Base')).toBeTruthy();
+    });
 
     const themeBtn = await waitFor(() => {
       const btn = document.getElementById('theme-toggle-btn');
@@ -160,9 +196,12 @@ describe('AEROLAB App Full Integration Tests', () => {
     expect(themeBtn.textContent).toContain('Day Mode');
   });
 
-
   it('opens and closes the multi-file Upload CSV modal from navbar', async () => {
     render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Easy Aerobic Base')).toBeTruthy();
+    });
 
     const uploadBtn = document.getElementById('nav-upload-btn');
     expect(uploadBtn).toBeTruthy();
@@ -170,7 +209,7 @@ describe('AEROLAB App Full Integration Tests', () => {
     fireEvent.click(uploadBtn!);
 
     await waitFor(() => {
-      expect(screen.getByText('Import Garmin Run CSVs')).toBeTruthy();
+      expect(screen.getByText(/Import Garmin Runs/i)).toBeTruthy();
     });
 
     const closeBtn = document.querySelector('.modal-close-btn');

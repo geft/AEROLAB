@@ -44,10 +44,13 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
   const processFiles = async (fileList: FileList | File[]) => {
     const allFiles = Array.from(fileList);
-    const csvFiles = allFiles.filter(f => f.name.toLowerCase().endsWith('.csv'));
+    const validFiles = allFiles.filter(f => {
+      const l = f.name.toLowerCase();
+      return l.endsWith('.csv') || l.endsWith('.fit');
+    });
 
-    if (csvFiles.length === 0) {
-      setError('Please upload .csv file(s) exported from run-parser.');
+    if (validFiles.length === 0) {
+      setError('Please upload .fit or .csv file(s) exported from your Garmin device or run-parser.');
       return;
     }
 
@@ -62,16 +65,29 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     const errorDetails: FileError[] = [];
     const skippedDetails: Array<{ filename: string; reason: string }> = [];
 
-    for (let i = 0; i < csvFiles.length; i++) {
-      const file = csvFiles[i];
+    for (let i = 0; i < validFiles.length; i++) {
+      const file = validFiles[i];
       setProgress({
         current: i + 1,
-        total: csvFiles.length,
+        total: validFiles.length,
         currentFileName: file.name
       });
 
       try {
-        const content = await file.text();
+        let content: string;
+        if (file.name.toLowerCase().endsWith('.fit')) {
+          const buffer = await file.arrayBuffer();
+          let binary = '';
+          const bytes = new Uint8Array(buffer);
+          const len = bytes.byteLength;
+          for (let b = 0; b < len; b++) {
+            binary += String.fromCharCode(bytes[b]);
+          }
+          content = btoa(binary);
+        } else {
+          content = await file.text();
+        }
+
         const res = await fetch('/api/ingest/upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -116,7 +132,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     setUploading(false);
     setProgress(null);
     const batchSummary: BatchSummary = {
-      total: csvFiles.length,
+      total: validFiles.length,
       imported,
       skipped,
       errors,
@@ -129,7 +145,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     }
 
     // If single file and successfully imported without error, auto-close after a short preview
-    if (csvFiles.length === 1 && imported === 1 && errors === 0) {
+    if (validFiles.length === 1 && imported === 1 && errors === 0) {
       setStatusMessage('Activity successfully imported!');
       setTimeout(() => {
         handleClose();
@@ -166,7 +182,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Files size={20} color="var(--accent-cyan)" />
-            <h2 className="modal-title" style={{ color: 'var(--text-primary)' }}>Import Garmin Run CSVs</h2>
+            <h2 className="modal-title" style={{ color: 'var(--text-primary)' }}>Import Garmin Runs (FIT or CSV)</h2>
           </div>
           <button className="modal-close-btn" onClick={handleClose}><X size={20} /></button>
         </div>
@@ -183,17 +199,17 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
               <UploadCloud size={44} color="var(--accent-cyan)" />
               <div>
                 <p style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
-                  Drag & Drop one or multiple CSV files here
+                  Drag & Drop one or multiple FIT or CSV files here
                 </p>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                  Supports multi-file batch upload — select as many runs as you like
+                  Supports multi-file batch upload — native Garmin .FIT and exported .CSV
                 </p>
               </div>
               <input
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileSelect}
-                accept=".csv"
+                accept=".csv,.fit,.FIT"
                 multiple
                 style={{ display: 'none' }}
               />

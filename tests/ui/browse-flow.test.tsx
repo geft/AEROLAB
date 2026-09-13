@@ -25,7 +25,7 @@ describe('BrowseView User Flow & Navigation Tests', () => {
       efficiency_factor: 1.25,
       aerobic_decoupling_pct: 2.1,
       meters_per_beat: 3.1,
-      tags: JSON.stringify(['Easy Base', 'Morning Run'])
+      tags: JSON.stringify(['Easy Base', 'Recovery'])
     }
   ];
 
@@ -226,12 +226,15 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Morning Run')).toBeTruthy();
+      expect(screen.getAllByText('Recovery').length).toBeGreaterThan(0);
     });
 
     // Open tag menu
     const addTagBtn = screen.getByRole('button', { name: /tag/i });
     fireEvent.click(addTagBtn);
+
+    // Ensure no free-form text input exists for typing arbitrary new tags
+    expect(screen.queryByPlaceholderText(/type tag/i)).toBeNull();
 
     // Click 'Strides' preset
     const presetBtn = screen.getByText('Strides', { selector: 'span' });
@@ -242,7 +245,7 @@ describe('BrowseView User Flow & Navigation Tests', () => {
         '/api/activities/act-101',
         expect.objectContaining({
           method: 'PATCH',
-          body: JSON.stringify({ tags: ['Easy Base', 'Morning Run', 'Strides'] })
+          body: JSON.stringify({ tags: ['Easy Base', 'Recovery', 'Strides'] })
         })
       );
     });

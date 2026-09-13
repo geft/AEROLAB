@@ -33,8 +33,15 @@ export function getDatabase(dbPath?: string): Database.Database {
   db.pragma('foreign_keys = ON');
 
   // Initialize schema
-  const schemaPath = path.resolve(__dirname, 'schema.sql');
-  if (fs.existsSync(schemaPath)) {
+  const candidateSchemaPaths = [
+    path.resolve(__dirname, 'schema.sql'),
+    path.resolve(__dirname, 'db', 'schema.sql'),
+    path.resolve(__dirname, 'src', 'backend', 'db', 'schema.sql'),
+    path.resolve(process.cwd(), 'src', 'backend', 'db', 'schema.sql'),
+    path.resolve(process.cwd(), 'dist-backend', 'schema.sql')
+  ];
+  const schemaPath = candidateSchemaPaths.find(p => fs.existsSync(p));
+  if (schemaPath) {
     const schemaSql = fs.readFileSync(schemaPath, 'utf8');
     db.exec(schemaSql);
   }
@@ -191,6 +198,9 @@ export function getDatabase(dbPath?: string): Database.Database {
     if (!profileColNames.has('lt2_hr')) db.exec("ALTER TABLE athlete_profile ADD COLUMN lt2_hr INTEGER DEFAULT 167");
     if (!profileColNames.has('lt1_min_hr')) db.exec("ALTER TABLE athlete_profile ADD COLUMN lt1_min_hr INTEGER DEFAULT 147");
     if (!profileColNames.has('lt1_max_hr')) db.exec("ALTER TABLE athlete_profile ADD COLUMN lt1_max_hr INTEGER DEFAULT 149");
+    if (!profileColNames.has('name')) db.exec("ALTER TABLE athlete_profile ADD COLUMN name TEXT DEFAULT 'GJ'");
+    if (!profileColNames.has('gender')) db.exec("ALTER TABLE athlete_profile ADD COLUMN gender TEXT DEFAULT 'Male'");
+    if (!profileColNames.has('is_max_hr_estimated')) db.exec("ALTER TABLE athlete_profile ADD COLUMN is_max_hr_estimated INTEGER DEFAULT 0");
 
     const existingProfile = db.prepare('SELECT id, z3_start_hr FROM athlete_profile WHERE id = ?').get('primary') as any;
     if (!existingProfile) {
@@ -232,17 +242,21 @@ export function getDatabase(dbPath?: string): Database.Database {
         )
       `).run(JSON.stringify(schedule), JSON.stringify(preferences));
     } else {
-      // Update existing record if it had older generic defaults
+      // Update existing record if it had older generic defaults or deprecated depressed LT1
       db.prepare(`
         UPDATE athlete_profile SET
-          lt1_hr = COALESCE(lt1_hr, 148),
+          lt1_hr = CASE WHEN lt1_hr < 144 THEN 148 ELSE COALESCE(lt1_hr, 148) END,
           lt2_hr = COALESCE(lt2_hr, 167),
           lt1_min_hr = COALESCE(lt1_min_hr, 147),
           lt1_max_hr = COALESCE(lt1_max_hr, 149),
-          z3_start_hr = CASE WHEN z3_start_hr = 160 THEN 149 ELSE z3_start_hr END,
+          z3_start_hr = CASE WHEN z3_start_hr < 145 OR z3_start_hr = 160 THEN 149 ELSE z3_start_hr END,
           z4_start_hr = CASE WHEN z4_start_hr = 175 THEN 167 ELSE z4_start_hr END
         WHERE id = 'primary'
       `).run();
+
+      // Clean up historical calibrations where sub-threshold recovery runs were erroneously saved as LT1
+      db.prepare('DELETE FROM physiological_thresholds WHERE lt1_hr IS NOT NULL AND lt1_hr < 142 AND lt2_hr IS NULL').run();
+      db.prepare('UPDATE physiological_thresholds SET lt1_hr = NULL WHERE lt1_hr < 142').run();
     }
   } catch (err) {
     // Non-fatal if table cannot be created or already exists
@@ -375,10 +389,6 @@ export function getDatabase(dbPath?: string): Database.Database {
         const hasStrides = intervals.some(i => i.type === 'stride') || nameLower.includes('stride');
         if (hasStrides && !initialTags.includes('Strides')) {
           initialTags.push('Strides');
-        }
-
-        if (classification.isFailedWorkout && !initialTags.includes('Failed Workout')) {
-          initialTags.push('Failed Workout');
         }
 
         db.prepare(`

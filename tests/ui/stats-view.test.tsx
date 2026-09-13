@@ -145,4 +145,33 @@ describe('StatsView UI Tests', () => {
       expect(global.fetch).toHaveBeenCalledWith('/api/activities/volume?period=all');
     });
   });
+
+  it('opens and closes Aerobic Turnpoint Margin Guide Modal when info (?) button is clicked', async () => {
+    render(<StatsView />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Aerobic Turnpoint Margin')).toBeDefined();
+    });
+
+    const infoBtn = screen.getByLabelText('Aerobic Turnpoint Margin Guide');
+    expect(infoBtn).toBeDefined();
+    fireEvent.click(infoBtn);
+
+    // Modal is rendered
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Aerobic Turnpoint Margin Guide' })).toBeDefined();
+      expect(screen.getByText(/What is the Aerobic Turnpoint Margin\?/i)).toBeDefined();
+      expect(screen.getByText(/Target Benchmarks & Standards/i)).toBeDefined();
+      expect(screen.getByText(/35–50s\/km Gap/i)).toBeDefined();
+      expect(screen.getByText(/50–70s\/km Gap/i)).toBeDefined();
+    });
+
+    // Close modal via Got It button
+    const closeBtn = screen.getByRole('button', { name: 'Got It' });
+    fireEvent.click(closeBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Aerobic Turnpoint Margin Guide')).toBeNull();
+    });
+  });
 });

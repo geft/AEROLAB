@@ -432,6 +432,18 @@ activitiesRouter.get('/:id', async (req, res) => {
 });
 
 
+export const ALLOWED_TAGS = [
+  'Easy Base',
+  'Long Run',
+  'Recovery',
+  'Threshold',
+  'VO2 Max',
+  'Tempo',
+  'Marathon Pace',
+  'Strides',
+  'Race'
+];
+
 // PATCH /api/activities/:id - manual override for run_type or notes
 activitiesRouter.patch('/:id', (req, res) => {
   try {
@@ -455,8 +467,27 @@ activitiesRouter.patch('/:id', (req, res) => {
       params.push(name);
     }
     if (tags !== undefined) {
+      let tagList: string[] = [];
+      if (Array.isArray(tags)) {
+        tagList = tags;
+      } else if (typeof tags === 'string') {
+        try {
+          const parsed = JSON.parse(tags);
+          tagList = Array.isArray(parsed) ? parsed : [tags];
+        } catch {
+          tagList = [tags];
+        }
+      }
+
+      const invalidTags = tagList.filter(t => !ALLOWED_TAGS.includes(t));
+      if (invalidTags.length > 0) {
+        return res.status(400).json({
+          error: `Invalid tags: ${invalidTags.join(', ')}. Only existing tags are allowed (${ALLOWED_TAGS.join(', ')}).`
+        });
+      }
+
       updates.push('tags = ?');
-      params.push(typeof tags === 'string' ? tags : JSON.stringify(tags));
+      params.push(JSON.stringify(tagList));
     }
 
     if (updates.length === 0) {
@@ -493,6 +524,9 @@ activitiesRouter.get('/:id/coach-summary', (req, res) => {
       coachSummary: {
         headline: coachRow.headline,
         effectivenessScore: coachRow.effectiveness_score,
+        rating5: Number((coachRow.effectiveness_score / 20).toFixed(1)),
+        stars: coachRow.effectiveness_score >= 85 ? 3 : coachRow.effectiveness_score >= 70 ? 2 : 1,
+        scoreBreakdown: coachRow.score_breakdown_json ? JSON.parse(coachRow.score_breakdown_json) : [],
         keyInsights: JSON.parse(coachRow.key_insights_json || '[]'),
         recommendation: coachRow.recommendation,
         updatedAt: coachRow.updated_at,

@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
 import { parseRunCSV, ParsedCSV } from './csv-parser';
+import { convertFitToCsv, isFitBuffer } from './fit-parser.js';
 import { calculateEconomy, calculateKmSplits } from '../physiology/economy.js';
 import { detectIntervals } from './interval-detector.js';
 import { classifyRun } from './classifier.js';
@@ -34,8 +35,19 @@ export function importRunFile(db: Database.Database, filePath: string, options: 
       return { status: 'error', error: `File not found: ${filePath}` };
     }
 
-    const content = fs.readFileSync(filePath, 'utf8');
     const filename = path.basename(filePath);
+    const buffer = fs.readFileSync(filePath);
+
+    // Auto-detect algorithm: Garmin FIT binary vs standard CSV
+    if (isFitBuffer(buffer) || filename.toLowerCase().endsWith('.fit')) {
+      const fitResult = convertFitToCsv(buffer, filename);
+      if (!fitResult.csv) {
+        return { status: 'error', error: 'FIT file does not contain a supported running session' };
+      }
+      return importRunContent(db, fitResult.csv, filename, options);
+    }
+
+    const content = buffer.toString('utf8');
     return importRunContent(db, content, filename, options);
   } catch (err: any) {
     return { status: 'error', error: err.message };
@@ -48,8 +60,13 @@ export function importRunContent(
   filename: string,
   options: ImportOptions = {}
 ): ImportResult {
-  const parsed = parseRunCSV(content, filename);
-  const { fileHash, metadata, records } = parsed;
+  try {
+    const parsed = parseRunCSV(content, filename);
+    const { fileHash, metadata, records } = parsed;
+
+    if (!records || records.length === 0) {
+      return { status: 'error', error: 'CSV file contains no valid records' };
+    }
 
   // 1. Check for duplicate via hash OR matching activity ID
   const existing = db.prepare('SELECT id, source_file_hash FROM activities WHERE source_file_hash = ? OR id = ?').get(fileHash, metadata.id) as { id: string; source_file_hash: string } | undefined;
@@ -203,11 +220,6 @@ export function importRunContent(
     initialTags.push('Strides');
   }
 
-  // Failed workout tag
-  if (classification.isFailedWorkout && !initialTags.includes('Failed Workout')) {
-    initialTags.push('Failed Workout');
-  }
-
   const pb = economy.pauseBreakdown;
 
   const transaction = db.transaction(() => {
@@ -318,23 +330,29 @@ export function importRunContent(
   // Automatically fetch microclimate historical weather in the background
   syncActivityWeather(db, metadata.id).catch(() => {});
 
-  return {
-    status: 'imported',
-    activityId: metadata.id,
-    name: metadata.name,
-    date: metadata.date,
-    runType: classification.runType,
-    distanceKm: Number((metadata.totalDistanceMeters / 1000).toFixed(2)),
-    durationMin: Number((metadata.totalDurationSeconds / 60).toFixed(1)),
-    efficiencyFactor: economy.efficiencyFactor,
-    aerobicDecouplingPct: economy.aerobicDecouplingPct,
-    intervalsDetected: intervals.length
-  };
+    return {
+      status: 'imported',
+      activityId: metadata.id,
+      name: metadata.name,
+      date: metadata.date,
+      runType: classification.runType,
+      distanceKm: Number((metadata.totalDistanceMeters / 1000).toFixed(2)),
+      durationMin: Number((metadata.totalDurationSeconds / 60).toFixed(1)),
+      efficiencyFactor: economy.efficiencyFactor,
+      aerobicDecouplingPct: economy.aerobicDecouplingPct,
+      intervalsDetected: intervals.length
+    };
+  } catch (err: any) {
+    return { status: 'error', error: err.message || 'Failed to parse and import run' };
+  }
 }
 
 export function importDirectory(db: Database.Database, dirPath: string, options: ImportOptions = {}): ImportResult[] {
   if (!fs.existsSync(dirPath)) return [];
-  const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.csv'));
+  const files = fs.readdirSync(dirPath).filter(f => {
+    const l = f.toLowerCase();
+    return l.endsWith('.csv') || l.endsWith('.fit');
+  });
   const results: ImportResult[] = [];
   for (const file of files) {
     results.push(importRunFile(db, path.join(dirPath, file), options));

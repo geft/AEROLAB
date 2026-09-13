@@ -2,6 +2,7 @@ import { Router } from 'express';
 import path from 'path';
 import { getDatabase } from '../db/client.js';
 import { importDirectory, importRunContent } from '../ingestion/importer.js';
+import { convertFitToCsv, isFitBuffer } from '../ingestion/fit-parser.js';
 
 export const ingestRouter = Router();
 
@@ -17,7 +18,7 @@ ingestRouter.post('/scan', (req, res) => {
   }
 });
 
-// POST /api/ingest/upload - upload CSV content directly
+// POST /api/ingest/upload - upload CSV or FIT content directly
 ingestRouter.post('/upload', (req, res) => {
   const { content, filename, force } = req.body;
   try {
@@ -25,7 +26,59 @@ ingestRouter.post('/upload', (req, res) => {
     if (!content) {
       return res.status(400).json({ error: 'Missing content field' });
     }
-    const result = importRunContent(db, content, filename || 'uploaded_run.csv', { force: Boolean(force) });
+
+    let csvContent = content;
+    let isFit = Boolean(filename && filename.toLowerCase().endsWith('.fit'));
+    let fitBuffer: Buffer | null = null;
+
+    // Auto-detect algorithm based on buffer magic bytes (.FIT at offset 8)
+    if (Buffer.isBuffer(content)) {
+      fitBuffer = content;
+      if (isFitBuffer(fitBuffer)) isFit = true;
+    } else if (typeof content === 'string') {
+      const rawBase64 = content.includes(';base64,') ? content.split(';base64,')[1] : content;
+      if (isFit) {
+        try {
+          fitBuffer = Buffer.from(rawBase64, 'base64');
+        } catch {}
+      } else {
+        // Probe if string is base64-encoded FIT binary
+        try {
+          if (!rawBase64.startsWith('Activity') && !rawBase64.startsWith('timestamp') && !rawBase64.startsWith('time') && !rawBase64.startsWith('Date')) {
+            const probe = Buffer.from(rawBase64.slice(0, 64), 'base64');
+            if (isFitBuffer(probe)) {
+              isFit = true;
+              fitBuffer = Buffer.from(rawBase64, 'base64');
+            }
+          }
+        } catch {}
+      }
+    }
+
+    if (isFit) {
+      try {
+        if (!fitBuffer) {
+          if (Buffer.isBuffer(content)) {
+            fitBuffer = content;
+          } else if (typeof content === 'string') {
+            const rawBase64 = content.includes(';base64,') ? content.split(';base64,')[1] : content;
+            fitBuffer = Buffer.from(rawBase64, 'base64');
+          } else {
+            return res.status(400).json({ error: 'Invalid FIT content format' });
+          }
+        }
+
+        const fitResult = convertFitToCsv(fitBuffer, filename || 'activity.fit');
+        if (!fitResult.csv) {
+          return res.status(422).json({ error: 'FIT file does not contain a supported running session', filename });
+        }
+        csvContent = fitResult.csv;
+      } catch (fitErr: any) {
+        return res.status(422).json({ error: `FIT parser error: ${fitErr.message}`, filename });
+      }
+    }
+
+    const result = importRunContent(db, csvContent, filename || 'uploaded_run.csv', { force: Boolean(force) });
     if (result.status === 'error') {
       return res.status(422).json({ error: result.error || 'Failed to process run content', result });
     }

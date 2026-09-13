@@ -45,7 +45,7 @@ describe('Threshold Tracker Unit Tests', () => {
     const economy: EconomyMetrics = {
       movingDurationSeconds: 2400, // 40 mins
       movingDistanceMeters: 7500,
-      avgMovingHeartRate: 138,
+      avgMovingHeartRate: 145,
       avgMovingPaceSecKm: 320,
       efficiencyFactor: 1.28,
       metersPerBeat: 3.12,
@@ -66,17 +66,46 @@ describe('Threshold Tracker Unit Tests', () => {
       economy
     );
 
-    expect(estimate.lt1Hr).toBe(138);
+    expect(estimate.lt1Hr).toBe(145);
     expect(estimate.lt1PaceSecKm).toBe(320);
     expect(estimate.lt2Hr).toBeNull();
 
     // Verify written to database table
     const stored = db.prepare('SELECT * FROM physiological_thresholds WHERE source_activity_id = ?').get('test-act-001') as any;
     expect(stored).toBeDefined();
-    expect(stored.lt1_hr).toBe(138);
+    expect(stored.lt1_hr).toBe(145);
     expect(stored.lt1_pace_sec_km).toBe(320);
     expect(stored.confidence).toBe(0.9);
     expect(stored.notes).toContain('Decoupling: 2.3%');
+  });
+
+  it('does NOT depress LT1 ceiling on light recovery/sub-LT1 base runs', () => {
+    const recoveryEconomy: EconomyMetrics = {
+      movingDurationSeconds: 2400,
+      movingDistanceMeters: 6500,
+      avgMovingHeartRate: 132, // Sub-LT1 recovery jog
+      avgMovingPaceSecKm: 370,
+      efficiencyFactor: 1.15,
+      metersPerBeat: 2.8,
+      firstHalfEf: 1.16,
+      secondHalfEf: 1.14,
+      aerobicDecouplingPct: 1.7
+    };
+
+    insertParentActivity('test-act-rec');
+
+    const estimate = evaluateThresholdUpdate(
+      db,
+      'test-act-rec',
+      '2026-09-10 07:00:00',
+      'easy_base',
+      dummyMetadata,
+      dummyRecords,
+      recoveryEconomy
+    );
+
+    // Should preserve baseline LT1 (148) and NOT depress ceiling down to 132
+    expect(estimate.lt1Hr).toBe(148);
   });
 
   it('does NOT calibrate LT1 when decoupling is high or duration is under 30 minutes', () => {

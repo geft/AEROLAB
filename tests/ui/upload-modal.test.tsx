@@ -30,8 +30,8 @@ describe('UploadModal Multi-File UI Component Tests', () => {
       />
     );
 
-    expect(screen.getByText('Import Garmin Run CSVs')).toBeTruthy();
-    expect(screen.getByText(/drag & drop one or multiple csv files here/i)).toBeTruthy();
+    expect(screen.getByText(/Import Garmin Runs/i)).toBeTruthy();
+    expect(screen.getByText(/drag & drop one or multiple/i)).toBeTruthy();
     expect(screen.getByText(/supports multi-file batch upload/i)).toBeTruthy();
     expect(screen.getByLabelText(/overwrite \/ re-calculate if activity was already imported/i)).toBeTruthy();
   });
@@ -48,11 +48,11 @@ describe('UploadModal Multi-File UI Component Tests', () => {
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     expect(input).toBeTruthy();
 
-    const badFile = new File(['dummy content'], 'run.fit', { type: 'application/octet-stream' });
+    const badFile = new File(['dummy content'], 'run.txt', { type: 'text/plain' });
     fireEvent.change(input, { target: { files: [badFile] } });
 
     await waitFor(() => {
-      expect(screen.getByText(/please upload \.csv file\(s\) exported from run-parser/i)).toBeTruthy();
+      expect(screen.getByText(/please upload \.fit or \.csv file\(s\)/i)).toBeTruthy();
     });
   });
 

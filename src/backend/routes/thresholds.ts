@@ -36,7 +36,7 @@ thresholdsRouter.get('/', (req, res) => {
     const latestLt1Row = db.prepare(`
       SELECT lt1_hr, lt1_pace_sec_km, effective_date, baseline_economy_ef
       FROM physiological_thresholds
-      WHERE lt1_hr IS NOT NULL
+      WHERE lt1_hr IS NOT NULL AND lt1_hr >= 142
       ORDER BY effective_date DESC, id DESC
       LIMIT 1
     `).get() as { lt1_hr: number; lt1_pace_sec_km: number; effective_date: string; baseline_economy_ef: number } | undefined;

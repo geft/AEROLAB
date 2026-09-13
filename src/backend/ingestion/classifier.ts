@@ -143,7 +143,7 @@ export function classifyRun(
 
   // 6. Recovery run check (governed strictly by duration and low cardiovascular strain: <= 50 min, avg HR <= 136 bpm or < 72% max HR)
   const isExplicitRecovery = nameLower.includes('recovery');
-  const isRecoveryHr = maxHr > 0 ? (avgHr <= 136 || avgHr < maxHr * 0.72) : avgHr <= 136;
+  const isRecoveryHr = avgHr <= 136 || avgHr < maxHr * 0.72;
   if (isExplicitRecovery || (durationMin <= 50 && isRecoveryHr)) {
     return {
       runType: 'recovery',

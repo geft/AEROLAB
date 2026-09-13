@@ -1,7 +1,7 @@
 import React from 'react';
 import { UploadCloud, Sun, Moon } from 'lucide-react';
 
-export type TabType = 'browse' | 'progress' | 'stats';
+export type TabType = 'browse' | 'progress' | 'stats' | 'profile';
 
 interface NavbarProps {
   activeTab: TabType;
@@ -49,6 +49,13 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           Stats
         </button>
+        <button
+          id="tab-profile-btn"
+          className={`nav-tab-btn ${activeTab === 'profile' ? 'active' : ''}`}
+          onClick={() => onTabChange('profile')}
+        >
+          Profile
+        </button>
       </nav>
 
       <div className="nav-actions">
@@ -72,9 +79,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </button>
 
-        <button id="nav-upload-btn" className="upload-btn" onClick={onOpenUpload}>
+        <button id="nav-upload-btn" className="upload-btn" onClick={onOpenUpload} title="Import Garmin FIT or CSV runs">
           <UploadCloud size={16} />
-          <span>Import CSV</span>
+          <span>Import FIT / CSV</span>
         </button>
       </div>
     </header>

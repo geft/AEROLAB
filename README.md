@@ -131,44 +131,117 @@ npm install
 ```
 
 ### 2. Run Automated Tests
-Runs the complete test suite (19 test suites, 78 automated tests) spanning physiology unit tests, API integration, and React UI user flows:
+Runs the complete test suite (21 test suites, 115 automated tests) spanning physiology unit tests, binary/CSV ingestion, API integration, and React UI user flows:
 ```bash
 npm test
 ```
-- **Physiology & Scoring**: `coach-summary`, `threshold-tracker`, `zones`, `weather`, `downsampler`, `classifier`, `csv-parser`, `economy`, `predictions`, `interval-detector`.
-- **API & Ingestion Integration**: In-memory SQLite testing, SHA-256 deduplication, force overwrite, `PATCH /api/activities/:id` title/notes/tags updates, and type filters.
-- **Frontend UI / User Flow Integration**: `navbar-theme` (Day/Night mode & tabs), `upload-modal` (batch multi-file drag-and-drop & progress), `browse-flow` (subtabs, AI Coach card, tag manager, score breakdown, inline rename), and `app-integration` (end-to-end multi-view navigation).
+- **Physiology & Parser Unit Tests (12 suites)**: `fit-parser` (Garmin binary protocol, session/record definitions, sport detection), `threshold-tracker` (LT1/LT2 continuous calibration, sub-LT1 baseline preservation), `coach-summary`, `zones` (Karvonen HRR & 5-tier physiological zones), `weather`, `downsampler`, `classifier`, `csv-parser`, `economy` (EF & decoupling), `predictions` (Daniels VDOT & Riegel), `interval-detector`, and `formatters`.
+- **API & Ingestion Integration Tests (2 suites)**: In-memory SQLite testing, binary `.fit` Base64 upload & CSV parsing, SHA-256 deduplication, force overwrite, `PATCH /api/profile` with Tanaka auto-estimation, `PATCH /api/activities/:id` title/notes/tags updates, and type filters.
+- **Frontend UI / User Flow Integration Tests (7 suites)**:
+  - `profile-view`: Runner demographics, Tanaka auto-estimation on age change, non-editable inferred physiological thresholds, gender selector, and marathon race goals.
+  - `stats-view`: Volume analytics, month picker dropdown, and Aerobic Turnpoint Margin educational guide modal.
+  - `progress-view`: VDOT & Economy guide modals, milestone cards vs data table, LT1 Base vs LT2 Threshold filters, and dynamic count badges.
+  - `upload-modal`: Batch multi-file drag-and-drop (`.fit` and `.csv`), progress tracking, and error diagnostics.
+  - `navbar-theme`: Day/Night mode theme toggle and navigation tabs.
+  - `browse-flow`: Subtabs, AI Coach card, tag manager, score breakdown, and inline activity rename.
+  - `app-integration`: End-to-end multi-view navigation across Browse, Progress, Stats, and Profile tabs.
 
-### 3. Start Backend API Server
+### 3. Start Backend & Frontend Concurrently (Recommended)
 ```bash
-npm run dev:backend
+npm run dev
 ```
-The REST API server runs at `http://localhost:3001`:
-- Health check: `http://localhost:3001/api/health`
-- Activities list: `http://localhost:3001/api/activities`
-- Single run detail: `http://localhost:3001/api/activities/:id`
-- Physiological thresholds: `http://localhost:3001/api/thresholds`
+Starts both the Express REST API (`http://localhost:3001`) and the Vite React UI (`http://localhost:5173`) concurrently in a single terminal on Windows, macOS, or Linux.
+- Backend API: `http://localhost:3001`
+- Frontend Dashboard: `http://localhost:5173`
 
-### 4. Start Frontend Dashboard
+> [!NOTE]
+> **Why `npm run dev`?** In the Node.js / npm ecosystem, `run` is a built-in CLI command keyword of npm itself (like `npm test` or `npm install`). It is an internal directive that tells npm to execute the script named `dev` from `package.json`. It does **not** reference, require, or conflict with any npm package, module, or directory named "run".
+
+Alternatively, you can run them in separate terminal windows:
 ```bash
-npm run dev:frontend
+npm run dev:backend   # Express API server (port 3001)
+npm run dev:frontend  # Vite React dev server (port 5173)
 ```
-Frontend runs at `http://localhost:5173`.
 
----
+### 4. Updating to the Latest Build
+To update your local setup to the latest build, install any new dependencies, and compile the production bundle:
+```bash
+npm run update
+```
+This cross-platform script executes:
+1. `git pull` (fetches the latest code)
+2. `npm install` (installs any newly added dependencies)
+3. `npm run build:all` (compiles both frontend and backend production bundles)
 
-## How to Import Runs
+### 5. Running as a Standalone Desktop App (Electron)
+AEROLAB can run locally as a native desktop application with an embedded Node.js/SQLite engine and dedicated window:
+```bash
+npm run electron:start
+```
+To bundle a local Windows executable (`.exe` installer and portable build) on your machine:
+```bash
+npm run electron:build
+```
+The output executable will be placed in the `release/` directory.
+
+### 6. Automated Windows `.exe` Releases via GitHub Actions
+For non-technical users who want to run AEROLAB without installing Node.js, Git, or touching a terminal:
+1. **Triggering a Build**:
+   - **Via Git Tag**: Push a release tag, e.g. `git tag v1.0.0 && git push origin v1.0.0`.
+   - **Via GitHub Web UI**: Go to the **Actions** tab on GitHub, select **Release Windows Desktop App**, and click **Run workflow**.
+2. **Download & Install**:
+   - GitHub Actions automatically runs the automated tests, compiles the frontend/backend bundles, packages the Windows installer (`AEROLAB-Setup-x64.exe`), and attaches it to the repository **Releases** page.
+   - Simply download `AEROLAB-Setup-x64.exe` and double-click to install.
+3. **Data Isolation & Privacy**:
+   - When running as an installed desktop app, each user's running database is safely stored in their personal Windows AppData folder (`%APPDATA%/aerolab/runs.db`).
+   - Updating or reinstalling the application never overwrites or deletes the athlete's local running data.
+
+## Data Population & Ingestion Methods
+
+AEROLAB offers multiple flexible ways to populate your running history from native Garmin `.fit` binary files or exported `.csv` files:
 
 ### Method A: Drag & Drop in the Web Dashboard (Recommended)
 1. Open `http://localhost:5173` in your browser.
-2. Click the **"Import CSV"** button in the navigation bar.
-3. Drag and drop **one or multiple `.csv` or `.fit` files** (batch upload supported).
-4. A live progress bar tracks batch ingestion in-memory directly into SQLite with SHA-256 deduplication and an optional overwrite checkbox. No raw files are saved to disk.
+2. Click the **"Import FIT / CSV"** button in the navigation bar.
+3. Drag and drop **one or multiple `.fit` or `.csv` files** (batch multi-file upload supported).
+4. The system automatically determines the parser algorithm (native Garmin `.FIT` binary protocol vs. `.CSV` time-series). A live progress bar tracks batch ingestion in-memory directly into SQLite with SHA-256 deduplication and an optional overwrite checkbox. No raw files are saved to disk.
 
-### Method B: Terminal Ingestion CLI
+### Method B: Terminal Ingestion CLI (FIT & CSV)
+Drop any `.fit` or `.csv` files into `data/raw/` or specify a single file/folder, and run:
 ```bash
 npm run ingest
 ```
+The script automatically determines the algorithm (FIT binary parser vs. CSV parser) using binary magic bytes and file extensions.
+Add `--clean` to automatically delete raw files after successful database ingestion:
+```bash
+npm run ingest -- --clean
+```
+
+### Method C: Python Batch Ingestion Script
+For users or family members who prefer a standalone Python script to batch-import from any folder or USB mount:
+```bash
+# Ingest default data/raw/ folder (auto-detects FIT vs CSV algorithms):
+python scripts/batch_ingest.py
+
+# Ingest an external folder (e.g. Garmin watch export or USB drive):
+python scripts/batch_ingest.py --dir "C:/Users/name/Garmin/Activities"
+
+# Ingest a single activity file directly:
+python scripts/batch_ingest.py "C:/path/to/activity.fit"
+
+# Ingest and auto-clean processed files:
+python scripts/batch_ingest.py --dir "data/raw" --clean
+```
+
+### Method D: Bulk FIT Processor & Archive Converter
+If you have a large library of historical `.fit` files, drop them into a `fit/` folder in the root and run:
+```bash
+npm run process:fit
+```
+This batch parses all `.fit` files, generates normalized `.csv` files in `csv/`, and populates your SQLite database with full physiological tracking and AI coach summaries.
+
+### Method E: Direct Database Portability (`data/runs.db`)
+AEROLAB operates on a **single embedded SQLite WAL database file** (`data/runs.db`). To back up or transfer your entire running history, simply copy `data/runs.db` to another machine or cloud backup.
 
 ---
 
@@ -182,21 +255,30 @@ npm run ingest
 ### 1. Browse View
 - **Session List & Calendar**: Scrollable chronological list of runs grouped by date with pace, distance, duration, and dynamic tags.
 - **Editable Activity Title**: Clean, uncluttered naming (no redundant "Singapore Running" prefixes). Click the pencil icon to rename any session.
-- **Dynamic Multi-Tagging**: Add or remove multiple tags per session using quick presets (`Easy Base`, `Accidental Tempo`, `Hill Strides`, `Flat Strides`, `Ramp Walk`, `VO2 Max`, `Threshold`, `Long Run`, `Recovery`) or type custom tags on the fly.
+- **Standardized Multi-Tagging**: Add or remove workout tags per session using standard presets (`Easy Base`, `Long Run`, `Recovery`, `Threshold`, `VO2 Max`, `Tempo`, `Marathon Pace`, `Strides`, `Race`). Free-form arbitrary tags are restricted to maintain clean and reliable physiological analytics.
 - **Core Segment Filter**: Toggle between "Full Session" and "Core (Minus Warmup/Cooldown)" to inspect pure steady-state workout telemetry without warmup/cooldown skew.
-- **Three Sub-Tabs**:
-  1. **Telemetry & Chart**: Interactive canvas scrub chart plotting Pace (cyan), Heart Rate (amber), and Elevation fill, plus key physiological chips and a 1km splits table.
-  2. **Strides & Intervals**: Dedicated breakdown of detected strides and interval work reps with Rep #, Type, Duration, Distance, Avg & Peak Pace, Avg & Peak Cadence, Min Ground Contact Time, and Recovery HR Drop.
-  3. **Notes & AI Coach**: Intelligent physiological debrief with clickable **Score Breakdown Modal**, grading rubric, and an editable, auto-saving runner's notebook.
+- **Four Sub-Tabs**:
+  1. **Telemetry & Chart**: Interactive canvas scrub chart plotting Pace (cyan), Heart Rate (amber), and Elevation fill, plus key physiological chips and a compact 1km splits preview.
+  2. **KM Splits**: Interactive Kilometer Split Visualizer with proportional horizontal bars, pacing dynamics insights (Fastest/Slowest Split, Pace Spread $\Delta$, and Negative/Positive split strategy classifier), with on-the-fly metric switching across **Pace**, **Heart Rate**, **Efficiency Factor**, and **Elevation**.
+  3. **Strides & Intervals**: Dedicated breakdown of detected strides and interval work reps with Rep #, Type, Duration, Distance, Avg & Peak Pace, Avg & Peak Cadence, Min Ground Contact Time, and Recovery HR Drop.
+  4. **Notes & AI Coach**: Intelligent physiological debrief with clickable **Score Breakdown Modal**, grading rubric, and an editable, auto-saving runner's notebook.
 
 ### 2. Progress View
 - **Period Progress & Mileage**: View total running volume, month-by-month and year-by-year mileage, and zone breakdown distributions.
 - **Pace-Dependent Running Economy Curves**: Plots Moving Speed vs. Heart Rate and Meters per Beat across pace bands, with toggleable filters (`All Runs`, `Easy Base`, `Threshold`).
-- **LT1 / LT2 Progression**: Tracks pace and speed at aerobic and anaerobic thresholds over time.
+- **Historical Threshold Calibrations**: Organized milestones and data table bounded in a sleek scroll container with filter pills (`All`, `LT1 Base`, `LT2 Threshold`, `Race`) to easily navigate 100+ recalibrations without endless scrolling.
 
 ### 3. Stats View
 - **Physiological Benchmark Cards**: Current LT1 Pace & HR, LT2 Pace & HR, VO2 Max estimate, and 30-day baseline Running Economy.
+- **Calibrated Heart Rate Zones**: 5-zone cardiovascular distribution dynamically derived from HRR, LT1 ceiling (~148 bpm), and LT2 turnpoint (~172 bpm).
+- **Aerobic Turnpoint Margin & Guide**: Measures the pace gap between LT1 easy base and LT2 threshold. Click the info button to open the educational modal featuring benchmark tiers (Optimal $\le 50$s, Well-Conditioned $50\text{--}70$s, Base Opportunity $>70$s) and training recommendations.
 - **Calibrated Race Time Predictions**: VDOT-derived finish times, average pace, and kilometer splits for 5K, 10K, Half Marathon, and Marathon.
+
+### 4. Profile View
+- **Cardiovascular Baselines**: Streamlined strictly to core cardio metrics (Resting HR, Max HR engine, and VO2 Max).
+- **Max Heart Rate Engine & Auto-Inference**: Automatically infers peak heart rate from your hardest actual workout efforts (e.g. 5K time trial at 203 bpm), with an opt-out toggle to auto-estimate via the Tanaka formula ($208 - 0.7 \times \text{age}$) or manual baseline entry.
+- **Continuously Inferred Lactate Thresholds**: LT1 and LT2 are kept strictly separate from manual profile inputs; they are continuously calibrated from actual steady and threshold runs.
+- **Upcoming Benchmark Target**: Set upcoming race or benchmark target (e.g., '10k Garmin Race Oct 2026').
 
 ---
 
@@ -235,3 +317,91 @@ $$\text{Meters/Beat} = \frac{\text{Total Distance (m)}}{\text{Total Heartbeats}}
 - **Peak Speed & Peak Cadence**: Peak values recorded during stride and interval bursts.
 - **Min Ground Contact Time ($GCT$)**: Measures running elasticity and stiffness during high-speed surges.
 - **Heart Rate Recovery ($HRR$) Drop**: Absolute drop in BPM during recovery intervals (e.g., $162 \to 134\text{ bpm} = -28\text{ bpm}$ in 60s), reflecting parasympathetic reactivation.
+
+### 5. Jack Daniels VDOT & Oxygen Cost Formula
+AEROLAB models maximal oxygen uptake ($VDOT$) using the Daniels and Gilbert equations:
+- **Oxygen Cost of Velocity** ($v$ in meters/minute):
+  $$VO_2 = -4.60 + 0.182258 \cdot v + 0.000104 \cdot v^2$$
+- **Fraction of $VO_2\max$ Sustained Over Duration** ($t$ in minutes):
+  $$\%VO_2\max = 0.8 + 0.1894393 \cdot e^{-0.012778 \cdot t} + 0.2989558 \cdot e^{-0.1932605 \cdot t}$$
+- **Resulting VDOT Metric**:
+  $$VDOT = \frac{VO_2}{\%VO_2\max}$$
+
+### 6. Calibrated Race Time Predictions (Critical Velocity & Riegel)
+Finish times for 5K, 10K, Half Marathon, and Marathon are modeled by combining Riegel's power-law endurance equation with empirical threshold pacing:
+$$T_2 = T_1 \cdot \left(\frac{D_2}{D_1}\right)^{1.06}$$
+Target paces for longer distances are calibrated against your actual $LT1$ and $LT2$ thresholds to prevent overly optimistic projections when aerobic decoupling is elevated.
+
+### 7. Heart Rate Reserve (Karvonen HRR) & Dynamic Zone Model
+Heart rate reserve defines cardiovascular operating range:
+$$HRR = HR_{\max} - HR_{\text{rest}}$$
+Cardiovascular zones dynamically update as thresholds recalibrate:
+- **Zone 1 (Active Recovery)**: $< 54\% HRR$ or $< LT1 - 14\text{ bpm}$ (metabolite clearance)
+- **Zone 2 (Aerobic Base)**: $[\text{Z1 Upper} + 1, LT1]$ (pure lipid oxidation, zero lactate accumulation)
+- **Zone 3 (Tempo / Aerobic Drift)**: $[LT1 + 1, LT2 - 1]$ (marathon pace, glycogen utilization rises)
+- **Zone 4 (Lactate Threshold)**: $[LT2, \sim 90\% HRR]$ (1-hour maximum sustainable velocity)
+- **Zone 5 (VO2 Max & Anaerobic)**: $[> 90\% HRR, HR_{\max}]$ (neuromuscular and maximal cardiac output)
+
+### 8. Aerobic Turnpoint Margin
+$$\Delta \text{Pace} = \text{Pace}_{LT1} - \text{Pace}_{LT2} \quad (\text{seconds/km})$$
+Measures how closely your aerobic base (easy running) tracks your anaerobic threshold:
+- **$35\text{--}50\text{s/km}$ (Optimal Anchor)**: Elite endurance profile; $LT1$ is $\approx 85\text{--}90\%$ of $LT2$ velocity.
+- **$50\text{--}70\text{s/km}$ (Well-Conditioned Base)**: Balanced endurance for committed marathoners.
+- **$> 75\text{s/km}$ (Base Expansion Opportunity)**: Indicates Aerobic Deficiency Syndrome (ADS); easy pace lags significantly behind threshold, indicating a need for dedicated high-volume Zone 2 mileage.
+
+### 9. Tanaka Formula for Estimated Max Heart Rate
+For runners who opt out of manual Max HR testing:
+$$HR_{\max} = 208 - (0.7 \times \text{age})$$
+AEROLAB uses this evidence-based equation (superior to Fox's $220 - \text{age}$) to prevent artificially truncated HR zones.
+
+### 10. Geographic Workout Centroid
+$$\bar{\text{lat}} = \frac{1}{N}\sum_{i \in \text{core}} \text{lat}_i, \quad \bar{\text{lon}} = \frac{1}{N}\sum_{i \in \text{core}} \text{lon}_i$$
+Calculated after trimming the first 20% (warmup) and final 15% (cooldown) to query weather conditions exactly where the workout was executed.
+
+---
+
+## Multi-User Isolation & Database Privacy
+
+AEROLAB is designed with local-first data isolation:
+1. **Git Protection**: `data/*.db` and `data/*.db-*` are strictly listed in `.gitignore`.
+2. **Fresh Clone**: When your spouse or running partner clones the repository on their own machine, they receive an empty `data/` folder and start with a fresh, clean database on first run.
+3. **Shared Machine Setup**: If you share the same PC:
+   - Keep two separate project clones (e.g. `C:\gemini-projects\run-progress-GJ` and `C:\gemini-projects\run-progress-wife`).
+   - Or configure the `DATABASE_PATH` environment variable in `.env`:
+     ```bash
+     DATABASE_PATH=data/wife_runs.db
+     ```
+
+---
+
+## Custom Local Hostname Setup (Local Only)
+
+Want to browse to `http://aerolab.local:5173` instead of typing `localhost:5173`?
+
+1. Open your Windows **Notepad as Administrator** (Right-click Notepad $\to$ Run as Administrator).
+2. Open the file `C:\Windows\System32\drivers\etc\hosts`.
+3. Add this line at the bottom and save:
+   ```text
+   127.0.0.1  aerolab
+   127.0.0.1  aerolab.local
+   ```
+4. Now you can access AEROLAB directly at:
+   - `http://aerolab.local:5173` or `http://aerolab:5173`
+
+> [!NOTE]
+> **Why is `:5173` still required?**
+> The `hosts` file only maps names (`aerolab.local`) to IP addresses (`127.0.0.1`); it does not redirect port numbers. Since Vite's development server runs on port `5173`, the browser must connect to port `5173`.
+>
+> **Want to browse to `http://aerolab.local` with NO port number at all?**
+> Standard HTTP defaults to port `80`. If you configure Vite to listen on port 80 in `vite.config.ts`:
+> ```typescript
+> export default defineConfig({
+>   server: {
+>     port: 80,
+>     host: true
+>   }
+> });
+> ```
+> *(Note: Binding to port 80 on Windows requires launching your terminal with Administrator privileges if port 80 is not already occupied by IIS or another web server).*
+
+

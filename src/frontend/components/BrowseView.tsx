@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, CloudRain, Flame, TrendingUp, Zap, Clock, ShieldCheck, HeartPulse, Compass, Edit2, Tag, Plus, X, FileText, Activity as ActivityIcon, Droplets, RefreshCw, Thermometer, Sun, Cloud, ChevronDown, HelpCircle } from 'lucide-react';
+import { Calendar, CloudRain, Flame, TrendingUp, Zap, Clock, ShieldCheck, HeartPulse, Compass, Edit2, Tag, Plus, X, Check, FileText, Activity as ActivityIcon, Droplets, RefreshCw, Thermometer, Sun, Cloud, ChevronDown, HelpCircle } from 'lucide-react';
 import { CanvasRunChart } from './CanvasRunChart';
+import { KmSplitsVisualizer } from './KmSplitsVisualizer.js';
 import { formatPace as formatPaceUtil } from '../utils/formatters.js';
 
 export interface ActivitySummary {
@@ -125,11 +126,10 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedTagFilter, setSelectedTagFilter] = useState<string>('all');
   const [focusCoreSegment, setFocusCoreSegment] = useState<boolean>(false);
-  const [activeSubTab, setActiveSubTab] = useState<'telemetry' | 'strides' | 'notes'>('telemetry');
+  const [activeSubTab, setActiveSubTab] = useState<'telemetry' | 'splits' | 'strides' | 'notes'>('telemetry');
   const [intervalFilter, setIntervalFilter] = useState<'work_only' | 'all'>('work_only');
   const [isEditingTitle, setIsEditingTitle] = useState<boolean>(false);
   const [customTitle, setCustomTitle] = useState<string>('');
-  const [newTagInput, setNewTagInput] = useState<string>('');
   const [showTagMenu, setShowTagMenu] = useState<boolean>(false);
   const tagMenuRef = React.useRef<HTMLDivElement>(null);
   const [runnerNotes, setRunnerNotes] = useState<string>('');
@@ -140,8 +140,8 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
 
   // Auto-dismiss tag menu when clicking outside
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (tagMenuRef.current && !tagMenuRef.current.contains(event.target as Node)) {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (tagMenuRef.current && !tagMenuRef.current.contains(e.target as Node)) {
         setShowTagMenu(false);
       }
     };
@@ -269,6 +269,9 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
         if (!data.intervals || data.intervals.length === 0) {
           setActiveSubTab(prev => (prev === 'strides' ? 'telemetry' : prev));
         }
+        if (!data.splits || data.splits.length === 0) {
+          setActiveSubTab(prev => (prev === 'splits' ? 'telemetry' : prev));
+        }
         // Propagate latest effectiveness score back to sidebar card so ratings never fall out of sync
         if (data.coachSummary?.effectivenessScore != null && onActivityUpdated) {
           onActivityUpdated({
@@ -291,6 +294,15 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
   }, [selectedActivityId]);
 
   const act = detailData?.activity;
+
+  // Keep notes synchronized when selected activity changes
+  useEffect(() => {
+    if (act) {
+      setRunnerNotes(act.notes || '');
+      setCustomTitle(act.name || '');
+      setIsEditingTitle(false);
+    }
+  }, [act?.id, act?.notes, act?.name]);
 
   // Active tags parsed from JSON string
   const currentTags: string[] = React.useMemo(() => {
@@ -323,9 +335,9 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
   const handleAddTag = (tagToAdd: string) => {
     const trimmed = tagToAdd.trim();
     if (!trimmed || currentTags.includes(trimmed)) return;
+    if (!COMMON_TAG_PRESETS.includes(trimmed)) return;
     const updated = [...currentTags, trimmed];
     handleUpdateTags(updated);
-    setNewTagInput('');
     setShowTagMenu(false);
   };
 
@@ -357,6 +369,12 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
   };
 
   const formatPace = (secKm: number | null) => formatPaceUtil(secKm, false);
+
+  function formatDuration(seconds: number): string {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
 
   const formatTime = (sec: number) => {
     const mins = Math.floor(sec / 60);
@@ -652,52 +670,53 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                             background: 'var(--bg-card)',
                             border: '1px solid var(--border-subtle)',
                             borderRadius: 8,
-                            padding: '0.75rem',
+                            padding: '0.6rem',
                             boxShadow: 'var(--card-shadow)',
-                            width: '240px',
+                            width: '210px',
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: '0.5rem'
+                            gap: '0.4rem'
                           }}
                         >
-                          <input
-                            type="text"
-                            placeholder="Type tag & enter..."
-                            value={newTagInput}
-                            onChange={e => setNewTagInput(e.target.value)}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') {
-                                handleAddTag(newTagInput);
-                              }
-                            }}
-                            style={{
-                              background: 'var(--bg-surface)',
-                              border: '1px solid var(--border-subtle)',
-                              color: 'var(--text-primary)',
-                              borderRadius: 4,
-                              padding: '0.3rem 0.5rem',
-                              fontSize: '0.75rem'
-                            }}
-                          />
-                          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Presets</div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
-                            {COMMON_TAG_PRESETS.map(preset => (
-                              <span
-                                key={preset}
-                                onClick={() => handleAddTag(preset)}
-                                style={{
-                                  background: 'var(--tag-pill-bg)',
-                                  border: '1px solid var(--border-subtle)',
-                                  padding: '0.15rem 0.4rem',
-                                  borderRadius: 4,
-                                  fontSize: '0.7rem',
-                                  color: 'var(--text-secondary)',
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                {preset}
-                              </span>
-                            ))}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.3rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Existing Tags</span>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{currentTags.length} active</span>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', maxHeight: '230px', overflowY: 'auto' }}>
+                            {COMMON_TAG_PRESETS.map(preset => {
+                              const isApplied = currentTags.includes(preset);
+                              return (
+                                <button
+                                  key={preset}
+                                  type="button"
+                                  onClick={() => {
+                                    if (isApplied) {
+                                      handleRemoveTag(preset);
+                                    } else {
+                                      handleAddTag(preset);
+                                    }
+                                  }}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '0.35rem 0.55rem',
+                                    borderRadius: 6,
+                                    fontSize: '0.74rem',
+                                    fontWeight: isApplied ? 600 : 400,
+                                    background: isApplied ? 'rgba(6, 182, 212, 0.15)' : 'transparent',
+                                    color: isApplied ? '#38bdf8' : 'var(--text-secondary)',
+                                    border: isApplied ? '1px solid rgba(6, 182, 212, 0.4)' : '1px solid transparent',
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                >
+                                  <span>{preset}</span>
+                                  {isApplied ? <Check size={13} color="#38bdf8" /> : <Plus size={12} color="var(--text-muted)" />}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
@@ -867,15 +886,26 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
             </section>
 
             {/* Sub-Tabs Selector for Main Panel */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem', flexWrap: 'wrap' }}>
               <button
+                id="subtab-telemetry-btn"
                 className={`filter-pill-btn ${activeSubTab === 'telemetry' ? 'active' : ''}`}
                 onClick={() => setActiveSubTab('telemetry')}
               >
                 Telemetry & Chart
               </button>
+              {(detailData.splits?.length ?? 0) > 0 && (
+                <button
+                  id="subtab-splits-btn"
+                  className={`filter-pill-btn ${activeSubTab === 'splits' ? 'active' : ''}`}
+                  onClick={() => setActiveSubTab('splits')}
+                >
+                  KM Splits ({detailData.splits.length})
+                </button>
+              )}
               {(detailData.intervals?.length ?? 0) > 0 && (
                 <button
+                  id="subtab-strides-btn"
                   className={`filter-pill-btn ${activeSubTab === 'strides' ? 'active' : ''}`}
                   onClick={() => setActiveSubTab('strides')}
                 >
@@ -883,6 +913,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                 </button>
               )}
               <button
+                id="subtab-notes-btn"
                 className={`filter-pill-btn ${activeSubTab === 'notes' ? 'active' : ''}`}
                 onClick={() => setActiveSubTab('notes')}
               >
@@ -959,41 +990,26 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                   </div>
                 </div>
 
-                {/* Kilometer Splits Table */}
+                {/* Kilometer Splits Visualizer (Compact Telemetry Mode) */}
                 {detailData.splits && detailData.splits.length > 0 && (
-                  <section className="data-table-card">
-                    <div className="sidebar-header">
-                      <span className="sidebar-title">Kilometer Splits</span>
-                    </div>
-                    <div className="table-wrapper">
-                      <table className="styled-table">
-                        <thead>
-                          <tr>
-                            <th>Km</th>
-                            <th>Split Pace</th>
-                            <th>Time</th>
-                            <th>Avg HR</th>
-                            <th>Split EF</th>
-                            <th>Elev Change</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {detailData.splits.map((s: any) => (
-                            <tr key={s.id}>
-                              <td><b>Km {s.split_index}</b></td>
-                              <td style={{ color: '#06b6d4', fontWeight: 600 }}>{formatPace(s.avg_pace_sec_km)}/km</td>
-                              <td>{formatTime(s.duration_seconds)}</td>
-                              <td>{s.avg_heart_rate} bpm</td>
-                              <td>{s.split_efficiency_factor ? s.split_efficiency_factor.toFixed(2) : '—'}</td>
-                              <td>{s.elevation_change_m > 0 ? `+${s.elevation_change_m}m` : `${s.elevation_change_m}m`}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </section>
+                  <KmSplitsVisualizer
+                    splits={detailData.splits}
+                    overallAvgPace={act.avg_pace_sec_km}
+                    overallAvgHr={act.avg_heart_rate}
+                    compact={true}
+                  />
                 )}
               </>
+            )}
+
+            {/* SUBTAB: KM Splits & Pace Variation (Full Interactive Mode) */}
+            {activeSubTab === 'splits' && (
+              <KmSplitsVisualizer
+                splits={detailData.splits || []}
+                overallAvgPace={act.avg_pace_sec_km}
+                overallAvgHr={act.avg_heart_rate}
+                compact={false}
+              />
             )}
 
             {/* SUBTAB 2: Strides & Intervals */}
@@ -1150,7 +1166,8 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 {/* AI / Coach Summary & Effectiveness */}
                 {detailData.coachSummary && (() => {
-                  const coachStars = detailData.coachSummary.stars ?? scoreToStars(detailData.coachSummary.effectivenessScore ?? detailData.coachSummary.rating5);
+                  const rawStars = detailData.coachSummary.stars ?? scoreToStars(detailData.coachSummary.effectivenessScore ?? detailData.coachSummary.rating5);
+                  const coachStars = Math.max(1, Math.min(3, rawStars > 3 ? (rawStars >= 4 ? 3 : 2) : (rawStars || 1)));
                   const effScore = detailData.coachSummary.effectivenessScore;
                   return (
                     <section className="coach-summary-card">
@@ -1173,7 +1190,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                             const tierLabel = coachStars === 3 ? 'gold' : coachStars === 2 ? 'silver' : 'bronze';
                             return (
                               <span className={`execution-emblem emblem-${tierLabel}`} style={{ fontSize: '0.85rem', padding: '0.2rem 0.55rem' }}>
-                                {'★'.repeat(coachStars)}{'☆'.repeat(3 - coachStars)}
+                                {'★'.repeat(coachStars)}{'☆'.repeat(Math.max(0, 3 - coachStars))}
                                 {effScore ? <span style={{ opacity: 0.75, marginLeft: '0.4rem', fontWeight: 600, fontSize: '0.78rem' }}>{effScore}/100</span> : null}
                               </span>
                             );
@@ -1242,7 +1259,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                       )}
 
                       <ul className="coach-insights-list">
-                        {detailData.coachSummary.keyInsights.map((insight: string, idx: number) => (
+                        {(detailData.coachSummary.keyInsights || []).map((insight: string, idx: number) => (
                           <li key={idx} className="coach-insight-item">
                             <span className="coach-insight-bullet">◆</span>
                             <span>{insight}</span>

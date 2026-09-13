@@ -413,7 +413,10 @@ export function syncActivityCoachSummary(
     weatherHumidityPct: activity.weather_humidity_pct ?? null,
     weatherApparentTempC: activity.weather_apparent_temp_c ?? null,
     weatherCondition: activity.weather_condition ?? null,
-    isFailedWorkout: overrides?.isFailedWorkout ?? (activity.tags ? (typeof activity.tags === 'string' ? activity.tags.includes('Failed Workout') : false) : false),
+    isFailedWorkout: overrides?.isFailedWorkout ?? (
+      (activity.name && (activity.name.toLowerCase().includes('failed') || activity.name.toLowerCase().includes('aborted') || activity.name.toLowerCase().includes('dnf') || activity.name.toLowerCase().includes('bailed'))) ||
+      (activity.notes && (activity.notes.toLowerCase().includes('failed') || activity.notes.toLowerCase().includes('aborted') || activity.notes.toLowerCase().includes('dnf') || activity.notes.toLowerCase().includes('bailed')))
+    ),
     intervals: overrides?.intervals || intervals,
     ...overrides
   });
@@ -454,7 +457,7 @@ export function syncActivityCoachSummary(
     const row = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get(activityId) as any;
     if (row) {
       const scoreVal = row.effectiveness_score;
-      const starsVal = scoreVal >= 90 ? 5 : scoreVal >= 78 ? 4 : scoreVal >= 65 ? 3 : scoreVal >= 50 ? 2 : 1;
+      const starsVal = scoreVal >= 85 ? 3 : scoreVal >= 70 ? 2 : 1;
       return {
         headline: row.headline,
         effectivenessScore: scoreVal,

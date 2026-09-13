@@ -18,6 +18,29 @@ export interface ParsedFitResult {
   recordCount: number;
 }
 
+/**
+ * Check if a buffer or Uint8Array begins with the Garmin FIT binary header signature.
+ * By Garmin FIT protocol specification, bytes 8..11 must be ASCII ".FIT".
+ */
+export function isFitBuffer(buffer: Buffer | Uint8Array): boolean {
+  if (!buffer || buffer.length < 12) return false;
+  return (
+    buffer[8] === 0x2e && // '.'
+    buffer[9] === 0x46 && // 'F'
+    buffer[10] === 0x49 && // 'I'
+    buffer[11] === 0x54    // 'T'
+  );
+}
+
+/**
+ * Automatically determine whether the content is a Garmin FIT binary or CSV text.
+ */
+export function detectFileFormat(buffer: Buffer, filename?: string): 'fit' | 'csv' {
+  if (isFitBuffer(buffer)) return 'fit';
+  if (filename && filename.toLowerCase().endsWith('.fit')) return 'fit';
+  return 'csv';
+}
+
 const GARMIN_EPOCH = Date.UTC(1989, 11, 31, 0, 0, 0) / 1000;
 
 const FIELD_SCALES: Record<string, { scale: number; offset?: number }> = {

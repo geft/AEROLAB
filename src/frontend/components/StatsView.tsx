@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Target, Trophy, Flame, Activity, ShieldCheck, Zap, Calendar, TrendingUp, Clock, Mountain } from 'lucide-react';
+import { Target, Trophy, Flame, Activity, ShieldCheck, Zap, Calendar, TrendingUp, Clock, Mountain, HelpCircle, X, CheckCircle } from 'lucide-react';
 import { formatPace } from '../utils/formatters.js';
 
 export const StatsView: React.FC = () => {
@@ -10,6 +10,7 @@ export const StatsView: React.FC = () => {
   const [availableMonths, setAvailableMonths] = useState<{ period: string; label: string }[]>([]);
   const [volumeData, setVolumeData] = useState<any | null>(null);
   const [loadingVolume, setLoadingVolume] = useState<boolean>(false);
+  const [isMarginGuideOpen, setIsMarginGuideOpen] = useState<boolean>(false);
 
   useEffect(() => {
     fetch('/api/thresholds')
@@ -450,19 +451,138 @@ export const StatsView: React.FC = () => {
 
         <div className="goal-card">
           <div className="goal-card-header">
-            <span className="goal-card-title">Aerobic Turnpoint Margin</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <span className="goal-card-title">Aerobic Turnpoint Margin</span>
+              <button
+                type="button"
+                onClick={() => setIsMarginGuideOpen(true)}
+                className="guide-info-trigger-btn"
+                title="Learn about Aerobic Turnpoint Margin & Target Benchmarks"
+                aria-label="Aerobic Turnpoint Margin Guide"
+              >
+                <HelpCircle size={14} />
+              </button>
+            </div>
             <Zap size={18} color="#06b6d4" />
           </div>
-          <div className="goal-stat-highlight" style={{ color: '#06b6d4', fontSize: '1.4rem' }}>
-            {lt1 && lt2 && lt1.lt1_pace_sec_km && lt2.lt2_pace_sec_km 
-              ? `${Math.round(lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km)}s gap` 
-              : '60s gap'}
+
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem', flexWrap: 'wrap', margin: '0.4rem 0' }}>
+            <div className="goal-stat-highlight" style={{ color: '#06b6d4', fontSize: '1.4rem' }}>
+              {lt1 && lt2 && lt1.lt1_pace_sec_km && lt2.lt2_pace_sec_km 
+                ? `${Math.round(lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km)}s gap` 
+                : '60s gap'}
+            </div>
+            <span
+              style={{
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                padding: '0.2rem 0.55rem',
+                borderRadius: 6,
+                color: (lt1?.lt1_pace_sec_km && lt2?.lt2_pace_sec_km && (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km) <= 50) ? '#10b981' : (lt1?.lt1_pace_sec_km && lt2?.lt2_pace_sec_km && (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km) <= 70) ? '#06b6d4' : '#f59e0b',
+                background: (lt1?.lt1_pace_sec_km && lt2?.lt2_pace_sec_km && (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km) <= 50) ? 'rgba(16, 185, 129, 0.15)' : (lt1?.lt1_pace_sec_km && lt2?.lt2_pace_sec_km && (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km) <= 70) ? 'rgba(6, 182, 212, 0.15)' : 'rgba(245, 158, 11, 0.15)'
+              }}
+            >
+              {(lt1?.lt1_pace_sec_km && lt2?.lt2_pace_sec_km && (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km) <= 50)
+                ? 'Optimal Anchor (≤ 50s)'
+                : (lt1?.lt1_pace_sec_km && lt2?.lt2_pace_sec_km && (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km) <= 70)
+                  ? 'Well-Conditioned (50–70s)'
+                  : 'Base Opportunity (> 70s)'}
+            </span>
           </div>
+
           <p className="goal-stat-desc">
-            Difference between your Easy pace and Threshold pace. As your aerobic base matures, this gap narrows as LT1 pace pulls closer to LT2.
+            Difference between your Easy pace ({lt1?.lt1_pace_sec_km ? formatPace(lt1.lt1_pace_sec_km) : '5:50/km'}) and Threshold pace ({lt2?.lt2_pace_sec_km ? formatPace(lt2.lt2_pace_sec_km) : '4:10/km'}). As your aerobic base matures, this gap narrows as LT1 pulls closer to LT2.
           </p>
         </div>
       </section>
+
+      {/* Aerobic Turnpoint Margin Educational Guide Modal */}
+      {isMarginGuideOpen && (
+        <div className="modal-overlay" onClick={() => setIsMarginGuideOpen(false)}>
+          <div className="modal-content" style={{ maxWidth: 580 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <Zap size={20} color="#06b6d4" />
+                <h2 className="modal-title" style={{ color: 'var(--text-primary)' }}>Aerobic Turnpoint Margin Guide</h2>
+              </div>
+              <button className="modal-close-btn" onClick={() => setIsMarginGuideOpen(false)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '0.5rem 0' }}>
+              <div>
+                <h4 style={{ color: 'var(--text-primary)', margin: '0 0 0.4rem 0', fontSize: '0.95rem' }}>
+                  What is the Aerobic Turnpoint Margin?
+                </h4>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.55, margin: 0 }}>
+                  The <b>Aerobic Turnpoint Margin</b> is the pace spread between your <b>Aerobic Base (LT1)</b> and your <b>Lactate Threshold (LT2)</b>. In endurance physiology (e.g. Stephen Seiler, Olbrecht, Maffetone), it measures how well-developed your lipid oxidation and mitochondrial capillary foundation are relative to your maximum 1-hour sustained velocity.
+                </p>
+              </div>
+
+              {/* Target Benchmark Tiers */}
+              <div>
+                <h4 style={{ color: 'var(--text-primary)', margin: '0 0 0.6rem 0', fontSize: '0.88rem' }}>
+                  Target Benchmarks &amp; Standards
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  <div style={{ padding: '0.75rem', borderRadius: 8, background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                      <span style={{ fontWeight: 700, fontSize: '0.84rem', color: '#10b981' }}>35–50s/km Gap — Elite / Highly Developed Base</span>
+                      <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 600 }}>Optimal Anchor</span>
+                    </div>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
+                      LT1 is pulled extremely close to LT2 (LT1 speed is ~85–90% of LT2). Characteristic of high-mileage marathoners who can cruise comfortably at high aerobic speeds with zero lactate accumulation.
+                    </p>
+                  </div>
+
+                  <div style={{ padding: '0.75rem', borderRadius: 8, background: 'rgba(6, 182, 212, 0.08)', border: '1px solid rgba(6, 182, 212, 0.25)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                      <span style={{ fontWeight: 700, fontSize: '0.84rem', color: '#06b6d4' }}>50–70s/km Gap — Well-Conditioned Base</span>
+                      <span style={{ fontSize: '0.72rem', color: '#06b6d4', fontWeight: 600 }}>Healthy Target</span>
+                    </div>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
+                      Healthy aerobic balance for committed amateur runners and marathoners. Easy runs stay restorative while supporting quality threshold work.
+                    </p>
+                  </div>
+
+                  <div style={{ padding: '0.75rem', borderRadius: 8, background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                      <span style={{ fontWeight: 700, fontSize: '0.84rem', color: '#f59e0b' }}>&gt; 75s/km Gap — Developing Aerobic Base</span>
+                      <span style={{ fontSize: '0.72rem', color: '#f59e0b', fontWeight: 600 }}>Room for Expansion</span>
+                    </div>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
+                      Indicates Aerobic Deficiency Syndrome (ADS). Easy pace lags far behind threshold capability because fat oxidation enzymes and slow-twitch capillary density are still adapting.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Your Current Status & Training Direction */}
+              <div style={{ padding: '0.85rem', borderRadius: 8, background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
+                <h4 style={{ color: 'var(--text-primary)', margin: '0 0 0.4rem 0', fontSize: '0.85rem' }}>
+                  How to Optimize Your Margin:
+                </h4>
+                <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                  <li><b>If your gap is &gt; 70s</b>: Increase weekly mileage strictly below LT1 (&lt; 148 bpm). Avoid the temptation to run easy days too fast; true Zone 2 miles trigger mitochondrial biogenesis that pulls LT1 pace faster without raising heart rate.</li>
+                  <li><b>If your gap is &lt; 45s</b>: Your aerobic base is well-developed! To run faster, introduce quality LT2 threshold intervals (e.g. 3x15min in Zone 4) to lift your anaerobic ceiling higher.</li>
+                </ul>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+                <button
+                  type="button"
+                  className="save-profile-btn"
+                  style={{ width: 'auto', padding: '0.45rem 1.25rem', fontSize: '0.82rem' }}
+                  onClick={() => setIsMarginGuideOpen(false)}
+                >
+                  Got It
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
