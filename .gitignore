@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Production build
+dist/
+
+# Local databases
+data/*.db
+data/*.db-wal
+data/*.db-shm
+*.sqlite
+*.sqlite3
+
+# Temporary / raw drops (raw files should never be committed to git)
+data/raw/*
+!data/raw/.gitkeep
+*.csv
+*.fit
+*.FIT
+*.tcx
+*.gpx
+
+# Environment & logs
+.env
+.env.local
+*.log
+npm-debug.log*
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

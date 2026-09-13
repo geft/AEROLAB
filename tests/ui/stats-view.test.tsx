@@ -1,0 +1,148 @@
+// @vitest-environment jsdom
+import React from 'react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { StatsView } from '../../src/frontend/components/StatsView.js';
+
+describe('StatsView UI Tests', () => {
+  const mockThresholdData = {
+    latest: {
+      lt1: { lt1_hr: 148, lt1_pace_sec_km: 352, effective_date: '2026-09-05', baseline_economy_ef: 1.19 },
+      lt2: { lt2_hr: 171, lt2_pace_sec_km: 280, effective_date: '2026-09-10' },
+      vo2Max: 58
+    },
+    currentThresholds: {
+      lt1Hr: 148,
+      lt2Hr: 171,
+      lt1Range: [147, 149]
+    },
+    zones: {
+      z1: [0, 134],
+      z2: [135, 148],
+      z3: [149, 166],
+      z4: [167, 188],
+      z5: [189, 203]
+    },
+    history: []
+  };
+
+  const mockProgressHistory = {
+    months: [
+      { period: '2026-01', label: 'Jan 2026' },
+      { period: '2026-04', label: 'Apr 2026' },
+      { period: '2026-09', label: 'Sep 2026' }
+    ],
+    years: [
+      { period: '2026', label: '2026 Season' }
+    ]
+  };
+
+  const mockVolumeMonth = {
+    period: 'month',
+    periodLabel: 'Past 30 Days',
+    totalDistanceKm: 71.6,
+    totalDurationHours: 8.2,
+    activityCount: 5,
+    elevationGainM: 135,
+    avgEf: 1.16,
+    zones: {
+      z1: { hours: 0, pct: 0 },
+      z2: { hours: 3.9, pct: 48 },
+      z3: { hours: 2.1, pct: 26 },
+      z4: { hours: 1.5, pct: 18 },
+      z5: { hours: 0.7, pct: 8 }
+    }
+  };
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.includes('/api/thresholds')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockThresholdData)
+          });
+        }
+        if (url.includes('/api/activities/progress-history')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockProgressHistory)
+          });
+        }
+        if (url.includes('/api/activities/volume')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockVolumeMonth)
+          });
+        }
+        return Promise.reject(new Error(`Unhandled fetch url: ${url}`));
+      })
+    );
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it('renders volume analytics with period tabs and month dropdown', async () => {
+    render(<StatsView />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Training Volume & Effort Analytics')).toBeDefined();
+      expect(screen.getByText('Past 7 Days')).toBeDefined();
+      expect(screen.getByText('Monthly')).toBeDefined();
+      expect(screen.getByText('This Year')).toBeDefined();
+      expect(screen.getByText('All-Time')).toBeDefined();
+    });
+
+    // Verify month dropdown is present when Monthly tab is active
+    await waitFor(() => {
+      const select = screen.getByTitle('Select specific month to analyze') as HTMLSelectElement;
+      expect(select).toBeDefined();
+      expect(select.options.length).toBeGreaterThanOrEqual(4); // "All / Recent" + 3 months
+    });
+  });
+
+  it('changes period when a different month is selected from the dropdown', async () => {
+    render(<StatsView />);
+
+    await waitFor(() => {
+      expect(screen.getByTitle('Select specific month to analyze')).toBeDefined();
+    });
+
+    const select = screen.getByTitle('Select specific month to analyze');
+    fireEvent.change(select, { target: { value: '2026-09' } });
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('/api/activities/volume?period=month&month=2026-09');
+    });
+  });
+
+  it('switches volume periods (Past 7 Days, This Year, All-Time)', async () => {
+    render(<StatsView />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Past 7 Days')).toBeDefined();
+    });
+
+    // Click Past 7 Days
+    fireEvent.click(screen.getByText('Past 7 Days'));
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('/api/activities/volume?period=week');
+    });
+
+    // Click This Year
+    fireEvent.click(screen.getByText('This Year'));
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('/api/activities/volume?period=year');
+    });
+
+    // Click All-Time
+    fireEvent.click(screen.getByText('All-Time'));
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('/api/activities/volume?period=all');
+    });
+  });
+});
