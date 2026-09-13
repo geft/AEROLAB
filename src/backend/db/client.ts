@@ -270,6 +270,13 @@ export function getDatabase(dbPath?: string): Database.Database {
       CREATE INDEX IF NOT EXISTS idx_coach_summaries_activity ON activity_coach_summaries(activity_id);
     `);
 
+    // Ensure score_breakdown_json exists on older databases
+    const coachCols = db.prepare("PRAGMA table_info(activity_coach_summaries)").all() as Array<{ name: string }>;
+    const coachColNames = new Set(coachCols.map(c => c.name));
+    if (!coachColNames.has('score_breakdown_json')) {
+      db.exec("ALTER TABLE activity_coach_summaries ADD COLUMN score_breakdown_json TEXT");
+    }
+
     // Backfill any existing activities not yet in activity_coach_summaries
     const unsummarized = db.prepare(`
       SELECT a.id FROM activities a

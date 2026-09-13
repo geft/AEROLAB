@@ -44,8 +44,13 @@ describe('AI Coach Summary Unit Tests', () => {
       elevationGainM: 8
     });
 
-    // Score: 85 - 8 (drift > 5) - 6 (accidental tempo) = 71
-    expect(summary.effectivenessScore).toBe(71);
+    // Score: 85 - 8 (drift > 5) - 15 (accidental tempo) = 62
+    expect(summary.effectivenessScore).toBe(62);
+    expect(summary.stars).toBe(2);
+    expect(summary.scoreBreakdown).toBeDefined();
+    const pacingFactor = summary.scoreBreakdown.find(f => f.category === 'Pacing Discipline');
+    expect(pacingFactor).toBeDefined();
+    expect(pacingFactor?.points).toBe(-15);
     expect(summary.headline).toBe('Unintentional Tempo / Drifted Aerobic Run');
     const pacingAlert = summary.keyInsights.find(i => i.startsWith('Pacing Alert'));
     expect(pacingAlert).toBeDefined();
@@ -94,8 +99,9 @@ describe('AI Coach Summary Unit Tests', () => {
       groundContactTime: 310
     });
 
-    // 85 - 8 - 3 - 6 = 68 (not below 55, but penalized)
-    expect(lowSummary.effectivenessScore).toBe(68);
+    // 85 - 8 - 3 - 15 = 59 (capped/clamped, penalized)
+    expect(lowSummary.effectivenessScore).toBe(59);
+    expect(lowSummary.stars).toBe(2);
     const cadenceInsight = lowSummary.keyInsights.find(i => i.includes('Increasing turnover'));
     expect(cadenceInsight).toBeDefined();
 

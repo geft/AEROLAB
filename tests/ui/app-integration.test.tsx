@@ -137,28 +137,27 @@ describe('AEROLAB App Full Integration Tests', () => {
   it('persists Day Mode theme toggle to documentElement and localStorage', async () => {
     render(<App />);
 
+    const themeBtn = await waitFor(() => {
+      const btn = document.getElementById('theme-toggle-btn');
+      expect(btn).toBeTruthy();
+      return btn!;
+    });
+
     // Default theme is dark
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect(localStorage.getItem('aerolab_theme')).toBe('dark');
 
-    const themeBtn = document.getElementById('theme-toggle-btn');
-    expect(themeBtn).toBeTruthy();
-
     // Toggle to Light / Day Mode
-    await act(async () => {
-      fireEvent.click(themeBtn!);
-    });
+    fireEvent.click(themeBtn);
     expect(document.documentElement.getAttribute('data-theme')).toBe('light');
     expect(localStorage.getItem('aerolab_theme')).toBe('light');
-    expect(themeBtn?.textContent).toContain('Night Mode');
+    expect(themeBtn.textContent).toContain('Night Mode');
 
     // Toggle back to Dark / Night Mode
-    await act(async () => {
-      fireEvent.click(themeBtn!);
-    });
+    fireEvent.click(themeBtn);
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect(localStorage.getItem('aerolab_theme')).toBe('dark');
-    expect(themeBtn?.textContent).toContain('Day Mode');
+    expect(themeBtn.textContent).toContain('Day Mode');
   });
 
 

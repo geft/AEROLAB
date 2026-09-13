@@ -1,30 +1,33 @@
 # AEROLAB 🏃‍♂️ — Physiological Running Analytics
 
-A local-first, high-performance running analytics platform and dashboard designed to ingest Garmin run data (exported as CSVs from `run-parser`), store it in a single embedded SQLite database, and track real-time physiological adaptations over time:
+A local-first, high-performance running analytics platform and dashboard designed to ingest Garmin run data (both native `.fit` binary files and exported `.csv` files), store it in a single embedded SQLite database, and track real-time physiological adaptations over time:
 - **LT1 (Aerobic Threshold / VT1)** pace and heart rate progression
 - **LT2 (Lactate / Anaerobic Threshold / VT2)** pace and heart rate progression
 - **Running Economy**: Efficiency Factor ($Speed / HR$), Meters per Heartbeat, and Aerobic Decoupling ($Pa:Hr$ drift %)
 - **Pace-Dependent Economy Curves**: Real-world efficiency curves comparing easy base vs. threshold workouts
 - **Automatic Interval & Stride Detection**: Isolates structured work reps, recoveries, and explosive strides ($15\text{--}40\text{s}$ bursts), recording Peak Pace, Peak Cadence, Min Ground Contact Time ($GCT$), and Heart Rate Recovery ($HRR$) drop
-- **Intelligent Physiological Debrief**: Algorithmic coaching summary that flags "accidental tempos" (grey-zone cardiac drift), detects uphill ramp walks, and scores pacing adherence
-- **Calibrated Race Predictions**: Jack Daniels VDOT and Critical Velocity projections for 5K, 10K, Half Marathon, and Marathon based on physiological thresholds
+- **Transparent Physiological Execution Score (1–5 Stars)**: Granular 100-point scoring engine with itemized point breakdowns for aerobic stability, cadence discipline, decoupling drift, and pacing adherence
+- **Intelligent Physiological Debrief**: Algorithmic coaching summary that flags "accidental tempos" (grey-zone cardiac drift), identifies failed or aborted workouts, detects uphill ramp walks, and provides actionable recovery recommendations
+- **Period Progress & Training Volume**: Monthly and annual mileage breakdowns, weekly volume cadence, and 5-zone cardiovascular distribution
+- **Calibrated Race Predictions**: Jack Daniels VDOT and Critical Velocity projections for 5K, 10K, Half Marathon, and Marathon based on empirical physiological thresholds
 
 ---
 
 ## Architecture & Design Principles
 
 ### 1. Single SQLite Database (`data/runs.db`) vs. Multi-DB
-AEROLAB uses a **single SQLite database file** operating in **WAL (Write-Ahead Logging)** mode.
-- **Relational Integrity**: Runs, kilometer splits, interval reps, and physiological thresholds are linked by foreign keys and updated in atomic transactions.
+AEROLAB uses a **single SQLite database file** operating in **WAL (Write-Ahead Logging)** mode:
+- **Relational Integrity**: Runs, kilometer splits, interval reps, coach summaries, and physiological thresholds are linked by foreign keys and updated in atomic transactions.
 - **Cross-Tab Queries**: The `Browse`, `Progress`, and `Stats` views query the same unified dataset without cross-database coordination or synchronization overhead.
 - **Sub-Millisecond Speed**: Embedded SQLite queries execute locally in $<1\text{ms}$.
 - **Zero-Fuss Backup**: Your entire running history is contained in one portable file (`data/runs.db`).
 
-### 2. Zero Raw File Retention (Zero Disk Footprint)
-Raw 1Hz CSV files from sports watches are 100KB–1MB+ each. Over hundreds of runs, keeping raw files bloats repositories and risks hitting GitHub file or storage limits.
-- **Web UI Ingestion**: Drag-and-drop CSV files are parsed **in-memory** in the browser and transmitted directly to SQLite. No raw CSV is written to disk.
-- **CLI Ingestion**: The CLI importer supports the `--clean` flag, which ingests files from `data/raw/` and immediately deletes the source CSVs once safely committed to SQLite.
-- **Git Protection**: `.gitignore` strictly ignores `*.csv` and `data/*.db` to keep your git repo ultra-lightweight.
+### 2. Dual Ingestion: Native FIT & CSV Support with Zero Raw Bloat
+AEROLAB supports both native Garmin binary `.fit` files and exported `.csv` files:
+- **Direct FIT Decoding**: Built-in FIT binary stream parser (`fit-decoder`) decodes native compressed Garmin FIT files directly without third-party cloud uploaders.
+- **Web UI Ingestion**: Drag-and-drop CSV or FIT files are parsed **in-memory** in the browser and transmitted directly to SQLite. No raw files linger on disk.
+- **CLI Ingestion**: The CLI importer supports the `--clean` flag, which ingests files from `data/raw/` and immediately deletes source files once safely committed to SQLite.
+- **Git Protection**: `.gitignore` strictly ignores `*.csv`, `*.fit`, and `data/*.db` to keep your git repo ultra-lightweight.
 
 ### 3. Smart Downsampling & Compact Storage
 High-frequency 1Hz time-series data is compacted by ~75% before saving to SQLite:
@@ -34,9 +37,62 @@ High-frequency 1Hz time-series data is compacted by ~75% before saving to SQLite
 - **Stripped GPS**: High-frequency GPS latitude and longitude are discarded from time-series points to save space.
 
 ### 4. Accurate Microclimate Weather & Core Centroid
-Weather conditions in tropical climates like Singapore vary dramatically across short distances—for example, a breezy riverside Park Connector Network (PCN) offers significant evaporative cooling compared to concrete HDB housing estates.
+Weather conditions in tropical climates vary dramatically across short distances—for example, a breezy seaside park connector offers significant evaporative cooling compared to dense urban corridors.
 - Rather than sampling weather at the runner's doorstep (which biases every run to the starting location), AEROLAB trims the warmup (first 5 min / 20%) and cooldown (last 3–5 min / 15%) to calculate the **mathematical geographic centroid ($\bar{\text{lat}}, \bar{\text{lon}}$)** of the core workout segment.
 - This centroid is stored as `workout_lat` and `workout_lon` on the activity, enabling hyper-local weather lookups while keeping home coordinates private.
+
+---
+
+## Physiological Execution Scoring (1–5 Stars)
+
+Every workout is evaluated by an algorithmic coach engine that computes a transparent **0–100 Physiological Execution Score** based on objective biomechanical and cardiovascular criteria:
+
+### Scoring Rubric & Tiers
+| Rating | Score Band | Execution Level & Physiological Standard |
+| :---: | :---: | :--- |
+| ★★★★★ | **90–100** | **Near-Perfect Execution**: Impeccable pacing discipline, decoupling $< 3.5\%$, optimal cadence stability ($\ge 174$ spm), target zone adherence. |
+| ★★★★☆ | **78–89** | **Solid Stimulus**: Effective training stimulus; minor thermal drift ($< 6\%$) or slight cadence variance without compromising session intent. |
+| ★★★☆☆ | **65–77** | **Productive Session with Compromise**: Meaningful aerobic work achieved, but penalized by significant thermal drift ($> 6\%$), accidental tempo grey-zone creep, or cadence inconsistency. |
+| ★★☆☆☆ | **50–64** | **Aborted / Sub-Target Workout**: Structured interval set cut short ($< 2$ work reps or $< 6$ min total work), late-rep pace collapse ($> 20\%$), or early bail. |
+| ★☆☆☆☆ | **< 50** | **Severe Pacing Failure**: Extreme cardiac decoupling ($> 15\%$), complete pace collapse, or injury stoppage. |
+
+### Itemized Point Factors
+Clicking the Coach AI score pill in the dashboard opens the **Interactive Breakdown Modal**, displaying exact point additions and deductions:
+- **Baseline Intent**: Starts at **85 points** for steady aerobic base runs or completed interval sets; **60 points** for aborted workouts.
+- **Aerobic Decoupling ($Pa:Hr$)**:
+  - Drift $< 3\%$: **+5 points** (aerobic rock)
+  - Drift $< 5\%$: **+3 points** (stable)
+  - Drift $5\text{--}8\%$: **-8 points** (moderate thermal/cardiac drift)
+  - Drift $> 8\%$: **-14 points** (severe drift)
+- **Biomechanical Cadence**:
+  - Steady running cadence $\ge 175$ spm: **+4 points**
+  - High cadence variance ($SD > 8$ spm): **-5 points**
+  - Low cadence ($< 164$ spm): **-3 points**
+- **Pacing Intent Violations ("Accidental Tempos")**:
+  - If an easy run creeps into Zone 4 / LT2 ($> 164$ bpm for prolonged stretches), a **-15 point pacing penalty** is applied and the score is hard-capped at **74 / 100 (max 3 stars)**.
+- **Strides & Neuromuscular Sharpening**:
+  - Strides with peak cadence $\ge 190$ spm and crisp recovery drop: **+4 points**.
+
+---
+
+## Workout Classification Logic
+
+AEROLAB automatically classifies each activity into one of six core categories:
+1. **Recovery Run (`recovery`)**:
+   - Short shakeouts ($\le 50$ minutes, $\le 7.2$ km).
+   - Low cardiovascular strain: Average HR $\le 136$ bpm (or $< 72\%$ of max HR).
+   - Distinguishes gentle regenerative jogs from standard aerobic volume.
+2. **Easy Aerobic Base (`easy_base`)**:
+   - Standard aerobic endurance runs sustained below LT1 ($\approx 138\text{--}150$ bpm).
+   - Monitored for aerobic decoupling ($Pa:Hr$) and steady-state efficiency factor.
+3. **Long Run (`long_run`)**:
+   - Extended endurance volume ($\ge 75$ minutes or $\ge 16$ km).
+4. **Lactate Threshold (`threshold_lt2`)**:
+   - Sustained intervals or continuous tempo in Zone 4 ($\ge 165$ bpm, work reps $\ge 6\text{--}8$ minutes).
+5. **VO2 Max Intervals (`intervals_vo2`)**:
+   - Repetitions sustained at high intensity ($1\text{--}5$ minutes) with Zone 5 HR peaks ($> 85\%$ max HR).
+6. **Race / Time Trial (`race`)**:
+   - Competitive races, parkruns, or benchmark all-out time trials.
 
 ---
 
@@ -48,14 +104,13 @@ npm install
 ```
 
 ### 2. Run Automated Tests
-Runs the comprehensive test suite (16 test suites, 66 automated tests) spanning physiology unit tests, API integration, and React UI user flows:
+Runs the complete test suite (19 test suites, 78 automated tests) spanning physiology unit tests, API integration, and React UI user flows:
 ```bash
 npm test
 ```
-- **Physiology & Ingestion Unit Tests**: `coach-summary`, `threshold-tracker`, `zones`, `weather`, `downsampler`, `classifier`, `csv-parser`, `economy`, `predictions`, `interval-detector`.
+- **Physiology & Scoring**: `coach-summary`, `threshold-tracker`, `zones`, `weather`, `downsampler`, `classifier`, `csv-parser`, `economy`, `predictions`, `interval-detector`.
 - **API & Ingestion Integration**: In-memory SQLite testing, SHA-256 deduplication, force overwrite, `PATCH /api/activities/:id` title/notes/tags updates, and type filters.
-- **Frontend UI / User Flow Integration**: `navbar-theme` (Day/Night mode & tabs), `upload-modal` (batch multi-file drag-and-drop & progress), `browse-flow` (subtabs, AI Coach card, tag manager, inline rename), and `app-integration` (end-to-end multi-view navigation).
-
+- **Frontend UI / User Flow Integration**: `navbar-theme` (Day/Night mode & tabs), `upload-modal` (batch multi-file drag-and-drop & progress), `browse-flow` (subtabs, AI Coach card, tag manager, score breakdown, inline rename), and `app-integration` (end-to-end multi-view navigation).
 
 ### 3. Start Backend API Server
 ```bash
@@ -80,13 +135,13 @@ Frontend runs at `http://localhost:5173`.
 ### Method A: Drag & Drop in the Web Dashboard (Recommended)
 1. Open `http://localhost:5173` in your browser.
 2. Click the **"Import CSV"** button in the navigation bar.
-3. Drag and drop **one or multiple `.csv` files** from `run-parser` (batch upload supported).
-4. A live progress bar tracks batch ingestion in-memory directly into SQLite with SHA-256 deduplication and an optional overwrite checkbox. No raw CSVs are saved to disk.
+3. Drag and drop **one or multiple `.csv` or `.fit` files** (batch upload supported).
+4. A live progress bar tracks batch ingestion in-memory directly into SQLite with SHA-256 deduplication and an optional overwrite checkbox. No raw files are saved to disk.
 
 ### Method B: Terminal Ingestion CLI
-Place CSV files into `data/raw/` and run:
+Place files into `data/raw/` and run:
 ```bash
-# Ingest and automatically delete the raw CSVs once saved into SQLite
+# Ingest and automatically delete the raw source files once saved into SQLite
 npm run ingest -- --clean
 ```
 
@@ -102,14 +157,15 @@ npm run ingest -- --clean
 ### 1. Browse View
 - **Session List & Calendar**: Scrollable chronological list of runs grouped by date with pace, distance, duration, and dynamic tags.
 - **Editable Activity Title**: Clean, uncluttered naming (no redundant "Singapore Running" prefixes). Click the pencil icon to rename any session.
-- **Dynamic Multi-Tagging**: Add or remove multiple tags per session using quick presets (`Easy Base`, `Accidental Tempo`, `Hill Strides`, `Flat Strides`, `Ramp Walk`, `VO2 Max`, `Threshold`, `Long Run`, `Recovery`) or type custom tags on the fly.
+- **Dynamic Multi-Tagging**: Add or remove multiple tags per session using quick presets (`Easy Base`, `Accidental Tempo`, `Hill Strides`, `Flat Strides`, `Ramp Walk`, `VO2 Max`, `Threshold`, `Long Run`, `Recovery`, `Failed Workout`) or type custom tags on the fly.
 - **Core Segment Filter**: Toggle between "Full Session" and "Core (Minus Warmup/Cooldown)" to inspect pure steady-state workout telemetry without warmup/cooldown skew.
 - **Three Sub-Tabs**:
   1. **Telemetry & Chart**: Interactive canvas scrub chart plotting Pace (cyan), Heart Rate (amber), and Elevation fill, plus key physiological chips and a 1km splits table.
   2. **Strides & Intervals**: Dedicated breakdown of detected strides and interval work reps with Rep #, Type, Duration, Distance, Avg & Peak Pace, Avg & Peak Cadence, Min Ground Contact Time, and Recovery HR Drop.
-  3. **Notes & AI Coach**: An intelligent physiological debrief (scoring pacing adherence, alerting to accidental tempos or ramp walks) alongside an editable, auto-saving runner's notebook.
+  3. **Notes & AI Coach**: Intelligent physiological debrief with clickable **Score Breakdown Modal**, grading rubric, and an editable, auto-saving runner's notebook.
 
 ### 2. Progress View
+- **Period Progress & Mileage**: View total running volume, month-by-month and year-by-year mileage, and zone breakdown distributions.
 - **Pace-Dependent Running Economy Curves**: Plots Moving Speed vs. Heart Rate and Meters per Beat across pace bands, with toggleable filters (`All Runs`, `Easy Base`, `Threshold`).
 - **LT1 / LT2 Progression**: Tracks pace and speed at aerobic and anaerobic thresholds over time.
 
@@ -119,68 +175,17 @@ npm run ingest -- --clean
 
 ---
 
-## Folder Structure
+## Database Schema (`data/runs.db`)
 
-```
-run-progress/
-├── data/
-│   ├── raw/                      # Optional folder to drop CSV files for CLI import
-│   │   └── .gitkeep
-│   └── runs.db                   # Single embedded SQLite database (WAL mode)
-│
-├── src/
-│   ├── backend/
-│   │   ├── db/
-│   │   │   ├── client.ts         # better-sqlite3 connection in WAL mode
-│   │   │   └── schema.sql        # Database tables, indexes & relations
-│   │   ├── ingestion/
-│   │   │   ├── classifier.ts     # Classifies run type (easy_base, tempo, vo2, etc.)
-│   │   │   ├── csv-parser.ts     # Parses Garmin metadata headers + time-series
-│   │   │   ├── downsampler.ts    # Smart downsampling (5s steady, 1-2s strides)
-│   │   │   ├── importer.ts       # Central deterministic ingestion pipeline & centroid
-│   │   │   └── interval-detector.ts # Detects work reps, recoveries, and strides
-│   │   ├── physiology/
-│   │   │   ├── coach-summary.ts  # Physiological coach debrief & anomaly alerts
-│   │   │   ├── economy.ts        # Efficiency Factor, Pa:Hr Decoupling, Meters/Beat
-│   │   │   ├── predictions.ts    # Jack Daniels VDOT / Critical Velocity race predictor
-│   │   │   ├── threshold-tracker.ts # Evolving LT1/LT2 calibration & 30-day baseline
-│   │   │   ├── weather.ts        # Microclimate weather retrieval & caching
-│   │   │   └── zones.ts          # Individualized 5-zone HR distributions
-│   │   ├── routes/
-│   │   │   ├── activities.ts     # GET /api/activities, GET /api/activities/:id, PATCH
-│   │   │   ├── thresholds.ts     # GET /api/thresholds (LT1/LT2 timeline & trend)
-│   │   │   └── ingest.ts         # POST /api/ingest/upload, POST /api/ingest/scan
-│   │   └── server.ts             # Express REST API server
-│   │
-│   └── frontend/                 # Vite + React (TypeScript) dashboard UI
-│       ├── components/
-│       │   ├── BrowseView.tsx    # Session browser, multi-tags, sub-tabs & splits
-│       │   ├── CanvasRunChart.tsx # High-performance canvas chart (Pace/HR/Elevation)
-│       │   ├── Footer.tsx        # Dashboard footer & metadata
-│       │   ├── Navbar.tsx        # Navigation bar with tab toggles & import modal
-│       │   ├── ProgressView.tsx  # Running economy curves & threshold timeline
-│       │   ├── StatsView.tsx     # Current physiology status & race predictions
-│       │   └── UploadModal.tsx   # In-memory drag & drop CSV file uploader
-│       ├── styles/
-│       │   └── index.css         # Dark-mode design system with glassmorphism
-│       ├── App.tsx               # Main application routing & tab state
-│       └── main.tsx              # React DOM entry point
-│
-├── scripts/
-│   └── ingest.ts                 # CLI runner: `npm run ingest`
-│
-├── tests/
-│   ├── fixtures/sample-run.csv   # Real Garmin Singapore run fixture
-│   ├── unit/                     # Unit tests for parser, physiology, and predictions
-│   └── integration/              # In-memory SQLite ingestion and API route tests
-│
-├── .gitignore                    # Configured to ignore CSVs and SQLite databases
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-├── vitest.config.ts
-└── README.md
-```
+| Table | Description |
+| :--- | :--- |
+| `activities` | Master run records (date, distance, duration, avg pace, HR, cadence, vertical oscillation, stance time, EF, decoupling %, tags, `workout_lat`, `workout_lon`, notes, `run_type`, `auto_run_type`). |
+| `activity_splits` | 1km splits (distance, duration, split pace, split HR, split EF, elevation delta). |
+| `activity_intervals` | Detected interval reps, strides, and recovery blocks with peak dynamics and recovery drops. |
+| `activity_records` | Compacted time-series telemetry (elapsed seconds, HR, cadence, speed, distance, elevation, temperature). High-frequency GPS stripped. |
+| `activity_coach_summaries` | AI Coach debrief: headline, recommendation, effectiveness score (0–100), stars (1–5), rating5, key insights JSON, and itemized `score_breakdown_json`. |
+| `physiological_thresholds` | Historical calibration points for LT1, LT2, and 30-day baseline Running Economy. |
+| `athlete_profile` | Athlete configuration: max HR, resting HR, LT1/LT2 baselines, and demographic calibration. |
 
 ---
 
@@ -193,8 +198,9 @@ $$\text{EF} = \frac{\text{Moving Speed (m/min)}}{\text{Average Heart Rate (bpm)}
 
 ### 2. Aerobic Decoupling ($Pa:Hr$ Drift %)
 $$\text{Decoupling} = \frac{\text{EF}_{\text{first half}} - \text{EF}_{\text{second half}}}{\text{EF}_{\text{first half}}} \times 100\%$$
-- **$< 4.5\%$**: Solid aerobic endurance base at or below LT1. Cardiac drift is minimal.
-- **$> 5.0\%$**: Cardiac drift occurred (misjudged pacing, dehydration, tropical heat, or running above LT1).
+- **$< 3.5\%$**: Superior aerobic endurance base. Cardiac drift is virtually absent.
+- **$3.5\text{--}5.0\%$**: Stable aerobic condition.
+- **$> 5.0\%$**: Cardiovascular drift occurred (pacing too fast, dehydration, tropical heat, or premature threshold crossing).
 
 ### 3. Meters per Beat
 $$\text{Meters/Beat} = \frac{\text{Total Distance (m)}}{\text{Total Heartbeats}}$$
@@ -204,29 +210,3 @@ $$\text{Meters/Beat} = \frac{\text{Total Distance (m)}}{\text{Total Heartbeats}}
 - **Peak Speed & Peak Cadence**: Peak values recorded during stride and interval bursts.
 - **Min Ground Contact Time ($GCT$)**: Measures running elasticity and stiffness during high-speed surges.
 - **Heart Rate Recovery ($HRR$) Drop**: Absolute drop in BPM during recovery intervals (e.g., $162 \to 134\text{ bpm} = -28\text{ bpm}$ in 60s), reflecting parasympathetic reactivation.
-
----
-
-## Database Schema (`data/runs.db`)
-
-| Table | Description |
-| :--- | :--- |
-| `activities` | Master run records (date, distance, duration, avg pace, HR, cadence, vertical oscillation, stance time, EF, decoupling %, tags, `workout_lat`, `workout_lon`, notes). |
-| `activity_splits` | 1km splits (distance, duration, split pace, split HR, split EF, elevation delta). |
-| `activity_intervals` | Detected interval reps, strides, and recovery blocks with peak dynamics and recovery drops. |
-| `activity_records` | Compacted time-series telemetry (elapsed seconds, HR, cadence, speed, distance, elevation, temperature). High-frequency GPS stripped. |
-| `physiological_thresholds` | Historical calibration points for LT1, LT2, and 30-day baseline Running Economy. |
-
----
-
-## API Endpoints Reference
-
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/api/health` | Health status and database check |
-| `GET` | `/api/activities` | List all runs (supports `?type=easy_base`, etc.) |
-| `GET` | `/api/activities/:id` | Full run detail (splits, intervals, downsampled records, AI coach debrief) |
-| `PATCH` | `/api/activities/:id` | Update run name, tags, run_type, or notes |
-| `GET` | `/api/thresholds` | Latest LT1/LT2 thresholds, historical progression, and economy curves |
-| `POST` | `/api/ingest/upload` | In-memory upload of CSV content from web UI |
-| `POST` | `/api/ingest/scan` | Scan `data/raw/` directory for CLI ingestion |

@@ -92,8 +92,10 @@ export const PeriodProgressView: React.FC = () => {
     : '';
 
   // Baseline comparison
-  const baselineEf = data.months[0]?.avgEfficiencyFactor || 1.06;
-  const latestMonthEf = data.months[data.months.length - 1]?.avgEfficiencyFactor || 1.16;
+  const baselineEf = data.months?.[0]?.avgEfficiencyFactor || 1.06;
+  const latestMonthEf = (data.months && data.months.length > 0)
+    ? (data.months[data.months.length - 1]?.avgEfficiencyFactor || 1.16)
+    : 1.16;
   const efficiencyImprovementPct = baselineEf > 0
     ? (((latestMonthEf - baselineEf) / baselineEf) * 100).toFixed(1)
     : '0';

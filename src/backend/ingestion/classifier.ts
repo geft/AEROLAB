@@ -141,13 +141,17 @@ export function classifyRun(
     };
   }
 
-  // 6. Recovery run check (low cardiovascular strain: avg HR < 70% max HR and duration <= 40 min)
-  const isRecoveryHr = maxHr > 0 ? avgHr < maxHr * 0.70 : avgHr < 128;
-  if (durationMin <= 40 && isRecoveryHr) {
+  // 6. Recovery run check (low cardiovascular strain: <= 50 min, avg HR <= 136 bpm or < 72% max HR, gentle distance <= 7.2 km, or explicit name)
+  const isExplicitRecovery = nameLower.includes('recovery');
+  const isRecoveryHr = maxHr > 0 ? (avgHr <= 136 || avgHr < maxHr * 0.72) : avgHr <= 136;
+  const isGentleVolume = distanceKm <= 7.2;
+  if (isExplicitRecovery || (durationMin <= 50 && isRecoveryHr && isGentleVolume)) {
     return {
       runType: 'recovery',
       confidence: 0.88,
-      reason: `Low cardiovascular strain recovery jog (${durationMin.toFixed(0)} min, avg HR ${avgHr})`
+      reason: isExplicitRecovery
+        ? `Recovery run identified by title: "${metadata.name}"`
+        : `Low cardiovascular strain recovery jog (${durationMin.toFixed(0)} min, avg HR ${avgHr} bpm)`
     };
   }
 

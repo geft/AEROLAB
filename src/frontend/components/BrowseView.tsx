@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, CloudRain, Flame, TrendingUp, Zap, Clock, ShieldCheck, HeartPulse, Compass, Edit2, Tag, Plus, X, FileText, Activity as ActivityIcon, Droplets, RefreshCw, Thermometer, Sun, Cloud } from 'lucide-react';
+import { Calendar, CloudRain, Flame, TrendingUp, Zap, Clock, ShieldCheck, HeartPulse, Compass, Edit2, Tag, Plus, X, FileText, Activity as ActivityIcon, Droplets, RefreshCw, Thermometer, Sun, Cloud, ChevronDown, HelpCircle } from 'lucide-react';
 import { CanvasRunChart } from './CanvasRunChart';
 import { formatPace as formatPaceUtil } from '../utils/formatters.js';
 
@@ -84,6 +84,29 @@ export function scoreToStars(score: number | null | undefined): number {
   return 1;
 }
 
+export function doesActivityMatchTag(a: ActivitySummary, tag: string): boolean {
+  if (!tag || tag.toLowerCase() === 'all') return true;
+  const lower = tag.toLowerCase();
+  let tagsArr: string[] = [];
+  try {
+    tagsArr = a.tags ? JSON.parse(a.tags) : [];
+  } catch {
+    tagsArr = [];
+  }
+  if (tagsArr.some(t => t.toLowerCase() === lower)) return true;
+  if (lower === 'threshold' && (a.run_type === 'threshold_lt2' || a.run_type === 'tempo')) return true;
+  if (lower === 'vo2 max' && a.run_type === 'intervals_vo2') return true;
+  if (lower === 'easy base' && a.run_type === 'easy_base') return true;
+  if (lower === 'long run' && a.run_type === 'long_run') return true;
+  if (lower === 'race' && a.run_type === 'race') return true;
+  if (lower === 'recovery' && a.run_type === 'recovery') return true;
+  if (lower === 'failed workout' && a.run_type === 'failed_workout') return true;
+  if (lower === 'tempo' && a.run_type === 'tempo') return true;
+  if (lower === 'marathon pace' && tagsArr.some(t => t.toLowerCase().includes('marathon'))) return true;
+  if (lower === 'strides' && (a.run_type === 'strides' || tagsArr.some(t => t.toLowerCase().includes('stride')))) return true;
+  return false;
+}
+
 const COMMON_TAG_PRESETS = [
   'Easy Base', 'Long Run', 'Recovery', 'Threshold', 'VO2 Max',
   'Tempo', 'Marathon Pace', 'Strides', 'Race', 'Failed Workout'
@@ -114,6 +137,8 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
   const [runnerNotes, setRunnerNotes] = useState<string>('');
   const [isSavingNotes, setIsSavingNotes] = useState<boolean>(false);
   const [notesSaveStatus, setNotesSaveStatus] = useState<string | null>(null);
+
+  const [showScoreBreakdown, setShowScoreBreakdown] = useState<boolean>(false);
 
   // Auto-dismiss tag menu when clicking outside
   useEffect(() => {
@@ -170,6 +195,16 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
     }
   };
 
+  // Pre-calculate count of activities matching each sidebar tag
+  const tagCounts = React.useMemo(() => {
+    const counts: Record<string, number> = { All: activities.length };
+    SIDEBAR_FILTER_TAGS.forEach(tag => {
+      if (tag === 'All') return;
+      counts[tag] = activities.filter(a => doesActivityMatchTag(a, tag)).length;
+    });
+    return counts;
+  }, [activities]);
+
   // Derive unique year-months from activities
   const monthOptions = React.useMemo(() => {
     const set = new Set<string>();
@@ -187,28 +222,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
         return false;
       }
       // Tag filter
-      if (selectedTagFilter && selectedTagFilter.toLowerCase() !== 'all') {
-        const lower = selectedTagFilter.toLowerCase();
-        let tagsArr: string[] = [];
-        try {
-          tagsArr = a.tags ? JSON.parse(a.tags) : [];
-        } catch {
-          tagsArr = [];
-        }
-        if (tagsArr.some(t => t.toLowerCase() === lower)) return true;
-        if (lower === 'threshold' && (a.run_type === 'threshold_lt2' || a.run_type === 'tempo')) return true;
-        if (lower === 'vo2 max' && a.run_type === 'intervals_vo2') return true;
-        if (lower === 'easy base' && a.run_type === 'easy_base') return true;
-        if (lower === 'long run' && a.run_type === 'long_run') return true;
-        if (lower === 'race' && a.run_type === 'race') return true;
-        if (lower === 'recovery' && a.run_type === 'recovery') return true;
-        if (lower === 'failed workout' && a.run_type === 'failed_workout') return true;
-        if (lower === 'tempo' && a.run_type === 'tempo') return true;
-        if (lower === 'marathon pace' && tagsArr.some(t => t.toLowerCase().includes('marathon'))) return true;
-        if (lower === 'strides' && (a.run_type === 'strides' || tagsArr.some(t => t.toLowerCase().includes('stride')))) return true;
-        return false;
-      }
-      return true;
+      return doesActivityMatchTag(a, selectedTagFilter);
     });
   }, [activities, selectedMonth, selectedTagFilter]);
 
@@ -251,6 +265,16 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
         setRunnerNotes(data.activity?.notes || '');
         if (!data.intervals || data.intervals.length === 0) {
           setActiveSubTab(prev => (prev === 'strides' ? 'telemetry' : prev));
+        }
+        // Propagate latest effectiveness score back to sidebar card so ratings never fall out of sync
+        if (data.coachSummary?.effectivenessScore != null && onActivityUpdated) {
+          onActivityUpdated({
+            id: selectedActivityId,
+            effectiveness_score: data.coachSummary.effectivenessScore,
+            run_type: data.activity?.run_type,
+            name: data.activity?.name,
+            tags: data.activity?.tags
+          });
         }
         setLoadingDetail(false);
       })
@@ -370,18 +394,22 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
 
         {/* Tag Filters Bar */}
         <div className="sidebar-filter-bar">
-          {SIDEBAR_FILTER_TAGS.map(tag => (
-            <button
-              key={tag}
-              className={`sidebar-filter-chip ${selectedTagFilter.toLowerCase() === tag.toLowerCase() ? 'active' : ''}`}
-              onClick={() => setSelectedTagFilter(prev => {
-                if (tag.toLowerCase() === 'all') return 'all';
-                return prev.toLowerCase() === tag.toLowerCase() ? 'all' : tag;
-              })}
-            >
-              {tag}
-            </button>
-          ))}
+          {SIDEBAR_FILTER_TAGS.map(tag => {
+            const count = tagCounts[tag] ?? 0;
+            const isZero = count === 0 && selectedTagFilter.toLowerCase() !== tag.toLowerCase();
+            return (
+              <button
+                key={tag}
+                className={`sidebar-filter-chip ${selectedTagFilter.toLowerCase() === tag.toLowerCase() ? 'active' : ''} ${isZero ? 'filter-zero-count' : ''}`}
+                onClick={() => setSelectedTagFilter(prev => {
+                  if (tag.toLowerCase() === 'all') return 'all';
+                  return prev.toLowerCase() === tag.toLowerCase() ? 'all' : tag;
+                })}
+              >
+                {tag} <span className="sidebar-filter-count">({count})</span>
+              </button>
+            );
+          })}
         </div>
 
         <div className="sessions-list">
@@ -454,7 +482,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                     )}
                     {stars > 0 && (
                       <div className="session-card-footer">
-                        <span className="session-rating-pill" title={`Execution: ${stars} / 5 Stars`}>
+                        <span className="session-rating-pill" title={`Execution: ${stars} / 5 Stars${a.effectiveness_score ? ` (${a.effectiveness_score}/100)` : ''}`}>
                           <span className="stars-filled">{'★'.repeat(stars)}</span>
                           {stars < 5 && <span className="stars-empty">{'★'.repeat(5 - stars)}</span>}
                         </span>
@@ -1112,6 +1140,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                 {/* AI / Coach Summary & Effectiveness */}
                 {detailData.coachSummary && (() => {
                   const coachStars = detailData.coachSummary.stars ?? scoreToStars(detailData.coachSummary.effectivenessScore ?? detailData.coachSummary.rating5);
+                  const effScore = detailData.coachSummary.effectivenessScore;
                   return (
                     <section className="coach-summary-card">
                       <div className="coach-header">
@@ -1121,7 +1150,13 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                             {detailData.coachSummary.headline}
                           </h3>
                         </div>
-                        <div className="coach-score-badge" title={`Execution: ${coachStars} / 5 Stars`}>
+                        <button
+                          type="button"
+                          className="coach-score-badge"
+                          onClick={() => setShowScoreBreakdown(prev => !prev)}
+                          title="Click to toggle full execution score breakdown & grading rubric"
+                          style={{ cursor: 'pointer', background: 'transparent', font: 'inherit' }}
+                        >
                           <ShieldCheck size={16} />
                           <span className="coach-star-rating" style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
                             <span style={{ color: '#f59e0b', letterSpacing: '1px' }}>{'★'.repeat(coachStars)}</span>
@@ -1132,10 +1167,74 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                             )}
                           </span>
                           <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginLeft: '0.25rem' }}>
-                            ({coachStars} / 5 Stars)
+                            ({coachStars} / 5 Stars){effScore ? ` • ${effScore}/100` : ''}
                           </span>
-                        </div>
+                          <ChevronDown
+                            size={14}
+                            style={{
+                              marginLeft: '2px',
+                              transform: showScoreBreakdown ? 'rotate(180deg)' : 'none',
+                              transition: 'transform 0.2s ease',
+                              opacity: 0.8
+                            }}
+                          />
+                        </button>
                       </div>
+
+                      {/* Transparent Execution Score Breakdown & Rubric */}
+                      {showScoreBreakdown && (
+                        <div className="score-breakdown-card">
+                          <div className="score-breakdown-header">
+                            <span className="score-breakdown-title">Physiological Execution Score Breakdown</span>
+                            <span className="score-breakdown-total">
+                              Final Execution: <b>{effScore ?? Math.round(coachStars * 20)} / 100</b> ({coachStars} / 5 Stars)
+                            </span>
+                          </div>
+
+                          <div className="score-breakdown-factors">
+                            {(detailData.coachSummary.scoreBreakdown || []).map((factor: any, fIdx: number) => {
+                              const isPos = factor.points > 0;
+                              const isNeg = factor.points < 0;
+                              return (
+                                <div key={fIdx} className="score-factor-row">
+                                  <div className="score-factor-main">
+                                    <span className="score-factor-cat">{factor.category}</span>
+                                    <span className="score-factor-label">{factor.label}</span>
+                                    {factor.description && (
+                                      <span className="score-factor-desc">{factor.description}</span>
+                                    )}
+                                  </div>
+                                  <span className={`score-factor-points ${isPos ? 'points-positive' : (isNeg ? 'points-negative' : 'points-neutral')}`}>
+                                    {isPos ? `+${factor.points}` : factor.points}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Physiological Grading Rubric */}
+                          <div className="score-rubric-legend">
+                            <span className="rubric-legend-title">Grading Rubric & Standards</span>
+                            <div className="rubric-tiers">
+                              <span className={coachStars === 5 ? 'rubric-active' : ''}>
+                                ★★★★★ (90–100): Near-perfect physiological execution & pacing adherence
+                              </span>
+                              <span className={coachStars === 4 ? 'rubric-active' : ''}>
+                                ★★★★☆ (78–89): Solid stimulus; minor drift (&lt;6%) or slight cadence variance
+                              </span>
+                              <span className={coachStars === 3 ? 'rubric-active' : ''}>
+                                ★★★☆☆ (65–77): Productive session; compromised by thermal drift, high variance, or accidental grey-zone creep
+                              </span>
+                              <span className={coachStars === 2 ? 'rubric-active' : ''}>
+                                ★★☆☆☆ (50–64): Aborted interval set, early cutoff, or pace collapse
+                              </span>
+                              <span className={coachStars === 1 ? 'rubric-active' : ''}>
+                                ★☆☆☆☆ (&lt;50): Severe pacing failure or injury stoppage
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       <ul className="coach-insights-list">
                         {detailData.coachSummary.keyInsights.map((insight: string, idx: number) => (

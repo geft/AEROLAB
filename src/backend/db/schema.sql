@@ -170,6 +170,7 @@ CREATE TABLE IF NOT EXISTS activity_coach_summaries (
   steady_cadence INTEGER,
   steady_stance_time REAL,
   pause_breakdown_json TEXT,
+  score_breakdown_json TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE
