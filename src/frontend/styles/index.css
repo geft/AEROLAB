@@ -1677,14 +1677,29 @@ body {
 }
 
 .calibration-metrics-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 220px 180px 160px;
   align-items: center;
   gap: 1.5rem;
-  flex-wrap: wrap;
-  padding: 0.4rem 0.6rem;
+  padding: 0.5rem 0.85rem;
   background: var(--bg-surface);
   border-radius: 6px;
   border: 1px solid var(--border-subtle);
+}
+
+@media (max-width: 768px) {
+  .calibration-metrics-row {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1rem;
+  }
+}
+
+.calibration-card-note {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  line-height: 1.4;
+  padding: 0.15rem 0.25rem 0;
 }
 
 .calibration-metric-item {

@@ -300,13 +300,13 @@ export const ProgressView: React.FC = () => {
                         {h.baseline_economy_ef ? Number(h.baseline_economy_ef).toFixed(2) : '—'} <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>EF</span>
                       </span>
                     </div>
-
-                    <div style={{ flex: 1, minWidth: '180px', display: 'flex', alignItems: 'center' }}>
-                      <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
-                        "{h.notes || 'Calibrated from steady running'}"
-                      </p>
-                    </div>
                   </div>
+
+                  {h.notes && (
+                    <div className="calibration-card-note">
+                      "{h.notes}"
+                    </div>
+                  )}
                 </div>
               );
             })}
