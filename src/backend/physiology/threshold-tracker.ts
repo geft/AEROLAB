@@ -153,6 +153,10 @@ export function evaluateThresholdUpdate(
         params.push(estimatedLt1Hr);
         updates.push('z3_start_hr = ?');
         params.push(estimatedLt1Hr + 1);
+        updates.push('lt1_min_hr = ?');
+        params.push(estimatedLt1Hr - 1);
+        updates.push('lt1_max_hr = ?');
+        params.push(estimatedLt1Hr + 1);
       }
       if (estimatedLt2Hr) {
         updates.push('lt2_hr = ?');
@@ -190,31 +194,36 @@ export function getCurrentThresholds(db: Database.Database): {
   lastCalibratedDate: string | null;
 } {
   try {
-    const latest = db.prepare(`
-      SELECT lt1_hr, lt2_hr, lt1_pace_sec_km, lt2_pace_sec_km, effective_date, confidence
+    const latestLt1 = db.prepare(`
+      SELECT lt1_hr, lt1_pace_sec_km, effective_date, confidence
       FROM physiological_thresholds
-      WHERE lt1_hr IS NOT NULL OR lt2_hr IS NOT NULL
+      WHERE lt1_hr IS NOT NULL
       ORDER BY effective_date DESC, id DESC
       LIMIT 1
     `).get() as any;
 
-    const profile = db.prepare('SELECT lt1_hr, lt2_hr, lt1_min_hr, lt1_max_hr FROM athlete_profile WHERE id = ?').get('primary') as any;
+    const latestLt2 = db.prepare(`
+      SELECT lt2_hr, lt2_pace_sec_km, effective_date, confidence
+      FROM physiological_thresholds
+      WHERE lt2_hr IS NOT NULL
+      ORDER BY effective_date DESC, id DESC
+      LIMIT 1
+    `).get() as any;
 
-    const baselineLt1 = profile?.lt1_hr || 148;
-    const minLt1 = profile?.lt1_min_hr || 147;
-    const maxLt1 = profile?.lt1_max_hr || 149;
-    const lt1Hr = (latest?.lt1_hr && latest.lt1_hr >= minLt1 && latest.lt1_hr <= maxLt1 + 3) ? latest.lt1_hr : baselineLt1;
-    const lt2Hr = latest?.lt2_hr || profile?.lt2_hr || 167;
+    const profile = db.prepare('SELECT lt1_hr, lt2_hr FROM athlete_profile WHERE id = ?').get('primary') as any;
+
+    const lt1Hr = latestLt1?.lt1_hr || profile?.lt1_hr || 148;
+    const lt2Hr = latestLt2?.lt2_hr || profile?.lt2_hr || 167;
 
     return {
       lt1Hr,
       lt2Hr,
-      lt1Range: [minLt1, maxLt1],
-      lt1PaceSecKm: latest?.lt1_pace_sec_km || null,
-      lt2PaceSecKm: latest?.lt2_pace_sec_km || null,
-      confidence: latest?.confidence || 1.0,
-      source: latest ? 'calibrated' : 'baseline',
-      lastCalibratedDate: latest?.effective_date || null
+      lt1Range: [lt1Hr - 1, lt1Hr + 1],
+      lt1PaceSecKm: latestLt1?.lt1_pace_sec_km || null,
+      lt2PaceSecKm: latestLt2?.lt2_pace_sec_km || null,
+      confidence: latestLt1?.confidence || latestLt2?.confidence || 1.0,
+      source: (latestLt1 || latestLt2) ? 'calibrated' : 'baseline',
+      lastCalibratedDate: latestLt1?.effective_date || latestLt2?.effective_date || null
     };
   } catch {
     return {

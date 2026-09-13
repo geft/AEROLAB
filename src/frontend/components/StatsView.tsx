@@ -70,11 +70,9 @@ export const StatsView: React.FC = () => {
     z4: [167, 188],
     z5: [189, 203]
   };
-  const lt1Hr = data.currentThresholds?.lt1Hr ?? lt1?.lt1_hr ?? 148;
-  const lt2Hr = data.currentThresholds?.lt2Hr ?? lt2?.lt2_hr ?? 167;
-  const lt1RangeStr = data.currentThresholds?.lt1Range 
-    ? `${data.currentThresholds.lt1Range[0]}–${data.currentThresholds.lt1Range[1]}` 
-    : '147–149';
+  const lt1Hr = zones.z2[1] ?? data.currentThresholds?.lt1Hr ?? lt1?.lt1_hr ?? 148;
+  const lt2Hr = zones.z4[0] ?? data.currentThresholds?.lt2Hr ?? lt2?.lt2_hr ?? 167;
+  const lt1RangeStr = `${lt1Hr}`;
 
   return (
     <div className="stats-grid">

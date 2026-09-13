@@ -81,10 +81,10 @@ export const ProgressView: React.FC = () => {
             {data.latest.lt1?.lt1_pace_sec_km ? formatPace(data.latest.lt1.lt1_pace_sec_km) : '5:10/km (Est.)'}
           </div>
           <span className="benchmark-sub">
-            Calibrated at {data.currentThresholds?.lt1Range ? `${data.currentThresholds.lt1Range[0]}–${data.currentThresholds.lt1Range[1]}` : (data.latest.lt1?.lt1_hr ?? '147–149')} bpm (Zone 2 Ceiling)
+            Calibrated at {data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? data.latest.lt1?.lt1_hr ?? 145} bpm (Zone 2 Ceiling)
           </span>
           <div className="threshold-marker-badge">
-            <ShieldCheck size={12} /> Zone 2 Ceiling: {data.currentThresholds?.lt1Range ? `${data.currentThresholds.lt1Range[0]}–${data.currentThresholds.lt1Range[1]}` : '147–149'} bpm
+            <ShieldCheck size={12} /> Zone 2 Ceiling: {data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? data.latest.lt1?.lt1_hr ?? 145} bpm
           </div>
         </div>
 
@@ -94,10 +94,10 @@ export const ProgressView: React.FC = () => {
             {data.latest.lt2?.lt2_pace_sec_km ? formatPace(data.latest.lt2.lt2_pace_sec_km) : '4:10/km (Est.)'}
           </div>
           <span className="benchmark-sub">
-            Anaerobic Turnpoint (~{data.currentThresholds?.lt2Hr ?? data.latest.lt2?.lt2_hr ?? 167} bpm)
+            Anaerobic Turnpoint (~{data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? data.latest.lt2?.lt2_hr ?? 167} bpm)
           </span>
           <div className="threshold-marker-badge amber">
-            <Zap size={12} /> Zone 4 Turnpoint: {data.currentThresholds?.lt2Hr ?? data.latest.lt2?.lt2_hr ?? 167} bpm
+            <Zap size={12} /> Zone 4 Turnpoint: {data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? data.latest.lt2?.lt2_hr ?? 167} bpm
           </div>
         </div>
 
@@ -146,10 +146,10 @@ export const ProgressView: React.FC = () => {
           <ShieldCheck size={20} color="#10b981" />
           <div>
             <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              Continuous HRR Threshold Calibration: LT1 @ 147–149 bpm • LT2 @ 167 bpm
+              Continuous HRR Threshold Calibration: LT1 @ {data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? 145} bpm • LT2 @ {data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? 167} bpm
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              Zone 2 ceiling (148 bpm) and Zone 4 turnpoint (167 bpm) update automatically as you log steady and threshold runs.
+              Zone 2 ceiling ({data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? 145} bpm) and Zone 4 turnpoint ({data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? 167} bpm) update automatically as you log steady and threshold runs.
             </div>
           </div>
         </div>
