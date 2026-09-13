@@ -171,7 +171,8 @@ describe('BrowseView User Flow & Navigation Tests', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Near-Perfect Aerobic Base Execution')).toBeTruthy();
-      expect(screen.getByText(/\(5 \/ 5 Stars\)/i)).toBeTruthy();
+      // Emblem shows stars + score only (no label text) — verify score appears in badge
+      expect(screen.getByText('95/100')).toBeTruthy();
       expect(screen.getByText(/superb cardiovascular stability with only 2\.1% drift/i)).toBeTruthy();
       expect(screen.getByText(/ready for progressive tempo/i)).toBeTruthy();
       expect(screen.getByText('Runner Notes & Observations')).toBeTruthy();
@@ -394,10 +395,10 @@ describe('BrowseView User Flow & Navigation Tests', () => {
       const strideChips = screen.getAllByText('Strides');
       expect(strideChips.length).toBeGreaterThanOrEqual(1);
 
-      // Score pill should appear on sidebar card
-      const scorePill = screen.getByTitle(/Execution: 5 \/ 5 Stars/i);
-      expect(scorePill).toBeTruthy();
-      expect(scorePill.textContent).toContain('★★★★★');
+      // Execution emblem should appear on sidebar card (score 96 = Gold tier = 3 stars, no text label)
+      const emblem = screen.getByTitle(/Execution: 3 \/ 3 Stars/i);
+      expect(emblem).toBeTruthy();
+      expect(emblem.textContent).toContain('★');
     });
 
     // Check intervals table work reps toggle & peak HR

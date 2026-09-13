@@ -311,18 +311,19 @@ export function generateCoachSummary(params: {
     insights.push(`Pacing Alert: Heart rate drifted notably higher than pure Zone 2 (${effectiveHr} bpm avg). This functioned as an unintentional 'grey-zone' tempo effort rather than a low-stress aerobic recovery session.`);
   }
 
-  // Clamped score & 5-star rating calculation
-  let finalScore = Math.max(50, Math.min(98, score));
-  // Pacing violations cannot exceed 3 stars (maximum 74 / 100)
+  // Clamped score & 3-tier rating calculation (Bronze / Silver / Gold)
+  let finalScore = Math.max(40, Math.min(98, score));
+  // Pacing violations (accidental tempo) are capped at Bronze tier (max 69 / 100)
   if (isAccidentalTempo) {
-    finalScore = Math.min(finalScore, 74);
+    finalScore = Math.min(finalScore, 69);
   }
-  // Aborted/failed workouts cannot exceed 2 stars (maximum 64 / 100)
+  // Aborted / failed workouts are also capped at Bronze tier
   if (params.isFailedWorkout) {
-    finalScore = Math.min(finalScore, 64);
+    finalScore = Math.min(finalScore, 69);
   }
 
-  const stars = finalScore >= 90 ? 5 : finalScore >= 78 ? 4 : finalScore >= 65 ? 3 : finalScore >= 50 ? 2 : 1;
+  // 3-tier star system: 1 = Bronze (<70), 2 = Silver (70-84), 3 = Gold (>=85)
+  const stars = finalScore >= 85 ? 3 : finalScore >= 70 ? 2 : 1;
   const rating5 = Number(((finalScore / 20)).toFixed(1));
 
   let headline = 'Strong Aerobic Adaptation Session';

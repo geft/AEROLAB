@@ -132,20 +132,19 @@ export function classifyRun(
     };
   }
 
-  // 5. Long Run check (>= 75 mins or >= 16 km)
-  if (durationMin >= 75 || distanceKm >= 16) {
+  // 5. Long Run check (governed strictly by duration on feet: >= 75 mins)
+  if (durationMin >= 75) {
     return {
       runType: 'long_run',
       confidence: 0.90,
-      reason: `Extended endurance duration (${durationMin.toFixed(0)} mins, ${distanceKm.toFixed(1)} km)`
+      reason: `Extended endurance duration (${durationMin.toFixed(0)} mins on feet)`
     };
   }
 
-  // 6. Recovery run check (low cardiovascular strain: <= 50 min, avg HR <= 136 bpm or < 72% max HR, gentle distance <= 7.2 km, or explicit name)
+  // 6. Recovery run check (governed strictly by duration and low cardiovascular strain: <= 50 min, avg HR <= 136 bpm or < 72% max HR)
   const isExplicitRecovery = nameLower.includes('recovery');
   const isRecoveryHr = maxHr > 0 ? (avgHr <= 136 || avgHr < maxHr * 0.72) : avgHr <= 136;
-  const isGentleVolume = distanceKm <= 7.2;
-  if (isExplicitRecovery || (durationMin <= 50 && isRecoveryHr && isGentleVolume)) {
+  if (isExplicitRecovery || (durationMin <= 50 && isRecoveryHr)) {
     return {
       runType: 'recovery',
       confidence: 0.88,

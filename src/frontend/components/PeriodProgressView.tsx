@@ -454,33 +454,56 @@ export const PeriodProgressView: React.FC = () => {
                   </div>
                 </div>
 
-                {hasCalibrations && (
-                  <div className="period-calibrations-row">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.35rem' }}>
-                      <Award size={13} color="#f59e0b" />
-                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                        Physiological Milestones Calibrated:
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                      {p.calibrations?.map((c, cIdx) => {
-                        const isLt2 = !!c.lt2_pace_sec_km;
-                        const isRace = c.notes?.toLowerCase().includes('race') || c.name?.toLowerCase().includes('time trial');
-                        return (
+                {hasCalibrations && (() => {
+                  const lt2Cals = p.calibrations?.filter(c => !!c.lt2_pace_sec_km) ?? [];
+                  const lt1Cals = p.calibrations?.filter(c => !!c.lt1_pace_sec_km && !c.lt2_pace_sec_km) ?? [];
+                  // Best (fastest) pace = lowest sec/km
+                  const bestLt2 = lt2Cals.length > 0
+                    ? lt2Cals.reduce((a, b) => (a.lt2_pace_sec_km ?? 999) < (b.lt2_pace_sec_km ?? 999) ? a : b)
+                    : null;
+                  const bestLt1 = lt1Cals.length > 0
+                    ? lt1Cals.reduce((a, b) => (a.lt1_pace_sec_km ?? 999) < (b.lt1_pace_sec_km ?? 999) ? a : b)
+                    : null;
+                  const totalCals = (p.calibrations?.length ?? 0);
+
+                  return (
+                    <div className="period-calibrations-row">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.4rem' }}>
+                        <Award size={13} color="#f59e0b" />
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                          {totalCals} Physiological Calibration{totalCals !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                        {bestLt2 && (
                           <span
-                            key={c.id || cIdx}
-                            className={`run-badge ${isRace ? 'badge-race' : (isLt2 ? 'badge-threshold_lt2' : 'badge-easy_base')}`}
-                            style={{ fontSize: '0.68rem', padding: '0.15rem 0.5rem' }}
+                            className="run-badge badge-threshold_lt2"
+                            style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem' }}
+                            title={`Best LT2 Threshold pace this period across ${lt2Cals.length} calibration${lt2Cals.length !== 1 ? 's' : ''}`}
                           >
-                            {isRace ? '5K Benchmark' : (isLt2 ? 'LT2 Threshold' : 'LT1 Aerobic Base')}
-                            {isLt2 && c.lt2_pace_sec_km ? ` (${formatPace(c.lt2_pace_sec_km)})` : ''}
-                            {!isLt2 && c.lt1_pace_sec_km ? ` (${formatPace(c.lt1_pace_sec_km)})` : ''}
+                            LT2 Peak: {formatPace(bestLt2.lt2_pace_sec_km)}/km
+                            {lt2Cals.length > 1 && <span style={{ opacity: 0.65, marginLeft: '0.3rem' }}>×{lt2Cals.length}</span>}
                           </span>
-                        );
-                      })}
+                        )}
+                        {bestLt1 && (
+                          <span
+                            className="run-badge badge-easy_base"
+                            style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem' }}
+                            title={`Best LT1 Aerobic Base pace this period across ${lt1Cals.length} calibration${lt1Cals.length !== 1 ? 's' : ''}`}
+                          >
+                            LT1 Base: {formatPace(bestLt1.lt1_pace_sec_km)}/km
+                            {lt1Cals.length > 1 && <span style={{ opacity: 0.65, marginLeft: '0.3rem' }}>×{lt1Cals.length}</span>}
+                          </span>
+                        )}
+                        {!bestLt2 && !bestLt1 && (
+                          <span className="run-badge badge-race" style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem' }}>
+                            Benchmark Effort
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             );
           })}

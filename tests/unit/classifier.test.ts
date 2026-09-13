@@ -97,8 +97,10 @@ describe('Run Classifier Engine (Unit)', () => {
   });
 
   it('defaults to easy_base for standard aerobic running', () => {
-    const records = createMockRecords(2400, 135);
-    const result = classifyRun(baseMetadata, records, baseEconomy, []);
+    // HR 145 is above the recovery ceiling (136 bpm / 72% of 180 = 129 bpm), so should not be classified as recovery
+    const meta: ActivityMetadata = { ...baseMetadata, avgHeartRate: 145 };
+    const records = createMockRecords(2400, 145);
+    const result = classifyRun(meta, records, baseEconomy, []);
     expect(result.runType).toBe('easy_base');
   });
 });

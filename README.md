@@ -6,7 +6,7 @@ A local-first, high-performance running analytics platform and dashboard designe
 - **Running Economy**: Efficiency Factor ($Speed / HR$), Meters per Heartbeat, and Aerobic Decoupling ($Pa:Hr$ drift %)
 - **Pace-Dependent Economy Curves**: Real-world efficiency curves comparing easy base vs. threshold workouts
 - **Automatic Interval & Stride Detection**: Isolates structured work reps, recoveries, and explosive strides ($15\text{--}40\text{s}$ bursts), recording Peak Pace, Peak Cadence, Min Ground Contact Time ($GCT$), and Heart Rate Recovery ($HRR$) drop
-- **Transparent Physiological Execution Score (1–5 Stars)**: Granular 100-point scoring engine with itemized point breakdowns for aerobic stability, cadence discipline, decoupling drift, and pacing adherence
+- **Transparent Physiological Execution Score (3-Tier: Bronze / Silver / Gold)**: Granular 100-point scoring engine with itemized point breakdowns for aerobic stability, cadence discipline, decoupling drift, and pacing adherence
 - **Intelligent Physiological Debrief**: Algorithmic coaching summary that flags "accidental tempos" (grey-zone cardiac drift), identifies failed or aborted workouts, detects uphill ramp walks, and provides actionable recovery recommendations
 - **Period Progress & Training Volume**: Monthly and annual mileage breakdowns, weekly volume cadence, and 5-zone cardiovascular distribution
 - **Calibrated Race Predictions**: Jack Daniels VDOT and Critical Velocity projections for 5K, 10K, Half Marathon, and Marathon based on empirical physiological thresholds
@@ -43,22 +43,48 @@ Weather conditions in tropical climates vary dramatically across short distances
 
 ---
 
-## Physiological Execution Scoring (1–5 Stars)
+## How AEROLAB Differs from Garmin Connect
+
+Garmin Connect gives you a great overview of what you did. AEROLAB tells you **how well you executed it** and whether the work is actually building the fitness you're targeting.
+
+| Capability | Garmin Connect | AEROLAB |
+| :--- | :---: | :---: |
+| Activity map, HR, pace, cadence charts | ✅ | ✅ |
+| Weekly / monthly mileage totals | ✅ | ✅ |
+| Zone distribution (5-zone HR model) | ✅ | ✅ |
+| Garmin "Training Status" / body battery | ✅ | — |
+| **Aerobic decoupling (Pa:Hr drift %)** | — | ✅ |
+| **Efficiency Factor & Meters per Beat trends** | — | ✅ |
+| **LT1 / LT2 threshold pace & HR progression over time** | — | ✅ |
+| **Automatic "accidental tempo" flagging** (easy run that drifted grey-zone) | — | ✅ |
+| **Transparent execution scoring with itemised point breakdown** | — | ✅ |
+| **Stride detection with peak cadence, min GCT, HR recovery drop** | — | ✅ |
+| **Traffic stop & walk break isolation** (prevents stop-light distortion) | — | ✅ |
+| **VDOT race predictions from actual physiological thresholds** (not just recent pace) | — | ✅ |
+| **Workout centroid weather** (tracks conditions where you actually ran, not your doorstep) | — | ✅ |
+| **Editable runner's notebook** attached to each session | — | ✅ |
+| Your data leaves your machine | ✅ | ❌ (local-first) |
+
+**The core gap**: Garmin gives you data. AEROLAB gives you a **physiological verdict** — did this run serve its purpose? Was it a genuine Zone 2 stimulus, or did it quietly drift into grey-zone tempo territory? Are you actually building aerobic capacity, or just accumulating junk miles at the wrong intensity?
+
+---
+
+## Physiological Execution Scoring (3-Tier)
 
 Every workout is evaluated by an algorithmic coach engine that computes a transparent **0–100 Physiological Execution Score** based on objective biomechanical and cardiovascular criteria:
 
-### Scoring Rubric & Tiers
-| Rating | Score Band | Execution Level & Physiological Standard |
+### Scoring Tiers
+| Emblem | Score Band | Execution Standard |
 | :---: | :---: | :--- |
-| ★★★★★ | **90–100** | **Near-Perfect Execution**: Impeccable pacing discipline, decoupling $< 3.5\%$, optimal cadence stability ($\ge 174$ spm), target zone adherence. |
-| ★★★★☆ | **78–89** | **Solid Stimulus**: Effective training stimulus; minor thermal drift ($< 6\%$) or slight cadence variance without compromising session intent. |
-| ★★★☆☆ | **65–77** | **Productive Session with Compromise**: Meaningful aerobic work achieved, but penalized by significant thermal drift ($> 6\%$), accidental tempo grey-zone creep, or cadence inconsistency. |
-| ★★☆☆☆ | **50–64** | **Aborted / Sub-Target Workout**: Structured interval set cut short ($< 2$ work reps or $< 6$ min total work), late-rep pace collapse ($> 20\%$), or early bail. |
-| ★☆☆☆☆ | **< 50** | **Severe Pacing Failure**: Extreme cardiac decoupling ($> 15\%$), complete pace collapse, or injury stoppage. |
+| ★★★ Gold | **85–100** | **Near-Perfect Execution**: Stable HR under LT1, decoupling $< 3.5\%$, optimal cadence ($\ge 174$ spm), tight pacing adherence. |
+| ★★☆ Silver | **70–84** | **Solid Stimulus**: Productive aerobic work; minor thermal drift ($< 6\%$) or slight cadence variance without compromising intent. |
+| ★☆☆ Bronze | **< 70** | **Compromised Session**: Accidental tempo grey-zone creep, heavy cardiac drift ($> 8\%$), aborted interval set, or pace collapse. |
+
+> **Hard caps**: Accidental tempo runs and aborted workouts are capped at Bronze (max 69 / 100) regardless of other factors.
 
 ### Itemized Point Factors
 Clicking the Coach AI score pill in the dashboard opens the **Interactive Breakdown Modal**, displaying exact point additions and deductions:
-- **Baseline Intent**: Starts at **85 points** for steady aerobic base runs or completed interval sets; **60 points** for aborted workouts.
+- **Baseline Intent**: Starts at **85 points** for steady aerobic base runs or completed interval sets.
 - **Aerobic Decoupling ($Pa:Hr$)**:
   - Drift $< 3\%$: **+5 points** (aerobic rock)
   - Drift $< 5\%$: **+3 points** (stable)
@@ -69,7 +95,7 @@ Clicking the Coach AI score pill in the dashboard opens the **Interactive Breakd
   - High cadence variance ($SD > 8$ spm): **-5 points**
   - Low cadence ($< 164$ spm): **-3 points**
 - **Pacing Intent Violations ("Accidental Tempos")**:
-  - If an easy run creeps into Zone 4 / LT2 ($> 164$ bpm for prolonged stretches), a **-15 point pacing penalty** is applied and the score is hard-capped at **74 / 100 (max 3 stars)**.
+  - If an easy run creeps into Zone 4 / LT2 ($> 164$ bpm), a **-15 point pacing penalty** is applied and the score is hard-capped at **Bronze**.
 - **Strides & Neuromuscular Sharpening**:
   - Strides with peak cadence $\ge 190$ spm and crisp recovery drop: **+4 points**.
 
@@ -79,14 +105,15 @@ Clicking the Coach AI score pill in the dashboard opens the **Interactive Breakd
 
 AEROLAB automatically classifies each activity into one of six core categories:
 1. **Recovery Run (`recovery`)**:
-   - Short shakeouts ($\le 50$ minutes, $\le 7.2$ km).
+   - Short shakeouts ($\le 50$ minutes).
    - Low cardiovascular strain: Average HR $\le 136$ bpm (or $< 72\%$ of max HR).
-   - Distinguishes gentle regenerative jogs from standard aerobic volume.
+   - Governed by **duration and HR only** — distance is irrelevant for recovery classification.
 2. **Easy Aerobic Base (`easy_base`)**:
    - Standard aerobic endurance runs sustained below LT1 ($\approx 138\text{--}150$ bpm).
    - Monitored for aerobic decoupling ($Pa:Hr$) and steady-state efficiency factor.
 3. **Long Run (`long_run`)**:
-   - Extended endurance volume ($\ge 75$ minutes or $\ge 16$ km).
+   - Extended endurance volume ($\ge 75$ minutes on feet).
+   - Governed by **duration only** — distance is not a trigger.
 4. **Lactate Threshold (`threshold_lt2`)**:
    - Sustained intervals or continuous tempo in Zone 4 ($\ge 165$ bpm, work reps $\ge 6\text{--}8$ minutes).
 5. **VO2 Max Intervals (`intervals_vo2`)**:
@@ -139,10 +166,8 @@ Frontend runs at `http://localhost:5173`.
 4. A live progress bar tracks batch ingestion in-memory directly into SQLite with SHA-256 deduplication and an optional overwrite checkbox. No raw files are saved to disk.
 
 ### Method B: Terminal Ingestion CLI
-Place files into `data/raw/` and run:
 ```bash
-# Ingest and automatically delete the raw source files once saved into SQLite
-npm run ingest -- --clean
+npm run ingest
 ```
 
 ---
@@ -157,7 +182,7 @@ npm run ingest -- --clean
 ### 1. Browse View
 - **Session List & Calendar**: Scrollable chronological list of runs grouped by date with pace, distance, duration, and dynamic tags.
 - **Editable Activity Title**: Clean, uncluttered naming (no redundant "Singapore Running" prefixes). Click the pencil icon to rename any session.
-- **Dynamic Multi-Tagging**: Add or remove multiple tags per session using quick presets (`Easy Base`, `Accidental Tempo`, `Hill Strides`, `Flat Strides`, `Ramp Walk`, `VO2 Max`, `Threshold`, `Long Run`, `Recovery`, `Failed Workout`) or type custom tags on the fly.
+- **Dynamic Multi-Tagging**: Add or remove multiple tags per session using quick presets (`Easy Base`, `Accidental Tempo`, `Hill Strides`, `Flat Strides`, `Ramp Walk`, `VO2 Max`, `Threshold`, `Long Run`, `Recovery`) or type custom tags on the fly.
 - **Core Segment Filter**: Toggle between "Full Session" and "Core (Minus Warmup/Cooldown)" to inspect pure steady-state workout telemetry without warmup/cooldown skew.
 - **Three Sub-Tabs**:
   1. **Telemetry & Chart**: Interactive canvas scrub chart plotting Pace (cyan), Heart Rate (amber), and Elevation fill, plus key physiological chips and a 1km splits table.
@@ -183,7 +208,7 @@ npm run ingest -- --clean
 | `activity_splits` | 1km splits (distance, duration, split pace, split HR, split EF, elevation delta). |
 | `activity_intervals` | Detected interval reps, strides, and recovery blocks with peak dynamics and recovery drops. |
 | `activity_records` | Compacted time-series telemetry (elapsed seconds, HR, cadence, speed, distance, elevation, temperature). High-frequency GPS stripped. |
-| `activity_coach_summaries` | AI Coach debrief: headline, recommendation, effectiveness score (0–100), stars (1–5), rating5, key insights JSON, and itemized `score_breakdown_json`. |
+| `activity_coach_summaries` | AI Coach debrief: headline, recommendation, effectiveness score (0–100), stars (1–3), rating5, key insights JSON, and itemized `score_breakdown_json`. |
 | `physiological_thresholds` | Historical calibration points for LT1, LT2, and 30-day baseline Running Economy. |
 | `athlete_profile` | Athlete configuration: max HR, resting HR, LT1/LT2 baselines, and demographic calibration. |
 

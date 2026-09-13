@@ -76,11 +76,10 @@ export function getDisplayTitle(activity: { name?: string; run_type?: string; di
 
 export function scoreToStars(score: number | null | undefined): number {
   if (score == null) return 0;
-  if (score <= 5) return Math.min(5, Math.max(1, Math.round(score)));
-  if (score >= 90) return 5;
-  if (score >= 78) return 4;
-  if (score >= 65) return 3;
-  if (score >= 50) return 2;
+  // 3-tier system: 1 = Bronze (<70), 2 = Silver (70-84), 3 = Gold (>=85)
+  if (score <= 3) return Math.min(3, Math.max(1, Math.round(score)));
+  if (score >= 85) return 3;
+  if (score >= 70) return 2;
   return 1;
 }
 
@@ -100,7 +99,6 @@ export function doesActivityMatchTag(a: ActivitySummary, tag: string): boolean {
   if (lower === 'long run' && a.run_type === 'long_run') return true;
   if (lower === 'race' && a.run_type === 'race') return true;
   if (lower === 'recovery' && a.run_type === 'recovery') return true;
-  if (lower === 'failed workout' && a.run_type === 'failed_workout') return true;
   if (lower === 'tempo' && a.run_type === 'tempo') return true;
   if (lower === 'marathon pace' && tagsArr.some(t => t.toLowerCase().includes('marathon'))) return true;
   if (lower === 'strides' && (a.run_type === 'strides' || tagsArr.some(t => t.toLowerCase().includes('stride')))) return true;
@@ -109,11 +107,11 @@ export function doesActivityMatchTag(a: ActivitySummary, tag: string): boolean {
 
 const COMMON_TAG_PRESETS = [
   'Easy Base', 'Long Run', 'Recovery', 'Threshold', 'VO2 Max',
-  'Tempo', 'Marathon Pace', 'Strides', 'Race', 'Failed Workout'
+  'Tempo', 'Marathon Pace', 'Strides', 'Race'
 ];
 
 const SIDEBAR_FILTER_TAGS = [
-  'All', 'Threshold', 'VO2 Max', 'Easy Base', 'Long Run', 'Race', 'Strides', 'Marathon Pace', 'Recovery', 'Failed Workout'
+  'All', 'Threshold', 'VO2 Max', 'Easy Base', 'Long Run', 'Race', 'Strides', 'Marathon Pace', 'Recovery'
 ];
 
 export const BrowseView: React.FC<BrowseViewProps> = ({
@@ -249,16 +247,21 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
     return groups;
   }, [filteredActivities, selectedMonth]);
 
+  // Auto-select first activity on initial mount only (separate from fetch effect so it doesn't loop)
+  const didAutoSelect = React.useRef(false);
   useEffect(() => {
-    if (!selectedActivityId) {
-      if (activities.length > 0) {
-        onSelectActivity(activities[0].id);
-      }
-      return;
+    if (!didAutoSelect.current && !selectedActivityId && activities.length > 0) {
+      didAutoSelect.current = true;
+      onSelectActivity(activities[0].id);
     }
+  }, [activities, selectedActivityId, onSelectActivity]);
 
+  useEffect(() => {
+    if (!selectedActivityId) return;
+
+    const controller = new AbortController();
     setLoadingDetail(true);
-    fetch(`/api/activities/${selectedActivityId}`)
+    fetch(`/api/activities/${selectedActivityId}`, { signal: controller.signal })
       .then(res => res.json())
       .then(data => {
         setDetailData(data);
@@ -279,10 +282,13 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
         setLoadingDetail(false);
       })
       .catch(err => {
+        if (err.name === 'AbortError') return;
         console.error('Failed to load activity detail:', err);
         setLoadingDetail(false);
       });
-  }, [selectedActivityId, activities]);
+
+    return () => controller.abort();
+  }, [selectedActivityId]);
 
   const act = detailData?.activity;
 
@@ -480,14 +486,19 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                         ))}
                       </div>
                     )}
-                    {stars > 0 && (
-                      <div className="session-card-footer">
-                        <span className="session-rating-pill" title={`Execution: ${stars} / 5 Stars${a.effectiveness_score ? ` (${a.effectiveness_score}/100)` : ''}`}>
-                          <span className="stars-filled">{'★'.repeat(stars)}</span>
-                          {stars < 5 && <span className="stars-empty">{'★'.repeat(5 - stars)}</span>}
-                        </span>
-                      </div>
-                    )}
+                    {stars > 0 && (() => {
+                      const tierLabel = stars === 3 ? 'gold' : stars === 2 ? 'silver' : 'bronze';
+                      return (
+                        <div className="session-card-footer">
+                          <span
+                            className={`execution-emblem emblem-${tierLabel}`}
+                            title={`Execution: ${stars} / 3 Stars${a.effectiveness_score ? ` (${a.effectiveness_score}/100)` : ''}`}
+                          >
+                            {'★'.repeat(stars)}{'☆'.repeat(3 - stars)}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
@@ -1158,24 +1169,22 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                           style={{ cursor: 'pointer', background: 'transparent', font: 'inherit' }}
                         >
                           <ShieldCheck size={16} />
-                          <span className="coach-star-rating" style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
-                            <span style={{ color: '#f59e0b', letterSpacing: '1px' }}>{'★'.repeat(coachStars)}</span>
-                            {coachStars < 5 && (
-                              <span style={{ color: 'rgba(245, 158, 11, 0.25)', letterSpacing: '1px' }}>
-                                {'★'.repeat(5 - coachStars)}
+                          {(() => {
+                            const tierLabel = coachStars === 3 ? 'gold' : coachStars === 2 ? 'silver' : 'bronze';
+                            return (
+                              <span className={`execution-emblem emblem-${tierLabel}`} style={{ fontSize: '0.85rem', padding: '0.2rem 0.55rem' }}>
+                                {'★'.repeat(coachStars)}{'☆'.repeat(3 - coachStars)}
+                                {effScore ? <span style={{ opacity: 0.75, marginLeft: '0.4rem', fontWeight: 600, fontSize: '0.78rem' }}>{effScore}/100</span> : null}
                               </span>
-                            )}
-                          </span>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginLeft: '0.25rem' }}>
-                            ({coachStars} / 5 Stars){effScore ? ` • ${effScore}/100` : ''}
-                          </span>
+                            );
+                          })()}
                           <ChevronDown
                             size={14}
                             style={{
-                              marginLeft: '2px',
+                              marginLeft: '4px',
                               transform: showScoreBreakdown ? 'rotate(180deg)' : 'none',
                               transition: 'transform 0.2s ease',
-                              opacity: 0.8
+                              opacity: 0.6
                             }}
                           />
                         </button>
@@ -1187,7 +1196,9 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                           <div className="score-breakdown-header">
                             <span className="score-breakdown-title">Physiological Execution Score Breakdown</span>
                             <span className="score-breakdown-total">
-                              Final Execution: <b>{effScore ?? Math.round(coachStars * 20)} / 100</b> ({coachStars} / 5 Stars)
+                              Final Execution: <b>{effScore ?? '—'} / 100</b>
+                              {' · '}
+                              {coachStars === 3 ? '★★★ Gold' : coachStars === 2 ? '★★☆ Silver' : '★☆☆ Bronze'}
                             </span>
                           </div>
 
@@ -1212,24 +1223,18 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                             })}
                           </div>
 
-                          {/* Physiological Grading Rubric */}
+                          {/* Physiological Grading Rubric (3-tier) */}
                           <div className="score-rubric-legend">
-                            <span className="rubric-legend-title">Grading Rubric & Standards</span>
+                            <span className="rubric-legend-title">Grading Tiers</span>
                             <div className="rubric-tiers">
-                              <span className={coachStars === 5 ? 'rubric-active' : ''}>
-                                ★★★★★ (90–100): Near-perfect physiological execution & pacing adherence
-                              </span>
-                              <span className={coachStars === 4 ? 'rubric-active' : ''}>
-                                ★★★★☆ (78–89): Solid stimulus; minor drift (&lt;6%) or slight cadence variance
-                              </span>
                               <span className={coachStars === 3 ? 'rubric-active' : ''}>
-                                ★★★☆☆ (65–77): Productive session; compromised by thermal drift, high variance, or accidental grey-zone creep
+                                <b>★★★ Gold (85–100):</b> Near-perfect execution — stable HR, optimal cadence, tight pacing
                               </span>
                               <span className={coachStars === 2 ? 'rubric-active' : ''}>
-                                ★★☆☆☆ (50–64): Aborted interval set, early cutoff, or pace collapse
+                                <b>★★☆ Silver (70–84):</b> Solid stimulus — productive aerobic work with minor drift or variance
                               </span>
                               <span className={coachStars === 1 ? 'rubric-active' : ''}>
-                                ★☆☆☆☆ (&lt;50): Severe pacing failure or injury stoppage
+                                <b>★☆☆ Bronze (&lt;70):</b> Compromised — accidental tempo, heavy drift, aborted workout
                               </span>
                             </div>
                           </div>

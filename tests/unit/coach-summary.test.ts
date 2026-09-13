@@ -44,9 +44,9 @@ describe('AI Coach Summary Unit Tests', () => {
       elevationGainM: 8
     });
 
-    // Score: 85 - 8 (drift > 5) - 15 (accidental tempo) = 62
+    // Score: 85 - 8 (drift > 5) - 15 (accidental tempo) = 62, capped at 69 (Bronze, 1 star)
     expect(summary.effectivenessScore).toBe(62);
-    expect(summary.stars).toBe(2);
+    expect(summary.stars).toBe(1);
     expect(summary.scoreBreakdown).toBeDefined();
     const pacingFactor = summary.scoreBreakdown.find(f => f.category === 'Pacing Discipline');
     expect(pacingFactor).toBeDefined();
@@ -99,9 +99,9 @@ describe('AI Coach Summary Unit Tests', () => {
       groundContactTime: 310
     });
 
-    // 85 - 8 - 3 - 15 = 59 (capped/clamped, penalized)
+    // 85 - 8 - 3 - 15 = 59 (Bronze, 1 star)
     expect(lowSummary.effectivenessScore).toBe(59);
-    expect(lowSummary.stars).toBe(2);
+    expect(lowSummary.stars).toBe(1);
     const cadenceInsight = lowSummary.keyInsights.find(i => i.includes('Increasing turnover'));
     expect(cadenceInsight).toBeDefined();
 
@@ -237,10 +237,10 @@ describe('AI Coach Summary Unit Tests', () => {
       ]
     });
 
-    // Score should be high (>= 95 / 100, which is 5 stars)
+    // Score should be high (>= 95 / 100, which is 3 stars Gold)
     expect(summary.effectivenessScore).toBeGreaterThanOrEqual(95);
     expect(summary.rating5).toBeGreaterThanOrEqual(4.8);
-    expect(summary.stars).toBe(5);
+    expect(summary.stars).toBe(3);
     expect(summary.headline).toBe('Masterful VO2 Max Interval Execution');
 
     // Should include pacing consistency and target stimulus insights
