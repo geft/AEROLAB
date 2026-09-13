@@ -46,7 +46,8 @@ export const ProfileView: React.FC = () => {
       const res = await fetch('/api/profile');
       const data = await res.json();
       if (data.profile) {
-        setDob(data.profile.dob || '1989-04-15');
+        const rawDob = data.profile.dob ? String(data.profile.dob).trim() : '1989-04-15';
+        setDob(/^\d{4}-\d{2}$/.test(rawDob) ? `${rawDob}-15` : rawDob);
         setGender(data.profile.gender || 'Prefer not to say');
         setRestingHr(Number(data.profile.resting_hr) || 55);
         setManualMaxHr(Number(data.profile.max_hr) || 203);
@@ -248,22 +249,48 @@ export const ProfileView: React.FC = () => {
           </div>
 
           <div className="profile-form-grid">
+            {/* 1. Date of Birth */}
             <div className="form-group">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-                <label className="form-label">Date of Birth</label>
-                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#38bdf8' }}>
-                  Age: {computedAge} yrs (auto-computed)
-                </span>
-              </div>
+              <label className="form-label" htmlFor="dob-input">Date of Birth</label>
               <input
+                id="dob-input"
                 type="date"
                 className="form-input"
                 value={dob}
                 onChange={e => setDob(e.target.value)}
               />
-              <span className="form-hint">Used for Tanaka formula (208 - 0.7 × age = {liveTanaka} bpm). Automatically keeps age up to date.</span>
+              <span className="form-hint">Birth date for continuous age calculation.</span>
             </div>
 
+            {/* 2. Calculated Age & Tanaka Baseline */}
+            <div className="form-group">
+              <label className="form-label">Calculated Age &amp; Tanaka HR</label>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.55rem 0.85rem',
+                background: 'rgba(6, 182, 212, 0.08)',
+                border: '1px solid rgba(6, 182, 212, 0.25)',
+                borderRadius: 8,
+                minHeight: '38px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
+                  <span style={{ fontSize: '1rem', fontWeight: 800, color: '#38bdf8' }}>
+                    {dob ? `${computedAge} yrs` : '—'}
+                  </span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                    {dob ? '(auto-computed)' : '(set birth date)'}
+                  </span>
+                </div>
+                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                  Tanaka: ~{liveTanaka} bpm
+                </span>
+              </div>
+              <span className="form-hint">Formula: 208 - (0.7 × age) = {liveTanaka} bpm</span>
+            </div>
+
+            {/* 3. Biological Gender */}
             <div className="form-group">
               <label className="form-label">Biological Gender</label>
               <select
@@ -279,7 +306,8 @@ export const ProfileView: React.FC = () => {
               <span className="form-hint">Cardiovascular and VO2 Max distribution baseline.</span>
             </div>
 
-            <div className="form-group" style={{ gridColumn: 'span 2' }}>
+            {/* 4. Resting Heart Rate */}
+            <div className="form-group">
               <label className="form-label">Resting Heart Rate (bpm)</label>
               <input
                 type="number"
@@ -290,9 +318,7 @@ export const ProfileView: React.FC = () => {
                 min="35"
                 max="100"
               />
-              <span className="form-hint">
-                True resting heart rate upon waking. Essential anchor for Karvonen Heart Rate Reserve (HRR) calculations.
-              </span>
+              <span className="form-hint">Waking resting heart rate for Karvonen HRR calculations.</span>
             </div>
           </div>
         </section>

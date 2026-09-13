@@ -174,7 +174,7 @@ export function getDatabase(dbPath?: string): Database.Database {
       CREATE TABLE IF NOT EXISTS athlete_profile (
         id TEXT PRIMARY KEY DEFAULT 'primary',
         age INTEGER DEFAULT 37,
-        dob TEXT DEFAULT '1989-04',
+        dob TEXT DEFAULT '1989-04-15',
         height_cm REAL DEFAULT 165,
         weight_kg REAL DEFAULT 55,
         resting_hr INTEGER DEFAULT 55,
@@ -240,7 +240,7 @@ export function getDatabase(dbPath?: string): Database.Database {
           shoe_threshold, shoe_easy, shoe_retired, location,
           favorite_route, schedule_json, preferences_json
         ) VALUES (
-          'primary', 37, '1989-04', 165, 55, 55, 203,
+          'primary', 37, '1989-04-15', 165, 55, 55, 203,
           148, 167, 147, 149,
           149, 167, 'HRR', 58,
           'Sub-4 hour at BYD Marathon 2026 (Stretch Goal: 3:40)',

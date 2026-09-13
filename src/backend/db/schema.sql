@@ -133,7 +133,7 @@ CREATE TABLE IF NOT EXISTS athlete_profile (
   name TEXT DEFAULT 'Runner',
   gender TEXT DEFAULT 'Prefer not to say',
   age INTEGER DEFAULT 37,
-  dob TEXT DEFAULT '1989-04',
+  dob TEXT DEFAULT '1989-04-15',
   height_cm REAL DEFAULT 165,
   weight_kg REAL DEFAULT 55,
   resting_hr INTEGER DEFAULT 55,
