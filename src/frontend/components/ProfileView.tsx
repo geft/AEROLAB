@@ -165,7 +165,7 @@ export const ProfileView: React.FC = () => {
           <div>
             <h1 className="profile-header-title">Cardiovascular Baselines</h1>
             <p className="profile-header-subtitle">
-              Cardiovascular baselines &amp; physiological threshold anchors. Only cardio parameters affect your running zones, efficiency index, and workout execution scores.
+              Baselines and threshold anchors driving your training zones and efficiency metrics.
             </p>
           </div>
         </div>
@@ -193,13 +193,13 @@ export const ProfileView: React.FC = () => {
         <div className="profile-card-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Zap size={18} color="#f59e0b" />
-            <h2 className="profile-card-title">Continuously Inferred Physiological Thresholds</h2>
+            <h2 className="profile-card-title">Inferred Physiological Thresholds</h2>
           </div>
           <span className="profile-badge-calibrated">Derived from Run Data</span>
         </div>
 
         <p className="profile-card-desc">
-          Lactate thresholds are derived continuously from your actual steady runs and tempo workouts via aerodynamic &amp; cardiac inflection. They are not manually edited here to prevent optimistic target drift.
+          Derived automatically from steady runs and tempo workouts to prevent manual drift.
         </p>
 
         <div className="threshold-pills-row">
@@ -244,7 +244,7 @@ export const ProfileView: React.FC = () => {
           <div className="profile-card-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Calendar size={18} color="#06b6d4" />
-              <h2 className="profile-card-title">Biological Anchors &amp; Resting Pulse</h2>
+              <h2 className="profile-card-title">Cardio Baselines &amp; Resting HR</h2>
             </div>
           </div>
 
@@ -262,32 +262,24 @@ export const ProfileView: React.FC = () => {
               <span className="form-hint">Birth date for continuous age calculation.</span>
             </div>
 
-            {/* 2. Calculated Age & Tanaka Baseline */}
+            {/* 2. Current Age */}
             <div className="form-group">
-              <label className="form-label">Calculated Age &amp; Tanaka HR</label>
-              <div style={{
+              <label className="form-label">Current Age</label>
+              <div className="form-input" style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '0.55rem 0.85rem',
-                background: 'rgba(6, 182, 212, 0.08)',
-                border: '1px solid rgba(6, 182, 212, 0.25)',
-                borderRadius: 8,
-                minHeight: '38px'
+                background: 'rgba(255, 255, 255, 0.02)',
+                userSelect: 'none'
               }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
-                  <span style={{ fontSize: '1rem', fontWeight: 800, color: '#38bdf8' }}>
-                    {dob ? `${computedAge} yrs` : '—'}
-                  </span>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                    {dob ? '(auto-computed)' : '(set birth date)'}
-                  </span>
-                </div>
-                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-                  Tanaka: ~{liveTanaka} bpm
+                <span style={{ fontWeight: 700, color: '#38bdf8' }}>
+                  {dob ? `${computedAge} yrs` : '—'}
+                </span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Tanaka max: ~{liveTanaka} bpm
                 </span>
               </div>
-              <span className="form-hint">Formula: 208 - (0.7 × age) = {liveTanaka} bpm</span>
+              <span className="form-hint">Derived from birth date.</span>
             </div>
 
             {/* 3. Biological Gender */}
@@ -303,7 +295,7 @@ export const ProfileView: React.FC = () => {
                 <option value="Male">Male</option>
                 <option value="Non-binary">Non-binary</option>
               </select>
-              <span className="form-hint">Cardiovascular and VO2 Max distribution baseline.</span>
+              <span className="form-hint">Normative baseline.</span>
             </div>
 
             {/* 4. Resting Heart Rate */}
@@ -318,7 +310,7 @@ export const ProfileView: React.FC = () => {
                 min="35"
                 max="100"
               />
-              <span className="form-hint">Waking resting heart rate for Karvonen HRR calculations.</span>
+              <span className="form-hint">Waking pulse for Karvonen HRR.</span>
             </div>
           </div>
         </section>
@@ -328,7 +320,7 @@ export const ProfileView: React.FC = () => {
           <div className="profile-card-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Flame size={18} color="#ef4444" />
-              <h2 className="profile-card-title">Maximum Heart Rate (HRmax) Engine</h2>
+              <h2 className="profile-card-title">Maximum Heart Rate (HRmax)</h2>
             </div>
           </div>
 
@@ -344,7 +336,7 @@ export const ProfileView: React.FC = () => {
                 Auto-Infer from Run Data
               </div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                {observedPeakHr ? `Observed Peak: ${observedPeakHr.peakHr} bpm` : `Tanaka Age Fallback: ${liveTanaka} bpm`}
+                {observedPeakHr ? `Observed Peak: ${observedPeakHr.peakHr} bpm` : `Tanaka Fallback: ${liveTanaka} bpm`}
               </div>
             </button>
 
@@ -374,44 +366,33 @@ export const ProfileView: React.FC = () => {
                   {effectiveMaxHr} bpm
                 </span>
               </div>
-
-              {observedPeakHr ? (
-                <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.4rem 0', lineHeight: 1.5 }}>
-                  Observed peak heart rate detected from <b>{observedPeakHr.activityName}</b> ({observedPeakHr.activityDate}).
-                  As your fitness shifts or peak workout efforts naturally change over time, your Max HR adapts dynamically from real performance data.
-                </p>
-              ) : (
-                <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.4rem 0', lineHeight: 1.5 }}>
-                  No all-out races or VO2 max interval workouts have been recorded yet. Using Tanaka population formula (208 - 0.7 × {age} = <b>{liveTanaka} bpm</b>) as a cold-start baseline until a high-intensity effort is logged.
-                </p>
-              )}
-
-              <div style={{ display: 'flex', gap: '1rem', fontSize: '0.72rem', color: 'var(--text-muted)', paddingTop: '0.35rem', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
-                <span>Observed Peak: <b>{observedPeakHr ? `${observedPeakHr.peakHr} bpm` : 'None'}</b></span>
-                <span>Tanaka Fallback: <b>{liveTanaka} bpm</b></span>
-              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                {observedPeakHr
+                  ? `Peak of ${observedPeakHr.peakHr} bpm observed during ${observedPeakHr.activityName} (${observedPeakHr.activityDate}).`
+                  : `Tanaka formula: 208 - (0.7 × ${computedAge}) = ${liveTanaka} bpm until hard interval runs are logged.`}
+              </p>
             </div>
           ) : (
             <div className="form-group">
-              <label className="form-label" htmlFor="manual-max-hr-input">Manual Maximum Heart Rate (bpm)</label>
+              <label className="form-label" htmlFor="manual-max-hr">Manual Maximum Heart Rate (bpm)</label>
               <input
-                id="manual-max-hr-input"
+                id="manual-max-hr"
                 type="number"
                 className="form-input"
                 value={manualMaxHr}
                 onChange={e => setManualMaxHr(Number(e.target.value))}
-                placeholder="e.g. 203"
-                min="130"
+                placeholder="e.g. 203 bpm"
+                min="140"
                 max="230"
               />
               <span className="form-hint">
-                Fixed value locked by user. All training zones will be anchored strictly to this number.
+                Custom ceiling used for all zone calculations.
               </span>
             </div>
           )}
 
-          {/* Backward compatibility checkbox for tests */}
-          <div style={{ marginTop: '0.75rem' }}>
+          {/* Estimation Opt-Out Checkbox */}
+          <div style={{ marginTop: '0.85rem' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
               <input
                 type="checkbox"
@@ -420,7 +401,7 @@ export const ProfileView: React.FC = () => {
                 style={{ accentColor: 'var(--accent-cyan)' }}
                 aria-label="I don't know my max heart rate"
               />
-              <span>Auto-calibrate Max HR from run data / age instead of fixed manual number</span>
+              <span>Auto-calibrate Max HR from run data and age</span>
             </label>
           </div>
         </section>
@@ -431,7 +412,7 @@ export const ProfileView: React.FC = () => {
         <div className="profile-card-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Activity size={18} color="#06b6d4" />
-            <h2 className="profile-card-title">Live Resulting Physiological Training Zones (Karvonen HRR)</h2>
+            <h2 className="profile-card-title">Training Zones Preview (Karvonen HRR)</h2>
           </div>
           <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
             Resting HR: {restingHr} bpm • Max HR: {effectiveMaxHr} bpm
@@ -441,56 +422,61 @@ export const ProfileView: React.FC = () => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.85rem' }}>
           {/* Zone 1 */}
           <div style={{ padding: '0.85rem', borderRadius: 8, background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8' }}>Zone 1 Recovery</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8' }}>Zone 1</span>
               <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#94a3b8' }}>&lt; {liveZones.z2[0]} bpm</span>
             </div>
-            <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-              Gentle active recovery and warm-up. Virtually zero muscular microtrauma.
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.2rem' }}>Recovery</div>
+            <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
+              Active warm-up &amp; recovery flush.
             </p>
           </div>
 
           {/* Zone 2 */}
           <div style={{ padding: '0.85rem', borderRadius: 8, background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#10b981' }}>Zone 2 Aerobic Base</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#10b981' }}>Zone 2</span>
               <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#10b981' }}>{liveZones.z2[0]}–{liveZones.z2[1]} bpm</span>
             </div>
-            <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-              Peak fat oxidation, mitochondrial biogenesis, and capillary network expansion below LT1.
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#10b981', marginBottom: '0.2rem' }}>Aerobic Base</div>
+            <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
+              Fat oxidation &amp; capillary density.
             </p>
           </div>
 
           {/* Zone 3 */}
           <div style={{ padding: '0.85rem', borderRadius: 8, background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#06b6d4' }}>Zone 3 Tempo</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#06b6d4' }}>Zone 3</span>
               <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#06b6d4' }}>{liveZones.z3[0]}–{liveZones.z3[1]} bpm</span>
             </div>
-            <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-              Aerobic turnpoint zone between LT1 and LT2. Moderate glycogen utilization.
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.2rem' }}>Tempo</div>
+            <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
+              Steady rhythm &amp; marathon pace.
             </p>
           </div>
 
           {/* Zone 4 */}
           <div style={{ padding: '0.85rem', borderRadius: 8, background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f59e0b' }}>Zone 4 Threshold (LT2)</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f59e0b' }}>Zone 4</span>
               <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#f59e0b' }}>{liveZones.z4[0]}–{liveZones.z4[1]} bpm</span>
             </div>
-            <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-              Lactate shuttle and clearance capacity. Maximum sustainable 1-hour race intensity.
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#f59e0b', marginBottom: '0.2rem' }}>Threshold (LT2)</div>
+            <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
+              Lactate clearance &amp; 1-hour race pace.
             </p>
           </div>
 
           {/* Zone 5 */}
           <div style={{ padding: '0.85rem', borderRadius: 8, background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#ef4444' }}>Zone 5 VO2 Max</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#ef4444' }}>Zone 5</span>
               <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ef4444' }}>&gt; {liveZones.z4[1]} bpm</span>
             </div>
-            <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-              Maximal aerobic capacity and anaerobic power. High neurological motor-unit recruitment.
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#ef4444', marginBottom: '0.2rem' }}>VO2 Max</div>
+            <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
+              Peak aerobic power &amp; fast intervals.
             </p>
           </div>
         </div>

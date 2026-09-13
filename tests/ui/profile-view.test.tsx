@@ -62,13 +62,13 @@ describe('ProfileView UI Tests', () => {
     render(<ProfileView />);
 
     await waitFor(() => {
-      expect(screen.getByText('Continuously Inferred Physiological Thresholds')).toBeTruthy();
+      expect(screen.getByText('Inferred Physiological Thresholds')).toBeTruthy();
       expect(screen.getByDisplayValue('1989-04-15')).toBeTruthy();
       expect(screen.getByDisplayValue('55')).toBeTruthy();
       expect(screen.getByDisplayValue('203')).toBeTruthy();
       expect(screen.getByText(/~148 bpm/)).toBeTruthy();
       expect(screen.getByText(/~167 bpm/)).toBeTruthy();
-      expect(screen.getByText(/Live Resulting Physiological Training Zones/i)).toBeTruthy();
+      expect(screen.getByText(/Training Zones Preview/i)).toBeTruthy();
     });
   });
 
@@ -130,7 +130,7 @@ describe('ProfileView UI Tests', () => {
 
     // Live Karvonen zones update in DOM
     await waitFor(() => {
-      expect(screen.getByText(/Live Resulting Physiological Training Zones/i)).toBeTruthy();
+      expect(screen.getByText(/Training Zones Preview/i)).toBeTruthy();
     });
   });
 

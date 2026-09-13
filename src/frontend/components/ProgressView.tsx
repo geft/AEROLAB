@@ -146,10 +146,10 @@ export const ProgressView: React.FC = () => {
           <ShieldCheck size={20} color="#10b981" />
           <div>
             <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              Continuous HRR Threshold Calibration: LT1 @ {data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? 145} bpm • LT2 @ {data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? 167} bpm
+              Live Calibrations: LT1 @ {data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? 145} bpm • LT2 @ {data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? 167} bpm
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              Zone 2 ceiling ({data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? 145} bpm) and Zone 4 turnpoint ({data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? 167} bpm) update automatically as you log steady and threshold runs.
+              Thresholds and training zones calibrate automatically from your runs.
             </div>
           </div>
         </div>
@@ -173,7 +173,7 @@ export const ProgressView: React.FC = () => {
               </span>
             </div>
             <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-              Organized timeline of physiological threshold recalibrations detected across your quality and steady runs.
+              Timeline of recalibrations detected across your runs.
             </p>
           </div>
 

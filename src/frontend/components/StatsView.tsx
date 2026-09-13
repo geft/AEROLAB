@@ -264,12 +264,12 @@ export const StatsView: React.FC = () => {
       {/* Current Physiological Benchmarks */}
       <section className="benchmarks-grid">
         <div className="benchmark-card">
-          <span className="benchmark-label">Aerobic Base (LT1) Threshold</span>
+          <span className="benchmark-label">Aerobic Base (LT1)</span>
           <div className="benchmark-value" style={{ color: '#10b981' }}>
             {lt1?.lt1_pace_sec_km ? formatPace(lt1.lt1_pace_sec_km) : '5:10/km (Est.)'}
           </div>
           <span className="benchmark-sub">
-            Ceiling HR: {lt1RangeStr} bpm (Target Zone 2 Ceiling)
+            Ceiling HR: {lt1RangeStr} bpm
           </span>
           <div className="threshold-marker-badge">
             <ShieldCheck size={12} /> Bounded at LT1: {lt1RangeStr} bpm
@@ -277,12 +277,12 @@ export const StatsView: React.FC = () => {
         </div>
 
         <div className="benchmark-card">
-          <span className="benchmark-label">Anaerobic (LT2) Threshold</span>
+          <span className="benchmark-label">Lactate Threshold (LT2)</span>
           <div className="benchmark-value" style={{ color: '#f59e0b' }}>
             {lt2?.lt2_pace_sec_km ? formatPace(lt2.lt2_pace_sec_km) : '4:10/km (Est.)'}
           </div>
           <span className="benchmark-sub">
-            Threshold HR: ~{lt2Hr} bpm (1-Hour Max Steady State)
+            Threshold HR: ~{lt2Hr} bpm
           </span>
           <div className="threshold-marker-badge amber">
             <Zap size={12} /> Turnpoint at LT2: {lt2Hr} bpm
@@ -290,11 +290,11 @@ export const StatsView: React.FC = () => {
         </div>
 
         <div className="benchmark-card">
-          <span className="benchmark-label">Estimated VO2 Max (VDOT)</span>
+          <span className="benchmark-label">Estimated VO2 Max</span>
           <div className="benchmark-value" style={{ color: '#8b5cf6' }}>
             {vo2Max} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>ml/kg/min</span>
           </div>
-          <span className="benchmark-sub">Maximal Oxygen Uptake Capacity</span>
+          <span className="benchmark-sub">Maximal oxygen uptake</span>
         </div>
 
         <div className="benchmark-card">
@@ -302,7 +302,7 @@ export const StatsView: React.FC = () => {
           <div className="benchmark-value" style={{ color: '#06b6d4' }}>
             {lt1?.baseline_economy_ef ?? '1.14'}
           </div>
-          <span className="benchmark-sub">Speed produced per heart stroke</span>
+          <span className="benchmark-sub">Efficiency factor (speed / HR)</span>
         </div>
       </section>
 
@@ -317,7 +317,7 @@ export const StatsView: React.FC = () => {
               </span>
             </div>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
-              Dynamically derived from your resting HR (55 bpm), max HR (203 bpm), estimated LT1 ceiling ({lt1RangeStr} bpm), and estimated LT2 turnpoint ({lt2Hr} bpm). These zones continuously update as new steady-state efforts calibrate your thresholds.
+              Derived from Karvonen HRR and live threshold calibrations.
             </p>
           </div>
         </div>
@@ -352,7 +352,7 @@ export const StatsView: React.FC = () => {
             <div className="zone-range" style={{ color: '#94a3b8' }}>&lt; {zones.z2[0]} <span style={{ fontSize: '0.85rem' }}>bpm</span></div>
             <span className="zone-name">Active Recovery</span>
             <p className="zone-desc">
-              Warm-up, cooldown, and light recovery spins. Minimal cardiac strain; accelerates metabolite clearance.
+              Active warm-up, cooldown, and recovery flush.
             </p>
           </div>
 
@@ -360,12 +360,12 @@ export const StatsView: React.FC = () => {
           <div className="zone-card zone-highlight">
             <div className="zone-card-header">
               <span className="zone-tag" style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#10b981' }}>Zone 2</span>
-              <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>LT1 Ceiling: {lt1RangeStr} bpm</span>
+              <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>Easy Base</span>
             </div>
             <div className="zone-range" style={{ color: '#10b981' }}>{zones.z2[0]} – {zones.z2[1]} <span style={{ fontSize: '0.85rem' }}>bpm</span></div>
             <span className="zone-name">Aerobic Base &amp; Endurance</span>
             <p className="zone-desc">
-              Maximum lipid oxidation and mitochondrial capillary density. Stays strictly below LT1 with zero lactate accumulation.
+              Fat oxidation and capillary network growth.
             </p>
           </div>
 
@@ -373,25 +373,25 @@ export const StatsView: React.FC = () => {
           <div className="zone-card">
             <div className="zone-card-header">
               <span className="zone-tag" style={{ background: 'rgba(6, 182, 212, 0.2)', color: '#06b6d4' }}>Zone 3</span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Between LT1 &amp; LT2</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>70–80% HRR</span>
             </div>
             <div className="zone-range" style={{ color: '#06b6d4' }}>{zones.z3[0]} – {zones.z3[1]} <span style={{ fontSize: '0.85rem' }}>bpm</span></div>
             <span className="zone-name">Tempo &amp; Aerobic Drift</span>
             <p className="zone-desc">
-              Marathon pace rhythm and steady state. Glycogen consumption rises; mild lactate produced but cleared steadily.
+              Steady aerobic rhythm and marathon pace.
             </p>
           </div>
 
           {/* Zone 4 */}
-          <div className="zone-card zone-threshold">
+          <div className="zone-card">
             <div className="zone-card-header">
               <span className="zone-tag" style={{ background: 'rgba(245, 158, 11, 0.2)', color: '#f59e0b' }}>Zone 4</span>
-              <span style={{ fontSize: '0.75rem', color: '#f59e0b', fontWeight: 600 }}>LT2 Turnpoint: {lt2Hr} bpm</span>
+              <span style={{ fontSize: '0.75rem', color: '#f59e0b', fontWeight: 600 }}>Threshold</span>
             </div>
             <div className="zone-range" style={{ color: '#f59e0b' }}>{zones.z4[0]} – {zones.z4[1]} <span style={{ fontSize: '0.85rem' }}>bpm</span></div>
             <span className="zone-name">Lactate Threshold / LT2</span>
             <p className="zone-desc">
-              Maximum 1-hour sustained pace. Lactate clearance equilibrium; optimal for 3x15m threshold blocks and 10k work.
+              1-hour race pace and lactate clearance.
             </p>
           </div>
 
@@ -399,24 +399,24 @@ export const StatsView: React.FC = () => {
           <div className="zone-card">
             <div className="zone-card-header">
               <span className="zone-tag" style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' }}>Zone 5</span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>&gt; 90% HRR</span>
+              <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>&gt; 90% HRR</span>
             </div>
             <div className="zone-range" style={{ color: '#ef4444' }}>{zones.z5[0]}+ <span style={{ fontSize: '0.85rem' }}>bpm</span></div>
             <span className="zone-name">VO2 Max &amp; Anaerobic</span>
             <p className="zone-desc">
-              Maximal oxygen uptake, cardiac output, and neuromuscular stride frequency. Rapid anaerobic glycolysis.
+              Peak aerobic power and fast intervals.
             </p>
           </div>
         </div>
       </section>
 
-      {/* Race Time Predictor */}
+      {/* Race Predictions Table */}
       <section className="chart-card">
         <div className="chart-header">
           <div>
-            <span className="chart-title">Calibrated Race Time Predictions</span>
+            <span className="chart-title">Race Time Predictions</span>
             <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.2rem' }}>
-              Modeled using critical velocity and aerobic endurance capacity derived from your LT1/LT2 profile.
+              Modeled from your LT1 and LT2 aerobic profile.
             </p>
           </div>
         </div>
@@ -443,7 +443,7 @@ export const StatsView: React.FC = () => {
             82% Low / 18% High
           </div>
           <p className="goal-stat-desc">
-            Your training volume is distributed appropriately: the vast majority of mileage builds mitochondrial capillary density below LT1, reserving freshness for true quality threshold days.
+            Optimal distribution: easy volume below LT1 preserves freshness for quality threshold sessions.
           </p>
         </div>
 
@@ -489,7 +489,7 @@ export const StatsView: React.FC = () => {
           </div>
 
           <p className="goal-stat-desc">
-            Difference between your Easy pace ({lt1?.lt1_pace_sec_km ? formatPace(lt1.lt1_pace_sec_km) : '5:50/km'}) and Threshold pace ({lt2?.lt2_pace_sec_km ? formatPace(lt2.lt2_pace_sec_km) : '4:10/km'}). As your aerobic base matures, this gap narrows as LT1 pulls closer to LT2.
+            Pace gap between Easy ({lt1?.lt1_pace_sec_km ? formatPace(lt1.lt1_pace_sec_km) : '5:50/km'}) and Threshold ({lt2?.lt2_pace_sec_km ? formatPace(lt2.lt2_pace_sec_km) : '4:10/km'}). Narrows as aerobic fitness improves.
           </p>
         </div>
       </section>

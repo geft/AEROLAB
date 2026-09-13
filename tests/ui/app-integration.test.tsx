@@ -142,8 +142,8 @@ describe('AEROLAB App Full Integration Tests', () => {
     fireEvent.click(statsTab!);
 
     await waitFor(() => {
-      expect(screen.getByText(/aerobic base \(lt1\) threshold/i)).toBeTruthy();
-      expect(screen.getByText(/anaerobic \(lt2\) threshold/i)).toBeTruthy();
+      expect(screen.getByText(/aerobic base \(lt1\)/i)).toBeTruthy();
+      expect(screen.getByText(/lactate threshold \(lt2\)/i)).toBeTruthy();
     });
 
     // Switch to Profile View
@@ -152,8 +152,8 @@ describe('AEROLAB App Full Integration Tests', () => {
     fireEvent.click(profileTab!);
 
     await waitFor(() => {
-      expect(screen.getByText(/Biological Anchors & Resting Pulse/i)).toBeTruthy();
-      expect(screen.getByText(/Continuously Inferred Physiological Thresholds/i)).toBeTruthy();
+      expect(screen.getByText(/Cardio Baselines & Resting HR/i)).toBeTruthy();
+      expect(screen.getByText(/Inferred Physiological Thresholds/i)).toBeTruthy();
     });
 
     // Switch back to Browse View
