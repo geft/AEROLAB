@@ -147,6 +147,55 @@ export function parseRunCSV(content: string, filename: string): ParsedCSV {
     }
   }
 
+  // Detect and repair broken/flat speed telemetry (e.g. FIT exports where speed was recorded as a static cumulative average)
+  if (records.length >= 20) {
+    const validSpeeds = records.map(r => r.speedMps).filter((s): s is number => s !== null && s > 0);
+    const hasDistances = records.filter(r => r.distanceMeters !== null && r.distanceMeters > 0).length >= 20;
+
+    let isBrokenSpeed = false;
+    if (validSpeeds.length >= 20) {
+      const minS = Math.min(...validSpeeds);
+      const maxS = Math.max(...validSpeeds);
+      // Flat speed across the entire run despite varied cadence or interval effort
+      if (maxS - minS < 0.15 && minS > 1.0) {
+        isBrokenSpeed = true;
+      }
+    } else if (validSpeeds.length === 0 && hasDistances) {
+      isBrokenSpeed = true;
+    }
+
+    if (isBrokenSpeed && hasDistances) {
+      // Reconstruct instantaneous speed from smoothed delta distance / delta time
+      const windowSec = 5; // 5-second moving window for realistic instantaneous pace
+      for (let i = 0; i < records.length; i++) {
+        const cur = records[i];
+        if (cur.distanceMeters === null) continue;
+
+        // Find window boundary records
+        let prevIdx = i;
+        while (prevIdx > 0 && cur.elapsedSeconds - records[prevIdx].elapsedSeconds < windowSec) {
+          prevIdx--;
+        }
+        let nextIdx = i;
+        while (nextIdx < records.length - 1 && records[nextIdx].elapsedSeconds - cur.elapsedSeconds < windowSec) {
+          nextIdx++;
+        }
+
+        const prev = records[prevIdx];
+        const next = records[nextIdx];
+        if (prev.distanceMeters !== null && next.distanceMeters !== null) {
+          const dt = next.elapsedSeconds - prev.elapsedSeconds;
+          const dd = next.distanceMeters - prev.distanceMeters;
+          if (dt >= 2 && dd >= 0) {
+            const derivedSpd = dd / dt;
+            // Bound realistic human running velocity: 0 to 9 m/s (~1:51/km)
+            cur.speedMps = Number(Math.max(0, Math.min(9.0, derivedSpd)).toFixed(3));
+          }
+        }
+      }
+    }
+  }
+
   return { fileHash, metadata, records };
 }
 

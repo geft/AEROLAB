@@ -372,7 +372,50 @@ activitiesRouter.get('/:id', async (req, res) => {
 
     const splits = db.prepare('SELECT * FROM activity_splits WHERE activity_id = ? ORDER BY split_index ASC').all(id);
     const intervals = db.prepare('SELECT * FROM activity_intervals WHERE activity_id = ? ORDER BY interval_index ASC').all(id);
-    const records = db.prepare('SELECT * FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC').all(id);
+    const rawRecords = db.prepare('SELECT * FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC').all(id) as any[];
+
+    // Auto-repair flat or corrupted speed telemetry (e.g. FIT records where speed was saved as static cumulative average)
+    const records = [...rawRecords];
+    if (records.length >= 20) {
+      const validSpeeds = records.map(r => r.speed_mps).filter((s): s is number => s !== null && s > 0);
+      const hasDistances = records.filter(r => r.distance_m !== null && r.distance_m > 0).length >= 20;
+      let isBrokenSpeed = false;
+      if (validSpeeds.length >= 20) {
+        const minS = Math.min(...validSpeeds);
+        const maxS = Math.max(...validSpeeds);
+        if (maxS - minS < 0.15 && minS > 1.0) {
+          isBrokenSpeed = true;
+        }
+      } else if (validSpeeds.length === 0 && hasDistances) {
+        isBrokenSpeed = true;
+      }
+
+      if (isBrokenSpeed && hasDistances) {
+        const windowSec = 5;
+        for (let i = 0; i < records.length; i++) {
+          const cur = records[i];
+          if (cur.distance_m === null) continue;
+          let prevIdx = i;
+          while (prevIdx > 0 && cur.elapsed_seconds - records[prevIdx].elapsed_seconds < windowSec) {
+            prevIdx--;
+          }
+          let nextIdx = i;
+          while (nextIdx < records.length - 1 && records[nextIdx].elapsed_seconds - cur.elapsed_seconds < windowSec) {
+            nextIdx++;
+          }
+          const prev = records[prevIdx];
+          const next = records[nextIdx];
+          if (prev.distance_m !== null && next.distance_m !== null) {
+            const dt = next.elapsed_seconds - prev.elapsed_seconds;
+            const dd = next.distance_m - prev.distance_m;
+            if (dt >= 2 && dd >= 0) {
+              const derived = dd / dt;
+              cur.speed_mps = Number(Math.max(0, Math.min(9.0, derived)).toFixed(3));
+            }
+          }
+        }
+      }
+    }
 
     // Isolate walk breaks and traffic pauses to obtain pure steady-state running metrics
     const pauseBreakdown = extractSteadyStateMetrics(records);
