@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, CloudRain, Flame, TrendingUp, Zap, Clock, ShieldCheck, HeartPulse, Compass, Edit2, Tag, Plus, X, Check, FileText, Activity as ActivityIcon, Droplets, RefreshCw, Thermometer, Sun, Cloud, ChevronDown, HelpCircle } from 'lucide-react';
+import { Calendar, CloudRain, Flame, TrendingUp, Zap, Clock, ShieldCheck, HeartPulse, Compass, Edit2, Tag, Plus, X, Check, FileText, Activity as ActivityIcon, Droplets, RefreshCw, Thermometer, Sun, Cloud, ChevronDown, ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react';
 import { CanvasRunChart } from './CanvasRunChart';
 import { KmSplitsVisualizer } from './KmSplitsVisualizer.js';
 import { formatPace as formatPaceUtil } from '../utils/formatters.js';
@@ -124,6 +124,11 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
   theme = 'dark'
 }) => {
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [showCalendar, setShowCalendar] = useState<boolean>(false);
+  const [calendarViewYm, setCalendarViewYm] = useState<string>(() => {
+    return activities[0]?.start_time ? activities[0].start_time.substring(0, 7) : new Date().toISOString().substring(0, 7);
+  });
   const [selectedTagFilter, setSelectedTagFilter] = useState<string>('all');
   const [focusCoreSegment, setFocusCoreSegment] = useState<boolean>(false);
   const [activeSubTab, setActiveSubTab] = useState<'telemetry' | 'splits' | 'strides' | 'notes'>('telemetry');
@@ -214,8 +219,31 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
     return Array.from(set).sort().reverse();
   }, [activities]);
 
+  // Map dates (YYYY-MM-DD) to activity IDs and run types for the calendar
+  const activeDatesMap = React.useMemo(() => {
+    const map = new Map<string, { count: number; runTypes: string[]; ids: string[] }>();
+    activities.forEach(a => {
+      const dStr = a.start_time.substring(0, 10);
+      if (!dStr) return;
+      if (!map.has(dStr)) {
+        map.set(dStr, { count: 0, runTypes: [], ids: [] });
+      }
+      const entry = map.get(dStr)!;
+      entry.count++;
+      if (a.run_type && !entry.runTypes.includes(a.run_type)) {
+        entry.runTypes.push(a.run_type);
+      }
+      entry.ids.push(a.id);
+    });
+    return map;
+  }, [activities]);
+
   const filteredActivities = React.useMemo(() => {
     return activities.filter(a => {
+      // Date filter (exact day clicked on calendar)
+      if (selectedDate) {
+        return a.start_time.startsWith(selectedDate);
+      }
       // Month filter
       if (selectedMonth !== 'all' && !a.start_time.startsWith(selectedMonth)) {
         return false;
@@ -223,7 +251,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
       // Tag filter
       return doesActivityMatchTag(a, selectedTagFilter);
     });
-  }, [activities, selectedMonth, selectedTagFilter]);
+  }, [activities, selectedDate, selectedMonth, selectedTagFilter]);
 
   const groupedActivities = React.useMemo(() => {
     if (selectedMonth !== 'all') {
@@ -456,28 +484,294 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
         </button>
       </div>
 
-      {/* Left Sidebar: Sessions List & Month Picker */}
+      {/* Left Sidebar: Sessions List & Interactive Calendar Picker */}
       <aside className="sidebar-panel">
         <div className="sidebar-header">
-          <span className="sidebar-title">Sessions ({filteredActivities.length})</span>
-          <select
-            className="month-picker-select"
-            value={selectedMonth}
-            onChange={e => setSelectedMonth(e.target.value)}
-          >
-            <option value="all">All Months</option>
-            {monthOptions.map(ym => {
-              const count = activities.filter(a => a.start_time.startsWith(ym)).length;
-              const dateObj = new Date(`${ym}-01`);
-              const label = dateObj.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-              return (
-                <option key={ym} value={ym}>
-                  {label} ({count})
-                </option>
-              );
-            })}
-          </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span className="sidebar-title">Sessions ({filteredActivities.length})</span>
+            {selectedDate && (
+              <button
+                type="button"
+                onClick={() => setSelectedDate(null)}
+                style={{
+                  background: 'rgba(6, 182, 212, 0.15)',
+                  border: '1px solid rgba(6, 182, 212, 0.4)',
+                  color: '#38bdf8',
+                  borderRadius: 999,
+                  fontSize: '0.68rem',
+                  fontWeight: 600,
+                  padding: '0.1rem 0.45rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.2rem'
+                }}
+                title="Clear date filter"
+              >
+                <span>{new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                <X size={11} />
+              </button>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <button
+              type="button"
+              id="calendar-toggle-btn"
+              onClick={() => {
+                setShowCalendar(prev => !prev);
+                if (!showCalendar && activities.length > 0) {
+                  const targetYm = selectedDate
+                    ? selectedDate.substring(0, 7)
+                    : selectedMonth !== 'all'
+                      ? selectedMonth
+                      : (activities[0]?.start_time?.substring(0, 7) || calendarViewYm);
+                  setCalendarViewYm(targetYm);
+                }
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                background: showCalendar ? 'var(--accent-cyan)' : 'var(--bg-surface)',
+                color: showCalendar ? '#07090e' : 'var(--text-primary)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 6,
+                padding: '0.32rem 0.6rem',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              title="Open date calendar picker"
+            >
+              <Calendar size={14} />
+              <span>Dates</span>
+            </button>
+
+            <select
+              className="month-picker-select"
+              value={selectedMonth}
+              onChange={e => {
+                setSelectedMonth(e.target.value);
+                setSelectedDate(null); // clear specific date filter when picking month
+              }}
+            >
+              <option value="all">All Months</option>
+              {monthOptions.map(ym => {
+                const count = activities.filter(a => a.start_time.startsWith(ym)).length;
+                const dateObj = new Date(`${ym}-01`);
+                const label = dateObj.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                return (
+                  <option key={ym} value={ym}>
+                    {label} ({count})
+                  </option>
+                );
+              })}
+            </select>
+          </div>
         </div>
+
+        {/* Interactive Calendar Dropdown / Popover */}
+        {showCalendar && (() => {
+          const [viewYearStr, viewMonthStr] = calendarViewYm.split('-');
+          const viewYear = parseInt(viewYearStr, 10);
+          const viewMonth = parseInt(viewMonthStr, 10) - 1; // 0-indexed
+
+          const firstDayOfMonth = new Date(viewYear, viewMonth, 1).getDay(); // 0 = Sun
+          const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+
+          const monthLabel = new Date(viewYear, viewMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+          const handlePrevMonth = () => {
+            const prev = new Date(viewYear, viewMonth - 1, 1);
+            const py = prev.getFullYear();
+            const pm = String(prev.getMonth() + 1).padStart(2, '0');
+            setCalendarViewYm(`${py}-${pm}`);
+          };
+
+          const handleNextMonth = () => {
+            const next = new Date(viewYear, viewMonth + 1, 1);
+            const ny = next.getFullYear();
+            const nm = String(next.getMonth() + 1).padStart(2, '0');
+            setCalendarViewYm(`${ny}-${nm}`);
+          };
+
+          const daysOfWeek = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+          return (
+            <div
+              className="calendar-popover"
+              style={{
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 10,
+                padding: '0.85rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.6rem',
+                boxShadow: 'var(--card-shadow)'
+              }}
+            >
+              {/* Calendar Header with Navigation */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <button
+                  type="button"
+                  onClick={handlePrevMonth}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    padding: '0.2rem',
+                    borderRadius: 4,
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  title="Previous month"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {monthLabel}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={handleNextMonth}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    padding: '0.2rem',
+                    borderRadius: 4,
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  title="Next month"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+
+              {/* Day of week headers */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', textAlign: 'center', gap: '2px' }}>
+                {daysOfWeek.map(d => (
+                  <span key={d} style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    {d}
+                  </span>
+                ))}
+              </div>
+
+              {/* Calendar Days Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '3px' }}>
+                {Array.from({ length: firstDayOfMonth }).map((_, i) => (
+                  <div key={`empty-${i}`} style={{ height: 28 }} />
+                ))}
+
+                {Array.from({ length: daysInMonth }).map((_, i) => {
+                  const dayNum = i + 1;
+                  const dayStr = String(dayNum).padStart(2, '0');
+                  const fullDateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${dayStr}`;
+                  const sessionEntry = activeDatesMap.get(fullDateStr);
+                  const hasSession = Boolean(sessionEntry && sessionEntry.count > 0);
+                  const isSelected = selectedDate === fullDateStr;
+
+                  return (
+                    <button
+                      key={fullDateStr}
+                      type="button"
+                      disabled={!hasSession}
+                      onClick={() => {
+                        if (!hasSession) return;
+                        setSelectedDate(fullDateStr);
+                        setSelectedMonth('all'); // let date take precedence
+                        // Auto-select the activity on this date if exists
+                        if (sessionEntry && sessionEntry.ids.length > 0) {
+                          onSelectActivity(sessionEntry.ids[0]);
+                          setMobileSubTab('detail');
+                        }
+                      }}
+                      style={{
+                        position: 'relative',
+                        height: 28,
+                        borderRadius: 6,
+                        border: isSelected
+                          ? '1px solid var(--accent-cyan)'
+                          : hasSession
+                            ? '1px solid rgba(6, 182, 212, 0.3)'
+                            : '1px solid transparent',
+                        background: isSelected
+                          ? 'var(--accent-cyan)'
+                          : hasSession
+                            ? 'rgba(6, 182, 212, 0.12)'
+                            : 'transparent',
+                        color: isSelected
+                          ? '#07090e'
+                          : hasSession
+                            ? 'var(--text-primary)'
+                            : 'var(--text-muted)',
+                        fontSize: '0.72rem',
+                        fontWeight: hasSession ? 700 : 400,
+                        cursor: hasSession ? 'pointer' : 'default',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.12s ease',
+                        opacity: hasSession ? 1 : 0.4
+                      }}
+                      title={hasSession ? `${fullDateStr}: ${sessionEntry?.count} run(s)` : `${fullDateStr}: No activity`}
+                    >
+                      <span>{dayNum}</span>
+                      {hasSession && !isSelected && (
+                        <span
+                          style={{
+                            position: 'absolute',
+                            bottom: 2,
+                            width: 4,
+                            height: 4,
+                            borderRadius: '50%',
+                            background: sessionEntry && sessionEntry.runTypes.includes('intervals_vo2')
+                              ? '#a855f7'
+                              : sessionEntry && sessionEntry.runTypes.includes('threshold_lt2')
+                                ? '#f59e0b'
+                                : '#10b981'
+                          }}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Quick Actions Footer */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.4rem', borderTop: '1px solid var(--border-subtle)', fontSize: '0.72rem' }}>
+                <span style={{ color: 'var(--text-muted)' }}>
+                  <b style={{ color: 'var(--accent-cyan)' }}>●</b> = Session recorded
+                </span>
+                {selectedDate && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDate(null)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#f43f5e',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      fontSize: '0.72rem'
+                    }}
+                  >
+                    Clear Filter
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Tag Filters Bar */}
         <div className="sidebar-filter-bar">
@@ -511,7 +805,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               {group.items.map(a => {
                 const isSelected = a.id === selectedActivityId;
                 const d = new Date(a.start_time);
-                const dateStr = d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+                const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                 const distKm = (a.distance_meters / 1000).toFixed(2);
                 const paceStr = formatPace(a.avg_pace_sec_km);
                 const stars = scoreToStars(a.effectiveness_score);
