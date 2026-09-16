@@ -1,5 +1,4 @@
-import React from 'react';
-import { UploadCloud, Sun, Moon } from 'lucide-react';
+import { Compass, TrendingUp, BarChart2, User, UploadCloud, Sun, Moon } from 'lucide-react';
 
 export type TabType = 'browse' | 'progress' | 'stats' | 'profile';
 
@@ -33,28 +32,32 @@ export const Navbar: React.FC<NavbarProps> = ({
           className={`nav-tab-btn ${activeTab === 'browse' ? 'active' : ''}`}
           onClick={() => onTabChange('browse')}
         >
-          Browse
+          <Compass size={18} className="nav-tab-icon" />
+          <span className="nav-tab-label">Browse</span>
         </button>
         <button
           id="tab-progress-btn"
           className={`nav-tab-btn ${activeTab === 'progress' ? 'active' : ''}`}
           onClick={() => onTabChange('progress')}
         >
-          Progress
+          <TrendingUp size={18} className="nav-tab-icon" />
+          <span className="nav-tab-label">Progress</span>
         </button>
         <button
           id="tab-stats-btn"
           className={`nav-tab-btn ${activeTab === 'stats' ? 'active' : ''}`}
           onClick={() => onTabChange('stats')}
         >
-          Stats
+          <BarChart2 size={18} className="nav-tab-icon" />
+          <span className="nav-tab-label">Stats</span>
         </button>
         <button
           id="tab-profile-btn"
           className={`nav-tab-btn ${activeTab === 'profile' ? 'active' : ''}`}
           onClick={() => onTabChange('profile')}
         >
-          Profile
+          <User size={18} className="nav-tab-icon" />
+          <span className="nav-tab-label">Profile</span>
         </button>
       </nav>
 

@@ -12,7 +12,7 @@ import { syncActivityCoachSummary } from '../physiology/coach-summary.js';
 import { syncActivityWeather } from '../physiology/weather.js';
 
 export interface ImportResult {
-  status: 'imported' | 'skipped_duplicate' | 'error';
+  status: 'imported' | 'skipped_duplicate' | 'skipped_non_running' | 'error';
   activityId?: string;
   name?: string;
   date?: string;
@@ -22,6 +22,7 @@ export interface ImportResult {
   efficiencyFactor?: number | null;
   aerobicDecouplingPct?: number | null;
   intervalsDetected?: number;
+  reason?: string;
   error?: string;
 }
 
@@ -42,7 +43,10 @@ export function importRunFile(db: Database.Database, filePath: string, options: 
     if (isFitBuffer(buffer) || filename.toLowerCase().endsWith('.fit')) {
       const fitResult = convertFitToCsv(buffer, filename);
       if (!fitResult.csv) {
-        return { status: 'error', error: 'FIT file does not contain a supported running session' };
+        return {
+          status: 'skipped_non_running',
+          reason: 'FIT file is not a supported running session (e.g. daily wellness, sleep, or non-running activity)'
+        };
       }
       return importRunContent(db, fitResult.csv, filename, options);
     }
@@ -94,8 +98,32 @@ export function importRunContent(
   // 2. Compute Physiology & Intervals
   const economy = calculateEconomy(records);
   const splits = calculateKmSplits(records, 1000);
-  const intervals = detectIntervals(records);
-  const classification = classifyRun(metadata, records, economy, intervals);
+  const nameLower = (metadata.name || '').toLowerCase();
+  const isRace =
+    nameLower.includes('time trial') ||
+    nameLower.includes(' tt') ||
+    nameLower.includes('race') ||
+    nameLower.includes('parkrun');
+  let hrProfile = { maxHr: null as number | null, restingHr: null as number | null, lt1Hr: null as number | null, lt2Hr: null as number | null };
+  try {
+    const prof = db.prepare('SELECT max_hr, resting_hr, lt1_hr, lt2_hr FROM athlete_profile WHERE id = ?').get('primary') as any;
+    if (prof) {
+      hrProfile = { maxHr: prof.max_hr ?? null, restingHr: prof.resting_hr ?? null, lt1Hr: prof.lt1_hr ?? null, lt2Hr: prof.lt2_hr ?? null };
+    }
+  } catch { /* profile table may not exist yet in fresh test DBs */ }
+
+  const intervalOpts = {
+    isRace,
+    lt1Hr: hrProfile.lt1Hr ?? undefined,
+    lt2Hr: hrProfile.lt2Hr ?? undefined,
+    maxHr: hrProfile.maxHr ?? undefined,
+    restingHr: hrProfile.restingHr ?? undefined
+  };
+  let intervals = detectIntervals(records, intervalOpts);
+  const classification = classifyRun(metadata, records, economy, intervals, hrProfile);
+  if (classification.runType === 'race' && !isRace) {
+    intervals = detectIntervals(records, { ...intervalOpts, isRace: true });
+  }
 
   // 3. Compute Averages from records
   let tempSum = 0, tempCount = 0;
@@ -145,8 +173,9 @@ export function importRunContent(
   const insertSplit = db.prepare(`
     INSERT INTO activity_splits (
       activity_id, split_index, distance_meters, duration_seconds,
-      avg_pace_sec_km, avg_heart_rate, split_efficiency_factor, elevation_change_m
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      avg_pace_sec_km, avg_heart_rate, split_efficiency_factor, elevation_change_m,
+      avg_cadence, avg_stance_time, avg_vert_osc, avg_vert_ratio
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertInterval = db.prepare(`
@@ -154,8 +183,9 @@ export function importRunContent(
       activity_id, interval_index, type, start_seconds, duration_seconds,
       distance_meters, avg_speed_mps, avg_pace_sec_km, avg_heart_rate,
       max_heart_rate, avg_cadence, peak_cadence, peak_speed_mps, peak_pace_sec_km,
-      min_stance_time, hr_drop
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      min_stance_time, hr_drop, avg_vert_osc, avg_stance_time,
+      avg_step_length, avg_stride_length, avg_vert_ratio
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertRecord = db.prepare(`
@@ -198,12 +228,12 @@ export function importRunContent(
   else if (classification.runType === 'recovery') initialTags.push('Recovery');
   else if (classification.runType === 'race') initialTags.push('Race');
 
-  const nameLower = (metadata.name || '').toLowerCase();
-
-  // Marathon Pace check: long run containing sustained Zone 3 blocks
+  // Marathon Pace check: long run containing sustained upper-Z3 blocks (profile-relative)
+  const mpLt1 = hrProfile.lt1Hr ?? 148;
+  const mpLt2 = hrProfile.lt2Hr ?? 167;
   const hasMpBlocks =
     classification.runType === 'long_run' &&
-    (intervals.some(i => i.type === 'work' && i.durationSeconds >= 600 && i.avgHeartRate >= 148 && i.avgHeartRate <= 165) ||
+    (intervals.some(i => i.type === 'work' && i.durationSeconds >= 600 && i.avgHeartRate >= mpLt1 - 2 && i.avgHeartRate <= mpLt2) ||
       nameLower.includes('marathon pace') || nameLower.includes('mp'));
   if (hasMpBlocks && !initialTags.includes('Marathon Pace')) {
     initialTags.push('Marathon Pace');
@@ -214,8 +244,9 @@ export function importRunContent(
     initialTags.push('Tempo');
   }
 
-  // Strides: short burst or explicit name
-  const hasStrides = intervals.some(i => i.type === 'stride') || nameLower.includes('stride');
+  // Strides tag only from actually detected stride intervals — never from the
+  // activity name, so runs can't carry a phantom Strides tag with an empty tab.
+  const hasStrides = intervals.some(i => i.type === 'stride');
   if (hasStrides && !initialTags.includes('Strides')) {
     initialTags.push('Strides');
   }
@@ -272,7 +303,11 @@ export function importRunContent(
         s.avgPaceSecKm,
         s.avgHeartRate,
         s.splitEfficiencyFactor,
-        s.elevationChangeM
+        s.elevationChangeM,
+        s.avgCadence ?? null,
+        s.avgStanceTimeMs ?? null,
+        s.avgVertOscMm ?? null,
+        s.avgVertRatioPct ?? null
       );
     }
 
@@ -294,7 +329,12 @@ export function importRunContent(
         inv.peakSpeedMps ?? null,
         inv.peakPaceSecKm ?? null,
         inv.minStanceTime ?? null,
-        inv.hrDrop ?? null
+        inv.hrDrop ?? null,
+        inv.avgVertOsc ?? null,
+        inv.avgStanceTime ?? null,
+        inv.avgStepLength ?? null,
+        inv.avgStrideLength ?? null,
+        inv.avgVertRatio ?? null
       );
     }
 

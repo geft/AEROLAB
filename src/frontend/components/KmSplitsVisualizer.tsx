@@ -11,6 +11,10 @@ export interface SplitItem {
   avg_heart_rate: number | null;
   split_efficiency_factor: number | null;
   elevation_change_m: number | null;
+  avg_cadence?: number | null;
+  avg_stance_time?: number | null;  // GCT in ms
+  avg_vert_osc?: number | null;     // Vertical Oscillation in mm
+  avg_vert_ratio?: number | null;   // Vertical Ratio %
 }
 
 interface KmSplitsVisualizerProps {
@@ -374,6 +378,26 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
                 {selectedMetric !== 'elevation' && elev !== 0 && (
                   <span className="sec-chip elev" title="Elevation Delta">
                     <Mountain size={11} /> {elev > 0 ? `+${Math.round(elev)}m` : `${Math.round(elev)}m`}
+                  </span>
+                )}
+                {split.avg_cadence && (
+                  <span className="sec-chip" style={{ color: 'var(--text-secondary)' }} title="Cadence">
+                    {Math.round(split.avg_cadence)} spm
+                  </span>
+                )}
+                {split.avg_stance_time && (
+                  <span className="sec-chip" style={{ color: '#a78bfa' }} title="Ground Contact Time">
+                    {Math.round(split.avg_stance_time)} ms
+                  </span>
+                )}
+                {split.avg_vert_osc && (
+                  <span className="sec-chip" style={{ color: '#818cf8' }} title="Vertical Oscillation">
+                    {(split.avg_vert_osc / 10).toFixed(1)} cm
+                  </span>
+                )}
+                {split.avg_vert_ratio && (
+                  <span className="sec-chip" style={{ color: '#c084fc' }} title="Vertical Ratio">
+                    VR {split.avg_vert_ratio.toFixed(1)}%
                   </span>
                 )}
                 <span className="sec-chip time" title="Split Duration">

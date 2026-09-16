@@ -440,6 +440,7 @@ export function convertFitToCsv(
     'temperature',
     'vertical_oscillation',
     'stance_time',
+    'step_length',
   ];
   lines.push(headerCols.join(','));
 
@@ -455,8 +456,9 @@ export function convertFitToCsv(
     const temp = r.temperature ?? '';
     const vo = r.vertical_oscillation ?? '';
     const st = r.stance_time ?? '';
+    const sl = r.step_length ?? '';
 
-    lines.push(`${ts},${hr},${cad},${spd},${dist},${alt},${lat},${lon},${temp},${vo},${st}`);
+    lines.push(`${ts},${hr},${cad},${spd},${dist},${alt},${lat},${lon},${temp},${vo},${st},${sl}`);
   }
 
   return {

@@ -2,7 +2,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
-import { BrowseView, getDisplayTitle } from '../../src/frontend/components/BrowseView.js';
+import { BrowseView, getDisplayTitle, ActivitySummary } from '../../src/frontend/components/BrowseView.js';
 
 describe('BrowseView User Flow & Navigation Tests', () => {
   const mockActivities = [
@@ -38,7 +38,7 @@ describe('BrowseView User Flow & Navigation Tests', () => {
       { id: 1, split_index: 1, avg_pace_sec_km: 340, duration_seconds: 340, avg_heart_rate: 132, split_efficiency_factor: 1.22, elevation_change_m: 2 }
     ],
     intervals: [
-      { id: 1, interval_index: 1, interval_type: 'stride', duration_seconds: 25, distance_meters: 120, avg_speed_mps: 4.8, avg_heart_rate: 152, max_heart_rate: 158, avg_cadence: 195, hr_drop: 22 }
+      { id: 1, interval_index: 1, type: 'stride', duration_seconds: 25, distance_meters: 120, avg_speed_mps: 4.8, avg_heart_rate: 152, max_heart_rate: 158, avg_cadence: 195, hr_drop: 22 }
     ],
     records: [],
     coachSummary: {
@@ -161,8 +161,8 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     fireEvent.click(stridesTabBtn);
 
     await waitFor(() => {
-      expect(screen.getByText(/strides isolate explosive neuromuscular turnover/i)).toBeTruthy();
-      expect(screen.getByText('195 spm')).toBeTruthy(); // Cadence of interval
+      expect(screen.getByText(/snapped prescription hint/i)).toBeTruthy();
+      expect(screen.getByText('195')).toBeTruthy(); // Cadence of interval
     });
 
     // Switch to Notes & AI Coach subtab
@@ -409,10 +409,10 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     fireEvent.click(stridesTabBtn);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /work reps only/i })).toBeTruthy();
+      expect(screen.getByRole('button', { name: /only \(\d+\)/i })).toBeTruthy();
       expect(screen.getByRole('button', { name: /all segments/i })).toBeTruthy();
-      expect(screen.getByText(/192 bpm Peak/i)).toBeTruthy();
-      expect(screen.getByText(/-40 bpm/i)).toBeTruthy();
+      expect(screen.getByText('192')).toBeTruthy(); // Peak HR of work rep
+      expect(screen.getByText(/-40/)).toBeTruthy(); // Recovery drop after work rep
     });
   });
 });

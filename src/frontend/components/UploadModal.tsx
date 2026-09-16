@@ -4,7 +4,7 @@ import { UploadCloud, CheckCircle, AlertCircle, X, Check, Files } from 'lucide-r
 interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUploadSuccess: () => void;
+  onUploadSuccess: (importedActivityId?: string) => void;
 }
 
 interface FileError {
@@ -16,6 +16,7 @@ interface BatchSummary {
   total: number;
   imported: number;
   skipped: number;
+  skippedNonRun: number;
   errors: number;
   errorDetails: FileError[];
   skippedDetails: Array<{ filename: string; reason: string }>;
@@ -61,7 +62,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
     let imported = 0;
     let skipped = 0;
+    let skippedNonRun = 0;
     let errors = 0;
+    let singleActivityId: string | undefined = undefined;
     const errorDetails: FileError[] = [];
     const skippedDetails: Array<{ filename: string; reason: string }> = [];
 
@@ -105,8 +108,13 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
             filename: file.name,
             error: data.error || `Server returned HTTP ${res.status}`
           });
+        } else if (data.result?.status === 'skipped_non_running') {
+          skippedNonRun++;
         } else if (data.result?.status === 'skipped_duplicate') {
           skipped++;
+          if (validFiles.length === 1 && data.result?.activityId) {
+            singleActivityId = data.result.activityId;
+          }
           skippedDetails.push({
             filename: file.name,
             reason: 'Already imported in database'
@@ -119,6 +127,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           });
         } else {
           imported++;
+          if (validFiles.length === 1 && data.result?.activityId) {
+            singleActivityId = data.result.activityId;
+          }
         }
       } catch (err: any) {
         errors++;
@@ -135,13 +146,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
       total: validFiles.length,
       imported,
       skipped,
+      skippedNonRun,
       errors,
       errorDetails,
       skippedDetails
     };
     setSummary(batchSummary);
-    if (imported > 0) {
-      onUploadSuccess();
+    if (imported > 0 || (validFiles.length === 1 && singleActivityId)) {
+      onUploadSuccess(validFiles.length === 1 ? singleActivityId : undefined);
     }
 
     // If single file and successfully imported without error, auto-close after a short preview
@@ -149,7 +161,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
       setStatusMessage('Activity successfully imported!');
       setTimeout(() => {
         handleClose();
-      }, 1200);
+      }, 750);
     }
   };
 
@@ -294,7 +306,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
               </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', textAlign: 'center' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: summary.skippedNonRun > 0 ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: '0.5rem', textAlign: 'center' }}>
               <div style={{ background: 'var(--bg-card)', padding: '0.75rem', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
                 <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>{summary.imported}</div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Imported</div>
@@ -304,6 +316,13 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                 <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-amber)' }}>{summary.skipped}</div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Skipped (Dup)</div>
               </div>
+
+              {summary.skippedNonRun > 0 && (
+                <div style={{ background: 'var(--bg-card)', padding: '0.75rem', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-secondary)' }}>{summary.skippedNonRun}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Non-Run / Sleep</div>
+                </div>
+              )}
 
               <div style={{ background: 'var(--bg-card)', padding: '0.75rem', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
                 <div style={{ fontSize: '1.25rem', fontWeight: 800, color: summary.errors > 0 ? 'var(--accent-rose)' : 'var(--text-muted)' }}>{summary.errors}</div>

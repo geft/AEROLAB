@@ -26,17 +26,20 @@ describe('Threshold Tracker Unit Tests', () => {
 
 
   const dummyMetadata: ActivityMetadata = {
-    activityId: 'test-act-001',
-    activityName: 'Test Aerobic Run',
-    startTime: '2026-09-10 07:00:00',
-    distanceMeters: 10000,
-    durationSeconds: 3000,
-    calories: 600,
-    elevationGainM: 10,
+    id: 'test-act-001',
+    name: 'Test Aerobic Run',
+    date: '2026-09-10 07:00:00',
+    sport: 'running',
+    totalDistanceMeters: 10000,
+    totalDurationSeconds: 3000,
+    totalElapsedSeconds: 3000,
+    avgHeartRate: 140,
+    maxHeartRate: 155,
     avgCadence: 175,
-    avgStanceTime: 240,
-    avgVerticalOscillation: 85,
-    recordsCount: 600
+    maxCadence: 185,
+    calories: 600,
+    totalAscentMeters: 10,
+    totalDescentMeters: 10
   };
 
   const dummyRecords: ActivityRecord[] = [];
@@ -151,7 +154,7 @@ describe('Threshold Tracker Unit Tests', () => {
       'test-act-short',
       '2026-09-10 07:00:00',
       'easy_base',
-      dummyMetadata,
+      { ...dummyMetadata, totalDurationSeconds: 1200 },
       dummyRecords,
       shortEconomy
     );

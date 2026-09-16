@@ -87,6 +87,11 @@ CREATE TABLE IF NOT EXISTS activity_intervals (
   peak_pace_sec_km REAL,
   min_stance_time REAL,
   hr_drop INTEGER,
+  avg_vert_osc REAL,
+  avg_stance_time REAL,
+  avg_step_length REAL,
+  avg_stride_length REAL,
+  avg_vert_ratio REAL,
   FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE
 );
 

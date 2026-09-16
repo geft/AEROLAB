@@ -35,8 +35,8 @@ export function downsampleRecords(
       range => sec >= range.start - 2 && sec <= range.end + 2
     );
 
-    // Dynamic surge check (e.g. abrupt cadence jump > 185 spm or speed > 3.4 m/s)
-    const isSurge = (r.cadence ?? 0) >= 185 || (r.speedMps ?? 0) >= 3.4;
+    // Dynamic surge check: capture sudden sprint acceleration or high cadence surge outside intervals
+    const isSurge = (r.cadence ?? 0) >= 185 || (r.speedMps ?? 0) >= 3.8;
 
     const timeSinceLast = sec - lastIncludedSec;
 

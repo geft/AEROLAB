@@ -1,14 +1,12 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
-import fs from 'fs';
-import path from 'path';
 import { createServer } from '../../src/backend/server.js';
 import { getDatabase } from '../../src/backend/db/client.js';
+import { getBenchmark, toCsv } from '../fixtures/benchmark-runs.js';
 
 describe('API Server Integration Tests', () => {
   const app = createServer();
-  const samplePath = path.resolve(__dirname, '../fixtures/sample-run.csv');
-  const sampleContent = fs.readFileSync(samplePath, 'utf8');
+  const benchmarkContent = toCsv(getBenchmark('bench-easy-60'));
 
   beforeAll(() => {
     // In-memory test DB
@@ -25,23 +23,23 @@ describe('API Server Integration Tests', () => {
   it('POST /api/ingest/upload ingests a run CSV', async () => {
     const res = await request(app)
       .post('/api/ingest/upload')
-      .send({ content: sampleContent, filename: 'singapore_test.csv' });
+      .send({ content: benchmarkContent, filename: 'bench_easy_test.csv' });
 
     expect(res.status).toBe(200);
     expect(res.body.result.status).toBe('imported');
-    expect(res.body.result.activityId).toBe('24321232759');
+    expect(res.body.result.activityId).toBe('bench-easy-60');
   });
 
   it('GET /api/activities lists the imported run', async () => {
     const res = await request(app).get('/api/activities');
     expect(res.status).toBe(200);
     expect(res.body.activities).toHaveLength(1);
-    expect(res.body.activities[0].name).toBe('Singapore Running');
+    expect(res.body.activities[0].name).toBe('Benchmark Easy Aerobic');
     expect(res.body.activities[0].efficiency_factor).toBeGreaterThan(0);
   });
 
   it('GET /api/activities/:id returns deep dive with splits and records', async () => {
-    const res = await request(app).get('/api/activities/24321232759');
+    const res = await request(app).get('/api/activities/bench-easy-60');
     expect(res.status).toBe(200);
     expect(res.body.activity).toBeDefined();
     expect(res.body.splits).toBeDefined();
@@ -50,7 +48,7 @@ describe('API Server Integration Tests', () => {
 
   it('PATCH /api/activities/:id updates custom title, runner notes, and tags', async () => {
     const patchRes = await request(app)
-      .patch('/api/activities/24321232759')
+      .patch('/api/activities/bench-easy-60')
       .send({
         name: 'Morning Aerobic Base + PCN Strides',
         notes: 'Felt very smooth, high humidity around 80%. Elastic bounce maintained.',
@@ -63,14 +61,14 @@ describe('API Server Integration Tests', () => {
     expect(JSON.parse(patchRes.body.activity.tags)).toEqual(['Easy Base', 'Strides', 'Recovery']);
 
     // Confirm persisted via GET
-    const getRes = await request(app).get('/api/activities/24321232759');
+    const getRes = await request(app).get('/api/activities/bench-easy-60');
     expect(getRes.body.activity.name).toBe('Morning Aerobic Base + PCN Strides');
     expect(getRes.body.activity.notes).toContain('Elastic bounce maintained');
   });
 
   it('PATCH /api/activities/:id rejects unknown/new custom tags with 400', async () => {
     const patchRes = await request(app)
-      .patch('/api/activities/24321232759')
+      .patch('/api/activities/bench-easy-60')
       .send({
         tags: ['Easy Base', 'Brand New Tag', 'Custom Random']
       });
@@ -99,16 +97,16 @@ describe('API Server Integration Tests', () => {
 
   it('persists AI coach summary in activity_coach_summaries table upon ingestion and returns it', async () => {
     const db = getDatabase();
-    const row = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get('24321232759') as any;
+    const row = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get('bench-easy-60') as any;
     expect(row).toBeDefined();
-    expect(row.headline).toBe('Productive Zone 2 Aerobic Foundation');
+    expect(row.headline).toBe('Near-Perfect Aerobic Base Execution');
     expect(row.effectiveness_score).toBeGreaterThan(70);
     expect(row.key_insights_json).toBeDefined();
 
     // Verify GET /api/activities/:id/coach-summary endpoint
-    const res = await request(app).get('/api/activities/24321232759/coach-summary');
+    const res = await request(app).get('/api/activities/bench-easy-60/coach-summary');
     expect(res.status).toBe(200);
-    expect(res.body.coachSummary.headline).toBe('Productive Zone 2 Aerobic Foundation');
+    expect(res.body.coachSummary.headline).toBe('Near-Perfect Aerobic Base Execution');
     expect(res.body.coachSummary.steadyHeartRate).toBeGreaterThan(0);
     expect(res.body.coachSummary.keyInsights.length).toBeGreaterThan(0);
   });
@@ -118,7 +116,7 @@ describe('API Server Integration Tests', () => {
 
     // Patch run_type to threshold_lt2
     const patchRes = await request(app)
-      .patch('/api/activities/24321232759')
+      .patch('/api/activities/bench-easy-60')
       .send({ run_type: 'threshold_lt2' });
 
     expect(patchRes.status).toBe(200);
@@ -126,13 +124,13 @@ describe('API Server Integration Tests', () => {
     expect(patchRes.body.coachSummary.headline).toBe('High-Quality Lactate Clearance Stimulus');
 
     // Confirm the row in activity_coach_summaries was updated
-    const row = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get('24321232759') as any;
+    const row = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get('bench-easy-60') as any;
     expect(row.headline).toBe('High-Quality Lactate Clearance Stimulus');
     expect(row.recommendation).toContain('48 hours of recovery');
 
     // Revert back to easy_base
     await request(app)
-      .patch('/api/activities/24321232759')
+      .patch('/api/activities/bench-easy-60')
       .send({ run_type: 'easy_base' });
   });
 
@@ -217,7 +215,7 @@ describe('API Server Integration Tests', () => {
   });
 
   it('POST /api/activities/:id/weather/refresh fetches historical microclimate weather', async () => {
-    const res = await request(app).post('/api/activities/24321232759/weather/refresh');
+    const res = await request(app).post('/api/activities/bench-easy-60/weather/refresh');
     expect(res.status).toBe(200);
     expect(res.body.activity).toBeDefined();
     expect(res.body.weather).toBeDefined();
@@ -390,8 +388,9 @@ describe('API Server Integration Tests', () => {
       .post('/api/ingest/upload')
       .send({ content: cycleBase64, filename: 'cycling.fit' });
 
-    expect(res.status).toBe(422);
-    expect(res.body.error).toContain('does not contain a supported running session');
+    expect(res.status).toBe(200);
+    expect(res.body.result?.status).toBe('skipped_non_running');
+    expect(res.body.result?.reason).toContain('not a supported running session');
   });
 
   it('POST /api/ingest/upload returns 400 when FIT content payload is invalid type', async () => {

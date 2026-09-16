@@ -25,11 +25,13 @@ export function evaluateThresholdUpdate(
   let estimatedLt2Hr: number | null = null;
   let estimatedLt2Pace: number | null = null;
 
-  // Retrieve athlete profile for baseline reference
+  // Retrieve athlete profile for baseline reference (profile-relative, no hardcoded bpm)
   let baselineLt1Hr: number | null = null;
+  let profileLt2Hr: number | null = null;
   try {
-    const prof = db.prepare('SELECT lt1_hr, max_hr, resting_hr FROM athlete_profile WHERE id = ?').get('primary') as any;
+    const prof = db.prepare('SELECT lt1_hr, lt2_hr, max_hr, resting_hr FROM athlete_profile WHERE id = ?').get('primary') as any;
     if (prof?.lt1_hr) baselineLt1Hr = prof.lt1_hr;
+    if (prof?.lt2_hr) profileLt2Hr = prof.lt2_hr;
   } catch {}
 
   // 1. LT1 Candidate: Sustained Steady Aerobic Run with low decoupling (< 4.5%)
@@ -39,7 +41,7 @@ export function evaluateThresholdUpdate(
 
   // A genuine LT1 calibration effort requires steady state running near the aerobic threshold
   // If athlete profile exists, low-intensity recovery jogs (e.g. 128-135 bpm) are sub-LT1 and do not depress the LT1 ceiling.
-  const isNearLt1 = baselineLt1Hr ? (avgHr >= Math.max(140, baselineLt1Hr - 6)) : true;
+  const isNearLt1 = baselineLt1Hr ? (avgHr >= baselineLt1Hr - 6) : true;
   const isLt1Candidate =
     (runType === 'easy_base' || runType === 'long_run') &&
     economy.aerobicDecouplingPct !== null &&
@@ -59,13 +61,19 @@ export function evaluateThresholdUpdate(
     }
   }
 
-  // 2. LT2 Candidate: Threshold run, quality intervals, or continuous race effort
+  // 2. LT2 Candidate: Threshold run, quality intervals, or continuous race effort.
+  // Guard: at least one work rep must actually reach the profile-relative
+  // threshold band — otherwise fragmented warmup/cooldown segments would drag
+  // the estimate down (a real 3x15m once calibrated LT2 to 160 this way).
   if (runType === 'threshold_lt2' || runType === 'race') {
     const workInvs = db.prepare(
       "SELECT duration_seconds, distance_meters, avg_heart_rate, avg_pace_sec_km FROM activity_intervals WHERE activity_id = ? AND type = 'work'"
     ).all(activityId) as any[];
 
-    if (workInvs.length > 0) {
+    const stimulusFloor = (profileLt2Hr ?? 167) - 10;
+    const hasStimulus = workInvs.some(i => (i.avg_heart_rate ?? 0) >= stimulusFloor);
+
+    if (workInvs.length > 0 && hasStimulus) {
       const totalDur = workInvs.reduce((s, i) => s + i.duration_seconds, 0);
       const totalDist = workInvs.reduce((s, i) => s + i.distance_meters, 0);
       if (totalDist > 0 && totalDur > 0) {
@@ -76,9 +84,13 @@ export function evaluateThresholdUpdate(
       }
     }
 
-    // Fallback if intervals not yet committed: evaluate core Z4/race segment
-    if (!estimatedLt2Pace) {
-      const highRecords = records.filter(r => r.heartRate && r.heartRate >= 165 && r.speedMps && r.speedMps > 2.8);
+    // Fallback when no usable work intervals exist yet (e.g. continuous tempo
+    // classified threshold via zone occupancy, or a race without splits).
+    // Skipped when work intervals exist but never reached the stimulus band.
+    // (profile-relative HR floor, no speed gate so slower athletes qualify equally).
+    if (!estimatedLt2Pace && workInvs.length === 0) {
+      const lt2Floor = (profileLt2Hr ?? 167) - 5;
+      const highRecords = records.filter(r => r.heartRate && r.heartRate >= lt2Floor);
       if (highRecords.length >= 300) {
         const avgSpd = highRecords.reduce((s, r) => s + (r.speedMps || 0), 0) / highRecords.length;
         const segmentPace = Math.round(1000 / avgSpd);

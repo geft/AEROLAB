@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "ingest": "tsx scripts/ingest.ts",
+    "realign": "tsx scripts/realign.ts",
     "process:fit": "tsx scripts/batch-process-fit.ts"
   },
   "build": {

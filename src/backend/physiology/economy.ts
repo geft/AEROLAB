@@ -23,6 +23,8 @@ export interface EconomyMetrics {
   movingDistanceMeters: number;
   avgMovingPaceSecKm: number | null;
   avgMovingHeartRate: number | null;
+  firstHalfEf?: number | null;
+  secondHalfEf?: number | null;
   steadyPaceSecKm?: number | null;
   steadyHeartRate?: number | null;
   steadyCadence?: number | null;
@@ -38,6 +40,10 @@ export interface SplitLap {
   avgHeartRate: number;
   splitEfficiencyFactor: number | null;
   elevationChangeM: number;
+  avgCadence: number | null;
+  avgStanceTimeMs: number | null;  // GCT in ms
+  avgVertOscMm: number | null;     // Vertical Oscillation in mm
+  avgVertRatioPct: number | null;  // Vertical Ratio = (VO_cm / stride_length_cm) * 100
 }
 
 /**
@@ -100,13 +106,13 @@ export function extractSteadyStateMetrics(records: any[]): PauseBreakdown {
 
     // Breaks filtered strictly by cadence so slow running is preserved:
     // 1. Stationary / Pause: cadence < 50 (idle, waiting at traffic lights, tying shoes)
-    // 2. Walk Break: cadence >= 50 && cadence < 135 (walking cadence)
-    // 3. Steady Running: cadence >= 135 (running turnover, even at slow easy/recovery pace)
+    // 2. Walk Break: cadence >= 50 && cadence < 126 (walking cadence)
+    // 3. Steady Running: cadence >= 126 (running turnover, even at slow easy/recovery pace)
     let type: 'stop' | 'walk' | 'run' = 'run';
     if (hasCadence) {
       if (!cad || cad < 50) {
         type = 'stop';
-      } else if (cad < 135) {
+      } else if (cad < 126) {
         type = 'walk';
       } else {
         type = 'run';
@@ -221,7 +227,7 @@ export function calculateEconomy(records: ActivityRecord[]): EconomyMetrics {
     const cad = r.cadence ?? 0;
     const speed = r.speedMps ?? 0;
     if (hasCadenceInRecords) {
-      return cad >= 135;
+      return cad >= 126;
     }
     return speed >= 1.6;
   });
@@ -400,25 +406,38 @@ export function calculateKmSplits(records: ActivityRecord[], splitDistanceMeters
         const durationSec = Math.max(1, endRecord.elapsedSeconds - startRecord.elapsedSeconds);
         const actualDist = Math.max(1, (endRecord.distanceMeters ?? 0) - (startRecord.distanceMeters ?? 0));
 
-        let hrSum = 0;
-        let hrCount = 0;
-        let speedSum = 0;
-        let speedCount = 0;
+        let hrSum = 0, hrCount = 0;
+        let speedSum = 0, speedCount = 0;
+        let cadSum = 0, cadCount = 0;
+        let stanceSum = 0, stanceCount = 0;
+        let voSum = 0, voCount = 0;
 
         for (const r of splitRecords) {
-          if (r.heartRate) {
-            hrSum += r.heartRate;
-            hrCount++;
-          }
-          if (r.speedMps) {
-            speedSum += r.speedMps;
-            speedCount++;
-          }
+          if (r.heartRate) { hrSum += r.heartRate; hrCount++; }
+          if (r.speedMps) { speedSum += r.speedMps; speedCount++; }
+          if (r.cadence && r.cadence > 50) { cadSum += r.cadence; cadCount++; }
+          if (r.stanceTime && r.stanceTime > 100) { stanceSum += r.stanceTime; stanceCount++; }
+          if (r.verticalOscillation && r.verticalOscillation > 0) { voSum += r.verticalOscillation; voCount++; }
         }
 
         const avgHr = hrCount > 0 ? Math.round(hrSum / hrCount) : 0;
         const avgSpeedMps = speedCount > 0 ? speedSum / speedCount : actualDist / durationSec;
         const avgPaceSecKm = avgSpeedMps > 0 ? Math.round(1000 / avgSpeedMps) : 0;
+        const avgCadence = cadCount > 0 ? Math.round(cadSum / cadCount) : null;
+        const avgStanceTimeMs = stanceCount > 0 ? Number((stanceSum / stanceCount).toFixed(1)) : null;
+        const avgVertOscMm = voCount > 0 ? Number((voSum / voCount).toFixed(1)) : null;
+
+        // Vertical Ratio = vertical oscillation (cm) / stride length (cm) * 100
+        // Stride length (m) = speed (m/s) / (cadence_spm / 60 / 2) [2 steps per stride]
+        let avgVertRatioPct: number | null = null;
+        if (avgVertOscMm && avgCadence && avgSpeedMps > 0 && avgCadence > 0) {
+          const stepsPerSec = avgCadence / 60;
+          const stridesPerSec = stepsPerSec / 2;
+          const strideLengthCm = (avgSpeedMps / stridesPerSec) * 100;
+          avgVertRatioPct = strideLengthCm > 0
+            ? Number(((avgVertOscMm / 10) / strideLengthCm * 100).toFixed(2))
+            : null;
+        }
 
         const splitEf = avgHr > 0 && avgSpeedMps > 0
           ? Number(((avgSpeedMps * 60) / avgHr).toFixed(4))
@@ -435,7 +454,11 @@ export function calculateKmSplits(records: ActivityRecord[], splitDistanceMeters
           avgPaceSecKm,
           avgHeartRate: avgHr,
           splitEfficiencyFactor: splitEf,
-          elevationChangeM
+          elevationChangeM,
+          avgCadence,
+          avgStanceTimeMs,
+          avgVertOscMm,
+          avgVertRatioPct
         });
 
         currentSplitIndex++;

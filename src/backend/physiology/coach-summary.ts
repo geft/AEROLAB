@@ -16,6 +16,12 @@ export interface CoachSummary {
   keyInsights: string[];
   recommendation: string;
   scoreBreakdown: ScoreFactor[];
+  updatedAt?: string;
+  steadyPaceSecKm?: number | null;
+  steadyHeartRate?: number | null;
+  steadyCadence?: number | null;
+  steadyStanceTime?: number | null;
+  pauseBreakdown?: PauseBreakdown | null;
 }
 
 export function generateCoachSummary(params: {
@@ -51,6 +57,7 @@ export function generateCoachSummary(params: {
   weatherCondition?: string | null;
   // Interval reps telemetry (for quality threshold / VO2 sessions)
   intervals?: any[] | null;
+  splits?: any[] | null;
 }): CoachSummary {
   const {
     runType,
@@ -161,48 +168,51 @@ export function generateCoachSummary(params: {
   }
 
   // Structured Interval Execution Quality (for VO2 Max & Threshold quality sessions)
+  // Pace-free: duration consistency (structure) + peak-HR attainment (profile-relative).
   if ((runType === 'intervals_vo2' || runType === 'threshold_lt2') && params.intervals && params.intervals.length > 0) {
     const workReps = params.intervals.filter((i: any) => i.type === 'work');
     if (workReps.length >= 2) {
-      const paces = workReps.map((r: any) => r.avg_pace_sec_km ?? r.avgPaceSecKm).filter((p: number) => p > 0);
-      if (paces.length >= 2) {
-        const meanPace = paces.reduce((a: number, b: number) => a + b, 0) / paces.length;
-        const variance = paces.reduce((a: number, b: number) => a + Math.pow(b - meanPace, 2), 0) / paces.length;
+      const durations = workReps
+        .map((r: any) => r.duration_seconds ?? r.durationSeconds)
+        .filter((d: number) => d > 0);
+      if (durations.length >= 2) {
+        const meanDur = durations.reduce((a: number, b: number) => a + b, 0) / durations.length;
+        const variance = durations.reduce((a: number, b: number) => a + Math.pow(b - meanDur, 2), 0) / durations.length;
         const stdDev = Math.sqrt(variance);
-        const cv = stdDev / meanPace;
+        const cv = meanDur > 0 ? stdDev / meanDur : 0;
 
-        if (cv <= 0.035) {
+        if (cv <= 0.08) {
           score += 8;
           scoreBreakdown.push({
-            category: 'Interval Pacing',
+            category: 'Interval Execution',
             points: 8,
-            label: 'Laser Pacing Consistency',
-            description: `Executed ${workReps.length} reps with ${(cv * 100).toFixed(1)}% pace variance (±${Math.round(stdDev)}s/km)`
+            label: 'Laser Rep Consistency',
+            description: `Executed ${workReps.length} reps with ${(cv * 100).toFixed(1)}% duration variance (±${Math.round(stdDev)}s)`
           });
           insights.push(
-            `Exceptional Pacing Consistency: Executed ${workReps.length} work reps with laser precision (${(cv * 100).toFixed(1)}% pace variance, ±${Math.round(stdDev)}s/km spread). Zero early pacing overshoot or late-rep collapse.`
+            `Exceptional Rep Consistency: Executed ${workReps.length} work reps with laser precision (${(cv * 100).toFixed(1)}% duration variance, ±${Math.round(stdDev)}s spread). Zero early overshoot or late-rep collapse.`
           );
-        } else if (cv <= 0.065) {
+        } else if (cv <= 0.15) {
           score += 4;
           scoreBreakdown.push({
-            category: 'Interval Pacing',
+            category: 'Interval Execution',
             points: 4,
-            label: 'Disciplined Interval Pacing',
-            description: `${workReps.length} reps paced within ${(cv * 100).toFixed(1)}% variance`
+            label: 'Disciplined Interval Structure',
+            description: `${workReps.length} reps held within ${(cv * 100).toFixed(1)}% duration variance`
           });
           insights.push(
-            `Disciplined Interval Pacing: Paced ${workReps.length} work reps consistently (${(cv * 100).toFixed(1)}% pace variance).`
+            `Disciplined Interval Structure: Held ${workReps.length} work reps consistently (${(cv * 100).toFixed(1)}% duration variance).`
           );
-        } else if (cv > 0.12) {
+        } else if (cv > 0.25) {
           score -= 6;
           scoreBreakdown.push({
-            category: 'Interval Pacing',
+            category: 'Interval Execution',
             points: -6,
-            label: 'High Pacing Variance Across Reps',
-            description: `High split variance (${(cv * 100).toFixed(1)}%) across ${workReps.length} reps`
+            label: 'High Rep Variance Across Set',
+            description: `High duration variance (${(cv * 100).toFixed(1)}%) across ${workReps.length} reps`
           });
           insights.push(
-            `Pacing Variance Warning: High pace variance across reps (${(cv * 100).toFixed(1)}%). Focus on starting 5-10s slower on rep 1 to maintain even splits across the entire set.`
+            `Rep Variance Warning: High duration variance across reps (${(cv * 100).toFixed(1)}%). Focus on even rep durations to keep the stimulus consistent across the entire set.`
           );
         }
       }
@@ -247,6 +257,100 @@ export function generateCoachSummary(params: {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Race / Time Trial Execution: Pacing Discipline & Split Consistency
+  // ---------------------------------------------------------------------------
+  if (runType === 'race' && params.splits && params.splits.length >= 2) {
+    const workRep = (params.intervals || []).find((i: any) => i.type === 'work');
+    let raceSplits: any[] = [];
+
+    if (workRep) {
+      const wStart = workRep.startSeconds ?? workRep.start_seconds ?? 0;
+      const wDur = workRep.durationSeconds ?? workRep.duration_seconds ?? 0;
+      let cumSec = 0;
+      raceSplits = params.splits.filter((s: any) => {
+        const splitDur = s.duration_seconds || s.durationSeconds || 0;
+        const splitStart = cumSec;
+        cumSec += splitDur;
+        const splitEnd = cumSec;
+        return splitStart >= wStart - 30 && splitStart < wStart + wDur - 60;
+      });
+    }
+
+    if (raceSplits.length < 2) {
+      // Fallback: active running splits
+      raceSplits = params.splits.filter((s: any) => {
+        const p = s.avg_pace_sec_km || s.avgPaceSecKm || 0;
+        return p > 120 && p < 480;
+      });
+    }
+
+    if (raceSplits.length >= 2) {
+      const paces = raceSplits.map((s: any) => s.avg_pace_sec_km || s.avgPaceSecKm);
+      const firstPace = paces[0];
+      const secondPace = paces[1];
+      const avgPace = paces.reduce((a: number, b: number) => a + b, 0) / paces.length;
+
+      const variance = paces.reduce((a: number, b: number) => a + Math.pow(b - avgPace, 2), 0) / paces.length;
+      const stdDev = Math.sqrt(variance);
+      const cv = avgPace > 0 ? stdDev / avgPace : 0;
+
+      const fmt = (p: number) => {
+        const m = Math.floor(p / 60);
+        const s = Math.round(p % 60);
+        return `${m}:${String(s).padStart(2, '0')}/km`;
+      };
+
+      const earlySurgeSec = secondPace - firstPace;
+      const isEarlySurge = earlySurgeSec >= 12;
+
+      if (isEarlySurge) {
+        score -= 10;
+        scoreBreakdown.push({
+          category: 'Race Pacing Execution',
+          points: -10,
+          label: 'Aggressive Early Surge / Positive Split',
+          description: `Km 1 opened at ${fmt(firstPace)}, followed by a ${Math.round(earlySurgeSec)}s/km drop (${fmt(secondPace)})`
+        });
+        insights.push(
+          `Race Pacing Alert: Opened too fast in the first kilometer (${fmt(firstPace)} vs ${fmt(secondPace)} in Km 2, a +${Math.round(earlySurgeSec)}s/km drop). An over-aggressive opening km spikes blood lactate early and forces premature deceleration.`
+        );
+      } else if (cv <= 0.03) {
+        score += 6;
+        scoreBreakdown.push({
+          category: 'Race Pacing Execution',
+          points: 6,
+          label: 'Laser Race Pacing Discipline',
+          description: `Held race pace within ${(cv * 100).toFixed(1)}% split variance (±${Math.round(stdDev)}s)`
+        });
+        insights.push(
+          `Masterful Race Pacing: Maintained exceptional pacing consistency across race splits (${(cv * 100).toFixed(1)}% variance, ±${Math.round(stdDev)}s spread).`
+        );
+      }
+
+      if (cv > 0.05 && !isEarlySurge) {
+        score -= 6;
+        scoreBreakdown.push({
+          category: 'Race Pacing Execution',
+          points: -6,
+          label: 'Volatile Split Pacing',
+          description: `Pace varied by ${(cv * 100).toFixed(1)}% (±${Math.round(stdDev)}s spread)`
+        });
+        insights.push(
+          `Erratic Race Pacing: Split paces fluctuated significantly (±${Math.round(stdDev)}s variance). Target an even or slight negative split to maximize endurance efficiency.`
+        );
+      } else if (cv > 0.05 && isEarlySurge) {
+        score -= 4;
+        scoreBreakdown.push({
+          category: 'Race Pacing Execution',
+          points: -4,
+          label: 'Split Pacing Fluctuation',
+          description: `Pace fluctuated across splits (±${Math.round(stdDev)}s spread)`
+        });
+      }
+    }
+  }
+
   // Cadence insight (evaluated on true steady-state running)
   if (effectiveCadence >= 174 && effectiveCadence <= 184) {
     score += 4;
@@ -267,7 +371,7 @@ export function generateCoachSummary(params: {
       label: 'Sub-Optimal Cadence Turnover',
       description: `Steady running averaged ${effectiveCadence} spm (<165 spm)`
     });
-    insights.push(`Steady running cadence averaged ${effectiveCadence} spm. Increasing turnover toward 172-180 spm will decrease ground contact time and reduce joint impact.`);
+    insights.push(`Steady running cadence averaged ${effectiveCadence} spm. Increasing turnover toward 170-180 spm will decrease ground contact time and reduce joint impact.`);
   }
 
   // Running dynamics insight
@@ -333,8 +437,12 @@ export function generateCoachSummary(params: {
     headline = 'Incomplete / Aborted Quality Session';
     recommendation = 'Assess underlying fatigue, heat stress, or nutrition. Take a recovery day before attempting another quality stimulus.';
   } else if (runType === 'race') {
-    headline = 'All-Out Benchmark / Race Effort Execution';
-    recommendation = 'Exceptional competitive effort. Prioritize complete replenishment, deep sleep, and gentle recovery jogging over the next 48-72 hours.';
+    headline = finalScore >= 85
+      ? 'All-Out Benchmark / Masterful Race Execution'
+      : 'All-Out Benchmark Effort (Erratic Pacing)';
+    recommendation = finalScore >= 85
+      ? 'Exceptional competitive effort. Prioritize complete replenishment, deep sleep, and gentle recovery jogging over the next 48-72 hours.'
+      : 'Commendable maximum effort. In your next benchmark, target an even or slight negative split to avoid early lactic burn.';
   } else if (runType === 'accidental_tempo' || isAccidentalTempo) {
     headline = 'Unintentional Tempo / Drifted Aerobic Run';
     recommendation = `If an Easy recovery was intended, slow your initial kilometer pace by 15-20 sec/km to keep heart rate firmly under your LT1 ceiling (${lt1} bpm).`;
@@ -380,6 +488,7 @@ export function syncActivityCoachSummary(
   const records = db.prepare('SELECT * FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC').all(activityId) as any[];
   const pauseBreakdown = extractSteadyStateMetrics(records);
   const intervals = db.prepare('SELECT * FROM activity_intervals WHERE activity_id = ? ORDER BY interval_index ASC').all(activityId) as any[];
+  const splits = db.prepare('SELECT * FROM activity_splits WHERE activity_id = ? ORDER BY split_index ASC').all(activityId) as any[];
 
   const profile = db.prepare('SELECT * FROM athlete_profile WHERE id = ?').get('primary') as any;
   const lt1Hr = profile?.lt1_hr || (profile?.z3_start_hr ? profile.z3_start_hr - 1 : 148);
@@ -418,6 +527,7 @@ export function syncActivityCoachSummary(
       (activity.notes && (activity.notes.toLowerCase().includes('failed') || activity.notes.toLowerCase().includes('aborted') || activity.notes.toLowerCase().includes('dnf') || activity.notes.toLowerCase().includes('bailed')))
     ),
     intervals: overrides?.intervals || intervals,
+    splits: overrides?.splits || splits,
     ...overrides
   });
 

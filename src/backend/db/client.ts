@@ -5,9 +5,7 @@ import { fileURLToPath } from 'url';
 import { extractSteadyStateMetrics, calculateEconomy } from '../physiology/economy.js';
 import { syncAllCoachSummaries } from '../physiology/coach-summary.js';
 import { syncAllActivitiesWeather } from '../physiology/weather.js';
-import { detectIntervals } from '../ingestion/interval-detector.js';
-import { classifyRun } from '../ingestion/classifier.js';
-import { evaluateThresholdUpdate } from '../physiology/threshold-tracker.js';
+import { realignDatabase } from './realign.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -76,6 +74,23 @@ export function getDatabase(dbPath?: string): Database.Database {
     if (!intColNames.has('peak_pace_sec_km')) db.exec("ALTER TABLE activity_intervals ADD COLUMN peak_pace_sec_km REAL");
     if (!intColNames.has('min_stance_time')) db.exec("ALTER TABLE activity_intervals ADD COLUMN min_stance_time REAL");
     if (!intColNames.has('hr_drop')) db.exec("ALTER TABLE activity_intervals ADD COLUMN hr_drop INTEGER");
+    if (!intColNames.has('avg_vert_osc')) db.exec("ALTER TABLE activity_intervals ADD COLUMN avg_vert_osc REAL");
+    if (!intColNames.has('avg_stance_time')) db.exec("ALTER TABLE activity_intervals ADD COLUMN avg_stance_time REAL");
+    if (!intColNames.has('avg_step_length')) db.exec("ALTER TABLE activity_intervals ADD COLUMN avg_step_length REAL");
+    if (!intColNames.has('avg_stride_length')) db.exec("ALTER TABLE activity_intervals ADD COLUMN avg_stride_length REAL");
+    if (!intColNames.has('avg_vert_ratio')) db.exec("ALTER TABLE activity_intervals ADD COLUMN avg_vert_ratio REAL");
+  } catch (err) {
+    // Non-fatal if table not created yet
+  }
+
+  // Ensure activity_splits biomechanics columns exist
+  try {
+    const splitCols = db.prepare("PRAGMA table_info(activity_splits)").all() as Array<{ name: string }>;
+    const splitColNames = new Set(splitCols.map(c => c.name));
+    if (!splitColNames.has('avg_cadence')) db.exec("ALTER TABLE activity_splits ADD COLUMN avg_cadence INTEGER");
+    if (!splitColNames.has('avg_stance_time')) db.exec("ALTER TABLE activity_splits ADD COLUMN avg_stance_time REAL");
+    if (!splitColNames.has('avg_vert_osc')) db.exec("ALTER TABLE activity_splits ADD COLUMN avg_vert_osc REAL");
+    if (!splitColNames.has('avg_vert_ratio')) db.exec("ALTER TABLE activity_splits ADD COLUMN avg_vert_ratio REAL");
   } catch (err) {
     // Non-fatal if table not created yet
   }
@@ -264,10 +279,6 @@ export function getDatabase(dbPath?: string): Database.Database {
           z4_start_hr = CASE WHEN z4_start_hr = 175 THEN 167 ELSE z4_start_hr END
         WHERE id = 'primary'
       `).run();
-
-      // Clean up historical calibrations where sub-threshold recovery runs were erroneously saved as LT1
-      db.prepare('DELETE FROM physiological_thresholds WHERE lt1_hr IS NOT NULL AND lt1_hr < 142 AND lt2_hr IS NULL').run();
-      db.prepare('UPDATE physiological_thresholds SET lt1_hr = NULL WHERE lt1_hr < 142').run();
     }
   } catch (err) {
     // Non-fatal if table cannot be created or already exists
@@ -317,112 +328,8 @@ export function getDatabase(dbPath?: string): Database.Database {
     syncAllActivitiesWeather(db).catch(() => {});
 
     // Automatic migration: Re-classify and re-detect intervals with updated physiological definitions
-    const allActivities = db.prepare('SELECT * FROM activities').all() as any[];
-    for (const act of allActivities) {
-      const records = db.prepare('SELECT * FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC').all(act.id) as any[];
-      if (records.length > 30) {
-        const mappedRecords = records.map(r => ({
-          timestamp: r.timestamp,
-          elapsedSeconds: r.elapsed_seconds,
-          heartRate: r.heart_rate,
-          cadence: r.cadence,
-          speedMps: r.speed_mps,
-          distanceMeters: r.distance_m,
-          altitudeMeters: r.altitude_m,
-          latitude: r.lat,
-          longitude: r.lon,
-          temperature: r.temp,
-          verticalOscillation: r.vert_osc,
-          stanceTime: r.stance_time
-        }));
-
-        const intervals = detectIntervals(mappedRecords as any);
-
-        db.prepare('DELETE FROM activity_intervals WHERE activity_id = ?').run(act.id);
-        const insertInterval = db.prepare(`
-          INSERT INTO activity_intervals (
-            activity_id, interval_index, type, start_seconds, duration_seconds,
-            distance_meters, avg_speed_mps, avg_pace_sec_km, avg_heart_rate,
-            max_heart_rate, avg_cadence, peak_cadence, peak_speed_mps, peak_pace_sec_km,
-            min_stance_time, hr_drop
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-        for (const inv of intervals) {
-          insertInterval.run(
-            act.id, inv.intervalIndex, inv.type, inv.startSeconds, inv.durationSeconds,
-            inv.distanceMeters, inv.avgSpeedMps, inv.avgPaceSecKm, inv.avgHeartRate,
-            inv.maxHeartRate, inv.avgCadence, inv.peakCadence ?? null, inv.peakSpeedMps ?? null,
-            inv.peakPaceSecKm ?? null, inv.minStanceTime ?? null, inv.hrDrop ?? null
-          );
-        }
-
-        const economy = calculateEconomy(mappedRecords as any);
-        const meta = {
-          id: act.id,
-          name: act.name,
-          sport: act.sport,
-          date: act.start_time,
-          totalDistanceMeters: act.distance_meters,
-          totalDurationSeconds: act.duration_seconds,
-          totalElapsedSeconds: act.elapsed_seconds || act.duration_seconds,
-          avgHeartRate: act.avg_heart_rate,
-          maxHeartRate: act.max_heart_rate,
-          avgCadence: act.avg_cadence,
-          maxCadence: act.max_cadence,
-          calories: act.calories,
-          totalAscentMeters: act.elevation_gain_m || 0,
-          totalDescentMeters: act.elevation_loss_m || 0
-        };
-
-        const classification = classifyRun(meta, mappedRecords as any, economy, intervals);
-
-        const initialTags: string[] = [];
-        if (classification.runType === 'easy_base') initialTags.push('Easy Base');
-        else if (classification.runType === 'threshold_lt2') initialTags.push('Threshold');
-        else if (classification.runType === 'intervals_vo2') initialTags.push('VO2 Max');
-        else if (classification.runType === 'long_run') initialTags.push('Long Run');
-        else if (classification.runType === 'recovery') initialTags.push('Recovery');
-        else if (classification.runType === 'race') initialTags.push('Race');
-
-        const nameLower = (act.name || '').toLowerCase();
-        const hasMpBlocks =
-          classification.runType === 'long_run' &&
-          (intervals.some(i => i.type === 'work' && i.durationSeconds >= 600 && i.avgHeartRate >= 148 && i.avgHeartRate <= 165) ||
-            nameLower.includes('marathon pace') || nameLower.includes('mp'));
-        if (hasMpBlocks && !initialTags.includes('Marathon Pace')) {
-          initialTags.push('Marathon Pace');
-        }
-
-        if (nameLower.includes('tempo') && !initialTags.includes('Tempo')) {
-          initialTags.push('Tempo');
-        }
-
-        const hasStrides = intervals.some(i => i.type === 'stride') || nameLower.includes('stride');
-        if (hasStrides && !initialTags.includes('Strides')) {
-          initialTags.push('Strides');
-        }
-
-        db.prepare(`
-          UPDATE activities SET
-            run_type = ?,
-            auto_run_type = ?,
-            tags = ?
-          WHERE id = ?
-        `).run(classification.runType, classification.runType, JSON.stringify(initialTags), act.id);
-
-        evaluateThresholdUpdate(db, act.id, act.start_time, classification.runType, meta, mappedRecords as any, economy);
-      }
-    }
-
-    // Clean up any duplicate calibrations for identical source activities
-    db.prepare(`
-      DELETE FROM physiological_thresholds
-      WHERE id NOT IN (
-        SELECT MAX(id) FROM physiological_thresholds GROUP BY source_activity_id
-      )
-    `).run();
-
-    syncAllCoachSummaries(db);
+    // (also prunes stale threshold rows, re-syncs profile + coach summaries)
+    realignDatabase(db, { logger: (msg) => console.log(`[realign] ${msg}`) });
   } catch (err) {
     // Non-fatal
   }

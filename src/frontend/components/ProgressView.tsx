@@ -13,6 +13,7 @@ interface ThresholdData {
     vo2Max: number;
   };
   currentThresholds?: any;
+  zones?: any;
   predictions: any[];
   history: any[];
   economyTrend: any[];
@@ -364,6 +365,8 @@ export const ProgressView: React.FC = () => {
         isOpen={isEconomyGuideOpen}
         onClose={() => setIsEconomyGuideOpen(false)}
         currentEf={data.latest.lt1?.baseline_economy_ef ?? 1.15}
+        lt1Hr={data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? data.latest.lt1?.lt1_hr ?? 150}
+        lt2Hr={data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? data.latest.lt2?.lt2_hr ?? 165}
       />
 
       <VdotGuideModal

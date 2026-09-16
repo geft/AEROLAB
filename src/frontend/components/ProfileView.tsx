@@ -129,15 +129,24 @@ export const ProfileView: React.FC = () => {
         body: JSON.stringify(payload)
       });
 
-      const resData = await res.json();
+      let resData: any = {};
+      try {
+        resData = await res.json();
+      } catch {
+        // non-json response
+      }
+
       if (!res.ok) {
-        throw new Error(resData.error || 'Failed to save profile');
+        const code = resData.code || `ERR_HTTP_${res.status}`;
+        const msg = resData.error || resData.message || res.statusText || 'Failed to save profile';
+        const details = resData.details ? ` (${resData.details})` : '';
+        throw new Error(`[${code}]: ${msg}${details}`);
       }
 
       setStatusMessage({ type: 'success', text: 'Cardiovascular baselines updated and training models re-synchronized!' });
       setTimeout(() => setStatusMessage(null), 4000);
     } catch (err: any) {
-      setStatusMessage({ type: 'error', text: err.message || 'Error updating profile' });
+      setStatusMessage({ type: 'error', text: err.message || '[ERR_PROFILE_UPDATE]: Error updating profile' });
     } finally {
       setSaving(false);
     }

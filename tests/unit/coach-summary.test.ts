@@ -243,8 +243,8 @@ describe('AI Coach Summary Unit Tests', () => {
     expect(summary.stars).toBe(3);
     expect(summary.headline).toBe('Masterful VO2 Max Interval Execution');
 
-    // Should include pacing consistency and target stimulus insights
-    const pacingInsight = summary.keyInsights.find(i => i.includes('Pacing Consistency'));
+    // Should include rep consistency and target stimulus insights
+    const pacingInsight = summary.keyInsights.find(i => i.includes('Rep Consistency'));
     expect(pacingInsight).toBeDefined();
 
     const stimulusInsight = summary.keyInsights.find(i => i.includes('Target VO2 Stimulus'));
@@ -257,6 +257,80 @@ describe('AI Coach Summary Unit Tests', () => {
     // No decoupling penalty insight
     const decouplingInsight = summary.keyInsights.find(i => i.includes('cardiac drift detected'));
     expect(decouplingInsight).toBeUndefined();
+  });
+
+  it('downgrades race execution from 3 stars to 2 stars for erratic split pacing and aggressive early surge', () => {
+    const summary = generateCoachSummary({
+      runType: 'race',
+      distanceKm: 8.9,
+      durationMin: 56,
+      avgPaceSecKm: 378,
+      avgHr: 160,
+      maxHr: 200,
+      cadence: 183,
+      decouplingPct: null,
+      efficiencyFactor: 1.15,
+      avgTemp: 29,
+      groundContactTime: 231,
+      maxHeartRate: 203,
+      intervals: [
+        { intervalIndex: 1, type: 'recovery', startSeconds: 0, durationSeconds: 1477 },
+        { intervalIndex: 2, type: 'work', startSeconds: 1477, durationSeconds: 1318, avgPaceSecKm: 273, avgHeartRate: 188 },
+        { intervalIndex: 3, type: 'recovery', startSeconds: 2795, durationSeconds: 571 }
+      ],
+      splits: [
+        { split_index: 1, duration_seconds: 368, avg_pace_sec_km: 369 },
+        { split_index: 2, duration_seconds: 413, avg_pace_sec_km: 366 },
+        { split_index: 3, duration_seconds: 572, avg_pace_sec_km: 560 },
+        { split_index: 4, duration_seconds: 304, avg_pace_sec_km: 333 },
+        // Race splits (4:25 opening km followed by 15s drop to 4:40)
+        { split_index: 5, duration_seconds: 265, avg_pace_sec_km: 265 },
+        { split_index: 6, duration_seconds: 280, avg_pace_sec_km: 280 },
+        { split_index: 7, duration_seconds: 278, avg_pace_sec_km: 278 },
+        { split_index: 8, duration_seconds: 275, avg_pace_sec_km: 275 },
+        { split_index: 9, duration_seconds: 580, avg_pace_sec_km: 580 }
+      ]
+    });
+
+    // Score: 85 (base) + 4 (cadence 183) - 10 (early surge 4:25 vs 4:40) = 79 (2 Stars / Silver)
+    expect(summary.stars).toBe(2);
+    expect(summary.effectivenessScore).toBeLessThan(85);
+    expect(summary.effectivenessScore).toBeGreaterThanOrEqual(70);
+    expect(summary.headline).toContain('Erratic Pacing');
+    const surgeAlert = summary.keyInsights.find(i => i.includes('Race Pacing Alert'));
+    expect(surgeAlert).toBeDefined();
+    expect(surgeAlert).toContain('Opened too fast');
+  });
+
+  it('awards 3 stars for disciplined, even-split race pacing', () => {
+    const summary = generateCoachSummary({
+      runType: 'race',
+      distanceKm: 5.0,
+      durationMin: 22,
+      avgPaceSecKm: 264,
+      avgHr: 185,
+      maxHr: 195,
+      cadence: 182,
+      decouplingPct: null,
+      efficiencyFactor: 1.25,
+      avgTemp: 25,
+      groundContactTime: 220,
+      maxHeartRate: 203,
+      splits: [
+        { split_index: 1, duration_seconds: 266, avg_pace_sec_km: 266 },
+        { split_index: 2, duration_seconds: 265, avg_pace_sec_km: 265 },
+        { split_index: 3, duration_seconds: 264, avg_pace_sec_km: 264 },
+        { split_index: 4, duration_seconds: 263, avg_pace_sec_km: 263 },
+        { split_index: 5, duration_seconds: 262, avg_pace_sec_km: 262 }
+      ]
+    });
+
+    // Score: 85 (base) + 4 (cadence) + 6 (laser even pacing) = 95 (3 Stars / Gold)
+    expect(summary.stars).toBe(3);
+    expect(summary.effectivenessScore).toBeGreaterThanOrEqual(90);
+    expect(summary.headline).toContain('Masterful Race Execution');
+    const disciplineInsight = summary.keyInsights.find(i => i.includes('Masterful Race Pacing'));
+    expect(disciplineInsight).toBeDefined();
   });
 });
 

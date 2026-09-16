@@ -4,6 +4,7 @@ interface RecordPoint {
   elapsed_seconds: number;
   heart_rate: number | null;
   speed_mps: number | null;
+  speedMps?: number | null;
   altitude_m: number | null;
   distance_m: number | null;
   cadence: number | null;
@@ -65,8 +66,9 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, focusCo
         if (r.heart_rate < minHr) minHr = r.heart_rate;
         if (r.heart_rate > maxHr) maxHr = r.heart_rate;
       }
-      if (r.speedMps && r.speedMps > 1.0) {
-        const paceSec = 1000 / r.speedMps;
+      const spd = r.speed_mps ?? r.speedMps;
+      if (spd && spd > 1.0) {
+        const paceSec = 1000 / spd;
         if (paceSec >= 180 && paceSec <= 600) { // filter out extreme spikes
           if (paceSec < minPace) minPace = paceSec;
           if (paceSec > maxPace) maxPace = paceSec;
@@ -104,38 +106,40 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, focusCo
       ctx.fillText(`${hrVal}`, width - 2, y + 3);
     }
 
-    // 1. Draw Elevation (Background fill)
+    // Draw Altitude Background Fill (Subtle mountain silhouette)
     if (maxAlt > minAlt) {
       ctx.beginPath();
-      ctx.moveTo(padding.left, height - padding.bottom);
+      ctx.fillStyle = isLight ? 'rgba(148, 163, 184, 0.18)' : 'rgba(148, 163, 184, 0.08)';
+      let startedAlt = false;
       for (let i = 0; i < displayRecords.length; i++) {
         const r = displayRecords[i];
-        const x = padding.left + (i / (displayRecords.length - 1)) * chartW;
-        const alt = r.altitude_m ?? minAlt;
-        const yNorm = (alt - minAlt) / (maxAlt - minAlt || 1);
-        const y = height - padding.bottom - yNorm * (chartH * 0.35); // max 35% height
-        ctx.lineTo(x, y);
+        if (r.altitude_m !== null) {
+          const x = padding.left + (i / (displayRecords.length - 1)) * chartW;
+          const y = height - padding.bottom - ((r.altitude_m - minAlt) / (maxAlt - minAlt)) * (chartH * 0.45);
+          if (!startedAlt) {
+            ctx.moveTo(x, height - padding.bottom);
+            ctx.lineTo(x, y);
+            startedAlt = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
       }
       ctx.lineTo(width - padding.right, height - padding.bottom);
       ctx.closePath();
-      const altGradient = ctx.createLinearGradient(0, height - padding.bottom - chartH * 0.35, 0, height - padding.bottom);
-      altGradient.addColorStop(0, isLight ? 'rgba(100, 116, 139, 0.22)' : 'rgba(148, 163, 184, 0.12)');
-      altGradient.addColorStop(1, isLight ? 'rgba(100, 116, 139, 0.02)' : 'rgba(148, 163, 184, 0.01)');
-      ctx.fillStyle = altGradient;
       ctx.fill();
     }
 
-    // 2. Draw Heart Rate Line (Red/Orange)
+    // Draw HR Line (Amber)
     ctx.beginPath();
     ctx.lineWidth = 2;
-    ctx.strokeStyle = isLight ? '#d97706' : '#f59e0b';
+    ctx.strokeStyle = '#f59e0b';
     let startedHr = false;
     for (let i = 0; i < displayRecords.length; i++) {
       const r = displayRecords[i];
-      if (r.heart_rate) {
+      if (r.heart_rate && r.heart_rate > 50) {
         const x = padding.left + (i / (displayRecords.length - 1)) * chartW;
-        const yNorm = (r.heart_rate - minHr) / (maxHr - minHr || 1);
-        const y = height - padding.bottom - yNorm * chartH;
+        const y = height - padding.bottom - ((r.heart_rate - minHr) / (maxHr - minHr || 1)) * chartH;
         if (!startedHr) {
           ctx.moveTo(x, y);
           startedHr = true;
@@ -146,15 +150,16 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, focusCo
     }
     ctx.stroke();
 
-    // 3. Draw Pace Line (Cyan/Sky, inverted y: faster pace = higher y)
+    // Draw Pace Line (Cyan / Blue)
     ctx.beginPath();
     ctx.lineWidth = 2;
     ctx.strokeStyle = isLight ? '#0284c7' : '#06b6d4';
     let startedPace = false;
     for (let i = 0; i < displayRecords.length; i++) {
       const r = displayRecords[i];
-      if (r.speedMps && r.speedMps > 1.0) {
-        const paceSec = Math.max(minPace, Math.min(maxPace, 1000 / r.speedMps));
+      const spd = r.speed_mps ?? r.speedMps;
+      if (spd && spd > 1.0) {
+        const paceSec = Math.max(minPace, Math.min(maxPace, 1000 / spd));
         const x = padding.left + (i / (displayRecords.length - 1)) * chartW;
         // Inverted: minPace (fastest) at top, maxPace (slowest) at bottom
         const yNorm = 1 - (paceSec - minPace) / (maxPace - minPace || 1);
@@ -171,7 +176,7 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, focusCo
 
   }, [displayRecords, theme]);
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleMouseMove = (e: React.MouseEvent<HTMLElement>) => {
     const canvas = canvasRef.current;
     if (!canvas || displayRecords.length === 0) return;
 
@@ -185,8 +190,9 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, focusCo
     const r = displayRecords[idx];
 
     let paceStr = '—';
-    if (r.speedMps && r.speedMps > 1.0) {
-      const sec = Math.round(1000 / r.speedMps);
+    const spd = r.speed_mps ?? r.speedMps;
+    if (spd && spd > 1.0) {
+      const sec = Math.round(1000 / spd);
       const m = Math.floor(sec / 60);
       const s = sec % 60;
       paceStr = `${m}:${String(s).padStart(2, '0')}/km`;

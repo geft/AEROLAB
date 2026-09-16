@@ -27,7 +27,11 @@ describe('Run Classifier Engine (Unit)', () => {
     aerobicDecouplingPct: 2.1,
     metersPerBeat: 360,
     firstHalfEf: 1.16,
-    secondHalfEf: 1.14
+    secondHalfEf: 1.14,
+    movingDurationSeconds: 3000,
+    movingDistanceMeters: 10000,
+    avgMovingPaceSecKm: 300,
+    avgMovingHeartRate: 140
   };
 
   function createMockRecords(durationSec: number, hr: number): ActivityRecord[] {
@@ -72,19 +76,19 @@ describe('Run Classifier Engine (Unit)', () => {
     expect(result.confidence).toBeGreaterThanOrEqual(0.9);
   });
 
-  it('classifies as intervals_vo2 with failure when pace collapses or total work is too short', () => {
-    // 3 work reps where last rep pace degrades by >20%
-    const degradedIntervals: DetectedInterval[] = [
-      { intervalIndex: 1, type: 'work', startSeconds: 100, durationSeconds: 180, distanceMeters: 900, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 165, maxHeartRate: 175, avgCadence: 180 },
-      { intervalIndex: 2, type: 'recovery', startSeconds: 280, durationSeconds: 60, distanceMeters: 100, avgSpeedMps: 1.6, avgPaceSecKm: 600, avgHeartRate: 140, maxHeartRate: 165, avgCadence: 110 },
-      { intervalIndex: 3, type: 'work', startSeconds: 340, durationSeconds: 180, distanceMeters: 900, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 168, maxHeartRate: 175, avgCadence: 180 },
-      { intervalIndex: 4, type: 'recovery', startSeconds: 520, durationSeconds: 60, distanceMeters: 100, avgSpeedMps: 1.6, avgPaceSecKm: 600, avgHeartRate: 140, maxHeartRate: 165, avgCadence: 110 },
-      { intervalIndex: 5, type: 'work', startSeconds: 580, durationSeconds: 180, distanceMeters: 650, avgSpeedMps: 3.6, avgPaceSecKm: 275, avgHeartRate: 170, maxHeartRate: 178, avgCadence: 170 }
+  it('marks vo2 as failed on HR fade or insufficient volume (pace-free)', () => {
+    // 3 work reps where peak HR fades >8 bpm from early to late reps
+    const fadedIntervals: DetectedInterval[] = [
+      { intervalIndex: 1, type: 'work', startSeconds: 100, durationSeconds: 180, distanceMeters: 900, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 170, maxHeartRate: 178, avgCadence: 180 },
+      { intervalIndex: 2, type: 'recovery', startSeconds: 280, durationSeconds: 60, distanceMeters: 100, avgSpeedMps: 1.6, avgPaceSecKm: 600, avgHeartRate: 140, maxHeartRate: 170, avgCadence: 110 },
+      { intervalIndex: 3, type: 'work', startSeconds: 340, durationSeconds: 180, distanceMeters: 900, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 168, maxHeartRate: 176, avgCadence: 180 },
+      { intervalIndex: 4, type: 'recovery', startSeconds: 520, durationSeconds: 60, distanceMeters: 100, avgSpeedMps: 1.6, avgPaceSecKm: 600, avgHeartRate: 140, maxHeartRate: 168, avgCadence: 110 },
+      { intervalIndex: 5, type: 'work', startSeconds: 580, durationSeconds: 180, distanceMeters: 900, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 160, maxHeartRate: 165, avgCadence: 178 }
     ];
     const recs = createMockRecords(1200, 155);
-    const resPaceDrop = classifyRun(baseMetadata, recs, baseEconomy, degradedIntervals);
-    expect(resPaceDrop.runType).toBe('intervals_vo2');
-    expect(resPaceDrop.isFailedWorkout).toBe(true);
+    const resFade = classifyRun(baseMetadata, recs, baseEconomy, fadedIntervals);
+    expect(resFade.runType).toBe('intervals_vo2');
+    expect(resFade.isFailedWorkout).toBe(true);
 
     // Total work duration < 360s
     const shortIntervals: DetectedInterval[] = [
@@ -95,14 +99,15 @@ describe('Run Classifier Engine (Unit)', () => {
     expect(resShort.runType).toBe('intervals_vo2');
     expect(resShort.isFailedWorkout).toBe(true);
 
-    // Title includes 'vo2' but aborted/only 1 rep
-    const vo2Meta = { ...baseMetadata, name: 'Failed VO2 Workout Bailed' };
-    const singleVo2: DetectedInterval[] = [
-      { intervalIndex: 1, type: 'work', startSeconds: 100, durationSeconds: 120, distanceMeters: 600, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 170, maxHeartRate: 178, avgCadence: 185 }
+    // Same structure at low HR never reaches the stimulus band: not quality at all
+    const flatIntervals: DetectedInterval[] = [
+      { intervalIndex: 1, type: 'work', startSeconds: 100, durationSeconds: 180, distanceMeters: 700, avgSpeedMps: 3.9, avgPaceSecKm: 256, avgHeartRate: 148, maxHeartRate: 152, avgCadence: 170 },
+      { intervalIndex: 2, type: 'recovery', startSeconds: 280, durationSeconds: 60, distanceMeters: 100, avgSpeedMps: 1.6, avgPaceSecKm: 600, avgHeartRate: 135, maxHeartRate: 150, avgCadence: 110 },
+      { intervalIndex: 3, type: 'work', startSeconds: 340, durationSeconds: 180, distanceMeters: 700, avgSpeedMps: 3.9, avgPaceSecKm: 256, avgHeartRate: 149, maxHeartRate: 153, avgCadence: 170 }
     ];
-    const resBailed = classifyRun(vo2Meta, recs, baseEconomy, singleVo2);
-    expect(resBailed.runType).toBe('intervals_vo2');
-    expect(resBailed.isFailedWorkout).toBe(true);
+    const resFlat = classifyRun(baseMetadata, recs, baseEconomy, flatIntervals);
+    expect(resFlat.runType).not.toBe('intervals_vo2');
+    expect(resFlat.runType).not.toBe('threshold_lt2');
   });
 
   it('classifies as threshold_lt2 intervals for long work bouts (>=450s sustained high BPM)', () => {
@@ -117,7 +122,7 @@ describe('Run Classifier Engine (Unit)', () => {
     expect(result.isFailedWorkout).toBe(false);
   });
 
-  it('classifies threshold intervals by title and zone distribution', () => {
+  it('classifies threshold intervals by duration structure and zone distribution', () => {
     // Title includes 'threshold' and avg work HR >= 160
     const meta = { ...baseMetadata, name: 'Threshold Cruise Intervals' };
     const intervals: DetectedInterval[] = [
@@ -130,12 +135,15 @@ describe('Run Classifier Engine (Unit)', () => {
     expect(res.isFailedWorkout).toBe(true); // only 1 rep < 480s total work
   });
 
-  it('classifies as failed threshold when aborted early or pace degrades', () => {
-    const meta = { ...baseMetadata, name: 'Aborted Threshold Session DNF' };
+  it('marks threshold as failed on HR fade or single short rep (pace-free)', () => {
+    // Title keywords are ignored: neutral name, HR fade across two long reps
+    const meta = { ...baseMetadata, name: 'Tuesday Threshold Session' };
     const intervals: DetectedInterval[] = [
-      { intervalIndex: 1, type: 'work', startSeconds: 300, durationSeconds: 500, distanceMeters: 2000, avgSpeedMps: 4.0, avgPaceSecKm: 250, avgHeartRate: 168, maxHeartRate: 172, avgCadence: 175 },
-      { intervalIndex: 2, type: 'recovery', startSeconds: 800, durationSeconds: 120, distanceMeters: 300, avgSpeedMps: 2.5, avgPaceSecKm: 400, avgHeartRate: 140, maxHeartRate: 168, avgCadence: 140 },
-      { intervalIndex: 3, type: 'work', startSeconds: 920, durationSeconds: 500, distanceMeters: 1500, avgSpeedMps: 3.0, avgPaceSecKm: 333, avgHeartRate: 168, maxHeartRate: 172, avgCadence: 165 }
+      { intervalIndex: 1, type: 'work', startSeconds: 300, durationSeconds: 500, distanceMeters: 2000, avgSpeedMps: 4.0, avgPaceSecKm: 250, avgHeartRate: 170, maxHeartRate: 176, avgCadence: 175 },
+      { intervalIndex: 2, type: 'recovery', startSeconds: 800, durationSeconds: 120, distanceMeters: 300, avgSpeedMps: 2.5, avgPaceSecKm: 400, avgHeartRate: 140, maxHeartRate: 170, avgCadence: 140 },
+      { intervalIndex: 3, type: 'work', startSeconds: 920, durationSeconds: 500, distanceMeters: 2000, avgSpeedMps: 4.0, avgPaceSecKm: 250, avgHeartRate: 162, maxHeartRate: 166, avgCadence: 175 },
+      { intervalIndex: 4, type: 'recovery', startSeconds: 1420, durationSeconds: 120, distanceMeters: 300, avgSpeedMps: 2.5, avgPaceSecKm: 400, avgHeartRate: 140, maxHeartRate: 164, avgCadence: 140 },
+      { intervalIndex: 5, type: 'work', startSeconds: 1540, durationSeconds: 500, distanceMeters: 2000, avgSpeedMps: 4.0, avgPaceSecKm: 250, avgHeartRate: 158, maxHeartRate: 162, avgCadence: 174 }
     ];
     const records = createMockRecords(1800, 160);
     const result = classifyRun(meta, records, baseEconomy, intervals);
@@ -143,15 +151,47 @@ describe('Run Classifier Engine (Unit)', () => {
     expect(result.isFailedWorkout).toBe(true);
   });
 
-  it('classifies as long_run when duration >= 75 minutes or distance >= 16 km', () => {
+  it('classifies identically regardless of absolute pace (multi-athlete safe)', () => {
+    // Same HR + structure at much slower absolute paces must yield the same type.
+    const fastThreshold: DetectedInterval[] = [
+      { intervalIndex: 1, type: 'work', startSeconds: 300, durationSeconds: 600, distanceMeters: 2500, avgSpeedMps: 4.16, avgPaceSecKm: 240, avgHeartRate: 168, maxHeartRate: 174, avgCadence: 178 },
+      { intervalIndex: 2, type: 'recovery', startSeconds: 900, durationSeconds: 120, distanceMeters: 300, avgSpeedMps: 2.5, avgPaceSecKm: 400, avgHeartRate: 140, maxHeartRate: 168, avgCadence: 140 },
+      { intervalIndex: 3, type: 'work', startSeconds: 1020, durationSeconds: 600, distanceMeters: 2500, avgSpeedMps: 4.16, avgPaceSecKm: 240, avgHeartRate: 170, maxHeartRate: 176, avgCadence: 178 }
+    ];
+    const slowThreshold: DetectedInterval[] = fastThreshold.map(i => ({
+      ...i,
+      distanceMeters: i.type === 'work' ? 1400 : 150,
+      avgSpeedMps: 2.2,
+      avgPaceSecKm: 455
+    }));
+    const records = createMockRecords(2000, 160);
+    const fastRes = classifyRun(baseMetadata, records, baseEconomy, fastThreshold);
+    const slowRes = classifyRun(baseMetadata, records, baseEconomy, slowThreshold);
+    expect(fastRes.runType).toBe('threshold_lt2');
+    expect(slowRes.runType).toBe('threshold_lt2');
+    expect(slowRes.isFailedWorkout).toBe(fastRes.isFailedWorkout);
+  });
+
+  it('classifies as long_run when duration >= 110 minutes', () => {
     const meta: ActivityMetadata = {
       ...baseMetadata,
-      totalDurationSeconds: 4800, // 80 min
-      totalDistanceMeters: 15000 // 15 km
+      totalDurationSeconds: 6900, // 115 min
+      totalDistanceMeters: 20000 // 20 km
     };
-    const records = createMockRecords(4800, 138);
+    const records = createMockRecords(6900, 138);
     const result = classifyRun(meta, records, baseEconomy, []);
     expect(result.runType).toBe('long_run');
+  });
+
+  it('classifies 75 to 90 min continuous aerobic runs as easy_base', () => {
+    const meta: ActivityMetadata = {
+      ...baseMetadata,
+      totalDurationSeconds: 5400, // 90 min
+      totalDistanceMeters: 14000
+    };
+    const records = createMockRecords(5400, 138);
+    const result = classifyRun(meta, records, baseEconomy, []);
+    expect(result.runType).toBe('easy_base');
   });
 
   it('classifies as threshold_lt2 when significant continuous time is spent in Zone 4', () => {

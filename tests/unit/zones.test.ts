@@ -47,13 +47,13 @@ describe('Heart Rate Zones & Distribution Unit Tests', () => {
           speedMps: 3.0,
           cadence: 175,
           fractionalCadence: 0,
-          altitudeM: 10,
+          altitudeMeters: 10,
           distanceMeters: records.length * 3,
-          temperatureC: 28,
-          stanceTimeMs: 240,
-          verticalOscillationMm: 80,
-          lat: 1.35,
-          lon: 103.85
+          temperature: 28,
+          stanceTime: 240,
+          verticalOscillation: 80,
+          latitude: 1.35,
+          longitude: 103.85
         });
       }
     };

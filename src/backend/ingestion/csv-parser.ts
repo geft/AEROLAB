@@ -30,6 +30,8 @@ export interface ActivityRecord {
   temperature: number | null;
   verticalOscillation: number | null;
   stanceTime: number | null;
+  stepLength?: number | null;
+  fractionalCadence?: number | null;
 }
 
 export interface ParsedCSV {
@@ -109,6 +111,7 @@ export function parseRunCSV(content: string, filename: string): ParsedCSV {
     const tempIdx = headers.indexOf('temperature');
     const vertOscIdx = headers.findIndex(h => h.includes('vertical_oscillation'));
     const stanceIdx = headers.findIndex(h => h.includes('stance_time'));
+    const stepLenIdx = headers.findIndex(h => h.includes('step_length'));
 
     let startTimestampMs = 0;
 
@@ -138,7 +141,8 @@ export function parseRunCSV(content: string, filename: string): ParsedCSV {
         longitude: parseNullableFloat(lonIdx !== -1 ? cols[lonIdx] : undefined),
         temperature: parseNullableFloat(tempIdx !== -1 ? cols[tempIdx] : undefined),
         verticalOscillation: parseNullableFloat(vertOscIdx !== -1 ? cols[vertOscIdx] : undefined),
-        stanceTime: parseNullableFloat(stanceIdx !== -1 ? cols[stanceIdx] : undefined)
+        stanceTime: parseNullableFloat(stanceIdx !== -1 ? cols[stanceIdx] : undefined),
+        stepLength: parseNullableFloat(stepLenIdx !== -1 ? cols[stepLenIdx] : undefined)
       });
     }
   }

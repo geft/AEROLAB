@@ -70,7 +70,12 @@ ingestRouter.post('/upload', (req, res) => {
 
         const fitResult = convertFitToCsv(fitBuffer, filename || 'activity.fit');
         if (!fitResult.csv) {
-          return res.status(422).json({ error: 'FIT file does not contain a supported running session', filename });
+          return res.json({
+            result: {
+              status: 'skipped_non_running',
+              reason: 'FIT file is not a supported running session (e.g. daily wellness, sleep, or non-running activity)'
+            }
+          });
         }
         csvContent = fitResult.csv;
       } catch (fitErr: any) {

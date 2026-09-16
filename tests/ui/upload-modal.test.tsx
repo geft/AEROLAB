@@ -177,4 +177,91 @@ describe('UploadModal Multi-File UI Component Tests', () => {
     expect(sentPayload.filename).toBe('force_test.csv');
   });
 
+  it('calls onUploadSuccess with activityId when importing a single file', async () => {
+    const onUploadSuccess = vi.fn();
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        result: {
+          status: 'imported',
+          activityId: 'single-imported-run-123'
+        }
+      })
+    } as any);
+
+    render(
+      <UploadModal
+        isOpen={true}
+        onClose={vi.fn()}
+        onUploadSuccess={onUploadSuccess}
+      />
+    );
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['csv-data'], 'single_run.fit', { type: 'application/octet-stream' });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(onUploadSuccess).toHaveBeenCalledWith('single-imported-run-123');
+    });
+  });
+
+  it('calls onUploadSuccess with activityId even if single file is already in database (duplicate)', async () => {
+    const onUploadSuccess = vi.fn();
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        result: {
+          status: 'skipped_duplicate',
+          activityId: 'existing-run-456'
+        }
+      })
+    } as any);
+
+    render(
+      <UploadModal
+        isOpen={true}
+        onClose={vi.fn()}
+        onUploadSuccess={onUploadSuccess}
+      />
+    );
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['csv-data'], 'duplicate_run.fit', { type: 'application/octet-stream' });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(onUploadSuccess).toHaveBeenCalledWith('existing-run-456');
+    });
+  });
+
+  it('calls onUploadSuccess with undefined when uploading multiple files in a batch', async () => {
+    const onUploadSuccess = vi.fn();
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ result: { status: 'imported', activityId: 'batch-1' } })
+      } as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ result: { status: 'imported', activityId: 'batch-2' } })
+      } as any);
+
+    render(
+      <UploadModal
+        isOpen={true}
+        onClose={vi.fn()}
+        onUploadSuccess={onUploadSuccess}
+      />
+    );
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file1 = new File(['csv-data1'], 'run1.fit', { type: 'application/octet-stream' });
+    const file2 = new File(['csv-data2'], 'run2.fit', { type: 'application/octet-stream' });
+    fireEvent.change(input, { target: { files: [file1, file2] } });
+
+    await waitFor(() => {
+      expect(onUploadSuccess).toHaveBeenCalledWith(undefined);
+    });
+  });
 });

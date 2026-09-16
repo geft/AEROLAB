@@ -562,7 +562,7 @@ export const StatsView: React.FC = () => {
                   How to Optimize Your Margin:
                 </h4>
                 <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                  <li><b>If your gap is &gt; 70s</b>: Increase weekly mileage strictly below LT1 (&lt; 148 bpm). Avoid the temptation to run easy days too fast; true Zone 2 miles trigger mitochondrial biogenesis that pulls LT1 pace faster without raising heart rate.</li>
+                  <li><b>If your gap is &gt; 70s</b>: Increase weekly mileage strictly below LT1 (&lt; {lt1Hr} bpm). Avoid the temptation to run easy days too fast; true Zone 2 miles trigger mitochondrial biogenesis that pulls LT1 pace faster without raising heart rate.</li>
                   <li><b>If your gap is &lt; 45s</b>: Your aerobic base is well-developed! To run faster, introduce quality LT2 threshold intervals (e.g. 3x15min in Zone 4) to lift your anaerobic ceiling higher.</li>
                 </ul>
               </div>

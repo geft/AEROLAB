@@ -8,6 +8,8 @@ import { activitiesRouter } from './routes/activities.js';
 import { thresholdsRouter } from './routes/thresholds.js';
 import { ingestRouter } from './routes/ingest.js';
 import { profileRouter } from './routes/profile.js';
+import { devRouter } from './routes/dev.js';
+import { requestLogger, globalErrorHandler, logger } from './utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,12 +19,14 @@ export function createServer() {
 
   app.use(cors());
   app.use(express.json({ limit: '50mb' }));
+  app.use(requestLogger);
 
   // API Routes
   app.use('/api/activities', activitiesRouter);
   app.use('/api/thresholds', thresholdsRouter);
   app.use('/api/ingest', ingestRouter);
   app.use('/api/profile', profileRouter);
+  app.use('/api/dev', devRouter);
 
   // Health check
   app.get('/api/health', (req, res) => {
@@ -45,6 +49,18 @@ export function createServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+  // 404 handler for unhandled API routes
+  app.all('/api/*', (req, res) => {
+    res.status(404).json({
+      error: `API route not found: ${req.method} ${req.originalUrl}`,
+      code: 'ERR_ROUTE_NOT_FOUND',
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Global error handler
+  app.use(globalErrorHandler);
 
   return app;
 }

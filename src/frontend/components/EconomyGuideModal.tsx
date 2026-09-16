@@ -5,60 +5,68 @@ interface EconomyGuideModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentEf?: number | null;
+  lt1Hr?: number | null;
+  lt2Hr?: number | null;
 }
 
 export const EconomyGuideModal: React.FC<EconomyGuideModalProps> = ({
   isOpen,
   onClose,
-  currentEf = 1.15
+  currentEf = 1.15,
+  lt1Hr,
+  lt2Hr
 }) => {
   if (!isOpen) return null;
+
+  const effectiveLt1 = lt1Hr ?? 150;
+  const effectiveLt2 = lt2Hr ?? 165;
+  const activeEf = currentEf ?? 1.15;
 
   const tiers = [
     {
       range: '0.90 – 1.05',
       label: 'Developing Base',
-      paceExample: '6:45 – 7:30 /km @ 140–150 bpm',
+      paceExample: '6:50 – 7:55 /km @ ~140 bpm',
       desc: 'Early aerobic adaptation. Higher cardiovascular cost per meter traveled.',
       badgeColor: '#64748b',
-      isCurrent: false,
+      isCurrent: activeEf >= 0.90 && activeEf < 1.10,
       isTarget: false
     },
     {
       range: '1.10 – 1.25',
       label: 'Solid Trained Runner',
-      paceExample: '5:45 – 6:15 /km @ 140–148 bpm',
+      paceExample: '5:45 – 6:30 /km @ ~140 bpm',
       desc: 'Healthy stroke volume, good aerobic foundation, resilient cardiovascular drift.',
       badgeColor: '#06b6d4',
-      isCurrent: true,
+      isCurrent: activeEf >= 1.10 && activeEf < 1.25,
       isTarget: false
     },
     {
       range: '1.25 – 1.40',
       label: 'Advanced Distance Runner',
-      paceExample: '4:50 – 5:25 /km @ 140–148 bpm',
+      paceExample: '5:05 – 5:45 /km @ ~140 bpm',
       desc: 'High mitochondrial density and strong fatigue resistance on 90+ min runs.',
       badgeColor: '#10b981',
-      isCurrent: false,
-      isTarget: true
+      isCurrent: activeEf >= 1.25 && activeEf < 1.45,
+      isTarget: activeEf < 1.25
     },
     {
       range: '1.45 – 1.65',
       label: 'Competitive Club Racer',
-      paceExample: '4:00 – 4:30 /km @ 145–155 bpm',
+      paceExample: '4:20 – 4:55 /km @ ~140 bpm',
       desc: 'Highly optimized running economy; typical of sub-18 5K / sub-3:00 marathoners.',
       badgeColor: '#f59e0b',
-      isCurrent: false,
-      isTarget: false
+      isCurrent: activeEf >= 1.45 && activeEf < 1.70,
+      isTarget: activeEf >= 1.25 && activeEf < 1.45
     },
     {
       range: '1.70 – 2.00+',
       label: 'Elite Marathoner',
-      paceExample: '3:10 – 3:30 /km @ 150–160 bpm',
+      paceExample: '3:35 – 4:10 /km @ ~140 bpm',
       desc: 'World-class aerobic efficiency, exceptional tendon elasticity, and oxygen extraction.',
       badgeColor: '#8b5cf6',
-      isCurrent: false,
-      isTarget: false
+      isCurrent: activeEf >= 1.70,
+      isTarget: activeEf >= 1.45 && activeEf < 1.70
     }
   ];
 
@@ -101,14 +109,17 @@ export const EconomyGuideModal: React.FC<EconomyGuideModalProps> = ({
 
           {/* Benchmark Tiers */}
           <div style={{ marginTop: '1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '0.4rem' }}>
               <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                Target Benchmark Tiers (Steady Zone 2 Running)
+                Target Benchmark Tiers (Normalized to ~140 bpm Aerobic Base)
               </span>
               <span style={{ fontSize: '0.72rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
                 Your Baseline: {currentEf ? Number(currentEf).toFixed(2) : '1.15'} EF
               </span>
             </div>
+            <p style={{ margin: '0 0 0.65rem 0', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+              All typical paces are normalized to a steady Zone 2 heart rate (~140 bpm) so velocity reflects true running economy without HR confounding.
+            </p>
 
             <div className="economy-tiers-list">
               {tiers.map(t => (
@@ -173,13 +184,13 @@ export const EconomyGuideModal: React.FC<EconomyGuideModalProps> = ({
             </span>
             <ul className="economy-tips-list">
               <li>
-                <b>Stay Under the LT1 Ceiling (148 bpm):</b> High volume of steady Zone 2 stimulates capillary growth without autonomic nervous system stress.
+                <b>Stay Under the LT1 Ceiling ({effectiveLt1} bpm):</b> High volume of steady Zone 2 stimulates capillary growth without autonomic nervous system stress.
               </li>
               <li>
                 <b>Weekly Strides for Elastic Recoil:</b> 4–6 short strides (15–20s fast, full recovery) teach your achilles and calves to return free elastic energy.
               </li>
               <li>
-                <b>Lactate Clearance at LT2 (167 bpm):</b> Sustained threshold intervals (8–12 min reps) train muscles to shuttle and re-use lactate as fuel.
+                <b>Lactate Clearance at LT2 ({effectiveLt2} bpm):</b> Sustained threshold intervals (8–12 min reps) train muscles to shuttle and re-use lactate as fuel.
               </li>
               <li>
                 <b>Apples-to-Apples Comparisons:</b> Compare runs under similar temperature and humidity, as extreme heat causes cardiac drift (elevating HR and lowering EF).

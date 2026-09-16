@@ -3,6 +3,7 @@ import { getDatabase } from '../db/client.js';
 import { calculateRacePredictions } from '../physiology/predictions.js';
 import { getCurrentThresholds } from '../physiology/threshold-tracker.js';
 import { getDefaultZones } from '../physiology/zones.js';
+import { getObservedPeakHeartRate } from './profile.js';
 
 export const thresholdsRouter = Router();
 
@@ -24,19 +25,21 @@ thresholdsRouter.get('/', (req, res) => {
     `).all();
 
     const currentThresholds = getCurrentThresholds(db);
-    const profile = db.prepare('SELECT max_hr, resting_hr FROM athlete_profile WHERE id = ?').get('primary') as any;
+    const profile = db.prepare('SELECT max_hr, resting_hr, is_max_hr_estimated FROM athlete_profile WHERE id = ?').get('primary') as any;
+    const observedPeak = getObservedPeakHeartRate(db);
+    const effectiveMaxHr = Math.max(Number(profile?.max_hr) || 203, observedPeak?.peakHr || 0);
     const zones = getDefaultZones(
-      profile?.max_hr || 203,
+      effectiveMaxHr,
       currentThresholds.lt1Hr,
       currentThresholds.lt2Hr,
-      profile?.resting_hr || 55
+      Number(profile?.resting_hr) || 50
     );
 
     // Latest LT1 & LT2
     const latestLt1Row = db.prepare(`
       SELECT lt1_hr, lt1_pace_sec_km, effective_date, baseline_economy_ef
       FROM physiological_thresholds
-      WHERE lt1_hr IS NOT NULL AND lt1_hr >= 142
+      WHERE lt1_hr IS NOT NULL
       ORDER BY effective_date DESC, id DESC
       LIMIT 1
     `).get() as { lt1_hr: number; lt1_pace_sec_km: number; effective_date: string; baseline_economy_ef: number } | undefined;

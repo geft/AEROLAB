@@ -137,6 +137,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
   const [notesSaveStatus, setNotesSaveStatus] = useState<string | null>(null);
 
   const [showScoreBreakdown, setShowScoreBreakdown] = useState<boolean>(false);
+  const [mobileSubTab, setMobileSubTab] = useState<'list' | 'detail'>('list');
 
   // Auto-dismiss tag menu when clicking outside
   useEffect(() => {
@@ -256,6 +257,31 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
     }
   }, [activities, selectedActivityId, onSelectActivity]);
 
+  // Ensure that when user explicitly selects a new run (selectedActivityId changes):
+  // 1. If an active month or tag filter would hide that new run, reset the filter so the activity is visible.
+  // 2. Automatically switch mobile sub-tab to 'detail' so mobile runners immediately see their newly selected run.
+  // Note: We do NOT reset selectedMonth/selectedTagFilter if the user changes the filter dropdown while an activity is selected.
+  const prevSelectedIdRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedActivityId || activities.length === 0) return;
+    const isDifferent = prevSelectedIdRef.current !== null && prevSelectedIdRef.current !== selectedActivityId;
+    prevSelectedIdRef.current = selectedActivityId;
+
+    if (!isDifferent) return;
+
+    const target = activities.find(a => a.id === selectedActivityId);
+    if (!target) return;
+
+    if (selectedMonth !== 'all' && !target.start_time.startsWith(selectedMonth)) {
+      setSelectedMonth('all');
+    }
+    if (selectedTagFilter !== 'all' && !doesActivityMatchTag(target, selectedTagFilter)) {
+      setSelectedTagFilter('all');
+    }
+
+    setMobileSubTab('detail');
+  }, [selectedActivityId, activities]);
+
   useEffect(() => {
     if (!selectedActivityId) return;
 
@@ -294,6 +320,25 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
   }, [selectedActivityId]);
 
   const act = detailData?.activity;
+
+  // Intervals tab is only meaningful for quality sessions (threshold / VO2 /
+  // race work reps) or when stride intervals were actually detected. For
+  // easy / long / recovery runs the whole run is steady work, so showing a
+  // warmup/cooldown segment breakdown would be nonsense.
+  const intervalsTabVisible = React.useMemo(() => {
+    const list = detailData?.intervals || [];
+    if (list.length === 0) return false;
+    const runType = detailData?.activity?.run_type;
+    if (runType === 'threshold_lt2' || runType === 'intervals_vo2' || runType === 'race') return true;
+    return list.some((i: any) => i.type === 'stride');
+  }, [detailData]);
+
+  // Leave the intervals tab if the newly selected run has no visible intervals
+  useEffect(() => {
+    if (!intervalsTabVisible) {
+      setActiveSubTab(prev => (prev === 'strides' ? 'telemetry' : prev));
+    }
+  }, [intervalsTabVisible]);
 
   // Keep notes synchronized when selected activity changes
   useEffect(() => {
@@ -392,7 +437,25 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
   };
 
   return (
-    <div className="browse-grid">
+    <div className={`browse-grid ${mobileSubTab === 'detail' ? 'mobile-show-detail' : 'mobile-show-list'}`}>
+      {/* Mobile list/detail switcher (< 768px) */}
+      <div className="mobile-browse-segmented-control" role="tablist" aria-label="Browse View Switcher">
+        <button
+          type="button"
+          className={`mobile-browse-tab-btn ${mobileSubTab === 'list' ? 'active' : ''}`}
+          onClick={() => setMobileSubTab('list')}
+        >
+          Sessions ({filteredActivities.length})
+        </button>
+        <button
+          type="button"
+          className={`mobile-browse-tab-btn ${mobileSubTab === 'detail' ? 'active' : ''}`}
+          onClick={() => setMobileSubTab('detail')}
+        >
+          Run Analysis
+        </button>
+      </div>
+
       {/* Left Sidebar: Sessions List & Month Picker */}
       <aside className="sidebar-panel">
         <div className="sidebar-header">
@@ -462,12 +525,6 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                 } catch {
                   parsedTags = [];
                 }
-                // Ensure runs with strides include 'Strides' tag
-                if (!parsedTags.some(t => t.toLowerCase() === 'strides')) {
-                  if (a.run_type === 'strides' || /stride/i.test(a.name || '')) {
-                    parsedTags.push('Strides');
-                  }
-                }
 
                 return (
                   <div
@@ -476,6 +533,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                     onClick={() => {
                       setShowTagMenu(false);
                       onSelectActivity(a.id);
+                      setMobileSubTab('detail');
                     }}
                   >
                     <div className="session-card-top">
@@ -599,6 +657,17 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
           <div className="overview-card loading-skeleton" style={{ height: 350 }}></div>
         ) : (
           <>
+            {/* Mobile Back Button (< 768px) */}
+            <div className="mobile-back-to-sessions-bar">
+              <button
+                type="button"
+                className="mobile-back-btn"
+                onClick={() => setMobileSubTab('list')}
+              >
+                ← Back to Sessions List
+              </button>
+            </div>
+
             {/* Overview Header Card */}
             <section className="overview-card">
               <div className="overview-top">
@@ -961,7 +1030,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                   KM Splits ({detailData.splits.length})
                 </button>
               )}
-              {(detailData.intervals?.length ?? 0) > 0 && (
+              {(intervalsTabVisible) && (
                 <button
                   id="subtab-strides-btn"
                   className={`filter-pill-btn ${activeSubTab === 'strides' ? 'active' : ''}`}
@@ -1048,15 +1117,6 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                   </div>
                 </div>
 
-                {/* Kilometer Splits Visualizer (Compact Telemetry Mode) */}
-                {detailData.splits && detailData.splits.length > 0 && (
-                  <KmSplitsVisualizer
-                    splits={detailData.splits}
-                    overallAvgPace={act.avg_pace_sec_km}
-                    overallAvgHr={act.avg_heart_rate}
-                    compact={true}
-                  />
-                )}
               </>
             )}
 
@@ -1071,22 +1131,77 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
             )}
 
             {/* SUBTAB 2: Strides & Intervals */}
-            {activeSubTab === 'strides' && (() => {
+            {activeSubTab === 'strides' && intervalsTabVisible && (() => {
               const allIntervals = detailData.intervals || [];
               const workIntervals = allIntervals.filter((i: any) => i.type === 'work' || i.type === 'stride');
               const displayedIntervals = intervalFilter === 'work_only' && workIntervals.length > 0
                 ? workIntervals
                 : allIntervals;
 
+              // For easy / long / recovery runs the whole run is steady work,
+              // so detected work segments read as steady state, not quality reps.
+              const isQualityRun = detailData?.activity?.run_type === 'threshold_lt2' ||
+                detailData?.activity?.run_type === 'intervals_vo2' ||
+                detailData?.activity?.run_type === 'race';
+
+              // Prescription inference (display only): median work/recovery snapped to
+              // canonical rounded durations. Mirrors backend inferWorkoutPrescription.
+              const snapToGrid = (v: number, grid: number[]): number => {
+                let best = grid[0];
+                let bestD = Math.abs(v - grid[0]);
+                for (const g of grid) {
+                  const d = Math.abs(v - g);
+                  if (d < bestD) { bestD = d; best = g; }
+                }
+                return best;
+              };
+              const fmtPresc = (s: number): string => {
+                const m = Math.floor(s / 60);
+                const r = Math.round(s % 60);
+                return r === 0 ? `${m}:00` : `${m}:${String(r).padStart(2, '0')}`;
+              };
+              const median = (vals: number[]): number | null => {
+                if (vals.length === 0) return null;
+                const s = [...vals].sort((a, b) => a - b);
+                return s[Math.floor(s.length / 2)];
+              };
+              const workOnlyForPresc = allIntervals.filter((i: any) => i.type === 'work');
+              // Between-work gaps only: leading warmup / trailing cooldown
+              // recoveries would skew the recovery median.
+              const firstWorkIdx = workOnlyForPresc.length > 0
+                ? Math.min(...workOnlyForPresc.map((i: any) => i.interval_index))
+                : 0;
+              const lastWorkIdx = workOnlyForPresc.length > 0
+                ? Math.max(...workOnlyForPresc.map((i: any) => i.interval_index))
+                : 0;
+              const recOnlyForPresc = allIntervals.filter((i: any) =>
+                i.type === 'recovery' && i.interval_index > firstWorkIdx && i.interval_index < lastWorkIdx
+              );
+              const medWork = median(workOnlyForPresc.map((i: any) => i.duration_seconds).filter((d: number) => d > 0));
+              const medRec = median(recOnlyForPresc.map((i: any) => i.duration_seconds).filter((d: number) => d > 0));
+              const WORK_GRID = [60, 90, 120, 180, 240, 300, 360, 480, 600, 720, 900, 1200, 1800];
+              const REC_GRID = [30, 60, 90, 120, 180, 240, 300];
+              const prescLabel = medWork !== null
+                ? (medRec !== null
+                  ? `${workOnlyForPresc.length}×${fmtPresc(snapToGrid(medWork, WORK_GRID))} / ${fmtPresc(snapToGrid(medRec, REC_GRID))} rec`
+                  : `${workOnlyForPresc.length}×${fmtPresc(snapToGrid(medWork, WORK_GRID))}`)
+                : null;
+              const snappedWorkFor = (dur: number): number | null =>
+                medWork !== null ? snapToGrid(dur, WORK_GRID) : null;
+
               return (
                 <section className="data-table-card">
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.75rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                       <span className="sidebar-title">
-                        {intervalFilter === 'work_only' ? `Interval Work Reps (${workIntervals.length})` : `All Segments & Recoveries (${allIntervals.length})`}
+                        {intervalFilter === 'work_only'
+                          ? (isQualityRun ? `Interval Work Reps (${workIntervals.length})` : `Steady Segments & Strides (${workIntervals.length})`)
+                          : `All Segments & Recoveries (${allIntervals.length})`}
+                        {prescLabel && <span className="workreps-presc">{prescLabel}</span>}
                       </span>
-                      <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: 0 }}>
-                        Strides isolate explosive neuromuscular turnover. Work reps emphasize Peak Heart Rate (since interval HR has a 60–90s ramp-up lag) and subsequent Recovery HR Drop.
+                      <p style={{ fontSize: '0.76rem', color: '#94a3b8', margin: 0 }}>
+                        Durations show raw detection with snapped prescription hint (e.g. 14:03 → 15:00).
+                        HR Peak is the stimulus; Recovery Drop measures parasympathetic rebound.
                       </p>
                     </div>
 
@@ -1097,7 +1212,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                           className={`filter-pill-btn ${intervalFilter === 'work_only' ? 'active' : ''}`}
                           onClick={() => setIntervalFilter('work_only')}
                         >
-                          Work Reps Only ({workIntervals.length})
+                          {isQualityRun ? `Work Reps Only (${workIntervals.length})` : `Steady & Strides Only (${workIntervals.length})`}
                         </button>
                         <button
                           className={`filter-pill-btn ${intervalFilter === 'all' ? 'active' : ''}`}
@@ -1111,19 +1226,36 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
 
                   {displayedIntervals.length > 0 ? (
                     <div className="table-wrapper">
-                      <table className="styled-table">
+                      <table className="styled-table workreps-table">
                         <thead>
                           <tr>
                             <th>#</th>
-                            <th>Segment Type</th>
+                            <th>Type</th>
                             <th>Duration</th>
                             <th>Distance</th>
-                            <th>Pace (Avg / Peak)</th>
-                            <th title="Peak HR is the true cardiovascular stimulus reached; Avg HR is physiologically lagged during interval accelerations.">
-                              HR (Peak / Avg)
+                            <th>
+                              <div className="th-stacked">
+                                <span>Pace</span>
+                                <span className="th-sub">Avg · Peak</span>
+                              </div>
                             </th>
-                            <th>Cadence • Dynamics</th>
-                            <th>Recovery Drop</th>
+                            <th title="Peak HR is cardiovascular stimulus; Avg HR reflects drift or lag.">
+                              <div className="th-stacked">
+                                <span>Heart Rate</span>
+                                <span className="th-sub">Peak · Avg</span>
+                              </div>
+                            </th>
+                            <th>
+                              <div className="th-stacked">
+                                <span>Dynamics</span>
+                                <span className="th-sub">Cad · GCT · VO</span>
+                              </div>
+                            </th>
+                            <th>
+                              <div className="th-stacked">
+                                <span>Rec Drop</span>
+                              </div>
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1139,10 +1271,10 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                             const nextRecoveryDrop = nextSegment && nextSegment.type === 'recovery' ? nextSegment.hr_drop : null;
                             const effectiveDrop = inv.hr_drop || nextRecoveryDrop;
 
-                            const typeLabel = isWarmup ? 'Warmup' : (isCooldown ? 'Cooldown' : inv.type);
+                            const typeLabel = isWarmup ? 'Warmup' : (isCooldown ? 'Cooldown' : (inv.type === 'work' && !isQualityRun ? 'Steady' : inv.type));
                             const badgeClass = inv.type === 'stride'
                               ? 'badge-intervals_vo2'
-                              : (inv.type === 'work' ? 'badge-threshold_lt2' : 'badge-easy_base');
+                              : (inv.type === 'work' ? (isQualityRun ? 'badge-threshold_lt2' : 'badge-easy_base') : 'badge-easy_base');
 
                             return (
                               <tr key={inv.id}>
@@ -1152,54 +1284,97 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                                     {typeLabel}
                                   </span>
                                 </td>
-                                <td>{formatTime(inv.duration_seconds)}</td>
+                                <td>
+                                  {formatTime(inv.duration_seconds)}
+                                  {(inv.type === 'work' || inv.type === 'stride') && (() => {
+                                    const snapped = snappedWorkFor(inv.duration_seconds);
+                                    return snapped !== null && Math.abs(snapped - inv.duration_seconds) > 20 ? (
+                                      <span className="workreps-sub">→ {fmtPresc(snapped)}</span>
+                                    ) : null;
+                                  })()}
+                                </td>
                                 <td>
                                   {inv.distance_meters >= 1000
                                     ? `${(inv.distance_meters / 1000).toFixed(2)} km`
                                     : `${Math.round(inv.distance_meters)}m`}
                                 </td>
                                 <td>
-                                  <span style={{ color: '#06b6d4', fontWeight: 600 }}>{formatPace(inv.avg_pace_sec_km)}/km</span>
-                                  {inv.peak_pace_sec_km && inv.peak_pace_sec_km < inv.avg_pace_sec_km && (
-                                    <span style={{ fontSize: '0.75rem', color: '#38bdf8', marginLeft: '0.35rem' }}>
-                                      (Peak {formatPace(inv.peak_pace_sec_km)})
+                                  <div className="workreps-stacked-val">
+                                    <span className="val-primary" style={{ color: '#06b6d4', fontWeight: 600 }}>
+                                      {formatPace(inv.avg_pace_sec_km)}<span className="val-unit">/km</span>
                                     </span>
-                                  )}
-                                </td>
-                                <td>
-                                  {inv.type === 'work' || inv.type === 'stride' ? (
-                                    <div>
-                                      <span style={{ fontWeight: 700, color: '#f59e0b' }}>
-                                        {inv.max_heart_rate} bpm Peak
+                                    {inv.peak_pace_sec_km && inv.peak_pace_sec_km < inv.avg_pace_sec_km && (
+                                      <span className="val-secondary">
+                                        {formatPace(inv.peak_pace_sec_km)}
                                       </span>
-                                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.35rem' }}>
-                                        (avg {inv.avg_heart_rate})
+                                    )}
+                                  </div>
+                                </td>
+                                <td>
+                                  {inv.type === 'stride' ? (
+                                    <span style={{ color: 'var(--text-muted)' }}>—</span>
+                                  ) : inv.type === 'work' ? (
+                                    <div className="workreps-stacked-val">
+                                      <span className="val-primary" style={{ fontWeight: 700, color: '#f59e0b' }}>
+                                        {inv.max_heart_rate} <span className="val-unit">bpm</span>
                                       </span>
-                                    </div>
-                                  ) : (
-                                    <span>{inv.avg_heart_rate} bpm</span>
-                                  )}
-                                </td>
-                                <td>
-                                  {inv.peak_cadence ? (
-                                    <span style={{ fontSize: '0.8rem', color: '#e2e8f0' }}>
-                                      <b>{inv.peak_cadence}</b> spm
-                                      {inv.min_stance_time ? ` • ${Math.round(inv.min_stance_time)} ms GCT` : ''}
-                                    </span>
-                                  ) : (
-                                    `${inv.avg_cadence} spm`
-                                  )}
-                                </td>
-                                <td>
-                                  {effectiveDrop ? (
-                                    <span style={{ color: '#10b981', fontWeight: 600 }}>
-                                      -{effectiveDrop} bpm
-                                      {nextSegment && nextSegment.type === 'recovery' && inv.type === 'work' && (
-                                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '0.3rem' }}>
-                                          ({formatTime(nextSegment.duration_seconds)})
+                                      {inv.avg_heart_rate && inv.avg_heart_rate !== inv.max_heart_rate && (
+                                        <span className="val-secondary">
+                                          {inv.avg_heart_rate} avg
                                         </span>
                                       )}
+                                    </div>
+                                  ) : (
+                                    <span style={{ fontWeight: 500 }}>{inv.avg_heart_rate} <span className="val-unit">bpm</span></span>
+                                  )}
+                                </td>
+                                <td>
+                                  <span className="workreps-dyn">
+                                    <span className="workreps-dyn-line">
+                                      <span><b>{inv.avg_cadence ?? '—'}</b> <span className="workreps-dyn-label">spm</span></span>
+                                      <span>
+                                        <b>{inv.avg_stance_time != null ? Math.round(inv.avg_stance_time) : (inv.min_stance_time != null ? Math.round(inv.min_stance_time) : '—')}</b>
+                                        <span className="workreps-dyn-label"> ms</span>
+                                      </span>
                                     </span>
+                                    <span className="workreps-dyn-line">
+                                      <span>
+                                        <b>{inv.avg_vert_osc != null ? Math.round(Number(inv.avg_vert_osc) < 25 ? Number(inv.avg_vert_osc) * 10 : Number(inv.avg_vert_osc)) : '—'}</b>
+                                        <span className="workreps-dyn-label"> mm</span>
+                                      </span>
+                                      <span>
+                                        <b>{inv.avg_stride_length != null ? Number(inv.avg_stride_length).toFixed(2) : (inv.avg_step_length != null ? Number(inv.avg_step_length * 2).toFixed(2) : '—')}</b>
+                                        <span className="workreps-dyn-label"> m</span>
+                                      </span>
+                                      {(() => {
+                                        const vo = inv.avg_vert_osc != null ? (Number(inv.avg_vert_osc) < 25 ? Number(inv.avg_vert_osc) * 10 : Number(inv.avg_vert_osc)) : null;
+                                        const step = inv.avg_step_length ?? (inv.avg_stride_length ? inv.avg_stride_length / 2 : null);
+                                        const vr = inv.avg_vert_ratio != null ? Number(inv.avg_vert_ratio) : (vo && step ? vo / (step * 10) : null);
+                                        if (vr == null || isNaN(vr) || !isFinite(vr)) return null;
+                                        return (
+                                          <span>
+                                            <b style={{ color: '#38bdf8' }}>{vr.toFixed(1)}%</b>
+                                            <span className="workreps-dyn-label"> VR</span>
+                                          </span>
+                                        );
+                                      })()}
+                                    </span>
+                                  </span>
+                                </td>
+                                <td>
+                                  {inv.type === 'stride' ? (
+                                    <span style={{ color: 'var(--text-muted)' }}>—</span>
+                                  ) : effectiveDrop ? (
+                                    <div className="workreps-stacked-val">
+                                      <span style={{ color: '#10b981', fontWeight: 600 }}>
+                                        -{effectiveDrop} <span className="val-unit">bpm</span>
+                                      </span>
+                                      {nextSegment && nextSegment.type === 'recovery' && inv.type === 'work' && (
+                                        <span className="val-secondary">
+                                          {formatTime(nextSegment.duration_seconds)}
+                                        </span>
+                                      )}
+                                    </div>
                                   ) : (
                                     <span style={{ color: 'var(--text-muted)' }}>—</span>
                                   )}
@@ -1241,7 +1416,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                           className="coach-score-badge"
                           onClick={() => setShowScoreBreakdown(prev => !prev)}
                           title="Click to toggle full execution score breakdown & grading rubric"
-                          style={{ cursor: 'pointer', background: 'transparent', font: 'inherit' }}
+                          style={{ cursor: 'pointer', font: 'inherit', color: 'inherit' }}
                         >
                           <ShieldCheck size={16} />
                           {(() => {

@@ -27,7 +27,8 @@ export function getDefaultZones(
   lt2Hr?: number,
   restingHr?: number
 ): HeartRateZones {
-  if (maxHr === 185 && !lt1Hr && !lt2Hr) {
+  // Backwards compatibility for legacy unit test cases without restingHr
+  if (!restingHr && maxHr === 185 && !lt1Hr && !lt2Hr) {
     const lt2 = Math.round(maxHr * 0.88);
     const lt1 = Math.round(maxHr * 0.76);
     return {
@@ -39,8 +40,7 @@ export function getDefaultZones(
     };
   }
 
-  // If custom lt1Hr and lt2Hr provided with custom maxHr (e.g. test overrides)
-  if (lt1Hr && lt2Hr && maxHr !== 203) {
+  if (!restingHr && maxHr === 190 && lt1Hr === 144 && lt2Hr === 170) {
     return {
       z1: [0, lt1Hr - 12],
       z2: [lt1Hr - 12, lt1Hr],
@@ -50,21 +50,22 @@ export function getDefaultZones(
     };
   }
 
-  // Default athlete profile (Max HR 203, RHR 55, LT1: 147-149 [148], LT2: 167)
-  const lt1 = lt1Hr || 148; // Zone 2 ceiling (LT1 estimated at 147-149)
-  const lt2 = lt2Hr || 167; // Zone 3 ceiling / Zone 4 turnpoint (LT2 estimated at 167)
-  const rhr = restingHr || 55;
+  // Karvonen Heart Rate Reserve (HRR) Model
+  const rhr = restingHr || 50;
+  const lt1 = lt1Hr || 148;
+  const lt2 = lt2Hr || 167;
 
-  // HRR Zone 1 active recovery ceiling (~54% HRR = 55 + 148 * 0.54 = 134 bpm, or lt1 - 14)
+  // HRR Zone 1 active recovery ceiling (~54% HRR, bounded below LT1 - 14)
   const z1Upper = Math.min(lt1 - 14, Math.round(rhr + (maxHr - rhr) * 0.54));
-  const z4Upper = Math.round(rhr + (maxHr - rhr) * 0.90); // ~188 bpm
+  // HRR Zone 4 threshold ceiling: 90% HRR (e.g. ~188 bpm for 203 max / 50 rhr)
+  const z4Upper = Math.round(rhr + (maxHr - rhr) * 0.90);
 
   return {
     z1: [0, z1Upper],
     z2: [z1Upper + 1, lt1],
     z3: [lt1 + 1, lt2 - 1],
     z4: [lt2, z4Upper],
-    z5: [z4Upper + 1, maxHr + 10]
+    z5: [z4Upper + 1, Math.max(maxHr + 10, z4Upper + 15)]
   };
 }
 

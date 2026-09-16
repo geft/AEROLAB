@@ -3,9 +3,9 @@
 A local-first, high-performance running analytics platform and dashboard designed to ingest Garmin run data (both native `.fit` binary files and exported `.csv` files), store it in a single embedded SQLite database, and track real-time physiological adaptations over time:
 - **LT1 (Aerobic Threshold / VT1)** pace and heart rate progression
 - **LT2 (Lactate / Anaerobic Threshold / VT2)** pace and heart rate progression
-- **Running Economy**: Efficiency Factor ($Speed / HR$), Meters per Heartbeat, and Aerobic Decoupling ($Pa:Hr$ drift %)
+- **Running Economy**: Efficiency Factor (Speed / HR), Meters per Heartbeat, and Aerobic Decoupling (Pa:Hr drift %)
 - **Pace-Dependent Economy Curves**: Real-world efficiency curves comparing easy base vs. threshold workouts
-- **Automatic Interval & Stride Detection**: Isolates structured work reps, recoveries, and explosive strides ($15\text{--}40\text{s}$ bursts), recording Peak Pace, Peak Cadence, Min Ground Contact Time ($GCT$), and Heart Rate Recovery ($HRR$) drop
+- **Automatic Interval & Stride Detection**: Isolates structured work reps, recoveries, and explosive strides (15–40s bursts), recording Peak Pace, Peak Cadence, Min Ground Contact Time (GCT), and Heart Rate Recovery (HRR) drop
 - **Transparent Physiological Execution Score (3-Tier: Bronze / Silver / Gold)**: Granular 100-point scoring engine with itemized point breakdowns for aerobic stability, cadence discipline, decoupling drift, and pacing adherence
 - **Intelligent Physiological Debrief**: Algorithmic coaching summary that flags "accidental tempos" (grey-zone cardiac drift), identifies failed or aborted workouts, detects uphill ramp walks, and provides actionable recovery recommendations
 - **Period Progress & Training Volume**: Monthly and annual mileage breakdowns, weekly volume cadence, and 5-zone cardiovascular distribution
@@ -76,28 +76,28 @@ Every workout is evaluated by an algorithmic coach engine that computes a transp
 ### Scoring Tiers
 | Emblem | Score Band | Execution Standard |
 | :---: | :---: | :--- |
-| ★★★ Gold | **85–100** | **Near-Perfect Execution**: Stable HR under LT1, decoupling $< 3.5\%$, optimal cadence ($\ge 174$ spm), tight pacing adherence. |
-| ★★☆ Silver | **70–84** | **Solid Stimulus**: Productive aerobic work; minor thermal drift ($< 6\%$) or slight cadence variance without compromising intent. |
-| ★☆☆ Bronze | **< 70** | **Compromised Session**: Accidental tempo grey-zone creep, heavy cardiac drift ($> 8\%$), aborted interval set, or pace collapse. |
+| ★★★ Gold | **85–100** | **Near-Perfect Execution**: Stable HR under LT1, decoupling < 3.5%, optimal cadence (>= 174 spm), tight pacing adherence. |
+| ★★☆ Silver | **70–84** | **Solid Stimulus**: Productive aerobic work; minor thermal drift (< 6%) or slight cadence variance without compromising intent. |
+| ★☆☆ Bronze | **< 70** | **Compromised Session**: Accidental tempo grey-zone creep, heavy cardiac drift (> 8%), aborted interval set, or pace collapse. |
 
 > **Hard caps**: Accidental tempo runs and aborted workouts are capped at Bronze (max 69 / 100) regardless of other factors.
 
 ### Itemized Point Factors
 Clicking the Coach AI score pill in the dashboard opens the **Interactive Breakdown Modal**, displaying exact point additions and deductions:
 - **Baseline Intent**: Starts at **85 points** for steady aerobic base runs or completed interval sets.
-- **Aerobic Decoupling ($Pa:Hr$)**:
-  - Drift $< 3\%$: **+5 points** (aerobic rock)
-  - Drift $< 5\%$: **+3 points** (stable)
-  - Drift $5\text{--}8\%$: **-8 points** (moderate thermal/cardiac drift)
-  - Drift $> 8\%$: **-14 points** (severe drift)
+- **Aerobic Decoupling (Pa:Hr)**:
+  - Drift < 3%: **+5 points** (aerobic rock)
+  - Drift < 5%: **+3 points** (stable)
+  - Drift 5–8%: **-8 points** (moderate thermal/cardiac drift)
+  - Drift > 8%: **-14 points** (severe drift)
 - **Biomechanical Cadence**:
-  - Steady running cadence $\ge 175$ spm: **+4 points**
-  - High cadence variance ($SD > 8$ spm): **-5 points**
-  - Low cadence ($< 164$ spm): **-3 points**
+  - Steady running cadence >= 175 spm: **+4 points**
+  - High cadence variance (SD > 8 spm): **-5 points**
+  - Low cadence (< 164 spm): **-3 points**
 - **Pacing Intent Violations ("Accidental Tempos")**:
-  - If an easy run creeps into Zone 4 / LT2 ($> 164$ bpm), a **-15 point pacing penalty** is applied and the score is hard-capped at **Bronze**.
+  - If an easy run creeps into Zone 4 / LT2 (> 164 bpm), a **-15 point pacing penalty** is applied and the score is hard-capped at **Bronze**.
 - **Strides & Neuromuscular Sharpening**:
-  - Strides with peak cadence $\ge 190$ spm and crisp recovery drop: **+4 points**.
+  - Strides with peak cadence >= 190 spm and crisp recovery drop: **+4 points**.
 
 ---
 
@@ -131,20 +131,22 @@ npm install
 ```
 
 ### 2. Run Automated Tests
-Runs the complete test suite (21 test suites, 115 automated tests) spanning physiology unit tests, binary/CSV ingestion, API integration, and React UI user flows:
+Runs the complete test suite (28 test suites, 194 automated tests, 100% passing) spanning physiology unit tests, binary/CSV ingestion, API integration, and React UI user flows:
 ```bash
 npm test
 ```
-- **Physiology & Parser Unit Tests (12 suites)**: `fit-parser` (Garmin binary protocol, session/record definitions, sport detection), `threshold-tracker` (LT1/LT2 continuous calibration, sub-LT1 baseline preservation), `coach-summary`, `zones` (Karvonen HRR & 5-tier physiological zones), `weather`, `downsampler`, `classifier`, `csv-parser`, `economy` (EF & decoupling), `predictions` (Daniels VDOT & Riegel), `interval-detector`, and `formatters`.
-- **API & Ingestion Integration Tests (2 suites)**: In-memory SQLite testing, binary `.fit` Base64 upload & CSV parsing, SHA-256 deduplication, force overwrite, `PATCH /api/profile` with Tanaka auto-estimation, `PATCH /api/activities/:id` title/notes/tags updates, and type filters.
-- **Frontend UI / User Flow Integration Tests (7 suites)**:
+- **Physiology & Parser Unit Tests (14 suites)**: `fit-parser` (Garmin binary protocol, session/record definitions, sport detection), `threshold-tracker` (LT1/LT2 continuous calibration, sub-LT1 baseline preservation), `coach-summary`, `zones` (Karvonen HRR & 5-tier physiological zones), `weather`, `downsampler`, `classifier` (pace-free relative HR classification), `csv-parser`, `economy` (EF & decoupling), `predictions` (Daniels VDOT & Riegel), `interval-detector` (pace-independent relative contrast, stride sensor latency bridging), `edge-cases` (cadence dropouts, GPS loss, negative altitude), `logger` (structured ring buffer), and `formatters`.
+- **API & Ingestion Integration Tests (3 suites)**: In-memory SQLite testing, binary `.fit` Base64 upload & CSV parsing, SHA-256 deduplication, force overwrite, `PATCH /api/profile` with Tanaka auto-estimation, `PATCH /api/activities/:id` title/notes/tags updates, error sandboxing, and diagnostics endpoints.
+- **Frontend UI / User Flow Integration Tests (11 suites)**:
   - `profile-view`: Runner demographics, Tanaka auto-estimation on age change, non-editable inferred physiological thresholds, gender selector, and marathon race goals.
   - `stats-view`: Volume analytics, month picker dropdown, and Aerobic Turnpoint Margin educational guide modal.
   - `progress-view`: VDOT & Economy guide modals, milestone cards vs data table, LT1 Base vs LT2 Threshold filters, and dynamic count badges.
-  - `upload-modal`: Batch multi-file drag-and-drop (`.fit` and `.csv`), progress tracking, and error diagnostics.
+  - `upload-modal`: Batch multi-file drag-and-drop (`.fit` and `.csv`), single-file immediate selection, progress tracking, and error diagnostics.
   - `navbar-theme`: Day/Night mode theme toggle and navigation tabs.
-  - `browse-flow`: Subtabs, AI Coach card, tag manager, score breakdown, and inline activity rename.
+  - `browse-flow`: Subtabs, AI Coach card, tag manager, score breakdown, multiline pace/HR formatting, and inline activity rename.
   - `app-integration`: End-to-end multi-view navigation across Browse, Progress, Stats, and Profile tabs.
+  - `dev-diagnostics`: Live telemetry logs, level filtering, DB & SSOT diagnostics, and error sandbox.
+  - `mobile-responsiveness`: Compact mobile header, segmented session/analysis switcher, and docked bottom navigation bar.
 
 ### 3. Start Backend & Frontend Concurrently (Recommended)
 ```bash

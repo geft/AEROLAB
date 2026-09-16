@@ -84,7 +84,7 @@ profileRouter.get('/', (req, res) => {
     let effectiveMaxHr = profile.max_hr || 203;
     let maxHrSource: 'manual' | 'observed_run' | 'tanaka_formula' = 'manual';
 
-    if (profile.is_max_hr_estimated) {
+    if (profile.is_max_hr_estimated || (observedPeak && observedPeak.peakHr > effectiveMaxHr)) {
       if (observedPeak && observedPeak.peakHr >= 140) {
         effectiveMaxHr = observedPeak.peakHr;
         maxHrSource = 'observed_run';
@@ -188,7 +188,11 @@ profileRouter.patch('/', (req, res) => {
       db.prepare(`UPDATE athlete_profile SET ${sets.join(', ')} WHERE id = ?`).run(...values);
 
       // Continuously update all coach summaries across all activities using updated profile thresholds
-      syncedActivitiesCount = syncAllCoachSummaries(db);
+      try {
+        syncedActivitiesCount = syncAllCoachSummaries(db);
+      } catch (syncErr: any) {
+        console.error('Non-fatal coach summary sync error during profile update:', syncErr.message);
+      }
     }
 
     const updated = db.prepare('SELECT * FROM athlete_profile WHERE id = ?').get('primary') as any;
@@ -201,6 +205,11 @@ profileRouter.patch('/', (req, res) => {
       syncedActivitiesCount
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('PATCH /api/profile failed:', err);
+    res.status(500).json({
+      code: 'ERR_PROFILE_SAVE_FAILED',
+      error: err.message || 'Database error while saving athlete profile',
+      details: err.stack || String(err)
+    });
   }
 });

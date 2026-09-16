@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { HeartPulse, Calendar, Activity, Zap, CheckCircle2, ShieldCheck, Flame } from 'lucide-react';
 import { calculateAgeFromDob } from '../utils/formatters.js';
 
@@ -43,6 +43,19 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
 
   const effectiveMaxHr = isAutoMaxHr ? tanakaMaxHr : manualMaxHr;
 
+  // Block Escape key — modal must be completed, not dismissed
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,6 +92,7 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
 
   return (
     <div
+      onClick={e => e.stopPropagation()}
       style={{
         position: 'fixed',
         inset: 0,
@@ -88,7 +102,8 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '1rem'
+        padding: '1rem',
+        cursor: 'default'
       }}
     >
       <div
