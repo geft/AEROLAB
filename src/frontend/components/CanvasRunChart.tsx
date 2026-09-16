@@ -98,9 +98,18 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, focusCo
       ctx.lineTo(width - padding.right, y);
       ctx.stroke();
 
+      // Pace labels on left axis – drawn inside left-side padding, left-aligned
+      const paceSecVal = Math.round(minPace + ((maxPace - minPace) / 4) * i);
+      const paceMin = Math.floor(paceSecVal / 60);
+      const paceSec = String(paceSecVal % 60).padStart(2, '0');
+      ctx.fillStyle = '#06b6d4';
+      ctx.font = '10px Inter, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(`${paceMin}:${paceSec}`, 2, y + 3);
+
       // HR labels on right axis – drawn inside right-side padding, right-aligned to edge
       const hrVal = Math.round(maxHr - ((maxHr - minHr) / 4) * i);
-      ctx.fillStyle = '#64748b';
+      ctx.fillStyle = '#f59e0b';
       ctx.font = '10px Inter, sans-serif';
       ctx.textAlign = 'right';
       ctx.fillText(`${hrVal}`, width - 2, y + 3);
