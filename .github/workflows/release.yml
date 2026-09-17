@@ -34,9 +34,11 @@ jobs:
         run: |
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             RELEASE_VER="${GITHUB_REF_NAME#v}"
-            echo "Setting package version to $RELEASE_VER from git tag $GITHUB_REF_NAME"
-            npm version "$RELEASE_VER" --no-git-tag-version --allow-same-version
+          else
+            RELEASE_VER="1.0.${{ github.run_number }}"
           fi
+          echo "Setting package version to $RELEASE_VER"
+          npm version "$RELEASE_VER" --no-git-tag-version --allow-same-version
 
       - name: Build frontend and backend bundles
         run: npm run build:all
@@ -46,12 +48,19 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx electron-builder --win
 
+      - name: Upload Windows Executable Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AEROLAB-Windows-Build-${{ github.run_number }}
+          path: release/*.exe
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v1.0.{0}', github.run_number) }}
           files: release/*.exe
           draft: false
           prerelease: false
           generate_release_notes: true
-          name: AEROLAB Windows Release ${{ github.ref_name }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && format('AEROLAB Windows Release {0}', github.ref_name) || format('AEROLAB Windows Build v1.0.{0}', github.run_number) }}
