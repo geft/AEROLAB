@@ -48,13 +48,19 @@ ingestRouter.post('/upload', (req, res) => {
           fitBuffer = Buffer.from(rawBase64, 'base64');
         } catch {}
       } else {
-        // Probe if string is base64-encoded FIT binary
+        // Probe if string is base64-encoded FIT binary or base64-encoded CSV
         try {
           if (!rawBase64.startsWith('Activity') && !rawBase64.startsWith('timestamp') && !rawBase64.startsWith('time') && !rawBase64.startsWith('Date')) {
             const probe = Buffer.from(rawBase64.slice(0, 64), 'base64');
             if (isFitBuffer(probe)) {
               isFit = true;
               fitBuffer = Buffer.from(rawBase64, 'base64');
+            } else {
+              // Decode base64 to check if it represents CSV text
+              const decoded = Buffer.from(rawBase64, 'base64').toString('utf8');
+              if (decoded.includes(',') && (decoded.includes('\n') || decoded.includes('\r'))) {
+                csvContent = decoded;
+              }
             }
           }
         } catch {}

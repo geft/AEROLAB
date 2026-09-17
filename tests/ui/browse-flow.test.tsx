@@ -360,27 +360,36 @@ describe('BrowseView User Flow & Navigation Tests', () => {
       effectiveness_score: 96
     };
 
-    (global.fetch as any).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        activity: activityWithStrides,
-        splits: [],
-        intervals: [
-          { id: 1, interval_index: 1, type: 'recovery', duration_seconds: 1200, distance_meters: 3000, avg_pace_sec_km: 400, avg_heart_rate: 135, max_heart_rate: 145 },
-          { id: 2, interval_index: 2, type: 'stride', duration_seconds: 25, distance_meters: 120, avg_pace_sec_km: 208, avg_heart_rate: 148, max_heart_rate: 165, peak_cadence: 198, min_stance_time: 185 },
-          { id: 3, interval_index: 3, type: 'recovery', duration_seconds: 90, distance_meters: 150, avg_pace_sec_km: 600, avg_heart_rate: 135, max_heart_rate: 162, hr_drop: 27 },
-          { id: 4, interval_index: 4, type: 'work', duration_seconds: 240, distance_meters: 1000, avg_pace_sec_km: 240, avg_heart_rate: 178, max_heart_rate: 192, peak_cadence: 188, min_stance_time: 215 },
-          { id: 5, interval_index: 5, type: 'recovery', duration_seconds: 120, distance_meters: 180, avg_pace_sec_km: 666, avg_heart_rate: 150, max_heart_rate: 190, hr_drop: 40 }
-        ],
-        records: [],
-        coachSummary: {
-          headline: 'Masterful Execution',
-          effectivenessScore: 96,
-          rating5: 4.8,
-          keyInsights: ['Superb consistency'],
-          recommendation: 'Rest well.'
-        }
-      })
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: any) => {
+      const urlStr = String(url);
+      if (urlStr.includes('act-strides-1')) {
+        return {
+          ok: true,
+          json: async () => ({
+            activity: activityWithStrides,
+            splits: [],
+            intervals: [
+              { id: 1, interval_index: 1, type: 'recovery', duration_seconds: 1200, distance_meters: 3000, avg_pace_sec_km: 400, avg_heart_rate: 135, max_heart_rate: 145 },
+              { id: 2, interval_index: 2, type: 'stride', duration_seconds: 25, distance_meters: 120, avg_pace_sec_km: 208, avg_heart_rate: 148, max_heart_rate: 165, peak_cadence: 198, min_stance_time: 185 },
+              { id: 3, interval_index: 3, type: 'recovery', duration_seconds: 90, distance_meters: 150, avg_pace_sec_km: 600, avg_heart_rate: 135, max_heart_rate: 162, hr_drop: 27 },
+              { id: 4, interval_index: 4, type: 'work', duration_seconds: 240, distance_meters: 1000, avg_pace_sec_km: 240, avg_heart_rate: 178, max_heart_rate: 192, peak_cadence: 188, min_stance_time: 215 },
+              { id: 5, interval_index: 5, type: 'recovery', duration_seconds: 120, distance_meters: 180, avg_pace_sec_km: 666, avg_heart_rate: 150, max_heart_rate: 190, hr_drop: 40 }
+            ],
+            records: [],
+            coachSummary: {
+              headline: 'Masterful Execution',
+              effectivenessScore: 96,
+              rating5: 4.8,
+              keyInsights: ['Superb consistency'],
+              recommendation: 'Rest well.'
+            }
+          })
+        } as any;
+      }
+      return {
+        ok: true,
+        json: async () => mockDetailData
+      } as any;
     });
 
     render(
@@ -405,7 +414,7 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     });
 
     // Check intervals table work reps toggle & peak HR
-    const stridesTabBtn = screen.getByRole('button', { name: /strides & intervals/i });
+    const stridesTabBtn = await screen.findByRole('button', { name: /strides & intervals/i });
     fireEvent.click(stridesTabBtn);
 
     await waitFor(() => {

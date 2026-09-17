@@ -6,6 +6,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    pool: 'forks',
     include: ['tests/**/*.{test,spec}.{ts,tsx}']
   }
 });
