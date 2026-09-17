@@ -10,6 +10,7 @@ import { ingestRouter } from './routes/ingest.js';
 import { profileRouter } from './routes/profile.js';
 import { devRouter } from './routes/dev.js';
 import { databaseRouter, checkAndRunScheduledBackup } from './routes/database.js';
+import { authRouter } from './routes/auth.js';
 import { requestLogger, globalErrorHandler, logger } from './utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -29,6 +30,7 @@ export function createServer() {
   app.use('/api/profile', profileRouter);
   app.use('/api/dev', devRouter);
   app.use('/api/database', databaseRouter);
+  app.use('/api/auth', authRouter);
 
   // Health check
   app.get('/api/health', (req, res) => {

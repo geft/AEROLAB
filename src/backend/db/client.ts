@@ -18,6 +18,13 @@ export function getDatabase(dbPath?: string): Database.Database {
     return dbInstance;
   }
 
+  if (dbInstance) {
+    try {
+      dbInstance.close();
+    } catch {}
+    dbInstance = null;
+  }
+
   const targetPath = dbPath || process.env.DATABASE_PATH || path.resolve(process.cwd(), 'data', 'runs.db');
 
   if (targetPath !== ':memory:') {
@@ -336,10 +343,7 @@ export function getDatabase(dbPath?: string): Database.Database {
     // Non-fatal
   }
 
-  if (!dbPath) {
-    dbInstance = db;
-  }
-
+  dbInstance = db;
   return db;
 }
 

@@ -1,12 +1,29 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { ShieldCheck, Activity, AlertTriangle, ArrowRight } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import {
+  ShieldCheck,
+  Activity,
+  AlertTriangle,
+  ArrowRight,
+  Database,
+  UploadCloud,
+  FileUp,
+  CheckCircle2,
+  RefreshCw,
+  Sparkles,
+  ExternalLink
+} from 'lucide-react';
 import { calculateAgeFromDob } from '../utils/formatters.js';
+import { useLanguage } from '../i18n/LanguageContext.js';
 
 interface OnboardingPageProps {
   onCompleted: () => void;
 }
 
 export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) => {
+  const { t } = useLanguage();
+  const [activeTab, setActiveTab] = useState<'setup' | 'restore' | 'import'>('setup');
+
+  // Form states
   const [dob, setDob] = useState<string>('');
   const [gender, setGender] = useState<string>('Prefer not to say');
   const [restingHr, setRestingHr] = useState<string>('');
@@ -16,15 +33,26 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
   const [error, setError] = useState<string | null>(null);
   const [hasExistingData, setHasExistingData] = useState<boolean>(false);
 
+  // Restore states
+  const [isRestoring, setIsRestoring] = useState<boolean>(false);
+  const [restoreSuccess, setRestoreSuccess] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Google Drive restore states
+  const [gdriveStatus, setGdriveStatus] = useState<any>(null);
+  const [gdriveBackups, setGdriveBackups] = useState<any[]>([]);
+  const [loadingGdrive, setLoadingGdrive] = useState<boolean>(false);
+
+  // Import states
+  const [isImporting, setIsImporting] = useState<boolean>(false);
+  const [importedCount, setImportedCount] = useState<number>(0);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+
   // Pre-load existing profile on mount so the user never has to re-type existing data
   useEffect(() => {
     fetch('/api/profile')
       .then(async res => {
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          console.warn(`[HTTP ${res.status}] Profile fetch in onboarding:`, errData);
-          return;
-        }
+        if (!res.ok) return;
         const data = await res.json();
         if (data?.profile) {
           const p = data.profile;
@@ -50,10 +78,35 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
           }
         }
       })
-      .catch(err => {
-        console.warn('Network error fetching profile in onboarding:', err);
-      });
+      .catch(() => {});
+
+    // Check Google auth status
+    fetch('/api/auth/google/status')
+      .then(res => res.json())
+      .then(data => {
+        if (data?.status) {
+          setGdriveStatus(data.status);
+          if (data.status.isConnected) {
+            fetchGdriveBackups();
+          }
+        }
+      })
+      .catch(() => {});
   }, []);
+
+  const fetchGdriveBackups = async () => {
+    setLoadingGdrive(true);
+    try {
+      const res = await fetch('/api/database/gdrive-backups');
+      if (res.ok) {
+        const data = await res.json();
+        setGdriveBackups(data.backups || []);
+      }
+    } catch {}
+    finally {
+      setLoadingGdrive(false);
+    }
+  };
 
   const computedAge = useMemo(() => {
     if (!dob) return null;
@@ -90,16 +143,10 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
       });
 
       if (!res.ok) {
-        let errJson: any = null;
-        try {
-          errJson = await res.json();
-        } catch {
-          // ignore non-json error responses
-        }
+        const errJson = await res.json().catch(() => ({}));
         const code = errJson?.code || `ERR_HTTP_${res.status}`;
         const msg = errJson?.error || errJson?.message || res.statusText || 'Failed to save profile';
-        const details = errJson?.details ? ` - ${errJson.details}` : '';
-        throw new Error(`[${code}]: ${msg}${details}`);
+        throw new Error(`[${code}]: ${msg}`);
       }
 
       localStorage.setItem('aerolab_profile_configured', 'true');
@@ -108,6 +155,148 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
       setError(err.message || '[ERR_UNKNOWN]: Something went wrong. Please try again.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Restore from .db file
+  const handleFileRestore = async (file: File) => {
+    if (!file) return;
+    setIsRestoring(true);
+    setError(null);
+    setRestoreSuccess(null);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const base64 = (reader.result as string).split(',')[1] || (reader.result as string);
+          const res = await fetch('/api/database/restore', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ base64 })
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || t.backup.restoreFailed);
+          }
+
+          const data = await res.json();
+          setRestoreSuccess(t.onboarding.restoreSuccessToast);
+          localStorage.setItem('aerolab_profile_configured', 'true');
+          setTimeout(() => {
+            onCompleted();
+          }, 1200);
+        } catch (err: any) {
+          setError(err.message || t.backup.restoreFailed);
+        } finally {
+          setIsRestoring(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      setError(err.message || t.backup.restoreFailed);
+      setIsRestoring(false);
+    }
+  };
+
+  // Restore from Google Drive backup
+  const handleGdriveRestore = async (fileId: string) => {
+    setIsRestoring(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/database/restore-gdrive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || t.backup.restoreFailed);
+      }
+
+      setRestoreSuccess(t.onboarding.restoreSuccessToast);
+      localStorage.setItem('aerolab_profile_configured', 'true');
+      setTimeout(() => {
+        onCompleted();
+      }, 1200);
+    } catch (err: any) {
+      setError(err.message || t.backup.restoreFailed);
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
+  // Trigger Google OAuth popup
+  const handleGoogleConnect = async () => {
+    try {
+      const res = await fetch('/api/auth/google/url');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setError(err.error || 'Please configure your Google Client ID first');
+        return;
+      }
+      const data = await res.json();
+      if (data.url) {
+        const popup = window.open(data.url, 'google_oauth_popup', 'width=540,height=650');
+        const handleMessage = (e: MessageEvent) => {
+          if (e.data?.type === 'AEROLAB_GOOGLE_AUTH_SUCCESS') {
+            window.removeEventListener('message', handleMessage);
+            fetchGdriveBackups();
+            setGdriveStatus((prev: any) => ({ ...prev, isConnected: true, email: e.data.email }));
+          }
+        };
+        window.addEventListener('message', handleMessage);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to initiate Google authentication');
+    }
+  };
+
+  // Import Workout Files (.fit, .csv)
+  const handleWorkoutImport = async (files: FileList | File[]) => {
+    if (!files || files.length === 0) return;
+    setIsImporting(true);
+    setError(null);
+    let imported = 0;
+
+    for (const file of Array.from(files)) {
+      try {
+        const reader = new FileReader();
+        await new Promise<void>((resolve, reject) => {
+          reader.onload = async () => {
+            try {
+              const base64 = (reader.result as string).split(',')[1] || (reader.result as string);
+              const res = await fetch('/api/ingest/upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  content: base64,
+                  filename: file.name
+                })
+              });
+              if (res.ok) {
+                const data = await res.json();
+                if (data.result?.status === 'imported') {
+                  imported++;
+                }
+              }
+              resolve();
+            } catch (e) {
+              resolve();
+            }
+          };
+          reader.onerror = () => resolve();
+          reader.readAsDataURL(file);
+        });
+      } catch {}
+    }
+
+    setIsImporting(false);
+    setImportedCount(imported);
+    if (imported > 0) {
+      setRestoreSuccess(`Imported ${imported} workouts! You can now proceed.`);
     }
   };
 
@@ -130,40 +319,124 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
       }} />
 
       {/* Brand header */}
-      <div style={{ textAlign: 'center', marginBottom: '2.5rem', position: 'relative' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.65rem', marginBottom: '0.75rem' }}>
+      <div style={{ textAlign: 'center', marginBottom: '1.75rem', position: 'relative' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.65rem', marginBottom: '0.65rem' }}>
           <div style={{
-            width: 42, height: 42, borderRadius: 12,
+            width: 44, height: 44, borderRadius: 12,
             background: 'linear-gradient(135deg, rgba(6,182,212,0.25), rgba(2,132,199,0.15))',
             border: '1px solid rgba(6,182,212,0.4)',
             display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}>
-            <Activity size={22} color="#38bdf8" />
+            <Activity size={24} color="#38bdf8" />
           </div>
-          <span style={{ fontSize: '1.6rem', fontWeight: 900, letterSpacing: '-0.04em', color: 'var(--text-primary)' }}>
-            AEROLAB
+          <span style={{ fontSize: '1.75rem', fontWeight: 900, letterSpacing: '-0.04em', color: 'var(--text-primary)' }}>
+            {t.onboarding.brandTitle}
           </span>
         </div>
-        <h1 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-secondary)', margin: 0 }}>
-          Cardiovascular Baseline Setup
+        <h1 style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--text-secondary)', margin: 0 }}>
+          {t.onboarding.brandSubtitle}
         </h1>
         <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
-          Required before your data can be calibrated. Takes 30 seconds.
+          {t.onboarding.stepRequired}
         </p>
       </div>
 
-      {/* Form card */}
+      {/* Main card */}
       <div style={{
         background: 'var(--bg-card)',
         border: '1px solid var(--border-subtle)',
         borderRadius: 18,
-        padding: '2rem',
-        maxWidth: 520,
+        padding: '1.75rem 2rem',
+        maxWidth: 540,
         width: '100%',
         boxShadow: '0 20px 40px -15px rgba(0,0,0,0.3)',
         position: 'relative',
         zIndex: 1
       }}>
+        {/* Onboarding Mode Selector Tabs */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr 1fr',
+          background: 'var(--bg-surface)',
+          padding: '4px',
+          borderRadius: 10,
+          border: '1px solid var(--border-subtle)',
+          marginBottom: '1.5rem'
+        }}>
+          <button
+            type="button"
+            onClick={() => { setActiveTab('setup'); setError(null); }}
+            style={{
+              padding: '0.55rem 0.25rem',
+              borderRadius: 7,
+              border: 'none',
+              background: activeTab === 'setup' ? 'var(--bg-card)' : 'transparent',
+              color: activeTab === 'setup' ? 'var(--text-primary)' : 'var(--text-muted)',
+              fontWeight: activeTab === 'setup' ? 700 : 500,
+              fontSize: '0.78rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.35rem',
+              boxShadow: activeTab === 'setup' ? '0 2px 4px rgba(0,0,0,0.1)' : 'none',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Sparkles size={14} style={{ color: activeTab === 'setup' ? '#38bdf8' : 'inherit' }} />
+            <span>{t.onboarding.tabSetup}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setActiveTab('restore'); setError(null); }}
+            style={{
+              padding: '0.55rem 0.25rem',
+              borderRadius: 7,
+              border: 'none',
+              background: activeTab === 'restore' ? 'var(--bg-card)' : 'transparent',
+              color: activeTab === 'restore' ? 'var(--text-primary)' : 'var(--text-muted)',
+              fontWeight: activeTab === 'restore' ? 700 : 500,
+              fontSize: '0.78rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.35rem',
+              boxShadow: activeTab === 'restore' ? '0 2px 4px rgba(0,0,0,0.1)' : 'none',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Database size={14} style={{ color: activeTab === 'restore' ? '#38bdf8' : 'inherit' }} />
+            <span>{t.onboarding.tabRestore}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setActiveTab('import'); setError(null); }}
+            style={{
+              padding: '0.55rem 0.25rem',
+              borderRadius: 7,
+              border: 'none',
+              background: activeTab === 'import' ? 'var(--bg-card)' : 'transparent',
+              color: activeTab === 'import' ? 'var(--text-primary)' : 'var(--text-muted)',
+              fontWeight: activeTab === 'import' ? 700 : 500,
+              fontSize: '0.78rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.35rem',
+              boxShadow: activeTab === 'import' ? '0 2px 4px rgba(0,0,0,0.1)' : 'none',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <UploadCloud size={14} style={{ color: activeTab === 'import' ? '#38bdf8' : 'inherit' }} />
+            <span>{t.onboarding.tabImport}</span>
+          </button>
+        </div>
+
+        {/* Status / Error feedback */}
         {error && (
           <div style={{
             background: 'rgba(239,68,68,0.12)',
@@ -180,219 +453,480 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
               <span style={{ fontSize: '0.82rem', color: '#ef4444', fontWeight: 600, wordBreak: 'break-word' }}>
                 {error}
               </span>
-              {hasExistingData && (
-                <div style={{ marginTop: '0.5rem' }}>
+            </div>
+          </div>
+        )}
+
+        {restoreSuccess && (
+          <div style={{
+            background: 'rgba(34,197,94,0.12)',
+            border: '1px solid rgba(34,197,94,0.4)',
+            borderRadius: 10,
+            padding: '0.75rem 1rem',
+            marginBottom: '1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.65rem',
+            color: '#4ade80'
+          }}>
+            <CheckCircle2 size={18} style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>{restoreSuccess}</span>
+          </div>
+        )}
+
+        {/* TAB 1: NEW ATHLETE SETUP */}
+        {activeTab === 'setup' && (
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                  {t.onboarding.dobLabel} <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={dob}
+                  onChange={e => setDob(e.target.value)}
+                  style={inputStyle}
+                />
+                {computedAge !== null ? (
+                  <p style={hintStyle}>Age: <b style={{ color: '#38bdf8' }}>{computedAge} yrs</b></p>
+                ) : (
+                  <p style={hintStyle}>Used for Tanaka formula</p>
+                )}
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                  {t.onboarding.genderLabel}
+                </label>
+                <select
+                  value={gender}
+                  onChange={e => setGender(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="Prefer not to say">Prefer not to say</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Non-binary">Non-binary</option>
+                </select>
+                <p style={hintStyle}>For normative baselines</p>
+              </div>
+            </div>
+
+            {/* Resting HR */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                {t.onboarding.restingHrLabel} <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="number"
+                  min="30"
+                  max="120"
+                  required
+                  placeholder="e.g. 54"
+                  value={restingHr}
+                  onChange={e => setRestingHr(e.target.value)}
+                  style={inputStyle}
+                />
+                <span style={{ position: 'absolute', right: 12, top: 10, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  bpm
+                </span>
+              </div>
+              <p style={hintStyle}>Crucial for accurate Karvonen Heart Rate Reserve (HRR) zones</p>
+            </div>
+
+            {/* Max HR Mode */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
+                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  {t.onboarding.maxHrLabel}
+                </label>
+                <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.75rem' }}>
                   <button
                     type="button"
-                    onClick={() => onCompleted()}
+                    onClick={() => setIsAutoMaxHr(true)}
                     style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#38bdf8',
+                      background: isAutoMaxHr ? 'rgba(56,189,248,0.15)' : 'transparent',
+                      border: isAutoMaxHr ? '1px solid #38bdf8' : '1px solid transparent',
+                      color: isAutoMaxHr ? '#38bdf8' : 'var(--text-muted)',
+                      borderRadius: 6,
+                      padding: '2px 8px',
                       cursor: 'pointer',
-                      fontSize: '0.78rem',
-                      fontWeight: 600,
-                      padding: 0,
-                      textDecoration: 'underline'
+                      fontWeight: 600
                     }}
                   >
-                    You have existing profile data — click here to return to dashboard
+                    Formula (Tanaka)
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsAutoMaxHr(false)}
+                    style={{
+                      background: !isAutoMaxHr ? 'rgba(56,189,248,0.15)' : 'transparent',
+                      border: !isAutoMaxHr ? '1px solid #38bdf8' : '1px solid transparent',
+                      color: !isAutoMaxHr ? '#38bdf8' : 'var(--text-muted)',
+                      borderRadius: 6,
+                      padding: '2px 8px',
+                      cursor: 'pointer',
+                      fontWeight: 600
+                    }}
+                  >
+                    Manual
+                  </button>
+                </div>
+              </div>
+
+              {isAutoMaxHr ? (
+                <div style={{
+                  padding: '0.65rem 0.85rem',
+                  background: 'var(--bg-surface)',
+                  borderRadius: 8,
+                  border: '1px solid var(--border-subtle)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    Calculated Max HR:
+                  </span>
+                  <strong style={{ fontSize: '0.95rem', color: '#38bdf8' }}>
+                    {tanakaMaxHr ? `${tanakaMaxHr} bpm` : 'Enter DOB above'}
+                  </strong>
+                </div>
+              ) : (
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="number"
+                    min="100"
+                    max="230"
+                    required={!isAutoMaxHr}
+                    placeholder="e.g. 195"
+                    value={manualMaxHr}
+                    onChange={e => setManualMaxHr(e.target.value)}
+                    style={inputStyle}
+                  />
+                  <span style={{ position: 'absolute', right: 12, top: 10, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    bpm
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              disabled={saving}
+              style={{
+                marginTop: '0.5rem',
+                padding: '0.9rem',
+                borderRadius: 10,
+                background: saving
+                  ? 'rgba(6,182,212,0.4)'
+                  : 'linear-gradient(135deg, #0284c7, #06b6d4)',
+                border: 'none',
+                color: '#ffffff',
+                fontWeight: 700,
+                fontSize: '0.95rem',
+                cursor: saving ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                transition: 'all 0.15s ease',
+                boxShadow: saving ? 'none' : '0 4px 14px 0 rgba(6,182,212,0.4)'
+              }}
+            >
+              <ShieldCheck size={18} />
+              <span>{saving ? t.onboarding.calibrating : t.onboarding.saveAndLaunch}</span>
+            </button>
+
+            {hasExistingData && (
+              <button
+                type="button"
+                onClick={() => onCompleted()}
+                style={{
+                  padding: '0.65rem',
+                  borderRadius: 10,
+                  background: 'transparent',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--text-secondary)',
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem'
+                }}
+              >
+                <span>Return to Dashboard</span>
+                <ArrowRight size={15} />
+              </button>
+            )}
+          </form>
+        )}
+
+        {/* TAB 2: RESTORE BACKUP (.DB / GDRIVE) */}
+        {activeTab === 'restore' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* Option A: Restore from .db File */}
+            <div style={{
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 12,
+              padding: '1.25rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                <Database size={17} style={{ color: '#38bdf8' }} />
+                <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {t.onboarding.restoreDbCardTitle}
+                </h3>
+              </div>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4, margin: '0 0 1rem' }}>
+                {t.onboarding.restoreDbCardDesc}
+              </p>
+
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept=".db,.sqlite"
+                style={{ display: 'none' }}
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileRestore(file);
+                }}
+              />
+
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) handleFileRestore(file);
+                }}
+                style={{
+                  border: '2px dashed rgba(56,189,248,0.4)',
+                  borderRadius: 10,
+                  padding: '1.5rem',
+                  textAlign: 'center',
+                  cursor: isRestoring ? 'wait' : 'pointer',
+                  background: 'rgba(56,189,248,0.03)',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <FileUp size={28} style={{ color: '#38bdf8', margin: '0 auto 0.5rem' }} />
+                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  {isRestoring ? t.backup.restoring : t.onboarding.dropDbPrompt}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                  Supports runs.db and runs-backup-*.db
+                </div>
+              </div>
+            </div>
+
+            {/* Option B: Restore from Google Drive */}
+            <div style={{
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 12,
+              padding: '1.25rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <UploadCloud size={17} style={{ color: 'var(--accent-emerald)' }} />
+                  <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {t.onboarding.restoreGdriveCardTitle}
+                  </h3>
+                </div>
+                {gdriveStatus?.isConnected && (
+                  <span style={{ fontSize: '0.72rem', color: 'var(--accent-emerald)', fontWeight: 600 }}>
+                    ✓ {gdriveStatus.email}
+                  </span>
+                )}
+              </div>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4, margin: '0 0 1rem' }}>
+                {t.onboarding.restoreGdriveCardDesc}
+              </p>
+
+              {!gdriveStatus?.isConnected ? (
+                <button
+                  type="button"
+                  onClick={handleGoogleConnect}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.6rem',
+                    background: '#ffffff',
+                    color: '#1f2937',
+                    border: '1px solid #d1d5db',
+                    borderRadius: 8,
+                    padding: '0.65rem 1rem',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                  </svg>
+                  <span>{t.backup.signInWithGoogle}</span>
+                </button>
+              ) : (
+                <div>
+                  {loadingGdrive ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '1rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                      <RefreshCw size={14} className="spinning" />
+                      <span>Checking Google Drive backups…</span>
+                    </div>
+                  ) : gdriveBackups.length === 0 ? (
+                    <div style={{ padding: '0.75rem', background: 'var(--bg-card)', borderRadius: 8, textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      No AEROLAB backups found on your Google Drive.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: 180, overflowY: 'auto' }}>
+                      {gdriveBackups.map(b => (
+                        <div
+                          key={b.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0.55rem 0.75rem',
+                            background: 'var(--bg-card)',
+                            borderRadius: 6,
+                            border: '1px solid var(--border-subtle)',
+                            fontSize: '0.78rem'
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{b.name}</div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                              {new Date(b.createdTime).toLocaleString()} • {(b.sizeBytes / (1024 * 1024)).toFixed(2)} MB
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleGdriveRestore(b.id)}
+                            disabled={isRestoring}
+                            style={{
+                              background: 'var(--accent-emerald)',
+                              color: '#ffffff',
+                              border: 'none',
+                              padding: '0.35rem 0.75rem',
+                              borderRadius: 6,
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Restore
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-          {/* DOB & Gender */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
-                Date of Birth <span style={{ color: '#ef4444' }}>*</span>
-              </label>
-              <input
-                type="date"
-                required
-                value={dob}
-                onChange={e => setDob(e.target.value)}
-                style={inputStyle}
-              />
-              {computedAge !== null ? (
-                <p style={hintStyle}>Age: <b style={{ color: '#38bdf8' }}>{computedAge} yrs</b></p>
-              ) : (
-                <p style={hintStyle}>Used for age & formulas</p>
-              )}
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
-                Gender
-              </label>
-              <select
-                value={gender}
-                onChange={e => setGender(e.target.value)}
-                style={inputStyle}
-              >
-                <option value="Prefer not to say">Prefer not to say</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Non-binary">Non-binary</option>
-              </select>
-              <p style={hintStyle}>For normative comparisons</p>
-            </div>
-          </div>
+        {/* TAB 3: DIRECT WORKOUT IMPORT */}
+        {activeTab === 'import' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 12,
+              padding: '1.25rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                <UploadCloud size={17} style={{ color: '#38bdf8' }} />
+                <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {t.onboarding.importWorkoutsTitle}
+                </h3>
+              </div>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4, margin: '0 0 1rem' }}>
+                {t.onboarding.importWorkoutsDesc}
+              </p>
 
-          {/* Resting HR */}
-          <div>
-            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
-              Resting Heart Rate <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <div style={{ position: 'relative' }}>
               <input
-                type="number"
-                required
-                min={30}
-                max={100}
-                placeholder="e.g. 50"
-                value={restingHr}
-                onChange={e => setRestingHr(e.target.value)}
-                style={inputStyle}
+                type="file"
+                ref={importInputRef}
+                multiple
+                accept=".fit,.FIT,.csv"
+                style={{ display: 'none' }}
+                onChange={e => {
+                  if (e.target.files) handleWorkoutImport(e.target.files);
+                }}
               />
-              <span style={{
-                position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                fontSize: '0.75rem', color: 'var(--text-muted)'
-              }}>
-                bpm
-              </span>
-            </div>
-            <p style={hintStyle}>Morning resting heart rate or lowest waking measurement</p>
-          </div>
 
-          {/* Max HR */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-              <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Maximum Heart Rate
-              </label>
-              <button
-                type="button"
-                onClick={() => setIsAutoMaxHr(prev => !prev)}
+              <div
+                onClick={() => importInputRef.current?.click()}
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => {
+                  e.preventDefault();
+                  if (e.dataTransfer.files) handleWorkoutImport(e.dataTransfer.files);
+                }}
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#38bdf8',
-                  fontSize: '0.72rem',
-                  cursor: 'pointer',
-                  padding: 0,
-                  textDecoration: 'underline'
+                  border: '2px dashed rgba(56,189,248,0.4)',
+                  borderRadius: 10,
+                  padding: '1.75rem',
+                  textAlign: 'center',
+                  cursor: isImporting ? 'wait' : 'pointer',
+                  background: 'rgba(56,189,248,0.03)',
+                  transition: 'all 0.15s ease'
                 }}
               >
-                {isAutoMaxHr ? 'Enter manually' : 'Use Tanaka formula'}
-              </button>
+                <UploadCloud size={30} style={{ color: '#38bdf8', margin: '0 auto 0.5rem' }} />
+                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  {isImporting ? 'Importing workouts…' : t.onboarding.dropWorkoutsPrompt}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                  Drop multiple Garmin .fit activity files or exported Garmin CSVs
+                </div>
+              </div>
+
+              {importedCount > 0 && (
+                <div style={{ marginTop: '1.25rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('setup')}
+                    style={{
+                      width: '100%',
+                      padding: '0.8rem',
+                      borderRadius: 8,
+                      background: 'var(--accent-emerald)',
+                      border: 'none',
+                      color: '#ffffff',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.4rem'
+                    }}
+                  >
+                    <span>Proceed to Baseline Calibration</span>
+                    <ArrowRight size={15} />
+                  </button>
+                </div>
+              )}
             </div>
-
-            {isAutoMaxHr ? (
-              <div style={{
-                padding: '0.65rem 0.85rem',
-                borderRadius: 8,
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-subtle)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}>
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                  Tanaka Estimate (208 - 0.7 x Age):
-                </span>
-                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#38bdf8' }}>
-                  {tanakaMaxHr ? `${tanakaMaxHr} bpm` : 'Enter DOB above'}
-                </span>
-              </div>
-            ) : (
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="number"
-                  min={130}
-                  max={230}
-                  placeholder="e.g. 185"
-                  value={manualMaxHr}
-                  onChange={e => setManualMaxHr(e.target.value)}
-                  style={inputStyle}
-                />
-                <span style={{
-                  position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                  fontSize: '0.75rem', color: 'var(--text-muted)'
-                }}>
-                  bpm
-                </span>
-              </div>
-            )}
-            <p style={hintStyle}>
-              {isAutoMaxHr
-                ? 'Calculated via Tanaka formula. Can be updated anytime in Profile.'
-                : 'Highest heart rate recorded during an all-out effort.'}
-            </p>
           </div>
-
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={saving}
-            style={{
-              marginTop: '0.25rem',
-              padding: '0.9rem',
-              borderRadius: 10,
-              background: saving
-                ? 'rgba(6,182,212,0.4)'
-                : 'linear-gradient(135deg, #0284c7, #06b6d4)',
-              border: 'none',
-              color: '#ffffff',
-              fontWeight: 700,
-              fontSize: '0.95rem',
-              cursor: saving ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem',
-              transition: 'all 0.15s ease',
-              boxShadow: saving ? 'none' : '0 4px 14px 0 rgba(6,182,212,0.4)'
-            }}
-          >
-            <ShieldCheck size={18} />
-            <span>{saving ? 'Calibrating…' : 'Save & Launch AEROLAB'}</span>
-          </button>
-
-          {/* Return to Dashboard Button if user already has data */}
-          {hasExistingData && (
-            <button
-              type="button"
-              onClick={() => onCompleted()}
-              style={{
-                padding: '0.65rem',
-                borderRadius: 10,
-                background: 'transparent',
-                border: '1px solid var(--border-subtle)',
-                color: 'var(--text-secondary)',
-                fontWeight: 600,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.4rem',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <span>Return to Dashboard</span>
-              <ArrowRight size={15} />
-            </button>
-          )}
-        </form>
+        )}
       </div>
 
       {/* Footer note */}
-      <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '1.5rem', textAlign: 'center', maxWidth: 400 }}>
-        All data is stored locally in SQLite. Nothing leaves your machine.
+      <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '1.5rem', textAlign: 'center', maxWidth: 420 }}>
+        {t.onboarding.localSecurityNote}
       </p>
     </div>
   );

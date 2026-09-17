@@ -124,10 +124,10 @@ describe('Database Backup & Cloud Sync Integration Tests', () => {
     expect(res.body).toBeDefined();
   });
 
-  it('checkAndRunScheduledBackup respects interval and avoids redundant backups', () => {
+  it('checkAndRunScheduledBackup respects interval and avoids redundant backups', async () => {
     const db = getDatabase();
     // Recently backed up, so should return false (not due)
-    const result = checkAndRunScheduledBackup(db);
+    const result = await checkAndRunScheduledBackup(db);
     expect(result).toBe(false);
   });
 });
