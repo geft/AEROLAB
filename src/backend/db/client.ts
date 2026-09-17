@@ -8,8 +8,9 @@ import { syncAllActivitiesWeather } from '../physiology/weather.js';
 import { realignDatabase } from './realign.js';
 import { deduplicateRuns } from './deduplicate.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const currentDir = typeof __dirname !== 'undefined'
+  ? __dirname
+  : (typeof import.meta !== 'undefined' && import.meta.url ? path.dirname(fileURLToPath(import.meta.url)) : process.cwd());
 
 let dbInstance: Database.Database | null = null;
 
@@ -40,9 +41,9 @@ export function getDatabase(dbPath?: string): Database.Database {
 
   // Initialize schema
   const candidateSchemaPaths = [
-    path.resolve(__dirname, 'schema.sql'),
-    path.resolve(__dirname, 'db', 'schema.sql'),
-    path.resolve(__dirname, 'src', 'backend', 'db', 'schema.sql'),
+    path.resolve(currentDir, 'schema.sql'),
+    path.resolve(currentDir, 'db', 'schema.sql'),
+    path.resolve(currentDir, 'src', 'backend', 'db', 'schema.sql'),
     path.resolve(process.cwd(), 'src', 'backend', 'db', 'schema.sql'),
     path.resolve(process.cwd(), 'dist-backend', 'schema.sql')
   ];

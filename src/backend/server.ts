@@ -13,8 +13,10 @@ import { databaseRouter, checkAndRunScheduledBackup } from './routes/database.js
 import { authRouter } from './routes/auth.js';
 import { requestLogger, globalErrorHandler, logger } from './utils/logger.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const currentDir = typeof __dirname !== 'undefined'
+  ? __dirname
+  : (typeof import.meta !== 'undefined' && import.meta.url ? path.dirname(fileURLToPath(import.meta.url)) : process.cwd());
+
 
 export function createServer() {
   const app = express();
@@ -37,12 +39,21 @@ export function createServer() {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
+  // Graceful shutdown for standalone desktop app mode
+  app.post('/api/system/shutdown', (req, res) => {
+    res.json({ ok: true, message: 'Shutting down AEROLAB...' });
+    setTimeout(() => {
+      process.exit(0);
+    }, 200);
+  });
+
   // Serve static frontend assets in production / electron standalone
   const distCandidates = [
     process.env.DIST_PATH,
     path.resolve(process.cwd(), 'dist'),
-    path.resolve(__dirname, '..', '..', 'dist'),
-    path.resolve(__dirname, 'dist')
+    path.resolve(currentDir, '..', 'dist'),
+    path.resolve(currentDir, '..', '..', 'dist'),
+    path.resolve(currentDir, 'dist')
   ].filter(Boolean) as string[];
 
   const distPath = distCandidates.find(p => fs.existsSync(p));

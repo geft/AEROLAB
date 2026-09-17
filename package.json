@@ -19,6 +19,8 @@
     "test:watch": "vitest",
     "ingest": "tsx scripts/ingest.ts",
     "realign": "tsx scripts/realign.ts",
+    "app": "node scripts/launch-chrome-app.js",
+    "start:chrome": "node scripts/launch-chrome-app.js",
     "process:fit": "tsx scripts/batch-process-fit.ts"
   },
   "build": {

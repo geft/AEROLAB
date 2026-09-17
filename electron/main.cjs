@@ -19,13 +19,12 @@ process.env.PORT = String(PORT);
 
 function startServer() {
   try {
-    const backendPath = path.join(__dirname, '..', 'dist-backend', 'server.js');
+    const backendPath = path.join(__dirname, '..', 'dist-backend', 'server.cjs');
     if (fs.existsSync(backendPath)) {
-      import('file://' + backendPath.replace(/\\/g, '/')).catch(err => {
-        console.error('Failed to start internal backend:', err);
-      });
+      console.log('Starting internal backend from:', backendPath);
+      require(backendPath);
     } else {
-      console.warn('dist-backend/server.js not found, assuming external or dev server running.');
+      console.warn('dist-backend/server.cjs not found, assuming external or dev server running.');
     }
   } catch (err) {
     console.error('Error starting backend server:', err);
@@ -81,6 +80,19 @@ function createWindow() {
   });
 
   const loadUrl = `http://localhost:${PORT}`;
+  let retryCount = 0;
+  mainWindow.webContents.on('did-fail-load', () => {
+    if (retryCount < 10) {
+      retryCount++;
+      console.log(`Failed to load ${loadUrl}, retrying (${retryCount}/10) in 1s...`);
+      setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.loadURL(loadUrl);
+        }
+      }, 1000);
+    }
+  });
+
   mainWindow.loadURL(loadUrl).catch(err => {
     console.error('Failed to load app URL:', err);
   });
