@@ -61,14 +61,18 @@ export const App: React.FC = () => {
         }
       }
       const data = await res.json();
+      const p = data?.profile;
       const configured = Boolean(
-        data?.isConfigured === true ||
-        data?.profile?.is_configured === 1 ||
-        (data?.profile?.dob && data?.profile?.resting_hr && (data?.profile?.max_hr || data?.profile?.is_max_hr_estimated))
+        data?.isConfigured === true &&
+        p?.is_configured !== 0 &&
+        p?.resting_hr &&
+        (p?.dob || p?.age)
       );
       setIsConfigured(configured);
       if (configured) {
         localStorage.setItem('aerolab_profile_configured', 'true');
+      } else {
+        localStorage.removeItem('aerolab_profile_configured');
       }
     } catch (err) {
       console.error('Failed to check profile configuration status:', err);

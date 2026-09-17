@@ -73,8 +73,8 @@ profileRouter.get('/', (req, res) => {
       return res.status(404).json({ error: 'Profile not found' });
     }
 
-    const activityCount = (db.prepare('SELECT COUNT(*) as count FROM activities').get() as any)?.count || 0;
-    const isConfigured = profile.is_configured === 1 || activityCount > 0;
+    const hasRequiredBaselines = Boolean(profile.dob && profile.resting_hr);
+    const isConfigured = profile.is_configured === 1 && hasRequiredBaselines;
 
     const currentThresholds = getCurrentThresholds(db);
     const dynamicAge = calculateAgeFromDob(profile.dob, Number(profile.age) || 35);

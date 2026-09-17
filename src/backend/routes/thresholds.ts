@@ -32,7 +32,7 @@ thresholdsRouter.get('/', (req, res) => {
       effectiveMaxHr,
       currentThresholds.lt1Hr,
       currentThresholds.lt2Hr,
-      Number(profile?.resting_hr) || 54
+      Number(profile?.resting_hr) || 50
     );
 
     // Latest LT1 & LT2

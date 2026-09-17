@@ -359,4 +359,37 @@ describe('AEROLAB App Full Integration Tests', () => {
       expect(screen.getByText('Superb Threshold Session')).toBeTruthy();
     });
   });
+
+  it('always gates on OnboardingPage when profile is unconfigured or empty', async () => {
+    localStorage.clear();
+    vi.spyOn(globalThis, 'fetch').mockImplementation((url: any) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/api/profile')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            isConfigured: false,
+            profile: {
+              id: 'primary',
+              name: 'Runner',
+              resting_hr: null,
+              dob: null,
+              is_configured: 0
+            }
+          })
+        } as any);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ activities: [] })
+      } as any);
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cardiovascular Baseline Setup')).toBeTruthy();
+      expect(screen.getByText(/Required before your data can be calibrated/i)).toBeTruthy();
+    });
+  });
 });

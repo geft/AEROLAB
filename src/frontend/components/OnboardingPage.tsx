@@ -36,10 +36,12 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
             setIsAutoMaxHr(Boolean(p.is_max_hr_estimated));
           }
 
-          const isReady = Boolean(data.isConfigured || p.is_configured === 1 || (p.dob && p.resting_hr));
+          const isReady = Boolean(data?.isConfigured && p?.is_configured === 1 && p?.dob && p?.resting_hr);
           setHasExistingData(isReady);
           if (isReady) {
             localStorage.setItem('aerolab_profile_configured', 'true');
+          } else {
+            localStorage.removeItem('aerolab_profile_configured');
           }
         }
       })
@@ -246,7 +248,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
                 required
                 min={30}
                 max={100}
-                placeholder="e.g. 54"
+                placeholder="e.g. 50"
                 value={restingHr}
                 onChange={e => setRestingHr(e.target.value)}
                 style={inputStyle}

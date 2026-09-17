@@ -214,6 +214,19 @@ describe('API Server Integration Tests', () => {
     await request(app).patch('/api/profile').send({ max_hr: 203, is_max_hr_estimated: false });
   });
 
+  it('GET /api/profile correctly determines isConfigured based on is_configured flag and required baselines', async () => {
+    const db = getDatabase();
+    // Temporarily clear is_configured
+    db.prepare("UPDATE athlete_profile SET is_configured = 0 WHERE id = 'primary'").run();
+    const unconfiguredRes = await request(app).get('/api/profile');
+    expect(unconfiguredRes.body.isConfigured).toBe(false);
+
+    // Set is_configured = 1
+    db.prepare("UPDATE athlete_profile SET is_configured = 1 WHERE id = 'primary'").run();
+    const configuredRes = await request(app).get('/api/profile');
+    expect(configuredRes.body.isConfigured).toBe(true);
+  });
+
   it('POST /api/activities/:id/weather/refresh fetches historical microclimate weather', async () => {
     const res = await request(app).post('/api/activities/bench-easy-60/weather/refresh');
     expect(res.status).toBe(200);
