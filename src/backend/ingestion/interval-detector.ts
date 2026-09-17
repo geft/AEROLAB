@@ -315,16 +315,21 @@ export function detectIntervals(
     }
   }
 
+  // Filter out any blocks fully consumed by expansions and ensure bounds
+  const validRawBlocks = rawBlocks.filter(
+    b => b.startIndex <= b.endIndex && b.startIndex >= 0 && b.endIndex < records.length
+  );
+
   // Merge spurious dips inside long reps
   const mergedDips: RawBlock[] = [];
-  for (let i = 0; i < rawBlocks.length; i++) {
-    const b = rawBlocks[i];
+  for (let i = 0; i < validRawBlocks.length; i++) {
+    const b = validRawBlocks[i];
     const prev = mergedDips[mergedDips.length - 1];
-    const next = rawBlocks[i + 1];
+    const next = validRawBlocks[i + 1];
 
-    const dur = records[b.endIndex].elapsedSeconds - records[b.startIndex].elapsedSeconds;
-    const prevDur = prev ? records[prev.endIndex].elapsedSeconds - records[prev.startIndex].elapsedSeconds : 0;
-    const nextDur = next ? records[next.endIndex].elapsedSeconds - records[next.startIndex].elapsedSeconds : 0;
+    const dur = (records[b.endIndex]?.elapsedSeconds ?? 0) - (records[b.startIndex]?.elapsedSeconds ?? 0);
+    const prevDur = prev ? (records[prev.endIndex]?.elapsedSeconds ?? 0) - (records[prev.startIndex]?.elapsedSeconds ?? 0) : 0;
+    const nextDur = next ? (records[next.endIndex]?.elapsedSeconds ?? 0) - (records[next.startIndex]?.elapsedSeconds ?? 0) : 0;
 
     const blockRecs = records.slice(b.startIndex, b.endIndex + 1);
     const startHr = blockRecs[0]?.heartRate ?? 0;
@@ -355,10 +360,11 @@ export function detectIntervals(
 
   // Filter transient blocks
   const validBlocks = mergedDips.filter(b => {
-    const dur = records[b.endIndex].elapsedSeconds - records[b.startIndex].elapsedSeconds;
+    if (b.startIndex > b.endIndex || b.startIndex < 0 || b.endIndex >= records.length) return false;
+    const dur = (records[b.endIndex]?.elapsedSeconds ?? 0) - (records[b.startIndex]?.elapsedSeconds ?? 0);
     if (b.type === 'stride') {
-      const startDist = records[b.startIndex].distanceMeters ?? 0;
-      const endDist = records[b.endIndex].distanceMeters ?? startDist;
+      const startDist = records[b.startIndex]?.distanceMeters ?? 0;
+      const endDist = records[b.endIndex]?.distanceMeters ?? startDist;
       const dist = Math.max(0, endDist - startDist);
       return dur >= 6 && dur <= 45 && dist >= 35;
     }
