@@ -40,33 +40,21 @@ jobs:
           echo "Setting package version to $RELEASE_VER"
           npm version "$RELEASE_VER" --no-git-tag-version --allow-same-version
 
-      - name: Build frontend and backend bundles
-        run: npm run build:all
-
-      - name: Package Windows Executable with electron-builder
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --win
-
-      - name: Package Chromium-Free Distribution (Zero Terminal)
+      - name: Package Chromium-Free Windows Distribution (Zero Terminal)
         run: node scripts/package-chromium-free.js
 
       - name: Upload Windows Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: AEROLAB-Windows-Build-${{ github.run_number }}
-          path: |
-            release/*.exe
-            release/*.zip
+          path: release/*.zip
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v1.0.{0}', github.run_number) }}
-          files: |
-            release/*.exe
-            release/*.zip
+          files: release/*.zip
           draft: false
           prerelease: false
           generate_release_notes: true

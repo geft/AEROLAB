@@ -26,8 +26,12 @@ console.log('🚀 Packaging Chromium-Free AEROLAB Distribution...');
 // 1. Ensure fresh build
 execSync('node scripts/build-all.js', { cwd: rootDir, stdio: 'inherit' });
 
+const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'));
+const version = pkg.version || '1.0.0';
+
 const targetDir = path.join(rootDir, 'release', 'AEROLAB-ChromiumFree');
-const zipFile = path.join(rootDir, 'release', 'AEROLAB-ChromiumFree-Windows.zip');
+const zipFile = path.join(rootDir, 'release', `AEROLAB-Windows-v${version}.zip`);
+const zipFileGeneric = path.join(rootDir, 'release', 'AEROLAB-Windows.zip');
 
 if (fs.existsSync(targetDir)) {
   fs.rmSync(targetDir, { recursive: true, force: true });
@@ -137,7 +141,7 @@ if (fs.existsSync(zipFile)) {
   fs.unlinkSync(zipFile);
 }
 
-console.log('🗜️  Compressing to AEROLAB-ChromiumFree-Windows.zip...');
+console.log(`🗜️  Compressing to ${path.basename(zipFile)}...`);
 if (process.platform === 'win32') {
   execSync(`powershell -NoProfile -Command "Compress-Archive -Path '${targetDir}\\*' -DestinationPath '${zipFile}' -CompressionLevel Optimal"`, { stdio: 'inherit' });
 } else {
@@ -145,7 +149,8 @@ if (process.platform === 'win32') {
 }
 
 if (fs.existsSync(zipFile)) {
+  fs.copyFileSync(zipFile, zipFileGeneric);
   const stat = fs.statSync(zipFile);
   const sizeMb = (stat.size / 1024 / 1024).toFixed(2);
-  console.log(`\x1b[32m✔ Package complete: ${zipFile} (${sizeMb} MB)\x1b[0m`);
+  console.log(`\x1b[32m✔ Package complete: ${path.basename(zipFile)} (${sizeMb} MB)\x1b[0m`);
 }
