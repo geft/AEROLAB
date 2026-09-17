@@ -151,6 +151,24 @@ profileRouter.patch('/', (req, res) => {
     const tanakaMax = Math.round(208 - 0.7 * ageVal);
     const observedPeak = getObservedPeakHeartRate(db, ageVal);
 
+    // Safeguard resting_hr from accidental reset or corruption
+    if (updates.resting_hr !== undefined) {
+      if (updates.resting_hr === null || updates.resting_hr === '') {
+        return res.status(400).json({
+          code: 'ERR_INVALID_RESTING_HR',
+          error: 'Resting heart rate cannot be null or empty'
+        });
+      }
+      const parsedRhr = Number(updates.resting_hr);
+      if (isNaN(parsedRhr) || parsedRhr < 30 || parsedRhr > 120) {
+        return res.status(400).json({
+          code: 'ERR_INVALID_RESTING_HR',
+          error: 'Resting heart rate must be a valid number between 30 and 120 bpm'
+        });
+      }
+      updates.resting_hr = Math.round(parsedRhr);
+    }
+
     // Handle Max HR Opt-Out / Estimation:
     // If opting out of manual entry, prefer observed peak from real hard runs; otherwise fall back to Tanaka formula
     if (updates.opt_out_max_hr || updates.is_max_hr_estimated) {
@@ -161,7 +179,14 @@ profileRouter.patch('/', (req, res) => {
       }
       updates.is_max_hr_estimated = 1;
     } else if (updates.max_hr !== undefined && !updates.is_max_hr_estimated) {
-      updates.max_hr = Number(updates.max_hr);
+      const parsedMax = Number(updates.max_hr);
+      if (isNaN(parsedMax) || parsedMax < 100 || parsedMax > 240) {
+        return res.status(400).json({
+          code: 'ERR_INVALID_MAX_HR',
+          error: 'Max heart rate must be a valid number between 100 and 240 bpm'
+        });
+      }
+      updates.max_hr = Math.round(parsedMax);
       updates.is_max_hr_estimated = 0;
     }
 

@@ -110,6 +110,12 @@ export const ProfileView: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const parsedRhr = Number(restingHr);
+      if (!restingHr || isNaN(parsedRhr) || parsedRhr < 30 || parsedRhr > 120) {
+        setStatusMessage({ type: 'error', text: 'Resting heart rate must be a valid number between 30 and 120 bpm.' });
+        return;
+      }
+
       setSaving(true);
       setStatusMessage(null);
 
