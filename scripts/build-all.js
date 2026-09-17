@@ -17,4 +17,13 @@ execSync('npx esbuild src/backend/server.ts --bundle --platform=node --format=cj
 console.log('📋 Copying Database Schema...');
 fs.copyFileSync('src/backend/db/schema.sql', 'dist-backend/schema.sql');
 
-console.log('✅ AEROLAB Build Complete (Frontend & Backend)!');
+if (process.platform === 'win32') {
+  const cscPath = 'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe';
+  if (fs.existsSync(cscPath) && fs.existsSync('launcher.cs')) {
+    console.log('🔨 Compiling AEROLAB.exe Native Windows GUI Launcher (Zero Terminal)...');
+    execSync(`"${cscPath}" /nologo /target:winexe /out:AEROLAB.exe /r:System.Windows.Forms.dll launcher.cs`, { stdio: 'inherit' });
+  }
+}
+
+console.log('✅ AEROLAB Build Complete (Frontend, Backend & Native Launcher)!');
+

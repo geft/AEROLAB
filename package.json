@@ -21,6 +21,7 @@
     "realign": "tsx scripts/realign.ts",
     "app": "node scripts/launch-chrome-app.js",
     "start:chrome": "node scripts/launch-chrome-app.js",
+    "package:chromium-free": "node scripts/package-chromium-free.js",
     "process:fit": "tsx scripts/batch-process-fit.ts"
   },
   "build": {
