@@ -14,6 +14,7 @@
 
 import { spawn, execSync } from 'child_process';
 import http from 'http';
+import net from 'net';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -23,6 +24,19 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
+
+function getAvailablePort(startingPort = 3001) {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.listen(startingPort, '127.0.0.1', () => {
+      const port = server.address().port;
+      server.close(() => resolve(port));
+    });
+    server.on('error', () => {
+      resolve(getAvailablePort(startingPort + 1));
+    });
+  });
+}
 
 console.log('\x1b[36m%s\x1b[0m', '====================================================');
 console.log('\x1b[36m%s\x1b[0m', '🏃 AEROLAB — Native App Mode (Chromium-Free)');
@@ -120,48 +134,42 @@ async function main() {
     console.log('\x1b[33m⚠ No Chrome or Edge binary detected. Will launch system default browser.\x1b[0m');
   }
 
-  const port = process.env.PORT || 3001;
+  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : await getAvailablePort(3001);
   let backendProcess = null;
   let ownsBackend = false;
 
-  // Check if an existing AEROLAB backend is already responding
-  const alreadyRunning = await checkHealth(port);
-  if (alreadyRunning) {
-    console.log(`\x1b[32m✔ Connected to active AEROLAB server on port ${port}.\x1b[0m`);
-  } else {
-    console.log(`🚀 Starting local AEROLAB engine on port ${port}...`);
+  console.log(`🚀 Starting local AEROLAB engine on port ${port}...`);
 
-    const serverCjsPath = path.join(rootDir, 'dist-backend', 'server.cjs');
-    const distHtmlPath = path.join(rootDir, 'dist', 'index.html');
+  const serverCjsPath = path.join(rootDir, 'dist-backend', 'server.cjs');
+  const distHtmlPath = path.join(rootDir, 'dist', 'index.html');
 
-    if (!fs.existsSync(serverCjsPath) || !fs.existsSync(distHtmlPath)) {
-      console.log('📦 Production bundle not found. Building project...');
-      execSync('node scripts/build-all.js', { cwd: rootDir, stdio: 'inherit' });
-    }
+  if (!fs.existsSync(serverCjsPath) || !fs.existsSync(distHtmlPath)) {
+    console.log('📦 Production bundle not found. Building project...');
+    execSync('node scripts/build-all.js', { cwd: rootDir, stdio: 'inherit' });
+  }
 
-    const userDataDir = process.env.APPDATA
-      ? path.join(process.env.APPDATA, 'aerolab')
-      : path.join(os.homedir(), '.aerolab');
-    const dbPath = path.join(userDataDir, 'runs.db');
+  const userDataDir = process.env.APPDATA
+    ? path.join(process.env.APPDATA, 'aerolab')
+    : path.join(os.homedir(), '.aerolab');
+  const dbPath = path.join(userDataDir, 'runs.db');
 
-    backendProcess = spawn(process.execPath, [serverCjsPath], {
-      cwd: rootDir,
-      env: {
-        ...process.env,
-        PORT: String(port),
-        DATABASE_PATH: dbPath
-      },
-      stdio: 'inherit'
-    });
+  backendProcess = spawn(process.execPath, [serverCjsPath], {
+    cwd: rootDir,
+    env: {
+      ...process.env,
+      PORT: String(port),
+      DATABASE_PATH: dbPath
+    },
+    stdio: 'inherit'
+  });
 
-    ownsBackend = true;
+  ownsBackend = true;
 
-    const ready = await waitForServer(port);
-    if (!ready) {
-      console.error('\x1b[31m✖ Failed to connect to local AEROLAB backend.\x1b[0m');
-      if (backendProcess) backendProcess.kill();
-      process.exit(1);
-    }
+  const ready = await waitForServer(port);
+  if (!ready) {
+    console.error('\x1b[31m✖ Failed to connect to local AEROLAB backend.\x1b[0m');
+    if (backendProcess) backendProcess.kill();
+    process.exit(1);
   }
 
   const appUrl = `http://127.0.0.1:${port}`;
