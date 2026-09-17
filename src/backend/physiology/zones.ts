@@ -51,13 +51,13 @@ export function getDefaultZones(
   }
 
   // Karvonen Heart Rate Reserve (HRR) Model
-  const rhr = restingHr || 50;
+  const rhr = restingHr || 54;
   const lt1 = lt1Hr || 148;
   const lt2 = lt2Hr || 167;
 
   // HRR Zone 1 active recovery ceiling (~54% HRR, bounded below LT1 - 14)
   const z1Upper = Math.min(lt1 - 14, Math.round(rhr + (maxHr - rhr) * 0.54));
-  // HRR Zone 4 threshold ceiling: 90% HRR (e.g. ~188 bpm for 203 max / 50 rhr)
+  // HRR Zone 4 threshold ceiling: 90% HRR (e.g. ~188 bpm for 203 max / 54 rhr)
   const z4Upper = Math.round(rhr + (maxHr - rhr) * 0.90);
 
   return {

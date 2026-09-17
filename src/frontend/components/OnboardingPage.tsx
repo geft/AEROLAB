@@ -246,7 +246,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
                 required
                 min={30}
                 max={100}
-                placeholder="e.g. 50"
+                placeholder="e.g. 54"
                 value={restingHr}
                 onChange={e => setRestingHr(e.target.value)}
                 style={inputStyle}
