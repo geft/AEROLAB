@@ -268,13 +268,6 @@ export function calculateEconomy(records: ActivityRecord[]): EconomyMetrics {
     }
   }
 
-  const avgSpeedMps = speedCount > 0 ? totalSpeed / speedCount : 0;
-  const avgHr = hrCount > 0 ? totalHr / hrCount : 0;
-
-  // Efficiency Factor = Speed (m/min) / HR
-  const speedMpm = avgSpeedMps * 60;
-  const efficiencyFactor = avgHr > 0 ? Number((speedMpm / avgHr).toFixed(4)) : null;
-
   // Moving distance & duration
   const startDist = activeRecords[0].distanceMeters ?? 0;
   const endDist = activeRecords[activeRecords.length - 1].distanceMeters ?? startDist;
@@ -282,6 +275,19 @@ export function calculateEconomy(records: ActivityRecord[]): EconomyMetrics {
   const firstSec = activeRecords[0].elapsedSeconds ?? 0;
   const lastSec = activeRecords[activeRecords.length - 1].elapsedSeconds ?? activeRecords.length;
   const movingDurationSeconds = Math.max(activeRecords.length, lastSec - firstSec);
+
+  const rawAvgSpeedMps = speedCount > 0 ? totalSpeed / speedCount : 0;
+  const fallbackSpeedMps = movingDurationSeconds > 0 ? movingDistanceMeters / movingDurationSeconds : 0;
+  // Guard against corrupt sensor speed spikes or flat corrupt speed records:
+  // If sensor speed wildly deviates from actual distance/time (>50% divergence), prefer distance/time.
+  const avgSpeedMps = (rawAvgSpeedMps > 0 && fallbackSpeedMps > 0 && Math.abs(rawAvgSpeedMps - fallbackSpeedMps) / fallbackSpeedMps > 0.5)
+    ? fallbackSpeedMps
+    : (rawAvgSpeedMps > 0 ? rawAvgSpeedMps : fallbackSpeedMps);
+  const avgHr = hrCount > 0 ? totalHr / hrCount : 0;
+
+  // Efficiency Factor = Speed (m/min) / HR
+  const speedMpm = avgSpeedMps * 60;
+  const efficiencyFactor = avgHr > 0 && speedMpm > 0 ? Number((speedMpm / avgHr).toFixed(4)) : null;
 
   // Meters per Beat
   let metersPerBeat: number | null = null;
@@ -376,8 +382,20 @@ function calculateHalfEF(halfRecords: ActivityRecord[]): number | null {
     }
   }
 
-  if (speedCount === 0 || hrCount === 0) return null;
-  const avgSpeed = (speedSum / speedCount) * 60; // m/min
+  if (hrCount === 0) return null;
+  const startDist = halfRecords[0].distanceMeters ?? 0;
+  const endDist = halfRecords[halfRecords.length - 1].distanceMeters ?? startDist;
+  const dist = Math.max(0, endDist - startDist);
+  const dur = Math.max(1, (halfRecords[halfRecords.length - 1].elapsedSeconds - halfRecords[0].elapsedSeconds));
+  const fallbackSpeed = dur > 0 ? dist / dur : 0;
+
+  const rawAvg = speedCount > 0 ? speedSum / speedCount : fallbackSpeed;
+  const avgSpeedMps = (rawAvg > 0 && fallbackSpeed > 0 && Math.abs(rawAvg - fallbackSpeed) / fallbackSpeed > 0.5)
+    ? fallbackSpeed
+    : (rawAvg > 0 ? rawAvg : fallbackSpeed);
+
+  if (avgSpeedMps <= 0) return null;
+  const avgSpeed = avgSpeedMps * 60; // m/min
   const avgHr = hrSum / hrCount;
   return avgHr > 0 ? avgSpeed / avgHr : null;
 }
@@ -421,7 +439,11 @@ export function calculateKmSplits(records: ActivityRecord[], splitDistanceMeters
         }
 
         const avgHr = hrCount > 0 ? Math.round(hrSum / hrCount) : 0;
-        const avgSpeedMps = speedCount > 0 ? speedSum / speedCount : actualDist / durationSec;
+        const actualSpeedMps = durationSec > 0 ? actualDist / durationSec : 0;
+        const rawSpeedMps = speedCount > 0 ? speedSum / speedCount : actualSpeedMps;
+        const avgSpeedMps = (rawSpeedMps > 0 && actualSpeedMps > 0 && Math.abs(rawSpeedMps - actualSpeedMps) / actualSpeedMps > 0.5)
+          ? actualSpeedMps
+          : (rawSpeedMps > 0 ? rawSpeedMps : actualSpeedMps);
         const avgPaceSecKm = avgSpeedMps > 0 ? Math.round(1000 / avgSpeedMps) : 0;
         const avgCadence = cadCount > 0 ? Math.round(cadSum / cadCount) : null;
         const avgStanceTimeMs = stanceCount > 0 ? Number((stanceSum / stanceCount).toFixed(1)) : null;

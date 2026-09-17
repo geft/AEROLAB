@@ -925,13 +925,12 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                   )}
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.66rem', color: 'var(--text-muted)', opacity: 0.85 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.66rem', color: 'var(--text-muted)', opacity: 0.85 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <span style={{ color: '#10b981' }}>● Base</span>
                     <span style={{ color: '#f59e0b' }}>● Threshold</span>
                     <span style={{ color: '#a855f7' }}>● VO2 Max</span>
                   </span>
-                  <span>Click day to select run</span>
                 </div>
               </div>
             </div>

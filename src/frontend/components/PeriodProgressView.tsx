@@ -56,12 +56,13 @@ export const PeriodProgressView: React.FC = () => {
   const maxEf = efValues.length > 0 ? Math.max(...efValues, 1.3) : 1.3;
   const efSpan = Math.max(0.1, maxEf - minEf);
 
-  const chartWidth = 720;
-  const chartHeight = 220;
+  const colWidth = periods.length > 12 ? 66 : periods.length > 6 ? 74 : 110;
   const paddingLeft = 55;
   const paddingRight = 55;
   const paddingTop = 25;
-  const paddingBottom = 40;
+  const paddingBottom = 46;
+  const chartWidth = Math.max(840, periods.length * colWidth + paddingLeft + paddingRight);
+  const chartHeight = 236;
   const innerWidth = chartWidth - paddingLeft - paddingRight;
   const innerHeight = chartHeight - paddingTop - paddingBottom;
 
@@ -200,10 +201,10 @@ export const PeriodProgressView: React.FC = () => {
           </span>
         </div>
 
-        <div className="svg-chart-wrapper" style={{ width: '100%', overflowX: 'auto' }}>
+        <div className="svg-chart-wrapper" style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           <svg
             viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-            style={{ width: '100%', height: 'auto', maxHeight: 260, display: 'block' }}
+            style={{ width: '100%', minWidth: `${Math.min(chartWidth, Math.max(760, periods.length * 60))}px`, height: 'auto', maxHeight: 280, display: 'block' }}
           >
             <defs>
               <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
@@ -264,10 +265,32 @@ export const PeriodProgressView: React.FC = () => {
             {/* Volume Bars */}
             {periods.map((p, idx) => {
               const xCenter = getX(idx);
-              const barW = Math.min(42, Math.max(22, (innerWidth / periods.length) * 0.45));
+              const barW = Math.min(38, Math.max(20, (innerWidth / periods.length) * 0.45));
               const barH = getBarHeight(p.totalDistanceKm);
               const barY = paddingTop + innerHeight - barH;
               const isHovered = hoveredIndex === idx;
+
+              // Format top-of-bar distance (round >= 100km to avoid wide text overflow)
+              const formattedDistKm = p.totalDistanceKm >= 100
+                ? `${Math.round(p.totalDistanceKm)}k`
+                : `${p.totalDistanceKm}k`;
+
+              // Separate month from year in Month view to prevent cramped collisions
+              const isMonthView = activePeriodType === 'month';
+              let primaryLabel = p.label;
+              let yearBadge: string | null = null;
+
+              if (isMonthView && p.period && p.period.includes('-')) {
+                const [yr, mo] = p.period.split('-');
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const mIdx = parseInt(mo, 10) - 1;
+                primaryLabel = monthNames[mIdx] || p.label;
+                const prevYr = idx > 0 ? periods[idx - 1]?.period?.split('-')[0] : null;
+                const isYearStart = idx === 0 || yr !== prevYr;
+                if (isYearStart) {
+                  yearBadge = yr;
+                }
+              }
 
               return (
                 <g
@@ -306,29 +329,57 @@ export const PeriodProgressView: React.FC = () => {
                     fontWeight="600"
                     textAnchor="middle"
                   >
-                    {p.totalDistanceKm}k
+                    {formattedDistKm}
                   </text>
 
-                  {/* X-Axis Period Label */}
+                  {/* X-Axis Period Label (Clean 3-letter month or season title) */}
                   <text
                     x={xCenter}
-                    y={paddingTop + innerHeight + 18}
+                    y={paddingTop + innerHeight + 16}
                     fill={isHovered ? 'var(--text-primary)' : 'var(--text-secondary)'}
                     fontSize="11"
-                    fontWeight={isHovered ? '700' : '500'}
+                    fontWeight={isHovered ? '700' : '600'}
                     textAnchor="middle"
                   >
-                    {p.label}
+                    {primaryLabel}
                   </text>
-                  <text
-                    x={xCenter}
-                    y={paddingTop + innerHeight + 30}
-                    fill="var(--text-muted)"
-                    fontSize="9.5"
-                    textAnchor="middle"
-                  >
-                    {p.runCount} {p.runCount === 1 ? 'run' : 'runs'}
-                  </text>
+
+                  {/* Secondary Line: Year transition marker or run count */}
+                  {yearBadge ? (
+                    <text
+                      x={xCenter}
+                      y={paddingTop + innerHeight + 28}
+                      fill="#38bdf8"
+                      fontSize="9"
+                      fontWeight="700"
+                      textAnchor="middle"
+                    >
+                      {yearBadge}
+                    </text>
+                  ) : (
+                    <text
+                      x={xCenter}
+                      y={paddingTop + innerHeight + 28}
+                      fill="var(--text-muted)"
+                      fontSize="9"
+                      textAnchor="middle"
+                    >
+                      {p.runCount} {p.runCount === 1 ? 'run' : 'runs'}
+                    </text>
+                  )}
+
+                  {/* Tertiary Line: Run count when Year transition marker is active */}
+                  {yearBadge && (
+                    <text
+                      x={xCenter}
+                      y={paddingTop + innerHeight + 39}
+                      fill="var(--text-muted)"
+                      fontSize="8.5"
+                      textAnchor="middle"
+                    >
+                      {p.runCount} {p.runCount === 1 ? 'run' : 'runs'}
+                    </text>
+                  )}
                 </g>
               );
             })}

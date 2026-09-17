@@ -1,6 +1,6 @@
 import { detectIntervals } from '../ingestion/interval-detector.js';
 import { classifyRun } from '../ingestion/classifier.js';
-import { calculateEconomy } from '../physiology/economy.js';
+import { calculateEconomy, calculateKmSplits } from '../physiology/economy.js';
 import { evaluateThresholdUpdate, getCurrentThresholds } from '../physiology/threshold-tracker.js';
 import { syncAllCoachSummaries } from '../physiology/coach-summary.js';
 
@@ -121,6 +121,14 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
+  const insertSplit = db.prepare(`
+    INSERT INTO activity_splits (
+      activity_id, split_index, distance_meters, duration_seconds,
+      avg_pace_sec_km, avg_heart_rate, split_efficiency_factor, elevation_change_m,
+      avg_cadence, avg_stance_time, avg_vert_osc, avg_vert_ratio
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
   // Phase 1: per-activity intervals + classification + tags (isolated).
   // Threshold rows are left untouched here; phase 2 rebuilds them from scratch.
   const evaluated: { act: any; meta: any; mapped: any[]; economy: any; runType: string }[] = [];
@@ -185,8 +193,53 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
       if (act.run_type !== classification.runType) {
         stats.runTypeChanges.push({ id: act.id, from: act.run_type, to: classification.runType });
       }
-      db.prepare('UPDATE activities SET run_type = ?, auto_run_type = ?, tags = ? WHERE id = ?')
-        .run(classification.runType, classification.runType, JSON.stringify(tags), act.id);
+      db.prepare(`
+        UPDATE activities SET
+          run_type = ?,
+          auto_run_type = ?,
+          tags = ?,
+          efficiency_factor = ?,
+          aerobic_decoupling_pct = ?,
+          meters_per_beat = ?,
+          steady_pace_sec_km = ?,
+          steady_heart_rate = ?,
+          steady_cadence = ?,
+          steady_stance_time = ?
+        WHERE id = ?
+      `).run(
+        classification.runType,
+        classification.runType,
+        JSON.stringify(tags),
+        economy.efficiencyFactor,
+        economy.aerobicDecouplingPct,
+        economy.metersPerBeat,
+        economy.steadyPaceSecKm,
+        economy.steadyHeartRate,
+        economy.steadyCadence,
+        economy.steadyStanceTimeMs,
+        act.id
+      );
+
+      const splits = calculateKmSplits(mapped as any, 1000);
+      if (splits.length > 0) {
+        db.prepare('DELETE FROM activity_splits WHERE activity_id = ?').run(act.id);
+        for (const s of splits) {
+          insertSplit.run(
+            act.id,
+            s.splitIndex,
+            s.distanceMeters,
+            s.durationSeconds,
+            s.avgPaceSecKm,
+            s.avgHeartRate,
+            s.splitEfficiencyFactor,
+            s.elevationChangeM,
+            s.avgCadence ?? null,
+            s.avgStanceTimeMs ?? null,
+            s.avgVertOscMm ?? null,
+            s.avgVertRatioPct ?? null
+          );
+        }
+      }
 
       evaluated.push({ act, meta, mapped, economy, runType: classification.runType });
       stats.activitiesProcessed++;
