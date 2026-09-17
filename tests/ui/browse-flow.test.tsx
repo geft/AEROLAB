@@ -415,6 +415,45 @@ describe('BrowseView User Flow & Navigation Tests', () => {
       expect(screen.getByText(/-40/)).toBeTruthy(); // Recovery drop after work rep
     });
   });
+
+  it('toggles interactive calendar date picker, selects day, and clears filter', async () => {
+    const onSelect = vi.fn();
+    render(
+      <BrowseView
+        activities={mockActivities}
+        selectedActivityId="act-101"
+        onSelectActivity={onSelect}
+        onOpenUpload={vi.fn()}
+        theme="dark"
+      />
+    );
+
+    // Initial header displays "Sessions" cleanly
+    expect(screen.getByText('Sessions')).toBeTruthy();
+
+    // Toggle calendar open
+    const calToggleBtn = screen.getByRole('button', { name: /calendar/i });
+    fireEvent.click(calToggleBtn);
+
+    // Calendar popover is now visible with month header
+    expect(screen.getAllByText(/September 2026/i).length).toBeGreaterThanOrEqual(1);
+
+    // Click on day 12 (act-101 date)
+    const day12Btn = screen.getByTitle(/2026-09-12: 1 run\(s\)/i);
+    expect(day12Btn).toBeTruthy();
+    fireEvent.click(day12Btn);
+
+    // onSelectActivity should be triggered
+    expect(onSelect).toHaveBeenCalledWith('act-101');
+
+    // Dedicated active filter bar should now be visible with clear button
+    const clearBtn = screen.getByTitle(/show all sessions/i);
+    expect(clearBtn).toBeTruthy();
+    fireEvent.click(clearBtn);
+
+    // Filter reset back to all sessions
+    expect(screen.queryByTitle(/show all sessions/i)).toBeNull();
+  });
 });
 
 

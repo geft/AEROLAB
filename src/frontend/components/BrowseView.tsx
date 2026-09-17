@@ -209,15 +209,6 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
     return counts;
   }, [activities]);
 
-  // Derive unique year-months from activities
-  const monthOptions = React.useMemo(() => {
-    const set = new Set<string>();
-    activities.forEach(a => {
-      const ym = a.start_time.substring(0, 7);
-      if (ym) set.add(ym);
-    });
-    return Array.from(set).sort().reverse();
-  }, [activities]);
 
   // Map dates (YYYY-MM-DD) to activity IDs and run types for the calendar
   const activeDatesMap = React.useMemo(() => {
@@ -486,91 +477,115 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
 
       {/* Left Sidebar: Sessions List & Interactive Calendar Picker */}
       <aside className="sidebar-panel">
-        <div className="sidebar-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <span className="sidebar-title">Sessions ({filteredActivities.length})</span>
-            {selectedDate && (
-              <button
-                type="button"
-                onClick={() => setSelectedDate(null)}
-                style={{
-                  background: 'rgba(6, 182, 212, 0.15)',
-                  border: '1px solid rgba(6, 182, 212, 0.4)',
-                  color: '#38bdf8',
-                  borderRadius: 999,
-                  fontSize: '0.68rem',
-                  fontWeight: 600,
-                  padding: '0.1rem 0.45rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.2rem'
-                }}
-                title="Clear date filter"
-              >
-                <span>{new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                <X size={11} />
-              </button>
-            )}
+        <div className="sidebar-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', width: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', minWidth: 0 }}>
+            <span className="sidebar-title" style={{ whiteSpace: 'nowrap' }}>Sessions</span>
+            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+              ({filteredActivities.length})
+            </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <button
+            type="button"
+            id="calendar-toggle-btn"
+            onClick={() => {
+              setShowCalendar(prev => !prev);
+              if (!showCalendar && activities.length > 0) {
+                const targetYm = selectedDate
+                  ? selectedDate.substring(0, 7)
+                  : selectedMonth !== 'all'
+                    ? selectedMonth
+                    : (activities[0]?.start_time?.substring(0, 7) || calendarViewYm);
+                setCalendarViewYm(targetYm);
+              }
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              background: showCalendar
+                ? 'var(--accent-cyan)'
+                : selectedDate || selectedMonth !== 'all'
+                  ? 'rgba(6, 182, 212, 0.15)'
+                  : 'rgba(255, 255, 255, 0.05)',
+              color: showCalendar
+                ? '#07090e'
+                : selectedDate || selectedMonth !== 'all'
+                  ? '#38bdf8'
+                  : 'var(--text-primary)',
+              border: showCalendar
+                ? '1px solid var(--accent-cyan)'
+                : selectedDate || selectedMonth !== 'all'
+                  ? '1px solid rgba(6, 182, 212, 0.4)'
+                  : '1px solid var(--border-subtle)',
+              borderRadius: 6,
+              padding: '0.3rem 0.55rem',
+              fontSize: '0.76rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              whiteSpace: 'nowrap',
+              flexShrink: 0
+            }}
+            title={showCalendar ? 'Close date calendar' : 'Filter sessions by date'}
+          >
+            <Calendar size={13} />
+            <span>{showCalendar ? 'Close' : (selectedDate ? new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Calendar')}</span>
+          </button>
+        </div>
+
+        {/* Dedicated Active Date/Month Filter Bar */}
+        {(selectedDate || selectedMonth !== 'all') && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'rgba(6, 182, 212, 0.08)',
+              border: '1px solid rgba(6, 182, 212, 0.25)',
+              borderRadius: 6,
+              padding: '0.3rem 0.6rem',
+              fontSize: '0.74rem',
+              color: '#38bdf8'
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <Calendar size={12} style={{ flexShrink: 0 }} />
+              <strong>
+                {selectedDate
+                  ? new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                  : new Date(`${selectedMonth}-01`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </strong>
+              <span style={{ color: 'var(--text-muted)' }}>({filteredActivities.length})</span>
+            </span>
             <button
               type="button"
-              id="calendar-toggle-btn"
               onClick={() => {
-                setShowCalendar(prev => !prev);
-                if (!showCalendar && activities.length > 0) {
-                  const targetYm = selectedDate
-                    ? selectedDate.substring(0, 7)
-                    : selectedMonth !== 'all'
-                      ? selectedMonth
-                      : (activities[0]?.start_time?.substring(0, 7) || calendarViewYm);
-                  setCalendarViewYm(targetYm);
-                }
+                setSelectedDate(null);
+                setSelectedMonth('all');
               }}
               style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.35rem',
-                background: showCalendar ? 'var(--accent-cyan)' : 'var(--bg-surface)',
-                color: showCalendar ? '#07090e' : 'var(--text-primary)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 6,
-                padding: '0.32rem 0.6rem',
-                fontSize: '0.78rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
+                gap: '0.2rem',
+                fontSize: '0.72rem',
+                padding: '0.1rem 0.25rem',
+                borderRadius: 4,
+                flexShrink: 0
               }}
-              title="Open date calendar picker"
+              onMouseEnter={e => (e.currentTarget.style.color = '#f43f5e')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+              title="Show all sessions"
             >
-              <Calendar size={14} />
-              <span>Dates</span>
+              <span>All</span>
+              <X size={11} />
             </button>
-
-            <select
-              className="month-picker-select"
-              value={selectedMonth}
-              onChange={e => {
-                setSelectedMonth(e.target.value);
-                setSelectedDate(null); // clear specific date filter when picking month
-              }}
-            >
-              <option value="all">All Months</option>
-              {monthOptions.map(ym => {
-                const count = activities.filter(a => a.start_time.startsWith(ym)).length;
-                const dateObj = new Date(`${ym}-01`);
-                const label = dateObj.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                return (
-                  <option key={ym} value={ym}>
-                    {label} ({count})
-                  </option>
-                );
-              })}
-            </select>
           </div>
-        </div>
+        )}
 
         {/* Interactive Calendar Dropdown / Popover */}
         {showCalendar && (() => {
@@ -748,26 +763,64 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               </div>
 
               {/* Quick Actions Footer */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.4rem', borderTop: '1px solid var(--border-subtle)', fontSize: '0.72rem' }}>
-                <span style={{ color: 'var(--text-muted)' }}>
-                  <b style={{ color: 'var(--accent-cyan)' }}>●</b> = Session recorded
-                </span>
-                {selectedDate && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDate(null)}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#f43f5e',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      fontSize: '0.72rem'
-                    }}
-                  >
-                    Clear Filter
-                  </button>
-                )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', paddingTop: '0.4rem', borderTop: '1px solid var(--border-subtle)', fontSize: '0.72rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  {(() => {
+                    const monthRunCount = activities.filter(a => a.start_time.startsWith(calendarViewYm)).length;
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedMonth(calendarViewYm);
+                          setSelectedDate(null);
+                        }}
+                        style={{
+                          background: selectedMonth === calendarViewYm && !selectedDate ? 'rgba(6, 182, 212, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: 4,
+                          color: selectedMonth === calendarViewYm && !selectedDate ? '#38bdf8' : 'var(--text-secondary)',
+                          padding: '0.2rem 0.5rem',
+                          cursor: 'pointer',
+                          fontSize: '0.7rem',
+                          fontWeight: 600
+                        }}
+                      >
+                        All in {monthLabel.split(' ')[0]} ({monthRunCount})
+                      </button>
+                    );
+                  })()}
+
+                  {(selectedDate || selectedMonth !== 'all') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDate(null);
+                        setSelectedMonth('all');
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        fontSize: '0.7rem'
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.color = '#f43f5e')}
+                      onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+                    >
+                      Show All Runs
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.66rem', color: 'var(--text-muted)', opacity: 0.85 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span style={{ color: '#10b981' }}>● Base</span>
+                    <span style={{ color: '#f59e0b' }}>● Threshold</span>
+                    <span style={{ color: '#a855f7' }}>● VO2 Max</span>
+                  </span>
+                  <span>Click day to select run</span>
+                </div>
               </div>
             </div>
           );
