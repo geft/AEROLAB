@@ -222,10 +222,14 @@ export function getCurrentThresholds(db: Database.Database): {
       LIMIT 1
     `).get() as any;
 
-    const profile = db.prepare('SELECT lt1_hr, lt2_hr FROM athlete_profile WHERE id = ?').get('primary') as any;
+    const profile = db.prepare('SELECT lt1_hr, lt2_hr, max_hr, resting_hr, age FROM athlete_profile WHERE id = ?').get('primary') as any;
+    const effMax = profile?.max_hr || (profile?.age ? Math.round(208 - 0.7 * profile.age) : 185);
+    const effRhr = profile?.resting_hr || 50;
+    const fallbackLt1 = Math.round(effRhr + (effMax - effRhr) * 0.65);
+    const fallbackLt2 = Math.round(effRhr + (effMax - effRhr) * 0.82);
 
-    const lt1Hr = latestLt1?.lt1_hr || profile?.lt1_hr || 148;
-    const lt2Hr = latestLt2?.lt2_hr || profile?.lt2_hr || 167;
+    const lt1Hr = latestLt1?.lt1_hr || profile?.lt1_hr || fallbackLt1;
+    const lt2Hr = latestLt2?.lt2_hr || profile?.lt2_hr || fallbackLt2;
 
     return {
       lt1Hr,

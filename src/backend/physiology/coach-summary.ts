@@ -83,8 +83,8 @@ export function generateCoachSummary(params: {
   const effectivePaceSecKm = steadyPaceSecKm || avgPaceSecKm;
   const effectiveGct = steadyStanceTime || groundContactTime;
 
-  const lt1 = params.lt1Hr || 153;
-  const lt2 = params.lt2Hr || 167;
+  const lt1 = params.lt1Hr || (params.maxHeartRate ? Math.round(params.maxHeartRate * 0.73) : 148);
+  const lt2 = params.lt2Hr || (params.maxHeartRate ? Math.round(params.maxHeartRate * 0.85) : 167);
 
   const insights: string[] = [];
   const scoreBreakdown: ScoreFactor[] = [];
@@ -219,7 +219,7 @@ export function generateCoachSummary(params: {
 
       // Check Peak HR reached (true cardiovascular stimulus for VO2 Max)
       const maxWorkHr = Math.max(...workReps.map((r: any) => r.max_heart_rate ?? r.maxHeartRate ?? 0));
-      const maxProfileHr = params.maxHeartRate || 203;
+      const maxProfileHr = params.maxHeartRate || 185;
       if (runType === 'intervals_vo2' && maxWorkHr > 0) {
         const pctMax = (maxWorkHr / maxProfileHr) * 100;
         if (pctMax >= 88) {
@@ -281,7 +281,7 @@ export function generateCoachSummary(params: {
       // Fallback: active running splits
       raceSplits = params.splits.filter((s: any) => {
         const p = s.avg_pace_sec_km || s.avgPaceSecKm || 0;
-        return p > 120 && p < 480;
+        return p > 120 && p < 720;
       });
     }
 
@@ -352,7 +352,7 @@ export function generateCoachSummary(params: {
   }
 
   // Cadence insight (evaluated on true steady-state running)
-  if (effectiveCadence >= 174 && effectiveCadence <= 184) {
+  if (effectiveCadence >= 172 && effectiveCadence <= 186) {
     score += 4;
     scoreBreakdown.push({
       category: 'Running Turnover',
@@ -361,7 +361,7 @@ export function generateCoachSummary(params: {
       description: `Steady running cadence averaged ${effectiveCadence} spm`
     });
     insights.push(`Cadence was right in the sweet spot (${effectiveCadence} spm), minimizing vertical braking forces and maximizing elastic recoil.`);
-  } else if (effectiveCadence > 184) {
+  } else if (effectiveCadence > 186) {
     insights.push(`High turnover (${effectiveCadence} spm) maintained during steady running, promoting quick foot turnover.`);
   } else if (effectiveCadence < 165) {
     score -= 3;
@@ -400,8 +400,9 @@ export function generateCoachSummary(params: {
   }
 
   // Pacing discipline check for easy runs (detect accidental tempo using steady running HR & personalized LT1)
+  const hrFloor = params.restingHr ? params.restingHr + 15 : 120;
   const isAccidentalTempo = (runType === 'easy_base' || runType === 'accidental_tempo' || runType === 'recovery')
-    && effectiveHr > 130
+    && effectiveHr > hrFloor
     && (effectiveHr >= lt1 || (decouplingPct !== null && decouplingPct >= 6.5));
 
   if (isAccidentalTempo) {
@@ -491,16 +492,16 @@ export function syncActivityCoachSummary(
   const splits = db.prepare('SELECT * FROM activity_splits WHERE activity_id = ? ORDER BY split_index ASC').all(activityId) as any[];
 
   const profile = db.prepare('SELECT * FROM athlete_profile WHERE id = ?').get('primary') as any;
-  const lt1Hr = profile?.lt1_hr || (profile?.z3_start_hr ? profile.z3_start_hr - 1 : 148);
-  const lt2Hr = profile?.lt2_hr || profile?.z4_start_hr || 167;
-  const maxHeartRate = profile?.max_hr || 203;
-  const restingHr = profile?.resting_hr || 55;
+  const maxHeartRate = profile?.max_hr || (profile?.age ? Math.round(208 - 0.7 * profile.age) : 185);
+  const restingHr = profile?.resting_hr || 50;
+  const lt1Hr = profile?.lt1_hr || (profile?.z3_start_hr ? profile.z3_start_hr - 1 : Math.round(restingHr + (maxHeartRate - restingHr) * 0.65));
+  const lt2Hr = profile?.lt2_hr || profile?.z4_start_hr || Math.round(restingHr + (maxHeartRate - restingHr) * 0.82);
 
   const coachSummary = generateCoachSummary({
     runType: overrides?.runType || activity.run_type || 'easy_base',
     distanceKm: (activity.distance_meters || 0) / 1000,
     durationMin: (activity.duration_seconds || 0) / 60,
-    avgPaceSecKm: activity.avg_pace_sec_km || 330,
+    avgPaceSecKm: activity.avg_pace_sec_km || (activity.distance_meters ? Math.round((activity.duration_seconds / activity.distance_meters) * 1000) : 360),
     avgHr: activity.avg_heart_rate || 140,
     maxHr: activity.max_heart_rate || 160,
     cadence: activity.avg_cadence || 170,

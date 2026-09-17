@@ -133,14 +133,14 @@ export function classifyRun(
 
     // B. VO2 Max Intervals: short repeated structure (median work <= 6 min,
     //    2+ reps) with Z5 spikes (profile-relative max-HR attainment).
-    const vo2RepCount = workIntervals.filter(i => i.maxHeartRate >= z5Floor).length;
+    const vo2RepCount = workIntervals.filter(i => i.maxHeartRate >= z5Floor || i.maxHeartRate >= z4Floor + 3).length;
     const isVo2Intervals =
       workIntervals.length >= 2 &&
       medianWorkSec <= 360 &&
-      (vo2RepCount >= 1 || zoneDist.z5Pct >= 4 || avgWorkHr >= z4Floor - 5);
+      (vo2RepCount >= 1 || zoneDist.z5Pct >= 4 || avgWorkHr >= z4Floor - 8 || nameLower.includes('vo2'));
 
     if (isVo2Intervals) {
-      const stimulusMissed = maxWorkHr < z4Floor;
+      const stimulusMissed = maxWorkHr < z4Floor - 6;
       const isFailed =
         stimulusMissed ||
         totalWorkDurationSec < 360 ||

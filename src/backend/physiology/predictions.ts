@@ -40,7 +40,7 @@ export function calculateRacePredictions(
   // VDOT / VO2max estimate from threshold pace (approximate Jack Daniels formula)
   const vMpm = (1000 / thresholdPace) * 60;
   const rawVo2 = -4.6 + 0.182258 * vMpm + 0.000104 * Math.pow(vMpm, 2);
-  const estimatedVo2Max = Number(Math.max(30, Math.min(85, rawVo2 / 0.88)).toFixed(1));
+  const estimatedVo2Max = Number(Math.max(15, Math.min(85, rawVo2 / 0.88)).toFixed(1));
 
   // Ratios relative to LT2 threshold pace:
   // 5K: ~5% faster than LT2

@@ -3,7 +3,7 @@ import { getDatabase } from '../db/client.js';
 import { calculateRacePredictions } from '../physiology/predictions.js';
 import { getCurrentThresholds } from '../physiology/threshold-tracker.js';
 import { getDefaultZones } from '../physiology/zones.js';
-import { getObservedPeakHeartRate } from './profile.js';
+import { getObservedPeakHeartRate, calculateAgeFromDob } from './profile.js';
 
 export const thresholdsRouter = Router();
 
@@ -25,9 +25,11 @@ thresholdsRouter.get('/', (req, res) => {
     `).all();
 
     const currentThresholds = getCurrentThresholds(db);
-    const profile = db.prepare('SELECT max_hr, resting_hr, is_max_hr_estimated FROM athlete_profile WHERE id = ?').get('primary') as any;
+    const profile = db.prepare('SELECT max_hr, resting_hr, is_max_hr_estimated, dob, age FROM athlete_profile WHERE id = ?').get('primary') as any;
+    const dynamicAge = profile?.dob ? calculateAgeFromDob(profile.dob, profile?.age || 35) : (profile?.age || 35);
+    const tanakaMaxHr = Math.round(208 - 0.7 * dynamicAge);
     const observedPeak = getObservedPeakHeartRate(db);
-    const effectiveMaxHr = Math.max(Number(profile?.max_hr) || 203, observedPeak?.peakHr || 0);
+    const effectiveMaxHr = Math.max(Number(profile?.max_hr) || tanakaMaxHr, observedPeak?.peakHr || 0);
     const zones = getDefaultZones(
       effectiveMaxHr,
       currentThresholds.lt1Hr,
@@ -98,8 +100,11 @@ thresholdsRouter.get('/', (req, res) => {
         if (match) {
           const totalSec = parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
           benchmark5kPace = Math.round(totalSec / 5);
-        } else if (/sub\s*23/i.test(profile.pb_5k)) {
-          benchmark5kPace = 274;
+        } else {
+          const minMatch = profile.pb_5k.match(/(\d{1,2})\s*(?:min|m)?/i);
+          if (minMatch && parseInt(minMatch[1], 10) >= 12 && parseInt(minMatch[1], 10) <= 60) {
+            benchmark5kPace = Math.round((parseInt(minMatch[1], 10) * 60) / 5);
+          }
         }
       }
     }

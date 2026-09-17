@@ -24,17 +24,17 @@ export const ProfileView: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Form local state
-  const [dob, setDob] = useState('1989-04-15');
+  // Form local state (unloaded initially; populated strictly from API)
+  const [dob, setDob] = useState('');
   const [gender, setGender] = useState('Prefer not to say');
-  const [restingHr, setRestingHr] = useState(55);
-  const [manualMaxHr, setManualMaxHr] = useState(203);
+  const [restingHr, setRestingHr] = useState<number | string>('');
+  const [manualMaxHr, setManualMaxHr] = useState<number | string>('');
   const [isAutoMaxHr, setIsAutoMaxHr] = useState(true);
 
   // Loaded metadata
   const [currentThresholds, setCurrentThresholds] = useState<any>(null);
   const [observedPeakHr, setObservedPeakHr] = useState<ObservedPeakData | null>(null);
-  const [tanakaMaxHr, setTanakaMaxHr] = useState(182);
+  const [tanakaMaxHr, setTanakaMaxHr] = useState(185);
 
   useEffect(() => {
     fetchProfile();
@@ -46,11 +46,15 @@ export const ProfileView: React.FC = () => {
       const res = await fetch('/api/profile');
       const data = await res.json();
       if (data.profile) {
-        const rawDob = data.profile.dob ? String(data.profile.dob).trim() : '1989-04-15';
+        const rawDob = data.profile.dob ? String(data.profile.dob).trim() : '';
         setDob(/^\d{4}-\d{2}$/.test(rawDob) ? `${rawDob}-15` : rawDob);
         setGender(data.profile.gender || 'Prefer not to say');
-        setRestingHr(Number(data.profile.resting_hr) || 55);
-        setManualMaxHr(Number(data.profile.max_hr) || 203);
+        if (data.profile.resting_hr !== undefined && data.profile.resting_hr !== null) {
+          setRestingHr(Number(data.profile.resting_hr));
+        }
+        if (data.profile.max_hr !== undefined && data.profile.max_hr !== null) {
+          setManualMaxHr(Number(data.profile.max_hr));
+        }
         setIsAutoMaxHr(Boolean(data.profile.is_max_hr_estimated));
       }
       if (data.currentThresholds) {
@@ -72,28 +76,28 @@ export const ProfileView: React.FC = () => {
 
   // Dynamic age calculation from DOB
   const computedAge = useMemo(() => {
-    return calculateAgeFromDob(dob, 37);
+    return dob ? calculateAgeFromDob(dob, 0) : null;
   }, [dob]);
 
   // Live Tanaka formula calculation based on current form age: 208 - 0.7 * age
   const liveTanaka = useMemo(() => {
-    return Math.round(208 - 0.7 * computedAge);
-  }, [computedAge]);
+    return computedAge ? Math.round(208 - 0.7 * computedAge) : tanakaMaxHr;
+  }, [computedAge, tanakaMaxHr]);
 
   // Effective Max HR used across UI and zones
   const effectiveMaxHr = useMemo(() => {
     if (isAutoMaxHr) {
       return observedPeakHr?.peakHr || liveTanaka;
     }
-    return Number(manualMaxHr) || 203;
+    return Number(manualMaxHr) || liveTanaka;
   }, [isAutoMaxHr, observedPeakHr, liveTanaka, manualMaxHr]);
 
   // Live Karvonen HRR Zone derivation for visual preview
   const liveZones = useMemo(() => {
-    const rhr = Number(restingHr) || 55;
+    const rhr = Number(restingHr) || 50;
     const max = effectiveMaxHr;
-    const lt1 = currentThresholds?.lt1Hr || 148;
-    const lt2 = currentThresholds?.lt2Hr || 167;
+    const lt1 = currentThresholds?.lt1Hr || Math.round(rhr + (max - rhr) * 0.65);
+    const lt2 = currentThresholds?.lt2Hr || Math.round(rhr + (max - rhr) * 0.82);
 
     const z1Upper = Math.min(lt1 - 14, Math.round(rhr + (max - rhr) * 0.54));
     const z4Upper = Math.round(rhr + (max - rhr) * 0.90);
@@ -396,7 +400,7 @@ export const ProfileView: React.FC = () => {
                 className="form-input"
                 value={manualMaxHr}
                 onChange={e => setManualMaxHr(Number(e.target.value))}
-                placeholder="e.g. 203 bpm"
+                placeholder="e.g. 185 bpm"
                 min="140"
                 max="230"
               />

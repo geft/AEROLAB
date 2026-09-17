@@ -48,7 +48,7 @@ function readHrProfile(db: any): { maxHr: number | null; restingHr: number | nul
   return { maxHr: null, restingHr: null, lt1Hr: null, lt2Hr: null };
 }
 
-function buildTags(runType: string, name: string, intervals: any[], hrProfile: { lt1Hr: number | null; lt2Hr: number | null }): string[] {
+function buildTags(runType: string, name: string, intervals: any[], hrProfile: { maxHr?: number | null; restingHr?: number | null; lt1Hr: number | null; lt2Hr: number | null }): string[] {
   const tags: string[] = [];
   if (runType === 'easy_base') tags.push('Easy Base');
   else if (runType === 'threshold_lt2') tags.push('Threshold');
@@ -58,8 +58,8 @@ function buildTags(runType: string, name: string, intervals: any[], hrProfile: {
   else if (runType === 'race') tags.push('Race');
 
   const nameLower = (name || '').toLowerCase();
-  const mpLt1 = hrProfile.lt1Hr ?? 148;
-  const mpLt2 = hrProfile.lt2Hr ?? 167;
+  const mpLt1 = hrProfile.lt1Hr ?? (hrProfile.maxHr ? Math.round(hrProfile.maxHr * 0.73) : 148);
+  const mpLt2 = hrProfile.lt2Hr ?? (hrProfile.maxHr ? Math.round(hrProfile.maxHr * 0.85) : 167);
   const hasMpBlocks =
     runType === 'long_run' &&
     (intervals.some((i: any) => i.type === 'work' && i.durationSeconds >= 600 && i.avgHeartRate >= mpLt1 - 2 && i.avgHeartRate <= mpLt2) ||

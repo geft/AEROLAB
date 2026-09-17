@@ -117,18 +117,18 @@ export function detectIntervals(
   const baseSpeed = p50Spd > 0.5 ? p50Spd : 2.5;
   const baseCad = p50Cad > 100 ? p50Cad : 160;
 
-  // Stride thresholds adapt to runner's baseline pace and cadence
-  const strideSpeedThreshold = Math.min(3.4, Math.max(2.4, baseSpeed * 1.20));
-  const strideCadThreshold = Math.max(188, baseCad + 8);
+  // Stride thresholds adapt to runner's baseline pace and cadence (relative, no hardcoded elite floors)
+  const strideSpeedThreshold = Math.max(baseSpeed * 1.20, baseSpeed + 0.35);
+  const strideCadThreshold = Math.max(162, baseCad + 8);
 
   const sessionMaxHr = hrs.length > 0 ? hrs[hrs.length - 1] : 0;
   const p80Hr = hrs.length > 0 ? hrs[Math.floor(hrs.length * 0.80)] : 0;
   const p20Hr = hrs.length > 0 ? hrs[Math.floor(hrs.length * 0.20)] : 0;
 
-  const athleteLt1 = options.lt1Hr || 148;
-  const athleteLt2 = options.lt2Hr || 167;
+  const athleteLt1 = options.lt1Hr || (options.maxHr ? Math.round(options.maxHr * 0.73) : 148);
+  const athleteLt2 = options.lt2Hr || (options.maxHr ? Math.round(options.maxHr * 0.85) : 167);
 
-  // Running cadence vs walking/rest (accommodates slower runners down to 128 spm)
+  // Running cadence vs walking/rest (running jog >= 128 spm, walking recovery < 128 spm)
   const isRunningCadence = (c: number) => c >= 128;
   const runningRecs = records.filter(r => isRunningCadence(r.cadence ?? 0));
   const avgRunningHr = runningRecs.length > 0
@@ -166,7 +166,7 @@ export function detectIntervals(
     const st = r.stanceTime ?? 0;
 
     // 1. High velocity / fast turnover burst (stride candidate, handles optical sensor latency at start)
-    if (spd >= strideSpeedThreshold || cad >= strideCadThreshold || (cad >= 170 && st > 100 && st <= 210 && spd >= 2.5)) {
+    if (spd >= strideSpeedThreshold || cad >= strideCadThreshold || (cad >= baseCad + 10 && spd >= baseSpeed * 1.15)) {
       return 'work';
     }
 
@@ -176,7 +176,7 @@ export function detectIntervals(
     }
 
     // 2. Structured work rep: speed contrast (standard outdoor intervals)
-    if (hasSpeedContrast && spd >= workSpeedThreshold && (cad >= 120 || spd >= 2.5)) {
+    if (hasSpeedContrast && spd >= workSpeedThreshold && (cad >= 115 || spd >= workSpeedThreshold)) {
       return 'work';
     }
 
@@ -223,9 +223,9 @@ export function detectIntervals(
       const endDist = blockRecs[blockRecs.length - 1].distanceMeters ?? startDist;
       const distM = Math.max(0, endDist - startDist);
 
-      // Stride requires short duration, minimum distance (>= 35m) to filter street-crossing flutters,
-      // and either high speed surge or neuromuscular cadence turnover
-      if (durSec <= 45 && distM >= 35 && (maxSpd >= strideSpeedThreshold || maxCad >= strideCadThreshold || minStance <= 210)) {
+      // Stride requires short duration, minimum distance (>= 30m) to filter street-crossing flutters,
+      // and either high speed surge or neuromuscular cadence turnover relative to runner
+      if (durSec <= 45 && distM >= 30 && (maxSpd >= strideSpeedThreshold || maxCad >= strideCadThreshold || (maxCad >= baseCad + 8 && maxSpd >= baseSpeed * 1.15))) {
         b.type = 'stride';
       } else if (isEasyBaseSession && !hasSpeedContrast && !hasCadenceContrast && durSec < 90) {
         b.type = 'recovery';
@@ -394,7 +394,7 @@ export function detectIntervals(
       if (b.type === 'work') {
         const blockRecs = records.slice(b.startIndex, b.endIndex + 1);
         const avgHr = blockRecs.reduce((sum, r) => sum + (r.heartRate ?? 0), 0) / blockRecs.length;
-        const pruneCeiling = options.lt1Hr ? options.lt1Hr + 2 : (maxRepHr > 130 ? maxRepHr * 0.86 : 148);
+        const pruneCeiling = options.lt1Hr ? options.lt1Hr + 2 : (maxRepHr > 130 ? maxRepHr * 0.86 : (options.maxHr ? Math.round(options.maxHr * 0.73) : 140));
         if (maxRepHr > 130 && avgHr < pruneCeiling) {
           pruned.push({ type: 'recovery', startIndex: b.startIndex, endIndex: b.endIndex });
           continue;

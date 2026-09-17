@@ -62,16 +62,16 @@ export const StatsView: React.FC = () => {
 
   const lt1 = data.latest?.lt1;
   const lt2 = data.latest?.lt2;
-  const vo2Max = data.latest?.vo2Max ?? 58;
+  const vo2Max = data.latest?.vo2Max ?? null;
+  const lt1Hr = data.currentThresholds?.lt1Hr ?? lt1?.lt1_hr ?? 145;
+  const lt2Hr = data.currentThresholds?.lt2Hr ?? lt2?.lt2_hr ?? 165;
   const zones = data.zones || {
-    z1: [0, 134],
-    z2: [135, 148],
-    z3: [149, 166],
-    z4: [167, 188],
-    z5: [189, 203]
+    z1: [0, lt1Hr - 14],
+    z2: [lt1Hr - 13, lt1Hr],
+    z3: [lt1Hr + 1, lt2Hr - 1],
+    z4: [lt2Hr, lt2Hr + 15],
+    z5: [lt2Hr + 16, 220]
   };
-  const lt1Hr = zones.z2[1] ?? data.currentThresholds?.lt1Hr ?? lt1?.lt1_hr ?? 148;
-  const lt2Hr = zones.z4[0] ?? data.currentThresholds?.lt2Hr ?? lt2?.lt2_hr ?? 167;
   const lt1RangeStr = `${lt1Hr}`;
 
   return (

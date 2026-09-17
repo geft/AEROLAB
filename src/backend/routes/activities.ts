@@ -3,6 +3,7 @@ import { getDatabase } from '../db/client.js';
 import { generateCoachSummary, syncActivityCoachSummary } from '../physiology/coach-summary.js';
 import { extractSteadyStateMetrics } from '../physiology/economy.js';
 import { syncActivityWeather } from '../physiology/weather.js';
+import { calculateAgeFromDob } from './profile.js';
 
 export const activitiesRouter = Router();
 
@@ -15,9 +16,11 @@ activitiesRouter.get('/volume', (req, res) => {
     const targetYear = req.query.year as string | undefined; // e.g. '2026'
 
     const profile = db.prepare("SELECT * FROM athlete_profile WHERE id = 'primary'").get() as any;
-    const lt1Hr = profile?.lt1_hr || 153;
-    const lt2Hr = profile?.lt2_hr || 167;
-    const maxHr = profile?.max_hr || 203;
+    const dynamicAge = profile?.dob ? calculateAgeFromDob(profile.dob, profile?.age || 35) : (profile?.age || 35);
+    const maxHr = profile?.max_hr || Math.round(208 - 0.7 * dynamicAge);
+    const restingHr = profile?.resting_hr || 50;
+    const lt1Hr = profile?.lt1_hr || Math.round(restingHr + (maxHr - restingHr) * 0.65);
+    const lt2Hr = profile?.lt2_hr || Math.round(restingHr + (maxHr - restingHr) * 0.82);
 
     let query = `SELECT id, start_time, distance_meters, duration_seconds, elevation_gain_m, efficiency_factor, run_type FROM activities WHERE 1=1`;
     const params: any[] = [];
@@ -422,10 +425,11 @@ activitiesRouter.get('/:id', async (req, res) => {
 
     // Retrieve athlete profile for calibrated thresholds (defaulting to runner profile)
     const profile = db.prepare('SELECT * FROM athlete_profile WHERE id = ?').get('primary') as any;
-    const lt1Hr = profile?.lt1_hr || (profile?.z3_start_hr ? profile.z3_start_hr - 1 : 148);
-    const lt2Hr = profile?.lt2_hr || profile?.z4_start_hr || 167;
-    const maxHeartRate = profile?.max_hr || 203;
-    const restingHr = profile?.resting_hr || 55;
+    const dynamicAge = profile?.dob ? calculateAgeFromDob(profile.dob, profile?.age || 35) : (profile?.age || 35);
+    const maxHeartRate = profile?.max_hr || Math.round(208 - 0.7 * dynamicAge);
+    const restingHr = profile?.resting_hr || 50;
+    const lt1Hr = profile?.lt1_hr || (profile?.z3_start_hr ? profile.z3_start_hr - 1 : Math.round(restingHr + (maxHeartRate - restingHr) * 0.65));
+    const lt2Hr = profile?.lt2_hr || profile?.z4_start_hr || Math.round(restingHr + (maxHeartRate - restingHr) * 0.82);
 
     // Generate, persist, and retrieve from activity_coach_summaries table
     const coachSummary = syncActivityCoachSummary(db, id) || generateCoachSummary({

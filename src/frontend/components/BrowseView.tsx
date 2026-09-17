@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, CloudRain, Flame, TrendingUp, Zap, Clock, ShieldCheck, HeartPulse, Compass, Edit2, Tag, Plus, X, Check, FileText, Activity as ActivityIcon, Droplets, RefreshCw, Thermometer, Sun, Cloud, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, HelpCircle } from 'lucide-react';
+import { Calendar, CloudRain, Flame, TrendingUp, Zap, Clock, ShieldCheck, HeartPulse, Compass, Edit2, Tag, Plus, X, Check, FileText, Activity as ActivityIcon, Droplets, RefreshCw, Thermometer, Sun, Cloud, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, HelpCircle, AlertTriangle } from 'lucide-react';
 import { CanvasRunChart } from './CanvasRunChart';
 import { KmSplitsVisualizer } from './KmSplitsVisualizer.js';
 import { formatPace as formatPaceUtil } from '../utils/formatters.js';
@@ -172,6 +172,8 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
     coachSummary: any;
   } | null>(null);
   const [loadingDetail, setLoadingDetail] = useState<boolean>(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [retryCounter, setRetryCounter] = useState<number>(0);
   const [isRefreshingWeather, setIsRefreshingWeather] = useState<boolean>(false);
 
   const handleRefreshWeather = async () => {
@@ -316,8 +318,15 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
 
     const controller = new AbortController();
     setLoadingDetail(true);
+    setDetailError(null);
     fetch(`/api/activities/${selectedActivityId}`, { signal: controller.signal })
-      .then(res => res.json())
+      .then(async res => {
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `Server returned error (${res.status})`);
+        }
+        return res.json();
+      })
       .then(data => {
         setDetailData(data);
         setRunnerNotes(data.activity?.notes || '');
@@ -337,16 +346,18 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
             tags: data.activity?.tags
           });
         }
+        setDetailError(null);
         setLoadingDetail(false);
       })
       .catch(err => {
         if (err.name === 'AbortError') return;
         console.error('Failed to load activity detail:', err);
+        setDetailError(err.message || 'Failed to load activity telemetry profile');
         setLoadingDetail(false);
       });
 
     return () => controller.abort();
-  }, [selectedActivityId]);
+  }, [selectedActivityId, retryCounter]);
 
   const act = detailData?.activity;
 
@@ -1111,8 +1122,81 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               <span>Import First Workout (.FIT / .CSV)</span>
             </button>
           </div>
+        ) : detailError ? (
+          <div
+            style={{
+              padding: '3rem 2rem',
+              background: 'var(--bg-card)',
+              borderRadius: 14,
+              border: '1px solid rgba(244, 63, 94, 0.3)',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '1rem',
+              boxShadow: 'var(--card-shadow)',
+              minHeight: 280
+            }}
+          >
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 12,
+                background: 'rgba(244, 63, 94, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#f43f5e'
+              }}
+            >
+              <AlertTriangle size={24} />
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              Telemetry Profile Failed to Load
+            </div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', maxWidth: 420 }}>
+              {detailError}
+            </div>
+            <button
+              onClick={() => setRetryCounter(c => c + 1)}
+              style={{
+                padding: '0.55rem 1.25rem',
+                borderRadius: 8,
+                background: '#06b6d4',
+                color: '#07090e',
+                border: 'none',
+                fontWeight: 600,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem'
+              }}
+            >
+              <RefreshCw size={14} />
+              <span>Retry Loading</span>
+            </button>
+          </div>
         ) : loadingDetail || !act ? (
-          <div className="overview-card loading-skeleton" style={{ height: 350 }}></div>
+          <div
+            className="overview-card loading-skeleton"
+            style={{
+              height: 350,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.85rem',
+              border: '1px solid var(--border-subtle)'
+            }}
+          >
+            <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid rgba(6,182,212,0.2)', borderTopColor: '#06b6d4', animation: 'spin 0.8s linear infinite' }} />
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500 }}>
+              Loading workout telemetry...
+            </span>
+          </div>
         ) : (
           <>
             {/* Mobile Back Button (< 768px) */}

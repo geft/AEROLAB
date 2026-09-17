@@ -81,8 +81,8 @@ profileRouter.get('/', (req, res) => {
     const tanakaMaxHr = Math.round(208 - 0.7 * dynamicAge);
     const observedPeak = getObservedPeakHeartRate(db, dynamicAge);
 
-    let effectiveMaxHr = profile.max_hr || 203;
-    let maxHrSource: 'manual' | 'observed_run' | 'tanaka_formula' = 'manual';
+    let effectiveMaxHr = profile.max_hr || tanakaMaxHr;
+    let maxHrSource: 'manual' | 'observed_run' | 'tanaka_formula' = profile.max_hr ? 'manual' : 'tanaka_formula';
 
     if (profile.is_max_hr_estimated || (observedPeak && observedPeak.peakHr > effectiveMaxHr)) {
       if (observedPeak && observedPeak.peakHr >= 140) {

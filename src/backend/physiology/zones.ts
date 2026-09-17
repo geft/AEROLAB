@@ -52,8 +52,8 @@ export function getDefaultZones(
 
   // Karvonen Heart Rate Reserve (HRR) Model
   const rhr = restingHr || 50;
-  const lt1 = lt1Hr || 148;
-  const lt2 = lt2Hr || 167;
+  const lt1 = lt1Hr || Math.round(rhr + (maxHr - rhr) * 0.65);
+  const lt2 = lt2Hr || Math.round(rhr + (maxHr - rhr) * 0.82);
 
   // HRR Zone 1 active recovery ceiling (~54% HRR, bounded below LT1 - 14)
   const z1Upper = Math.min(lt1 - 14, Math.round(rhr + (maxHr - rhr) * 0.54));

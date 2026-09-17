@@ -268,15 +268,13 @@ export function getDatabase(dbPath?: string): Database.Database {
         )
       `).run(JSON.stringify(schedule), JSON.stringify(preferences));
     } else {
-      // Update existing record if it had older generic defaults or deprecated depressed LT1
+      // Ensure zone boundary columns follow the athlete's configured thresholds without clobbering custom values
       db.prepare(`
         UPDATE athlete_profile SET
-          lt1_hr = CASE WHEN lt1_hr < 144 THEN 148 ELSE COALESCE(lt1_hr, 148) END,
-          lt2_hr = COALESCE(lt2_hr, 167),
-          lt1_min_hr = COALESCE(lt1_min_hr, 147),
-          lt1_max_hr = COALESCE(lt1_max_hr, 149),
-          z3_start_hr = CASE WHEN z3_start_hr < 145 OR z3_start_hr = 160 THEN 149 ELSE z3_start_hr END,
-          z4_start_hr = CASE WHEN z4_start_hr = 175 THEN 167 ELSE z4_start_hr END
+          lt1_min_hr = COALESCE(lt1_min_hr, lt1_hr - 1),
+          lt1_max_hr = COALESCE(lt1_max_hr, lt1_hr + 1),
+          z3_start_hr = COALESCE(z3_start_hr, lt1_hr + 1),
+          z4_start_hr = COALESCE(z4_start_hr, lt2_hr)
         WHERE id = 'primary'
       `).run();
     }

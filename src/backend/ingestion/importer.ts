@@ -229,8 +229,8 @@ export function importRunContent(
   else if (classification.runType === 'race') initialTags.push('Race');
 
   // Marathon Pace check: long run containing sustained upper-Z3 blocks (profile-relative)
-  const mpLt1 = hrProfile.lt1Hr ?? 148;
-  const mpLt2 = hrProfile.lt2Hr ?? 167;
+  const mpLt1 = hrProfile.lt1Hr ?? (hrProfile.maxHr ? Math.round(hrProfile.maxHr * 0.73) : 148);
+  const mpLt2 = hrProfile.lt2Hr ?? (hrProfile.maxHr ? Math.round(hrProfile.maxHr * 0.85) : 167);
   const hasMpBlocks =
     classification.runType === 'long_run' &&
     (intervals.some(i => i.type === 'work' && i.durationSeconds >= 600 && i.avgHeartRate >= mpLt1 - 2 && i.avgHeartRate <= mpLt2) ||
