@@ -73,7 +73,25 @@ export function importRunContent(
     }
 
   // 1. Check for duplicate via hash OR matching activity ID
-  const existing = db.prepare('SELECT id, source_file_hash FROM activities WHERE source_file_hash = ? OR id = ?').get(fileHash, metadata.id) as { id: string; source_file_hash: string } | undefined;
+  let existing = db.prepare('SELECT id, source_file_hash, name FROM activities WHERE source_file_hash = ? OR id = ?').get(fileHash, metadata.id) as { id: string; source_file_hash: string; name?: string } | undefined;
+
+  // 1b. Check for duplicate via physical workout signature (start time within 60s and distance within 150m)
+  if (!existing && metadata.date && metadata.totalDistanceMeters != null) {
+    try {
+      const match = db.prepare(`
+        SELECT id, source_file_hash, name FROM activities
+        WHERE abs(strftime('%s', start_time) - strftime('%s', ?)) <= 60
+          AND abs(distance_meters - ?) <= 150
+        LIMIT 1
+      `).get(metadata.date, metadata.totalDistanceMeters) as { id: string; source_file_hash: string; name?: string } | undefined;
+      if (match) {
+        existing = match;
+      }
+    } catch {
+      // Ignore if table schema or strftime fallback
+    }
+  }
+
   if (existing && !options.force) {
     return {
       status: 'skipped_duplicate',

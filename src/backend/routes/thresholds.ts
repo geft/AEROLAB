@@ -79,7 +79,9 @@ thresholdsRouter.get('/', (req, res) => {
     const race5kAct = db.prepare(`
       SELECT a.id, a.duration_seconds, a.distance_meters, a.avg_pace_sec_km
       FROM activities a
-      WHERE a.run_type = 'race' OR a.name LIKE '%5k%' OR a.name LIKE '%Time Trial%'
+      WHERE (a.run_type = 'race' AND a.distance_meters BETWEEN 4500 AND 5500)
+         OR (a.distance_meters BETWEEN 4500 AND 5500 AND (a.name LIKE '%5k%' OR a.name LIKE '%5 km%' OR a.name LIKE '%Time Trial%'))
+         OR ((a.name LIKE '%5k%' OR a.name LIKE '%5 km%') AND a.distance_meters <= 10000)
       ORDER BY a.start_time DESC
       LIMIT 1
     `).get() as any;
@@ -90,6 +92,8 @@ thresholdsRouter.get('/', (req, res) => {
       `).get(race5kAct.id) as any;
       if (workInv?.avg_pace_sec_km) {
         benchmark5kPace = workInv.avg_pace_sec_km;
+      } else if (race5kAct.avg_pace_sec_km) {
+        benchmark5kPace = race5kAct.avg_pace_sec_km;
       }
     }
 

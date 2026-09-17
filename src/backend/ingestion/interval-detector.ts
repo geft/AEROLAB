@@ -214,13 +214,13 @@ export function detectIntervals(
   // Promote short explosive bursts to strides, demote warmup noise and stoplight flutters
   for (const b of rawBlocks) {
     if (b.type === 'work') {
-      const durSec = records[b.endIndex].elapsedSeconds - records[b.startIndex].elapsedSeconds;
+      const durSec = (records[b.endIndex]?.elapsedSeconds ?? 0) - (records[b.startIndex]?.elapsedSeconds ?? 0);
       const blockRecs = records.slice(b.startIndex, b.endIndex + 1);
-      const maxSpd = Math.max(...blockRecs.map(r => r.speedMps ?? 0));
-      const maxCad = Math.max(...blockRecs.map(r => r.cadence ?? 0));
-      const minStance = Math.min(...blockRecs.map(r => (r.stanceTime && r.stanceTime > 100) ? r.stanceTime : 9999));
-      const startDist = blockRecs[0].distanceMeters ?? 0;
-      const endDist = blockRecs[blockRecs.length - 1].distanceMeters ?? startDist;
+      const maxSpd = Math.max(...blockRecs.map(r => r?.speedMps ?? 0));
+      const maxCad = Math.max(...blockRecs.map(r => r?.cadence ?? 0));
+      const minStance = Math.min(...blockRecs.map(r => (r?.stanceTime && r.stanceTime > 100) ? r.stanceTime : 9999));
+      const startDist = blockRecs[0]?.distanceMeters ?? 0;
+      const endDist = blockRecs[blockRecs.length - 1]?.distanceMeters ?? startDist;
       const distM = Math.max(0, endDist - startDist);
 
       // Stride requires short duration, minimum distance (>= 30m) to filter street-crossing flutters,
@@ -237,12 +237,12 @@ export function detectIntervals(
   for (let i = 0; i < rawBlocks.length; i++) {
     if (rawBlocks[i].type === 'work' && i > 0 && rawBlocks[i - 1].type === 'recovery') {
       const prevRec = rawBlocks[i - 1];
-      const repCad = records[rawBlocks[i].startIndex].cadence ?? 0;
+      const repCad = records[rawBlocks[i].startIndex]?.cadence ?? 0;
       let backfilledStart = rawBlocks[i].startIndex;
       while (
         backfilledStart > prevRec.startIndex &&
         rawBlocks[i].startIndex - backfilledStart < 90 &&
-        (records[backfilledStart - 1].cadence ?? 0) >= repCad - 6
+        (records[backfilledStart - 1]?.cadence ?? 0) >= repCad - 6
       ) {
         backfilledStart--;
       }
@@ -273,6 +273,7 @@ export function detectIntervals(
             rawBlocks[i].startIndex - backfilledStart <= 12
           ) {
             const r = records[backfilledStart - 1];
+            if (!r) break;
             const cad = r.cadence ?? 0;
             const spd = r.speedMps ?? 0;
             const isSensorLagSprint = (cad === 0 || cad < 130) && spd >= stridePeakSpeed * 0.65;
@@ -297,6 +298,7 @@ export function detectIntervals(
             forwardEnd - rawBlocks[i].endIndex <= 8
           ) {
             const r = records[forwardEnd + 1];
+            if (!r) break;
             const cad = r.cadence ?? 0;
             const spd = r.speedMps ?? 0;
             const isDecelDropout = (cad === 0 || cad < 130) && spd >= stridePeakSpeed * 0.65;

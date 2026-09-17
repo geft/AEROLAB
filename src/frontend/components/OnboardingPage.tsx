@@ -28,7 +28,12 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
         const data = await res.json();
         if (data?.profile) {
           const p = data.profile;
-          if (p.dob) setDob(p.dob);
+          if (p.dob) {
+            let cleanDob = String(p.dob).trim();
+            if (cleanDob.includes('T')) cleanDob = cleanDob.split('T')[0];
+            if (/^\d{4}-\d{2}$/.test(cleanDob)) cleanDob = `${cleanDob}-01`;
+            setDob(cleanDob);
+          }
           if (p.gender) setGender(p.gender);
           if (p.resting_hr) setRestingHr(String(p.resting_hr));
           if (p.max_hr) {

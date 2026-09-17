@@ -30,6 +30,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [overwrite, setOverwrite] = useState(false);
+  const [lastUploadedFiles, setLastUploadedFiles] = useState<File[]>([]);
+  const [lastSingleActivityId, setLastSingleActivityId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
@@ -43,7 +45,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     setIsDragging(false);
   };
 
-  const processFiles = async (fileList: FileList | File[]) => {
+  const processFiles = async (fileList: FileList | File[], forceOverwrite?: boolean) => {
     const allFiles = Array.from(fileList);
     const validFiles = allFiles.filter(f => {
       const l = f.name.toLowerCase();
@@ -55,6 +57,11 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
       return;
     }
 
+    const effectiveOverwrite = forceOverwrite !== undefined ? forceOverwrite : overwrite;
+    if (forceOverwrite) {
+      setOverwrite(true);
+    }
+    setLastUploadedFiles(validFiles);
     setUploading(true);
     setError(null);
     setSummary(null);
@@ -97,7 +104,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           body: JSON.stringify({
             content,
             filename: file.name,
-            force: overwrite
+            force: effectiveOverwrite
           })
         });
 
@@ -142,6 +149,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
     setUploading(false);
     setProgress(null);
+    setLastSingleActivityId(singleActivityId || null);
     const batchSummary: BatchSummary = {
       total: validFiles.length,
       imported,
@@ -292,17 +300,27 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',
-              color: summary.errors > 0 ? (summary.imported > 0 ? 'var(--accent-amber)' : 'var(--accent-rose)') : 'var(--accent-emerald)',
+              color: summary.errors > 0
+                ? (summary.imported > 0 ? 'var(--accent-amber)' : 'var(--accent-rose)')
+                : (summary.imported === 0 && summary.skipped > 0 ? 'var(--accent-amber)' : 'var(--accent-emerald)'),
               fontWeight: 700,
               fontSize: '0.95rem'
             }}>
-              {summary.errors > 0 ? <AlertCircle size={18} /> : <CheckCircle size={18} />}
+              {summary.errors > 0 ? (
+                <AlertCircle size={18} />
+              ) : summary.imported === 0 && summary.skipped > 0 ? (
+                <AlertCircle size={18} />
+              ) : (
+                <CheckCircle size={18} />
+              )}
               <span>
                 {summary.errors > 0
                   ? summary.imported > 0
                     ? 'Batch Ingestion Completed with Warnings'
                     : 'Batch Ingestion Failed'
-                  : 'Batch Ingestion Completed Successfully'}
+                  : summary.imported === 0 && summary.skipped > 0
+                    ? (summary.total === 1 ? 'Activity Already in Database (Duplicate)' : 'All Runs Already in Database (Duplicates)')
+                    : 'Batch Ingestion Completed Successfully'}
               </span>
             </div>
 
@@ -388,13 +406,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                 borderRadius: 6,
                 border: '1px solid var(--border-subtle)'
               }}>
-                ℹ️ {summary.skipped} file{summary.skipped > 1 ? 's were' : ' was'} skipped because the activity ID already exists. Check <b>"Overwrite / re-calculate"</b> if you wish to re-import.
+                ℹ️ {summary.skipped} file{summary.skipped > 1 ? 's were' : ' was'} skipped because the workout already exists in your database. Click <b>"Retry with Overwrite"</b> below if you wish to re-calculate and overwrite existing data.
               </div>
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
-              {summary.errors > 0 && (
+              {(summary.skipped > 0 || summary.errors > 0) && (
                 <button
+                  type="button"
                   onClick={() => {
                     setSummary(null);
                     setOverwrite(true);
@@ -414,7 +433,30 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                 </button>
               )}
 
+              {lastSingleActivityId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onUploadSuccess(lastSingleActivityId);
+                    handleClose();
+                  }}
+                  style={{
+                    background: 'var(--accent-emerald)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '0.45rem 1rem',
+                    fontWeight: 600,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  View Run
+                </button>
+              )}
+
               <button
+                type="button"
                 onClick={handleClose}
                 style={{
                   background: 'var(--accent-cyan)',

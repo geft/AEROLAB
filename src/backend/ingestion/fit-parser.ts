@@ -401,7 +401,6 @@ export function convertFitToCsv(
 
   const lines: string[] = [];
   lines.push('# Garmin Run Export — Parsed for AI Analysis');
-  lines.push(`# Generated: ${new Date().toISOString()}`);
   lines.push('#');
   lines.push(`# Activity: ${actName}`);
   lines.push(`# Activity ID: ${actId}`);

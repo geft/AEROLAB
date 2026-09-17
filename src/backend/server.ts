@@ -9,6 +9,7 @@ import { thresholdsRouter } from './routes/thresholds.js';
 import { ingestRouter } from './routes/ingest.js';
 import { profileRouter } from './routes/profile.js';
 import { devRouter } from './routes/dev.js';
+import { databaseRouter, checkAndRunScheduledBackup } from './routes/database.js';
 import { requestLogger, globalErrorHandler, logger } from './utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -27,6 +28,7 @@ export function createServer() {
   app.use('/api/ingest', ingestRouter);
   app.use('/api/profile', profileRouter);
   app.use('/api/dev', devRouter);
+  app.use('/api/database', databaseRouter);
 
   // Health check
   app.get('/api/health', (req, res) => {
@@ -71,7 +73,12 @@ const PORT = process.env.PORT || 3001;
 if (process.env.NODE_ENV !== 'test') {
   const app = createServer();
   // Ensure DB initialized
-  getDatabase();
+  const db = getDatabase();
+  try {
+    checkAndRunScheduledBackup(db);
+  } catch (err: any) {
+    logger.warn('server', 'Initial backup check failed', { error: err?.message || String(err) });
+  }
 
   app.listen(PORT, () => {
     console.log(`\n🚀 Run Progress API server running at http://localhost:${PORT}`);

@@ -95,6 +95,30 @@ describe('API Server Integration Tests', () => {
     expect(res.body.economyTrend).toBeDefined();
   });
 
+  it('GET /api/thresholds ignores marathon race activities when computing 5K benchmark', async () => {
+    const db = getDatabase();
+    // Insert a full marathon race activity (42195m, slow marathon pace 360s/km)
+    db.prepare(`
+      INSERT INTO activities (
+        id, name, sport, start_time, duration_seconds, distance_meters,
+        avg_pace_sec_km, avg_heart_rate, run_type, source_file_hash
+      ) VALUES (
+        'marathon-race-test', 'Standard Chartered Singapore Marathon', 'running', '2026-09-01 05:00:00',
+        15190, 42195, 360, 155, 'race', 'marathon_hash_1'
+      )
+    `).run();
+
+    const res = await request(app).get('/api/thresholds');
+    expect(res.status).toBe(200);
+    const pred5k = res.body.predictions.find((p: any) => p.distanceName === '5K');
+    expect(pred5k).toBeDefined();
+    // 5K prediction should be much faster than marathon pace (360s/km)
+    expect(pred5k.paceSecKm).toBeLessThan(300);
+
+    // Clean up
+    db.prepare('DELETE FROM activities WHERE id = ?').run('marathon-race-test');
+  });
+
   it('persists AI coach summary in activity_coach_summaries table upon ingestion and returns it', async () => {
     const db = getDatabase();
     const row = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get('bench-easy-60') as any;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { User, Heart, Zap, Save, CheckCircle, AlertCircle, Info, ShieldCheck, Activity, Flame, Calendar } from 'lucide-react';
+import { User, Heart, Zap, Save, CheckCircle, AlertCircle, Info, ShieldCheck, Activity, Flame, Calendar, HardDrive, Download, FolderSync, RefreshCw } from 'lucide-react';
 import { formatPace, calculateAgeFromDob } from '../utils/formatters.js';
+import { useTranslation } from '../i18n/LanguageContext.js';
 
 interface ObservedPeakData {
   peakHr: number;
@@ -20,6 +21,7 @@ interface ProfileData {
 }
 
 export const ProfileView: React.FC = () => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -36,9 +38,74 @@ export const ProfileView: React.FC = () => {
   const [observedPeakHr, setObservedPeakHr] = useState<ObservedPeakData | null>(null);
   const [tanakaMaxHr, setTanakaMaxHr] = useState(185);
 
+  // Database backup state
+  const [dbStatus, setDbStatus] = useState<any>(null);
+  const [autoBackupEnabled, setAutoBackupEnabled] = useState(true);
+  const [backupDirectory, setBackupDirectory] = useState('');
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [backupStatusMessage, setBackupStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const fetchDbStatus = async () => {
+    try {
+      const res = await fetch('/api/database/status');
+      if (res.ok) {
+        const data = await res.json();
+        setDbStatus(data);
+        if (data.settings) {
+          setAutoBackupEnabled(Boolean(data.settings.autoBackupEnabled));
+          setBackupDirectory(data.settings.backupDirectory || '');
+        }
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     fetchProfile();
+    fetchDbStatus();
   }, []);
+
+  const handleDownloadSnapshot = () => {
+    window.open('/api/database/download', '_blank');
+  };
+
+  const handleBackupNow = async () => {
+    try {
+      setIsBackingUp(true);
+      setBackupStatusMessage(null);
+      const res = await fetch('/api/database/backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetDirectory: backupDirectory })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Backup failed');
+      }
+      setBackupStatusMessage({ type: 'success', text: t.backup.backupSuccess });
+      fetchDbStatus();
+    } catch (err: any) {
+      setBackupStatusMessage({ type: 'error', text: `${t.backup.backupFailed}${err.message}` });
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
+
+  const handleSaveBackupSettings = async (enabled: boolean, dir: string) => {
+    try {
+      setAutoBackupEnabled(enabled);
+      setBackupDirectory(dir);
+      await fetch('/api/database/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          autoBackupEnabled: enabled,
+          backupDirectory: dir,
+          backupIntervalDays: 7
+        })
+      });
+      fetchDbStatus();
+    } catch {}
+  };
 
   const fetchProfile = async () => {
     try {
@@ -497,6 +564,163 @@ export const ProfileView: React.FC = () => {
             <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
               Peak aerobic power &amp; fast intervals.
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Database Backup & Cloud Sync Card */}
+      <section className="overview-card" style={{ marginTop: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+          <HardDrive size={22} style={{ color: 'var(--accent-cyan)' }} />
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              {t.backup.cardTitle}
+            </h3>
+            <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              {t.backup.cardSubtitle}
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginTop: '1.25rem' }}>
+          {/* Column 1: Instant Download */}
+          <div style={{ background: 'var(--bg-surface)', padding: '1.25rem', borderRadius: 10, border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '1rem' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '0.4rem' }}>
+                <Download size={16} style={{ color: '#38bdf8' }} />
+                <span>{t.backup.downloadSnapshot}</span>
+              </div>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4, margin: '0 0 1rem' }}>
+                {t.backup.downloadSnapshotDesc}
+              </p>
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                <div style={{ background: 'var(--bg-card)', padding: '0.45rem 0.75rem', borderRadius: 6, border: '1px solid var(--border-subtle)', fontSize: '0.75rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>{t.backup.dbSize}: </span>
+                  <strong style={{ color: '#38bdf8' }}>{dbStatus ? `${dbStatus.sizeMb} MB` : '—'}</strong>
+                </div>
+                <div style={{ background: 'var(--bg-card)', padding: '0.45rem 0.75rem', borderRadius: 6, border: '1px solid var(--border-subtle)', fontSize: '0.75rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>{t.backup.totalRuns}: </span>
+                  <strong style={{ color: 'var(--accent-emerald)' }}>{dbStatus ? `${dbStatus.activityCount}` : '—'}</strong>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              id="download-db-btn"
+              onClick={handleDownloadSnapshot}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                background: 'rgba(56, 189, 248, 0.12)',
+                color: '#38bdf8',
+                border: '1px solid rgba(56, 189, 248, 0.35)',
+                padding: '0.65rem 1rem',
+                borderRadius: 8,
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Download size={15} />
+              <span>{t.backup.downloadButton}</span>
+            </button>
+          </div>
+
+          {/* Column 2: Automated Weekly Backup & Cloud Sync */}
+          <div style={{ background: 'var(--bg-surface)', padding: '1.25rem', borderRadius: 10, border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                <FolderSync size={16} style={{ color: 'var(--accent-emerald)' }} />
+                <span>{t.backup.autoBackupTitle}</span>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                <input
+                  type="checkbox"
+                  id="auto-backup-toggle"
+                  checked={autoBackupEnabled}
+                  onChange={e => handleSaveBackupSettings(e.target.checked, backupDirectory)}
+                  style={{ accentColor: 'var(--accent-emerald)', cursor: 'pointer' }}
+                />
+                <span>{t.backup.autoBackupToggle}</span>
+              </label>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                {t.backup.customFolderLabel}
+              </label>
+              <input
+                type="text"
+                id="backup-directory-input"
+                value={backupDirectory}
+                placeholder={t.backup.customFolderPlaceholder}
+                onChange={e => setBackupDirectory(e.target.value)}
+                onBlur={() => handleSaveBackupSettings(autoBackupEnabled, backupDirectory)}
+                style={{
+                  width: '100%',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 6,
+                  padding: '0.5rem 0.75rem',
+                  fontSize: '0.8rem',
+                  color: 'var(--text-primary)',
+                  boxSizing: 'border-box'
+                }}
+              />
+              <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.35rem 0 0', lineHeight: 1.35 }}>
+                {t.backup.customFolderHint}
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', marginTop: 'auto' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                {t.backup.lastBackup}
+                <strong style={{ color: 'var(--text-secondary)' }}>
+                  {dbStatus?.settings?.lastBackupAt ? new Date(dbStatus.settings.lastBackupAt).toLocaleString() : t.backup.noBackupsYet}
+                </strong>
+              </div>
+
+              <button
+                type="button"
+                id="backup-now-btn"
+                onClick={handleBackupNow}
+                disabled={isBackingUp}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  background: 'var(--accent-emerald)',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '0.55rem 1rem',
+                  borderRadius: 6,
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: isBackingUp ? 'not-allowed' : 'pointer',
+                  opacity: isBackingUp ? 0.7 : 1
+                }}
+              >
+                <RefreshCw size={13} className={isBackingUp ? 'spinning' : ''} />
+                <span>{isBackingUp ? 'Backing up...' : t.backup.backupNowButton}</span>
+              </button>
+            </div>
+
+            {backupStatusMessage && (
+              <div style={{
+                fontSize: '0.78rem',
+                padding: '0.5rem 0.75rem',
+                borderRadius: 6,
+                background: backupStatusMessage.type === 'success' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(244, 63, 94, 0.12)',
+                color: backupStatusMessage.type === 'success' ? 'var(--accent-emerald)' : 'var(--accent-rose)',
+                border: `1px solid ${backupStatusMessage.type === 'success' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`
+              }}>
+                {backupStatusMessage.text}
+              </div>
+            )}
           </div>
         </div>
       </section>

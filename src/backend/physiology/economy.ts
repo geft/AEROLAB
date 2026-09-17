@@ -272,9 +272,21 @@ export function calculateEconomy(records: ActivityRecord[]): EconomyMetrics {
   const startDist = activeRecords[0].distanceMeters ?? 0;
   const endDist = activeRecords[activeRecords.length - 1].distanceMeters ?? startDist;
   const movingDistanceMeters = Math.max(0, endDist - startDist);
-  const firstSec = activeRecords[0].elapsedSeconds ?? 0;
-  const lastSec = activeRecords[activeRecords.length - 1].elapsedSeconds ?? activeRecords.length;
-  const movingDurationSeconds = Math.max(activeRecords.length, lastSec - firstSec);
+
+  // Compute moving duration by summing continuous moving deltas, excluding stationary pauses / traffic lights
+  let calculatedMovingDuration = 0;
+  for (let i = 0; i < activeRecords.length; i++) {
+    if (i === 0) {
+      calculatedMovingDuration += 1;
+    } else {
+      const prevSec = activeRecords[i - 1].elapsedSeconds ?? 0;
+      const currSec = activeRecords[i].elapsedSeconds ?? (prevSec + 1);
+      const dt = currSec - prevSec;
+      // If delta <= 5s, count true delta (smart recording or 1Hz). If > 5s, runner paused at traffic light.
+      calculatedMovingDuration += (dt > 0 && dt <= 5) ? dt : 1;
+    }
+  }
+  const movingDurationSeconds = Math.max(activeRecords.length, calculatedMovingDuration);
 
   const rawAvgSpeedMps = speedCount > 0 ? totalSpeed / speedCount : 0;
   const fallbackSpeedMps = movingDurationSeconds > 0 ? movingDistanceMeters / movingDurationSeconds : 0;

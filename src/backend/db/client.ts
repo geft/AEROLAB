@@ -6,6 +6,7 @@ import { extractSteadyStateMetrics, calculateEconomy } from '../physiology/econo
 import { syncAllCoachSummaries } from '../physiology/coach-summary.js';
 import { syncAllActivitiesWeather } from '../physiology/weather.js';
 import { realignDatabase } from './realign.js';
+import { deduplicateRuns } from './deduplicate.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -324,6 +325,9 @@ export function getDatabase(dbPath?: string): Database.Database {
 
     // Automatically backfill microclimate weather for activities missing ambient weather data
     syncAllActivitiesWeather(db).catch(() => {});
+
+    // Automatic migration: Deduplicate runs imported across different formats (FIT vs CSV)
+    deduplicateRuns(db, (msg) => console.log(`[dedup] ${msg}`));
 
     // Automatic migration: Re-classify and re-detect intervals with updated physiological definitions
     // (also prunes stale threshold rows, re-syncs profile + coach summaries)

@@ -97,6 +97,24 @@ describe('Database Ingestion Pipeline (Integration)', () => {
     expect(count.count).toBe(1);
   });
 
+  it('skips duplicate activity when imported with different ID/filename if start time and distance match', () => {
+    const firstImport = importRunContent(db, easyCsv, 'garmin_export_1.csv');
+    expect(firstImport.status).toBe('imported');
+
+    // Generate modified CSV with different activity ID and extra whitespace comments to change hash
+    const differentCsv = easyCsv
+      .replace('# Activity ID: bench-easy-60', '# Activity ID: fit_synthetic_999')
+      .concat('\n# Extra comment padding to change SHA256 hash');
+
+    const secondImport = importRunContent(db, differentCsv, 'fit_synthetic_999.csv');
+    expect(secondImport.status).toBe('skipped_duplicate');
+    expect(secondImport.activityId).toBe('bench-easy-60');
+
+    // Total activities must remain 1
+    const count = db.prepare('SELECT COUNT(*) as count FROM activities').get() as any;
+    expect(count.count).toBe(1);
+  });
+
   it('allows force re-import when force: true is specified', () => {
     const firstImport = importRunContent(db, easyCsv, 'bench-easy-60.csv');
     expect(firstImport.status).toBe('imported');

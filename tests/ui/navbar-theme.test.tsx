@@ -3,6 +3,7 @@ import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { Navbar, TabType } from '../../src/frontend/components/Navbar.js';
+import { LanguageProvider } from '../../src/frontend/i18n/LanguageContext.js';
 
 describe('Navbar & Theme Switcher UI Component Tests', () => {
   afterEach(() => {
@@ -113,5 +114,34 @@ describe('Navbar & Theme Switcher UI Component Tests', () => {
     expect(uploadBtn?.textContent).toContain('Import FIT / CSV');
     fireEvent.click(uploadBtn!);
     expect(onOpenUpload).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders language switcher toggle button next to theme toggle and switches language', () => {
+    render(
+      <LanguageProvider>
+        <Navbar
+          activeTab="browse"
+          onTabChange={vi.fn()}
+          onOpenUpload={vi.fn()}
+          theme="dark"
+          onToggleTheme={vi.fn()}
+        />
+      </LanguageProvider>
+    );
+
+    const langBtn = document.getElementById('language-toggle-btn');
+    expect(langBtn).toBeTruthy();
+    expect(langBtn?.textContent).toContain('中文');
+
+    // Click language button to switch to Chinese
+    fireEvent.click(langBtn!);
+    expect(langBtn?.textContent).toContain('EN');
+    expect(document.getElementById('tab-browse-btn')?.textContent).toContain('跑步记录');
+    expect(document.getElementById('tab-progress-btn')?.textContent).toContain('训练进展');
+
+    // Click again to switch back to English
+    fireEvent.click(langBtn!);
+    expect(langBtn?.textContent).toContain('中文');
+    expect(document.getElementById('tab-browse-btn')?.textContent).toContain('Browse');
   });
 });
