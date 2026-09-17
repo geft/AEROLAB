@@ -29,6 +29,15 @@ jobs:
       - name: Run automated test suite
         run: npm test
 
+      - name: Auto-version release build
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            RELEASE_VER="${GITHUB_REF_NAME#v}"
+            echo "Setting package version to $RELEASE_VER from git tag $GITHUB_REF_NAME"
+            npm version "$RELEASE_VER" --no-git-tag-version --allow-same-version
+          fi
+
       - name: Build frontend and backend bundles
         run: npm run build:all
 

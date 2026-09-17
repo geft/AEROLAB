@@ -1400,6 +1400,60 @@ body {
   color: var(--text-muted);
 }
 
+.footer-version-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.footer-version-badge:hover {
+  background: var(--bg-card);
+  border-color: var(--accent-cyan);
+  color: var(--text-primary);
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.15);
+  transform: translateY(-1px);
+}
+
+.footer-version-number {
+  font-weight: 600;
+  color: var(--accent-cyan);
+}
+
+.footer-commit-hash {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.footer-copy-icon {
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.footer-version-badge:hover .footer-copy-icon {
+  opacity: 1;
+  color: var(--accent-cyan);
+}
+
+.footer-copied-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  color: #10b981;
+  font-weight: 600;
+  font-size: 0.7rem;
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;

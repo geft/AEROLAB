@@ -9,6 +9,7 @@
     "dev:frontend": "vite",
     "dev": "node scripts/start-all.js",
     "start": "node scripts/start-all.js",
+    "prebuild": "node scripts/generate-build-info.js",
     "build": "vite build",
     "build:all": "node scripts/build-all.js",
     "electron:start": "node scripts/build-all.js && electron .",

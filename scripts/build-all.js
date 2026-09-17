@@ -2,6 +2,9 @@
 import { execSync } from 'child_process';
 import fs from 'fs';
 
+console.log('🏷️ Generating Build Info & Version Metadata...');
+execSync('node scripts/generate-build-info.js', { stdio: 'inherit' });
+
 console.log('📦 Building AEROLAB Frontend (Vite)...');
 execSync('npm run build', { stdio: 'inherit' });
 

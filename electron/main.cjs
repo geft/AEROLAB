@@ -61,7 +61,7 @@ function createWindow() {
     height: 920,
     minWidth: 1080,
     minHeight: 720,
-    title: 'AEROLAB — Physiological Running Analytics',
+    title: `AEROLAB v${app.getVersion()} — Physiological Running Analytics`,
     backgroundColor: '#0f172a',
     autoHideMenuBar: true,
     show: false,
