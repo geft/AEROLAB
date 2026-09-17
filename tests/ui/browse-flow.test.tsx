@@ -454,6 +454,57 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     // Filter reset back to all sessions
     expect(screen.queryByTitle(/show all sessions/i)).toBeNull();
   });
+
+  it('quickly changes year in calendar via year selector pills and year navigation chevrons', async () => {
+    const multiYearActivities = [
+      ...mockActivities,
+      {
+        ...mockActivities[0],
+        id: 'act-2025-1',
+        start_time: '2025-10-15 07:00:00'
+      }
+    ];
+
+    render(
+      <BrowseView
+        activities={multiYearActivities}
+        selectedActivityId="act-101"
+        onSelectActivity={vi.fn()}
+        onOpenUpload={vi.fn()}
+        theme="dark"
+      />
+    );
+
+    // Open calendar
+    const calToggleBtn = screen.getByRole('button', { name: /calendar/i });
+    fireEvent.click(calToggleBtn);
+
+    // Quick Year Selector Pills should be rendered (2025 and 2026)
+    const year2025Pill = screen.getByTitle(/jump to 2025/i);
+    expect(year2025Pill).toBeTruthy();
+
+    // Click 2025 pill
+    fireEvent.click(year2025Pill);
+
+    // Calendar view should now display 2025
+    expect(screen.getAllByText(/September 2025/i).length).toBeGreaterThanOrEqual(1);
+
+    // Next year double-chevron (+1 year)
+    const nextYearBtn = screen.getByTitle(/next year/i);
+    expect(nextYearBtn).toBeTruthy();
+    fireEvent.click(nextYearBtn);
+
+    // Calendar view jumps back to 2026
+    expect(screen.getAllByText(/September 2026/i).length).toBeGreaterThanOrEqual(1);
+
+    // Previous year double-chevron (-1 year)
+    const prevYearBtn = screen.getByTitle(/previous year/i);
+    expect(prevYearBtn).toBeTruthy();
+    fireEvent.click(prevYearBtn);
+
+    // Calendar view jumps back to 2025
+    expect(screen.getAllByText(/September 2025/i).length).toBeGreaterThanOrEqual(1);
+  });
 });
 
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, CloudRain, Flame, TrendingUp, Zap, Clock, ShieldCheck, HeartPulse, Compass, Edit2, Tag, Plus, X, Check, FileText, Activity as ActivityIcon, Droplets, RefreshCw, Thermometer, Sun, Cloud, ChevronDown, ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react';
+import { Calendar, CloudRain, Flame, TrendingUp, Zap, Clock, ShieldCheck, HeartPulse, Compass, Edit2, Tag, Plus, X, Check, FileText, Activity as ActivityIcon, Droplets, RefreshCw, Thermometer, Sun, Cloud, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, HelpCircle } from 'lucide-react';
 import { CanvasRunChart } from './CanvasRunChart';
 import { KmSplitsVisualizer } from './KmSplitsVisualizer.js';
 import { formatPace as formatPaceUtil } from '../utils/formatters.js';
@@ -207,6 +207,16 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
       counts[tag] = activities.filter(a => doesActivityMatchTag(a, tag)).length;
     });
     return counts;
+  }, [activities]);
+
+  // Derive unique years with recorded sessions for rapid year jumping
+  const availableYears = React.useMemo(() => {
+    const set = new Set<string>();
+    activities.forEach(a => {
+      const yr = a.start_time.substring(0, 4);
+      if (yr) set.add(yr);
+    });
+    return Array.from(set).sort();
   }, [activities]);
 
 
@@ -612,6 +622,18 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
             setCalendarViewYm(`${ny}-${nm}`);
           };
 
+          const handlePrevYear = () => {
+            const py = viewYear - 1;
+            const pm = String(viewMonth + 1).padStart(2, '0');
+            setCalendarViewYm(`${py}-${pm}`);
+          };
+
+          const handleNextYear = () => {
+            const ny = viewYear + 1;
+            const nm = String(viewMonth + 1).padStart(2, '0');
+            setCalendarViewYm(`${ny}-${nm}`);
+          };
+
           const daysOfWeek = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
           return (
@@ -628,47 +650,137 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                 boxShadow: 'var(--card-shadow)'
               }}
             >
-              {/* Calendar Header with Navigation */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <button
-                  type="button"
-                  onClick={handlePrevMonth}
+              {/* Quick Year Selector Pills */}
+              {availableYears.length > 1 && (
+                <div
                   style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    padding: '0.2rem',
-                    borderRadius: 4,
                     display: 'flex',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    padding: '0.25rem',
+                    borderRadius: 8,
+                    border: '1px solid var(--border-subtle)'
                   }}
-                  title="Previous month"
+                  role="group"
+                  aria-label="Filter by year"
                 >
-                  <ChevronLeft size={16} />
-                </button>
+                  {availableYears.map(yr => {
+                    const count = activities.filter(a => a.start_time.startsWith(yr)).length;
+                    const isCur = viewYear === parseInt(yr, 10);
+                    return (
+                      <button
+                        key={yr}
+                        type="button"
+                        onClick={() => {
+                          const curMonth = calendarViewYm.split('-')[1] || '01';
+                          setCalendarViewYm(`${yr}-${curMonth}`);
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '0.28rem 0.4rem',
+                          borderRadius: 6,
+                          border: isCur ? '1px solid var(--accent-cyan)' : '1px solid transparent',
+                          background: isCur ? 'var(--accent-cyan)' : 'transparent',
+                          color: isCur ? '#07090e' : 'var(--text-secondary)',
+                          fontWeight: isCur ? 700 : 500,
+                          fontSize: '0.74rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.3rem',
+                          transition: 'all 0.15s ease'
+                        }}
+                        title={`Jump to ${yr} (${count} runs)`}
+                      >
+                        <span>{yr}</span>
+                        <span style={{ fontSize: '0.66rem', opacity: isCur ? 0.9 : 0.6 }}>({count})</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
-                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              {/* Calendar Header with Navigation (Year & Month) */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
+                  <button
+                    type="button"
+                    onClick={handlePrevYear}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: '0.2rem',
+                      borderRadius: 4,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                    title="Previous year (-1 year)"
+                  >
+                    <ChevronsLeft size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePrevMonth}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      padding: '0.2rem',
+                      borderRadius: 4,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                    title="Previous month"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                </div>
+
+                <span style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)', userSelect: 'none' }}>
                   {monthLabel}
                 </span>
 
-                <button
-                  type="button"
-                  onClick={handleNextMonth}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    padding: '0.2rem',
-                    borderRadius: 4,
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}
-                  title="Next month"
-                >
-                  <ChevronRight size={16} />
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
+                  <button
+                    type="button"
+                    onClick={handleNextMonth}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      padding: '0.2rem',
+                      borderRadius: 4,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                    title="Next month"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleNextYear}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: '0.2rem',
+                      borderRadius: 4,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                    title="Next year (+1 year)"
+                  >
+                    <ChevronsRight size={16} />
+                  </button>
+                </div>
               </div>
 
               {/* Day of week headers */}
