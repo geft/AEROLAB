@@ -56,8 +56,8 @@ function copyRecursive(src, dest) {
 const rootFiles = [
   'AEROLAB.exe',
   'AEROLAB.vbs',
-  'AEROLAB.bat',
   'Create-Desktop-Shortcut.vbs',
+  'aerolab.ico',
   'package.json'
 ];
 
@@ -153,4 +153,24 @@ if (fs.existsSync(zipFile)) {
   const stat = fs.statSync(zipFile);
   const sizeMb = (stat.size / 1024 / 1024).toFixed(2);
   console.log(`\x1b[32m✔ Package complete: ${path.basename(zipFile)} (${sizeMb} MB)\x1b[0m`);
+}
+
+// 7. Compile Native Windows Installer (.exe) with embedded zip payload & aerolab.ico
+if (process.platform === 'win32') {
+  const cscPath = 'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe';
+  const installerCs = path.join(rootDir, 'installer.cs');
+  const icoPath = path.join(rootDir, 'aerolab.ico');
+  const installerExe = path.join(rootDir, 'release', `AEROLAB-Setup-v${version}.exe`);
+  const installerExeGeneric = path.join(rootDir, 'release', 'AEROLAB-Setup.exe');
+
+  if (fs.existsSync(cscPath) && fs.existsSync(installerCs) && fs.existsSync(zipFile)) {
+    console.log('🔨 Compiling AEROLAB-Setup.exe Native Windows Installer...');
+    execSync(`"${cscPath}" /nologo /target:winexe /win32icon:"${icoPath}" /resource:"${zipFile}",payload.zip /out:"${installerExe}" /r:System.Windows.Forms.dll,System.Drawing.dll,System.IO.Compression.dll,System.IO.Compression.FileSystem.dll "${installerCs}"`, { stdio: 'inherit' });
+    if (fs.existsSync(installerExe)) {
+      fs.copyFileSync(installerExe, installerExeGeneric);
+      const instStat = fs.statSync(installerExe);
+      const instSizeMb = (instStat.size / 1024 / 1024).toFixed(2);
+      console.log(`\x1b[32m✔ Windows Installer complete: ${path.basename(installerExe)} (${instSizeMb} MB)\x1b[0m`);
+    }
+  }
 }

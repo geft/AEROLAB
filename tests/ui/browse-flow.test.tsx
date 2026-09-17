@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
 import { BrowseView, getDisplayTitle, ActivitySummary } from '../../src/frontend/components/BrowseView.js';
 
 describe('BrowseView User Flow & Navigation Tests', () => {
@@ -442,7 +442,9 @@ describe('BrowseView User Flow & Navigation Tests', () => {
 
     // Toggle calendar open
     const calToggleBtn = screen.getByRole('button', { name: /calendar/i });
-    fireEvent.click(calToggleBtn);
+    act(() => {
+      fireEvent.click(calToggleBtn);
+    });
 
     // Calendar popover is now visible with month header
     expect(screen.getAllByText(/September 2026/i).length).toBeGreaterThanOrEqual(1);
@@ -450,7 +452,9 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     // Click on day 12 (act-101 date)
     const day12Btn = screen.getByTitle(/2026-09-12: 1 run\(s\)/i);
     expect(day12Btn).toBeTruthy();
-    fireEvent.click(day12Btn);
+    act(() => {
+      fireEvent.click(day12Btn);
+    });
 
     // onSelectActivity should be triggered
     expect(onSelect).toHaveBeenCalledWith('act-101');
@@ -458,7 +462,9 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     // Dedicated active filter bar should now be visible with clear button
     const clearBtn = screen.getByTitle(/show all sessions/i);
     expect(clearBtn).toBeTruthy();
-    fireEvent.click(clearBtn);
+    act(() => {
+      fireEvent.click(clearBtn);
+    });
 
     // Filter reset back to all sessions
     expect(screen.queryByTitle(/show all sessions/i)).toBeNull();
@@ -486,14 +492,18 @@ describe('BrowseView User Flow & Navigation Tests', () => {
 
     // Open calendar
     const calToggleBtn = screen.getByRole('button', { name: /calendar/i });
-    fireEvent.click(calToggleBtn);
+    act(() => {
+      fireEvent.click(calToggleBtn);
+    });
 
     // Quick Year Selector Pills should be rendered (2025 and 2026)
     const year2025Pill = screen.getByTitle(/jump to 2025/i);
     expect(year2025Pill).toBeTruthy();
 
     // Click 2025 pill
-    fireEvent.click(year2025Pill);
+    act(() => {
+      fireEvent.click(year2025Pill);
+    });
 
     // Calendar view should now display 2025
     expect(screen.getAllByText(/September 2025/i).length).toBeGreaterThanOrEqual(1);
@@ -501,7 +511,9 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     // Next year double-chevron (+1 year)
     const nextYearBtn = screen.getByTitle(/next year/i);
     expect(nextYearBtn).toBeTruthy();
-    fireEvent.click(nextYearBtn);
+    act(() => {
+      fireEvent.click(nextYearBtn);
+    });
 
     // Calendar view jumps back to 2026
     expect(screen.getAllByText(/September 2026/i).length).toBeGreaterThanOrEqual(1);
@@ -509,7 +521,9 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     // Previous year double-chevron (-1 year)
     const prevYearBtn = screen.getByTitle(/previous year/i);
     expect(prevYearBtn).toBeTruthy();
-    fireEvent.click(prevYearBtn);
+    act(() => {
+      fireEvent.click(prevYearBtn);
+    });
 
     // Calendar view jumps back to 2025
     expect(screen.getAllByText(/September 2025/i).length).toBeGreaterThanOrEqual(1);

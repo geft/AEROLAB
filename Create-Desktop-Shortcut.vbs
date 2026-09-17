@@ -7,11 +7,10 @@ desktopPath = WshShell.SpecialFolders("Desktop")
 currentDir = fso.GetParentFolderName(WScript.ScriptFullName)
 
 Set shortcut = WshShell.CreateShortcut(desktopPath & "\AEROLAB.lnk")
-shortcut.TargetPath = "wscript.exe"
-shortcut.Arguments = """" & currentDir & "\AEROLAB.vbs"""
+shortcut.TargetPath = currentDir & "\AEROLAB.exe"
 shortcut.WorkingDirectory = currentDir
-shortcut.Description = "AEROLAB - Physiological Running Analytics (Chromium-Free)"
-shortcut.WindowStyle = 7 ' Minimized / hidden
+shortcut.IconLocation = currentDir & "\aerolab.ico"
+shortcut.Description = "AEROLAB - Physiological Running Analytics"
 shortcut.Save
 
 MsgBox "Desktop shortcut created successfully on your Desktop!" & vbCrLf & vbCrLf & _

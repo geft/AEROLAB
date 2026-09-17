@@ -20,8 +20,9 @@ fs.copyFileSync('src/backend/db/schema.sql', 'dist-backend/schema.sql');
 if (process.platform === 'win32') {
   const cscPath = 'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe';
   if (fs.existsSync(cscPath) && fs.existsSync('launcher.cs')) {
-    console.log('🔨 Compiling AEROLAB.exe Native Windows GUI Launcher (Zero Terminal)...');
-    execSync(`"${cscPath}" /nologo /target:winexe /out:AEROLAB.exe /r:System.Windows.Forms.dll launcher.cs`, { stdio: 'inherit' });
+    console.log('🔨 Compiling AEROLAB.exe Native Windows GUI Launcher (Zero Terminal + Icon)...');
+    const icoArg = fs.existsSync('aerolab.ico') ? ' /win32icon:aerolab.ico' : '';
+    execSync(`"${cscPath}" /nologo /target:winexe${icoArg} /out:AEROLAB.exe /r:System.Windows.Forms.dll launcher.cs`, { stdio: 'inherit' });
   }
 }
 
