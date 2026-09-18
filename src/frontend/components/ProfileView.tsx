@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   User, Heart, Zap, Save, CheckCircle, AlertCircle, Info, ShieldCheck,
   Activity, Flame, Calendar, HardDrive, Download, FolderSync, RefreshCw,
-  Key, UploadCloud, FileUp, LogIn, LogOut, CheckCircle2, Type, Settings
+  Key, UploadCloud, FileUp, LogIn, LogOut, CheckCircle2, Type, Settings, X
 } from 'lucide-react';
 import { formatPace, calculateAgeFromDob } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
@@ -1261,16 +1261,21 @@ export const ProfileView: React.FC = () => {
 
       {/* Google OAuth Credentials Modal */}
       {showCredentialsModal && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0,0,0,0.65)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          padding: '1rem'
-        }}>
+        <div
+          onClick={e => {
+            if (e.target === e.currentTarget) setShowCredentialsModal(false);
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.65)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '1rem'
+          }}
+        >
           <div style={{
             background: 'var(--bg-card)',
             border: '1px solid var(--border-subtle)',
@@ -1278,11 +1283,48 @@ export const ProfileView: React.FC = () => {
             padding: '1.5rem',
             maxWidth: 480,
             width: '100%',
-            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)'
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)',
+            position: 'relative'
           }}>
-            <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              {t.backup.credentialsModalTitle}
-            </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                {t.backup.credentialsModalTitle}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowCredentialsModal(false)}
+                aria-label="Close"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  borderRadius: 4,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{
+              background: 'rgba(6, 182, 212, 0.08)',
+              border: '1px solid rgba(6, 182, 212, 0.25)',
+              borderRadius: 8,
+              padding: '0.6rem 0.85rem',
+              marginBottom: '0.85rem',
+              fontSize: '0.74rem',
+              color: '#38bdf8',
+              lineHeight: 1.4
+            }}>
+              {language === 'zh'
+                ? 'ℹ️ AEROLAB 已内置官方 Client ID。如果您不需要使用自己的自定义 Google Cloud 项目，可直接点击“取消”关闭此弹窗。'
+                : 'ℹ️ AEROLAB already includes a built-in Client ID out of the box. If you do not need custom credentials, simply click "Cancel" or close this dialog.'}
+            </div>
+
             <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45, margin: '0 0 1rem' }}>
               {t.backup.credentialsModalDesc}{' '}
               <code style={{ background: 'rgba(255,255,255,0.06)', padding: '2px 5px', borderRadius: 4, color: '#38bdf8' }}>
@@ -1359,7 +1401,7 @@ export const ProfileView: React.FC = () => {
                   cursor: 'pointer'
                 }}
               >
-                Cancel
+                {t.common.cancel}
               </button>
               <button
                 type="button"
