@@ -250,11 +250,20 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
   }
 
   // Phase 2: rebuild threshold calibrations chronologically. Stale rows whose
-  // source activity no longer qualifies are pruned first.
+  // source activity no longer qualifies, or unphysiological rows (LT1 > 156 or pace < 200), are pruned first.
   try {
+    // Reset athlete_profile if previously poisoned by unphysiological LT1
+    db.prepare(`
+      UPDATE athlete_profile
+      SET lt1_hr = 148, lt1_min_hr = 147, lt1_max_hr = 149, z3_start_hr = 150
+      WHERE lt1_hr > 156 OR lt1_hr IS NULL
+    `).run();
+
     const prunable = db.prepare(`
       DELETE FROM physiological_thresholds
-      WHERE source_activity_id IS NOT NULL AND source_activity_id IN (
+      WHERE (lt1_hr IS NOT NULL AND lt1_hr > 156)
+         OR (lt1_pace_sec_km IS NOT NULL AND lt1_pace_sec_km < 200)
+         OR (source_activity_id IS NOT NULL AND source_activity_id IN (
         SELECT t.source_activity_id FROM physiological_thresholds t
         LEFT JOIN activities a ON a.id = t.source_activity_id
         WHERE a.id IS NULL OR (
@@ -262,7 +271,7 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
         ) OR (
           t.lt1_hr IS NOT NULL AND t.lt2_hr IS NULL AND a.run_type NOT IN ('easy_base', 'long_run')
         )
-      )
+      ))
     `).run();
     stats.thresholdsPruned += prunable.changes ?? 0;
   } catch (err: any) {

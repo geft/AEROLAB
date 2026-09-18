@@ -268,44 +268,75 @@ export function calculateEconomy(records: ActivityRecord[]): EconomyMetrics {
     }
   }
 
-  // Moving distance & duration
-  const startDist = activeRecords[0].distanceMeters ?? 0;
-  const endDist = activeRecords[activeRecords.length - 1].distanceMeters ?? startDist;
-  const movingDistanceMeters = Math.max(0, endDist - startDist);
-
-  // Compute moving duration by summing continuous moving deltas, excluding stationary pauses / traffic lights
+  // Compute moving duration and distance by integrating active records.
+  // Handles Garmin Smart Recording (intervals 4-15s) and 1Hz recording without collapsing intervals > 5s.
   let calculatedMovingDuration = 0;
+  let calculatedMovingDistance = 0;
   for (let i = 0; i < activeRecords.length; i++) {
     if (i === 0) {
       calculatedMovingDuration += 1;
     } else {
       const prevSec = activeRecords[i - 1].elapsedSeconds ?? 0;
       const currSec = activeRecords[i].elapsedSeconds ?? (prevSec + 1);
-      const dt = currSec - prevSec;
-      // If delta <= 5s, count true delta (smart recording or 1Hz). If > 5s, runner paused at traffic light.
-      calculatedMovingDuration += (dt > 0 && dt <= 5) ? dt : 1;
+      const dtRaw = Math.max(1, currSec - prevSec);
+      // Smart recording intervals during continuous running range from 1 to 15 seconds.
+      // Delays > 15s indicate a pause / traffic light.
+      const dt = Math.min(15, dtRaw);
+      calculatedMovingDuration += dt;
+
+      const prevDist = activeRecords[i - 1].distanceMeters ?? 0;
+      const currDist = activeRecords[i].distanceMeters ?? prevDist;
+      const rawDd = Math.max(0, currDist - prevDist);
+      const dd = dtRaw <= 15 ? Math.min(dt * 10, rawDd) : ((activeRecords[i].speedMps ?? 0) * dt);
+      calculatedMovingDistance += dd;
     }
   }
-  const movingDurationSeconds = Math.max(activeRecords.length, calculatedMovingDuration);
+
+  // Use steady-state metrics from pauseBreakdown if sufficient steady running was detected
+  const movingDurationSeconds = pauseBreakdown.steadyRunningDurationSeconds >= 30
+    ? pauseBreakdown.steadyRunningDurationSeconds
+    : Math.max(activeRecords.length, calculatedMovingDuration);
+
+  const startDist = activeRecords[0].distanceMeters ?? 0;
+  const endDist = activeRecords[activeRecords.length - 1].distanceMeters ?? startDist;
+  const rawSpanDist = Math.max(0, endDist - startDist);
+  const movingDistanceMeters = pauseBreakdown.steadyRunningDistanceMeters >= 50
+    ? pauseBreakdown.steadyRunningDistanceMeters
+    : (calculatedMovingDistance > 0 ? calculatedMovingDistance : rawSpanDist);
 
   const rawAvgSpeedMps = speedCount > 0 ? totalSpeed / speedCount : 0;
   const fallbackSpeedMps = movingDurationSeconds > 0 ? movingDistanceMeters / movingDurationSeconds : 0;
-  // Guard against corrupt sensor speed spikes or flat corrupt speed records:
-  // If sensor speed wildly deviates from actual distance/time (>50% divergence), prefer distance/time.
-  const avgSpeedMps = (rawAvgSpeedMps > 0 && fallbackSpeedMps > 0 && Math.abs(rawAvgSpeedMps - fallbackSpeedMps) / fallbackSpeedMps > 0.5)
-    ? fallbackSpeedMps
-    : (rawAvgSpeedMps > 0 ? rawAvgSpeedMps : fallbackSpeedMps);
+  // If sensor speed is valid and consistent with distance/time (within 35%), use sensor speed.
+  // Otherwise fall back to true distance/time speed.
+  const avgSpeedMps = (rawAvgSpeedMps > 0 && rawAvgSpeedMps <= 8.5 && (fallbackSpeedMps <= 0 || Math.abs(rawAvgSpeedMps - fallbackSpeedMps) / fallbackSpeedMps <= 0.35))
+    ? rawAvgSpeedMps
+    : (fallbackSpeedMps > 0 ? fallbackSpeedMps : rawAvgSpeedMps);
   const avgHr = hrCount > 0 ? totalHr / hrCount : 0;
 
-  // Efficiency Factor = Speed (m/min) / HR
+  // Efficiency Factor = Speed (m/min) / HR (meters per beat)
   const speedMpm = avgSpeedMps * 60;
-  const efficiencyFactor = avgHr > 0 && speedMpm > 0 ? Number((speedMpm / avgHr).toFixed(4)) : null;
+  let rawEf = avgHr > 0 && speedMpm > 0 ? speedMpm / avgHr : null;
 
-  // Meters per Beat
+  // Physiological sanity check: human running economy EF ranges from 0.60 to 2.20 (elite marathoners ~1.8-2.15).
+  // If GPS glitches or sensor errors produce an unphysiological EF > 2.20, fall back to distance / total time / HR.
+  if (rawEf !== null && rawEf > 2.20) {
+    const totalSec = records[records.length - 1]?.elapsedSeconds ? (records[records.length - 1].elapsedSeconds - records[0].elapsedSeconds) : 0;
+    const totalDist = (records[records.length - 1]?.distanceMeters ?? 0) - (records[0]?.distanceMeters ?? 0);
+    if (totalSec > 60 && totalDist > 100 && avgHr > 40) {
+      const fallbackEf = ((totalDist / totalSec) * 60) / avgHr;
+      rawEf = fallbackEf > 0 && fallbackEf <= 2.20 ? fallbackEf : Math.min(rawEf, 2.20);
+    } else {
+      rawEf = Math.min(rawEf, 2.20);
+    }
+  }
+  const efficiencyFactor = rawEf !== null ? Number(rawEf.toFixed(4)) : null;
+
+  // Meters per Beat = movingDistanceMeters / totalHeartbeats
   let metersPerBeat: number | null = null;
   if (avgHr > 0 && movingDurationSeconds > 0 && movingDistanceMeters > 0) {
     const totalBeats = (avgHr / 60) * movingDurationSeconds;
-    metersPerBeat = Number((movingDistanceMeters / totalBeats).toFixed(3));
+    const calculatedMpb = movingDistanceMeters / totalBeats;
+    metersPerBeat = Number(Math.min(calculatedMpb, 2.20).toFixed(3));
   }
 
   // Aerobic Decoupling (Pa:Hr): Compare first half EF vs second half EF on the body of the run.
@@ -378,13 +409,17 @@ export function calculateEconomy(records: ActivityRecord[]): EconomyMetrics {
 
 
 function calculateHalfEF(halfRecords: ActivityRecord[]): number | null {
+  if (!halfRecords || halfRecords.length === 0) return null;
   let speedSum = 0;
   let speedCount = 0;
   let hrSum = 0;
   let hrCount = 0;
+  let activeDur = 0;
+  let activeDist = 0;
 
-  for (const r of halfRecords) {
-    if (r.speedMps !== null && r.speedMps > 0) {
+  for (let i = 0; i < halfRecords.length; i++) {
+    const r = halfRecords[i];
+    if (r.speedMps !== null && r.speedMps > 0 && r.speedMps <= 8.5) {
       speedSum += r.speedMps;
       speedCount++;
     }
@@ -392,19 +427,24 @@ function calculateHalfEF(halfRecords: ActivityRecord[]): number | null {
       hrSum += r.heartRate;
       hrCount++;
     }
+    if (i === 0) {
+      activeDur += 1;
+    } else {
+      const prev = halfRecords[i - 1];
+      const dtRaw = Math.max(1, (r.elapsedSeconds ?? i) - (prev.elapsedSeconds ?? (i - 1)));
+      const dt = Math.min(15, dtRaw);
+      activeDur += dt;
+      const rawDd = Math.max(0, (r.distanceMeters ?? 0) - (prev.distanceMeters ?? 0));
+      activeDist += dtRaw <= 15 ? Math.min(dt * 10, rawDd) : ((r.speedMps ?? 0) * dt);
+    }
   }
 
   if (hrCount === 0) return null;
-  const startDist = halfRecords[0].distanceMeters ?? 0;
-  const endDist = halfRecords[halfRecords.length - 1].distanceMeters ?? startDist;
-  const dist = Math.max(0, endDist - startDist);
-  const dur = Math.max(1, (halfRecords[halfRecords.length - 1].elapsedSeconds - halfRecords[0].elapsedSeconds));
-  const fallbackSpeed = dur > 0 ? dist / dur : 0;
-
+  const fallbackSpeed = activeDur > 0 && activeDist > 0 ? activeDist / activeDur : 0;
   const rawAvg = speedCount > 0 ? speedSum / speedCount : fallbackSpeed;
-  const avgSpeedMps = (rawAvg > 0 && fallbackSpeed > 0 && Math.abs(rawAvg - fallbackSpeed) / fallbackSpeed > 0.5)
-    ? fallbackSpeed
-    : (rawAvg > 0 ? rawAvg : fallbackSpeed);
+  const avgSpeedMps = (rawAvg > 0 && rawAvg <= 8.5 && (fallbackSpeed <= 0 || Math.abs(rawAvg - fallbackSpeed) / fallbackSpeed <= 0.35))
+    ? rawAvg
+    : (fallbackSpeed > 0 ? fallbackSpeed : rawAvg);
 
   if (avgSpeedMps <= 0) return null;
   const avgSpeed = avgSpeedMps * 60; // m/min

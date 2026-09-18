@@ -229,4 +229,42 @@ describe('Running Economy Physiology', () => {
     expect(pb.steadyCadence).toBe(165);
     expect(pb.steadyHeartRate).toBe(130);
   });
+
+  it('correctly calculates economy under Garmin Smart Recording (sample gaps 5-10s) without artificial pace compression', () => {
+    // 30 minutes of continuous running at 2.5 m/s (6:40/km) and 140 bpm, recorded via Smart Recording every 6-8s
+    const records: ActivityRecord[] = [];
+    let elapsed = 0;
+    let dist = 0;
+    const speed = 2.5; // 2.5 m/s = 150 m/min -> EF = 150 / 140 = 1.0714
+
+    while (elapsed < 1800) {
+      records.push({
+        timestamp: new Date(1700000000000 + elapsed * 1000).toISOString(),
+        elapsedSeconds: elapsed,
+        heartRate: 140,
+        cadence: 172,
+        speedMps: speed,
+        distanceMeters: dist,
+        altitudeMeters: 15,
+        latitude: 1.35,
+        longitude: 103.85,
+        temperature: 29,
+        verticalOscillation: 78,
+        stanceTime: 255
+      });
+      const step = 6 + (elapsed % 3); // 6, 7, or 8 second steps
+      elapsed += step;
+      dist += speed * step;
+    }
+
+    const economy = calculateEconomy(records);
+    // Moving duration should approximate 1800s, not be collapsed to ~250s
+    expect(economy.movingDurationSeconds).toBeGreaterThanOrEqual(1750);
+    expect(economy.movingDurationSeconds).toBeLessThanOrEqual(1850);
+    // EF should be ~1.07, not inflated to 3.0+
+    expect(economy.efficiencyFactor).toBeCloseTo(1.0714, 1);
+    expect(economy.metersPerBeat).toBeCloseTo(1.071, 1);
+    // Pace should be ~400 sec/km (6:40/km)
+    expect(economy.avgMovingPaceSecKm).toBeCloseTo(400, -1);
+  });
 });

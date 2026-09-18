@@ -28,20 +28,39 @@ export function evaluateThresholdUpdate(
   // Retrieve athlete profile for baseline reference (profile-relative, no hardcoded bpm)
   let baselineLt1Hr: number | null = null;
   let profileLt2Hr: number | null = null;
+  let profileMaxHr: number | null = null;
+  let profileRestingHr: number | null = null;
   try {
-    const prof = db.prepare('SELECT lt1_hr, lt2_hr, max_hr, resting_hr FROM athlete_profile WHERE id = ?').get('primary') as any;
+    const prof = db.prepare('SELECT lt1_hr, lt2_hr, max_hr, resting_hr, age FROM athlete_profile WHERE id = ?').get('primary') as any;
     if (prof?.lt1_hr) baselineLt1Hr = prof.lt1_hr;
     if (prof?.lt2_hr) profileLt2Hr = prof.lt2_hr;
+    if (prof?.max_hr) profileMaxHr = prof.max_hr;
+    if (prof?.resting_hr) profileRestingHr = prof.resting_hr;
   } catch {}
+
+  const effMax = profileMaxHr || 203;
+  const effRhr = profileRestingHr || 54;
+  // LT1 (aerobic threshold) is ~65% HRR (Karvonen), typical range 145-152 bpm
+  const targetLt1 = Math.round(effRhr + (effMax - effRhr) * 0.65);
+  // LT1 can never be closer than 18 bpm to LT2, and cannot exceed 155 bpm for human aerobic running
+  const maxLt1Hr = Math.min(155, (profileLt2Hr ?? 176) - 18);
+  const minLt1Hr = Math.max(135, targetLt1 - 12);
+
+  // Sanitize baselineLt1Hr so it can never be poisoned above maxLt1Hr
+  if (!baselineLt1Hr || baselineLt1Hr > maxLt1Hr || baselineLt1Hr < minLt1Hr) {
+    baselineLt1Hr = Math.min(maxLt1Hr, Math.max(minLt1Hr, 148));
+  }
 
   // 1. LT1 Candidate: Sustained Steady Aerobic Run with low decoupling (< 4.5%)
   const totalDuration = metadata.totalDurationSeconds || economy.movingDurationSeconds || 0;
   const avgHr = economy.avgMovingHeartRate || 0;
   const avgPace = economy.avgMovingPaceSecKm || 0;
 
-  // A genuine LT1 calibration effort requires steady state running near the aerobic threshold
-  // If athlete profile exists, low-intensity recovery jogs (e.g. 128-135 bpm) are sub-LT1 and do not depress the LT1 ceiling.
-  const isNearLt1 = baselineLt1Hr ? (avgHr >= baselineLt1Hr - 6) : true;
+  // A genuine LT1 calibration effort requires steady state running in the aerobic threshold zone (e.g. 140-155 bpm)
+  // If avgHr > maxLt1Hr, it is a tempo/threshold effort and MUST NOT calibrate LT1.
+  // If avgHr is lower (e.g. 130-136 bpm recovery or base), it is sub-LT1 and does not depress the LT1 ceiling.
+  const isAerobicZone = avgHr >= minLt1Hr - 5 && avgHr <= maxLt1Hr;
+  const isNearLt1 = isAerobicZone && (avgHr >= baselineLt1Hr - 6);
   const isLt1Candidate =
     (runType === 'easy_base' || runType === 'long_run') &&
     economy.aerobicDecouplingPct !== null &&
@@ -50,16 +69,33 @@ export function evaluateThresholdUpdate(
     isNearLt1;
 
   if (isLt1Candidate && avgHr && avgPace) {
-    estimatedLt1Hr = Math.round(avgHr);
+    estimatedLt1Hr = Math.min(maxLt1Hr, Math.max(minLt1Hr, Math.round(avgHr)));
     estimatedLt1Pace = Math.round(avgPace);
-  } else if (baselineLt1Hr && (runType === 'easy_base' || runType === 'long_run') && economy.efficiencyFactor && economy.aerobicDecouplingPct !== null && economy.aerobicDecouplingPct < 4.5 && totalDuration >= 1500) {
-    // For very steady sub-LT1 runs, estimate pace at baseline LT1 using current economy without shifting LT1 HR
+  } else if (baselineLt1Hr && (runType === 'easy_base' || runType === 'long_run') && economy.efficiencyFactor && economy.efficiencyFactor <= 2.20 && economy.aerobicDecouplingPct !== null && economy.aerobicDecouplingPct < 4.5 && totalDuration >= 1500) {
+    // For very steady sub-LT1 runs (e.g. long run at 134 bpm), estimate pace at baseline LT1 using current economy without shifting LT1 HR
     const speedMpsAtLt1 = (economy.efficiencyFactor * baselineLt1Hr) / 60;
     if (speedMpsAtLt1 > 0) {
       estimatedLt1Pace = Math.round(1000 / speedMpsAtLt1);
       estimatedLt1Hr = baselineLt1Hr;
     }
   }
+
+  // Physiological pace validation:
+  // 1. LT1 aerobic base pace cannot be faster than 200 sec/km (3:20/km) for human aerobic running.
+  // 2. LT1 pace must always be slower than LT2 threshold pace.
+  let knownLt2Pace: number | null = null;
+  try {
+    const lt2Row = db.prepare('SELECT lt2_pace_sec_km FROM physiological_thresholds WHERE lt2_pace_sec_km IS NOT NULL ORDER BY effective_date DESC LIMIT 1').get() as any;
+    if (lt2Row?.lt2_pace_sec_km) knownLt2Pace = lt2Row.lt2_pace_sec_km;
+  } catch {}
+
+  if (estimatedLt1Pace !== null) {
+    if (estimatedLt1Pace < 200 || (knownLt2Pace !== null && estimatedLt1Pace <= knownLt2Pace + 15)) {
+      estimatedLt1Pace = null;
+      estimatedLt1Hr = null;
+    }
+  }
+  const qualifiesLt1 = (isLt1Candidate || (estimatedLt1Hr !== null)) && estimatedLt1Pace !== null && estimatedLt1Hr !== null;
 
   // 2. LT2 Candidate: Threshold run, quality intervals, or continuous race effort.
   // Guard: at least one work rep must actually reach the profile-relative
@@ -116,7 +152,7 @@ export function evaluateThresholdUpdate(
 
   // 4. Save to physiological_thresholds if new candidate detected
   const isLt2Candidate = (runType === 'threshold_lt2' || runType === 'race') && estimatedLt2Pace !== null;
-  if (isLt1Candidate || isLt2Candidate) {
+  if (qualifiesLt1 || isLt2Candidate) {
     db.prepare('DELETE FROM physiological_thresholds WHERE source_activity_id = ?').run(activityId);
 
     const insertThreshold = db.prepare(`
@@ -134,9 +170,9 @@ export function evaluateThresholdUpdate(
     `);
 
     let note = 'Threshold calibration update';
-    if (isLt1Candidate && isLt2Candidate) {
+    if (qualifiesLt1 && isLt2Candidate) {
       note = `Calibrated dual LT1/LT2 baseline (${economy.aerobicDecouplingPct !== null ? `Decoupling: ${economy.aerobicDecouplingPct.toFixed(1)}%` : 'steady'})`;
-    } else if (isLt1Candidate) {
+    } else if (qualifiesLt1) {
       note = `Calibrated Aerobic Base (LT1) from steady aerobic run (${economy.aerobicDecouplingPct !== null ? `Decoupling: ${economy.aerobicDecouplingPct.toFixed(1)}%` : 'steady'})`;
     } else if (runType === 'race') {
       note = `Calibrated Lactate Threshold (LT2) from all-out 5K race pace`;
@@ -152,7 +188,7 @@ export function evaluateThresholdUpdate(
       estimatedLt2Hr,
       estimatedLt2Pace,
       baselineEconomyEf,
-      isLt1Candidate ? 0.9 : 0.85,
+      qualifiesLt1 ? 0.9 : 0.85,
       note
     );
 
@@ -206,13 +242,22 @@ export function getCurrentThresholds(db: Database.Database): {
   lastCalibratedDate: string | null;
 } {
   try {
+    const profile = db.prepare('SELECT lt1_hr, lt2_hr, max_hr, resting_hr, age FROM athlete_profile WHERE id = ?').get('primary') as any;
+    const effMax = profile?.max_hr || (profile?.age ? Math.round(208 - 0.7 * profile.age) : 203);
+    const effRhr = profile?.resting_hr || 54;
+    const fallbackLt1 = Math.min(152, Math.max(145, Math.round(effRhr + (effMax - effRhr) * 0.65))); // ~148-151 bpm
+    const fallbackLt2 = Math.round(effRhr + (effMax - effRhr) * 0.82); // ~176 bpm
+
+    const maxPlausibleLt1 = Math.min(155, fallbackLt2 - 18);
+    const minPlausibleLt1 = Math.max(135, fallbackLt1 - 12);
+
     const latestLt1 = db.prepare(`
       SELECT lt1_hr, lt1_pace_sec_km, effective_date, confidence
       FROM physiological_thresholds
-      WHERE lt1_hr IS NOT NULL
+      WHERE lt1_hr IS NOT NULL AND lt1_hr <= ? AND lt1_hr >= ?
       ORDER BY effective_date DESC, id DESC
       LIMIT 1
-    `).get() as any;
+    `).get(maxPlausibleLt1, minPlausibleLt1) as any;
 
     const latestLt2 = db.prepare(`
       SELECT lt2_hr, lt2_pace_sec_km, effective_date, confidence
@@ -222,13 +267,10 @@ export function getCurrentThresholds(db: Database.Database): {
       LIMIT 1
     `).get() as any;
 
-    const profile = db.prepare('SELECT lt1_hr, lt2_hr, max_hr, resting_hr, age FROM athlete_profile WHERE id = ?').get('primary') as any;
-    const effMax = profile?.max_hr || (profile?.age ? Math.round(208 - 0.7 * profile.age) : 185);
-    const effRhr = profile?.resting_hr || 50;
-    const fallbackLt1 = Math.round(effRhr + (effMax - effRhr) * 0.65);
-    const fallbackLt2 = Math.round(effRhr + (effMax - effRhr) * 0.82);
-
-    const lt1Hr = latestLt1?.lt1_hr || profile?.lt1_hr || fallbackLt1;
+    let lt1Hr = latestLt1?.lt1_hr || profile?.lt1_hr || fallbackLt1;
+    if (lt1Hr > maxPlausibleLt1 || lt1Hr < minPlausibleLt1) {
+      lt1Hr = fallbackLt1;
+    }
     const lt2Hr = latestLt2?.lt2_hr || profile?.lt2_hr || fallbackLt2;
 
     return {
