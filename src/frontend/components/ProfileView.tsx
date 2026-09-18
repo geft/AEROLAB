@@ -587,31 +587,30 @@ export const ProfileView: React.FC = () => {
           </div>
 
           {/* Mode Selection Tabs */}
-          <div style={{ display: 'flex', gap: '0.65rem', marginBottom: '1rem' }}>
+          {/* Mode Selection Tabs */}
+          <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
             <button
               type="button"
-              className={`view-mode-btn ${isAutoMaxHr ? 'active' : ''}`}
-              style={{ flex: 1, padding: '0.65rem 0.85rem', fontSize: '0.82rem', textAlign: 'left' }}
+              className={`profile-mode-tab ${isAutoMaxHr ? 'active' : ''}`}
               onClick={() => setIsAutoMaxHr(true)}
             >
-              <div style={{ fontWeight: 700, marginBottom: '0.15rem' }}>
+              <div className="profile-mode-tab-title">
                 {t.profile.autoMaxHrNote}
               </div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+              <div className="profile-mode-tab-subtitle">
                 {observedPeakHr ? `${t.profile.observedPeak}: ${observedPeakHr.peakHr} bpm` : `${t.profile.tanakaFallback}: ${liveTanaka} bpm`}
               </div>
             </button>
 
             <button
               type="button"
-              className={`view-mode-btn ${!isAutoMaxHr ? 'active' : ''}`}
-              style={{ flex: 1, padding: '0.65rem 0.85rem', fontSize: '0.82rem', textAlign: 'left' }}
+              className={`profile-mode-tab ${!isAutoMaxHr ? 'active' : ''}`}
               onClick={() => setIsAutoMaxHr(false)}
             >
-              <div style={{ fontWeight: 700, marginBottom: '0.15rem' }}>
+              <div className="profile-mode-tab-title">
                 {t.profile.manualMaxHrNote}
               </div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+              <div className="profile-mode-tab-subtitle">
                 {t.profile.lockCustomMaxHr}
               </div>
             </button>
@@ -619,16 +618,30 @@ export const ProfileView: React.FC = () => {
 
           {/* Auto-Infer Display */}
           {isAutoMaxHr ? (
-            <div style={{ padding: '0.9rem', borderRadius: 8, background: 'rgba(6, 182, 212, 0.06)', border: '1px solid rgba(6, 182, 212, 0.25)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.4rem' }}>
-                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#06b6d4' }}>
-                  {observedPeakHr ? t.profile.calibratedFromActualRunData : t.profile.estimatedBaselineNoHardEfforts}
-                </span>
-                <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#06b6d4' }}>
+            <div style={{
+              padding: '0.95rem 1.1rem',
+              borderRadius: 8,
+              background: 'rgba(6, 182, 212, 0.08)',
+              border: '1px solid rgba(6, 182, 212, 0.3)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{
+                    width: 9,
+                    height: 9,
+                    borderRadius: '50%',
+                    background: observedPeakHr ? '#10b981' : '#38bdf8',
+                    boxShadow: observedPeakHr ? '0 0 8px rgba(16, 185, 129, 0.7)' : '0 0 8px rgba(56, 189, 248, 0.7)'
+                  }} />
+                  <span style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {observedPeakHr ? t.profile.calibratedFromActualRunData : t.profile.estimatedBaselineNoHardEfforts}
+                  </span>
+                </div>
+                <span style={{ fontSize: '1.45rem', fontWeight: 800, color: '#38bdf8' }}>
                   {effectiveMaxHr} bpm
                 </span>
               </div>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
                 {observedPeakHr
                   ? (language === 'zh'
                       ? `在 ${observedPeakHr.activityName} (${observedPeakHr.activityDate}) 中观测到峰值 ${observedPeakHr.peakHr} bpm。`
@@ -677,7 +690,7 @@ export const ProfileView: React.FC = () => {
       <section className="profile-card">
         <div className="profile-card-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Activity size={18} color="#06b6d4" />
+            <Activity size={18} color="#38bdf8" />
             <h2 className="profile-card-title">{t.profile.trainingZonesPreview}</h2>
           </div>
           <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
@@ -703,10 +716,10 @@ export const ProfileView: React.FC = () => {
           {/* Zone 2 */}
           <div style={{ padding: '0.85rem', borderRadius: 8, background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#10b981' }}>{t.profile.zone2Title}</span>
-              <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#10b981' }}>{liveZones.z2[0]}–{liveZones.z2[1]} bpm</span>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#34d399' }}>{t.profile.zone2Title}</span>
+              <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#34d399' }}>{liveZones.z2[0]}–{liveZones.z2[1]} bpm</span>
             </div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#10b981', marginBottom: '0.2rem' }}>{t.profile.zone2Name}</div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#34d399', marginBottom: '0.2rem' }}>{t.profile.zone2Name}</div>
             <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
               {t.profile.zone2Desc}
             </p>
@@ -715,8 +728,8 @@ export const ProfileView: React.FC = () => {
           {/* Zone 3 */}
           <div style={{ padding: '0.85rem', borderRadius: 8, background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#06b6d4' }}>{t.profile.zone3Title}</span>
-              <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#06b6d4' }}>{liveZones.z3[0]}–{liveZones.z3[1]} bpm</span>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#38bdf8' }}>{t.profile.zone3Title}</span>
+              <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#38bdf8' }}>{liveZones.z3[0]}–{liveZones.z3[1]} bpm</span>
             </div>
             <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.2rem' }}>{t.profile.zone3Name}</div>
             <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
@@ -727,10 +740,10 @@ export const ProfileView: React.FC = () => {
           {/* Zone 4 */}
           <div style={{ padding: '0.85rem', borderRadius: 8, background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f59e0b' }}>{t.profile.zone4Title}</span>
-              <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#f59e0b' }}>{liveZones.z4[0]}–{liveZones.z4[1]} bpm</span>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#fbbf24' }}>{t.profile.zone4Title}</span>
+              <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#fbbf24' }}>{liveZones.z4[0]}–{liveZones.z4[1]} bpm</span>
             </div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#f59e0b', marginBottom: '0.2rem' }}>{t.profile.zone4Name}</div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#fbbf24', marginBottom: '0.2rem' }}>{t.profile.zone4Name}</div>
             <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
               {t.profile.zone4Desc}
             </p>
@@ -739,10 +752,10 @@ export const ProfileView: React.FC = () => {
           {/* Zone 5 */}
           <div style={{ padding: '0.85rem', borderRadius: 8, background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#ef4444' }}>{t.profile.zone5Title}</span>
-              <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ef4444' }}>&gt; {liveZones.z4[1]} bpm</span>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f87171' }}>{t.profile.zone5Title}</span>
+              <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#f87171' }}>&gt; {liveZones.z4[1]} bpm</span>
             </div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#ef4444', marginBottom: '0.2rem' }}>{t.profile.zone5Name}</div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#f87171', marginBottom: '0.2rem' }}>{t.profile.zone5Name}</div>
             <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
               {t.profile.zone5Desc}
             </p>

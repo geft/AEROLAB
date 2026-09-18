@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;
   --bg-primary: #07090e;
   --bg-card: #0d121f;
   --bg-card-hover: #131b2d;
@@ -32,6 +33,7 @@
 }
 
 [data-theme="light"] {
+  color-scheme: light;
   --bg-primary: #f1f5f9;         /* Slate 100 */
   --bg-card: #ffffff;            /* Pure white card */
   --bg-card-hover: #f8fafc;      /* Subtle hover */
@@ -2036,6 +2038,70 @@ body {
   background: var(--accent-cyan);
   color: #07090e;
   font-weight: 700;
+}
+
+[data-theme="light"] .view-mode-btn.active {
+  background: var(--accent-cyan);
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   Profile Mode Selection Tabs (High Contrast & Forced Dark Mode Resilient)
+   ========================================================================== */
+.profile-mode-tab {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  font-size: 0.82rem;
+  text-align: left;
+  border-radius: 8px;
+  cursor: pointer;
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border-subtle);
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.profile-mode-tab:hover {
+  border-color: rgba(6, 182, 212, 0.4);
+}
+
+.profile-mode-tab-title {
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  transition: color 0.2s ease;
+}
+
+.profile-mode-tab-subtitle {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  transition: color 0.2s ease;
+}
+
+.profile-mode-tab.active {
+  background: rgba(6, 182, 212, 0.12);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 16px rgba(6, 182, 212, 0.15);
+}
+
+.profile-mode-tab.active .profile-mode-tab-title {
+  color: var(--text-primary);
+}
+
+.profile-mode-tab.active .profile-mode-tab-subtitle {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+[data-theme="light"] .profile-mode-tab.active {
+  background: rgba(2, 132, 199, 0.1);
+  border-color: var(--accent-cyan);
+}
+
+[data-theme="light"] .profile-mode-tab.active .profile-mode-tab-subtitle {
+  color: #0284c7;
 }
 
 /* ==========================================================================
