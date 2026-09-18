@@ -19,9 +19,9 @@ scriptPath = """" & currentDir & "\scripts\launch-chrome-app.js" & """"
 On Error Resume Next
 Set execTest = WshShell.Exec(nodeCmd & " -v")
 If Err.Number <> 0 Then
-    MsgBox "Node.js was not found on this computer." & vbCrLf & vbCrLf & _
-           "Please install Node.js from https://nodejs.org or use the standalone installer.", _
-           vbExclamation, "AEROLAB - Missing Prerequisite"
+    MsgBox "AEROLAB engine could not be started." & vbCrLf & vbCrLf & _
+           "Please ensure AEROLAB is properly installed or rerun AEROLAB-Setup.exe.", _
+           vbCritical, "AEROLAB - Error"
     WScript.Quit 1
 End If
 On Error GoTo 0

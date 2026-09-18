@@ -53,10 +53,10 @@ namespace AerolabLauncher
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Could not start AEROLAB:\n\n" + ex.Message + "\n\nPlease ensure Node.js is installed on your computer.",
-                                "AEROLAB - Prerequisite Required",
+                MessageBox.Show("Could not start AEROLAB:\n\n" + ex.Message,
+                                "AEROLAB Error",
                                 MessageBoxButtons.OK,
-                                MessageBoxIcon.Warning);
+                                MessageBoxIcon.Error);
             }
         }
     }

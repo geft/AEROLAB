@@ -2,10 +2,13 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   User, Heart, Zap, Save, CheckCircle, AlertCircle, Info, ShieldCheck,
   Activity, Flame, Calendar, HardDrive, Download, FolderSync, RefreshCw,
-  Key, UploadCloud, FileUp, LogIn, LogOut, CheckCircle2
+  Key, UploadCloud, FileUp, LogIn, LogOut, CheckCircle2, Type, Settings
 } from 'lucide-react';
 import { formatPace, calculateAgeFromDob } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
+import { useFontSize, FontSize } from '../context/FontSizeContext.js';
+
+const DEFAULT_GOOGLE_CLIENT_ID = '805691757155-m96h9kbbb1v1pno1qa3bfq5bn1t5k91i.apps.googleusercontent.com';
 
 interface ObservedPeakData {
   peakHr: number;
@@ -25,7 +28,8 @@ interface ProfileData {
 }
 
 export const ProfileView: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
+  const { fontSize, setFontSize } = useFontSize();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -54,7 +58,7 @@ export const ProfileView: React.FC = () => {
   const [isSyncingGdrive, setIsSyncingGdrive] = useState(false);
   const [gdriveStatusMessage, setGdriveStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
-  const [clientIdInput, setClientIdInput] = useState('');
+  const [clientIdInput, setClientIdInput] = useState(DEFAULT_GOOGLE_CLIENT_ID);
   const [clientSecretInput, setClientSecretInput] = useState('');
   const [isRestoring, setIsRestoring] = useState(false);
   const [restoreMessage, setRestoreMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -405,8 +409,10 @@ export const ProfileView: React.FC = () => {
     );
   }
 
-  const lt1Pace = currentThresholds?.lt1PaceSecKm ? formatPace(currentThresholds.lt1PaceSecKm) : '5:50/km';
-  const lt2Pace = currentThresholds?.lt2PaceSecKm ? formatPace(currentThresholds.lt2PaceSecKm) : '4:10/km';
+  const lt1Pace = currentThresholds?.lt1PaceSecKm ? formatPace(currentThresholds.lt1PaceSecKm) : '--';
+  const lt2Pace = currentThresholds?.lt2PaceSecKm
+    ? formatPace(currentThresholds.lt2PaceSecKm)
+    : (currentThresholds?.lt1PaceSecKm ? `${formatPace(Math.round(currentThresholds.lt1PaceSecKm * 0.86))} (Est.)` : '--');
 
   return (
     <div className="profile-view-container">
@@ -417,9 +423,9 @@ export const ProfileView: React.FC = () => {
             <Heart size={28} color="#06b6d4" />
           </div>
           <div>
-            <h1 className="profile-header-title">Cardiovascular Baselines</h1>
+            <h1 className="profile-header-title">{t.profile.title}</h1>
             <p className="profile-header-subtitle">
-              Baselines and threshold anchors driving your training zones and efficiency metrics.
+              {t.profile.subtitle}
             </p>
           </div>
         </div>
@@ -431,7 +437,7 @@ export const ProfileView: React.FC = () => {
           disabled={saving}
         >
           <Save size={16} />
-          {saving ? 'Saving...' : 'Save Baselines'}
+          {saving ? t.common.loading : t.profile.saveProfile}
         </button>
       </div>
 
@@ -443,69 +449,72 @@ export const ProfileView: React.FC = () => {
       )}
 
       {/* 1. Inferred Thresholds Card (Non-Editable Reference) */}
-      <section className="profile-card" style={{ marginBottom: '1.5rem' }}>
+      <section className="profile-card thresholds-showcase-card" style={{ marginBottom: '1.5rem' }}>
         <div className="profile-card-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Zap size={18} color="#f59e0b" />
-            <h2 className="profile-card-title">Inferred Physiological Thresholds</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <Zap size={20} color="#f59e0b" />
+            <h2 className="profile-card-title">{t.profile.thresholdsCardTitle}</h2>
           </div>
-          <span className="profile-badge-calibrated">Derived from Run Data</span>
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+            {language === 'zh' ? '根据跑步记录自动推算 • 非手动编辑' : 'Calibrated from running workouts • Read-only baseline'}
+          </span>
         </div>
 
-        <p className="profile-card-desc">
-          Derived automatically from steady runs and tempo workouts to prevent manual drift.
-        </p>
-
-        <div className="threshold-pills-row">
-          <div className="threshold-pill-item">
-            <span className="threshold-pill-label">Aerobic Base (LT1)</span>
-            <span className="threshold-pill-value" style={{ color: '#10b981' }}>
-              ~{currentThresholds?.lt1Hr || 148} bpm
-            </span>
-            <span className="threshold-pill-sub">
-              Pace: {lt1Pace}
-            </span>
-          </div>
-
-          <div className="threshold-pill-item">
-            <span className="threshold-pill-label">Lactate Threshold (LT2)</span>
-            <span className="threshold-pill-value" style={{ color: '#f59e0b' }}>
-              ~{currentThresholds?.lt2Hr || 167} bpm
-            </span>
-            <span className="threshold-pill-sub">
-              Pace: {lt2Pace}
+        <div className="thresholds-reference-grid">
+          <div className="threshold-ref-box lt1">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="threshold-ref-label">{t.stats.aerobicTurnpoint}</span>
+              <span className="threshold-tag-pill lt1">LT1 BASE</span>
+            </div>
+            <div className="threshold-ref-val">
+              {lt1Pace}
+            </div>
+            <span className="threshold-ref-sub">
+              {t.progress.zone2Ceiling}: ~{currentThresholds?.lt1Hr || 145} bpm
             </span>
           </div>
 
-          <div className="threshold-pill-item">
-            <span className="threshold-pill-label">Aerobic Turnpoint Spread</span>
-            <span className="threshold-pill-value" style={{ color: '#06b6d4' }}>
-              {currentThresholds?.lt1PaceSecKm && currentThresholds?.lt2PaceSecKm
-                ? `${Math.round(currentThresholds.lt1PaceSecKm - currentThresholds.lt2PaceSecKm)}s gap`
-                : '60s gap'}
+          <div className="threshold-ref-box lt2">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="threshold-ref-label">{t.stats.anaerobicThreshold}</span>
+              <span className="threshold-tag-pill lt2">LT2 THRESHOLD</span>
+            </div>
+            <div className="threshold-ref-val">
+              {lt2Pace}
+            </div>
+            <span className="threshold-ref-sub">
+              {language === 'zh' ? '乳酸阈值心率' : 'Threshold Heart Rate'}: ~{currentThresholds?.lt2Hr || 165} bpm
             </span>
-            <span className="threshold-pill-sub">
-              {currentThresholds?.source ? `Source: ${currentThresholds.source}` : 'Continuous Inference'}
-            </span>
+          </div>
+
+          <div className="threshold-ref-box economy">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="threshold-ref-label">{t.browse.efficiencyFactor}</span>
+              <span className="threshold-tag-pill economy">EFFICIENCY</span>
+            </div>
+            <div className="threshold-ref-val">
+              {currentThresholds?.baselineEconomyEf ? Number(currentThresholds.baselineEconomyEf).toFixed(2) : '1.14'}
+            </div>
+            <span className="threshold-ref-sub">{t.browse.metersPerBeat}</span>
           </div>
         </div>
       </section>
 
-      {/* 2. Core Cardio Baselines Form */}
-      <form onSubmit={handleSave} className="profile-sections-grid">
-        {/* Runner Identity & Resting Baseline */}
+      {/* Main Profile Form */}
+      <form onSubmit={handleSave} className="profile-settings-form">
+        {/* Cardiovascular Baselines & RHR Section */}
         <section className="profile-card">
           <div className="profile-card-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Calendar size={18} color="#06b6d4" />
-              <h2 className="profile-card-title">Cardio Baselines &amp; Resting HR</h2>
+              <h2 className="profile-card-title">{t.profile.personalInfo}</h2>
             </div>
           </div>
 
           <div className="profile-form-grid">
             {/* 1. Date of Birth */}
             <div className="form-group">
-              <label className="form-label" htmlFor="dob-input">Date of Birth</label>
+              <label className="form-label" htmlFor="dob-input">{t.profile.dob}</label>
               <input
                 id="dob-input"
                 type="date"
@@ -513,12 +522,12 @@ export const ProfileView: React.FC = () => {
                 value={dob}
                 onChange={e => setDob(e.target.value)}
               />
-              <span className="form-hint">Birth date for continuous age calculation.</span>
+              <span className="form-hint">{t.profile.dob}</span>
             </div>
 
             {/* 2. Current Age */}
             <div className="form-group">
-              <label className="form-label">Current Age</label>
+              <label className="form-label">{t.profile.age}</label>
               <div className="form-input" style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -527,34 +536,33 @@ export const ProfileView: React.FC = () => {
                 userSelect: 'none'
               }}>
                 <span style={{ fontWeight: 700, color: '#38bdf8' }}>
-                  {dob ? `${computedAge} yrs` : '—'}
+                  {dob ? `${computedAge} ${language === 'zh' ? '岁' : 'yrs'}` : '—'}
                 </span>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  Tanaka max: ~{liveTanaka} bpm
+                  {language === 'zh' ? `Tanaka预估: ~${liveTanaka} bpm` : `Tanaka max: ~${liveTanaka} bpm`}
                 </span>
               </div>
-              <span className="form-hint">Derived from birth date.</span>
+              <span className="form-hint">{t.profile.age}</span>
             </div>
 
             {/* 3. Biological Gender */}
             <div className="form-group">
-              <label className="form-label">Biological Gender</label>
+              <label className="form-label">{t.profile.gender}</label>
               <select
                 className="form-input"
                 value={gender}
                 onChange={e => setGender(e.target.value)}
               >
-                <option value="Prefer not to say">Prefer not to say</option>
-                <option value="Female">Female</option>
-                <option value="Male">Male</option>
-                <option value="Non-binary">Non-binary</option>
+                <option value="Prefer not to say">{t.profile.genderOther}</option>
+                <option value="Female">{t.profile.genderFemale}</option>
+                <option value="Male">{t.profile.genderMale}</option>
               </select>
-              <span className="form-hint">Normative baseline.</span>
+              <span className="form-hint">{t.profile.gender}</span>
             </div>
 
             {/* 4. Resting Heart Rate */}
             <div className="form-group">
-              <label className="form-label">Resting Heart Rate (bpm)</label>
+              <label className="form-label">{t.profile.restingHr}</label>
               <input
                 type="number"
                 className="form-input"
@@ -564,7 +572,7 @@ export const ProfileView: React.FC = () => {
                 min="35"
                 max="100"
               />
-              <span className="form-hint">Waking pulse for Karvonen HRR.</span>
+              <span className="form-hint">{t.profile.restingHr}</span>
             </div>
           </div>
         </section>
@@ -574,7 +582,7 @@ export const ProfileView: React.FC = () => {
           <div className="profile-card-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Flame size={18} color="#ef4444" />
-              <h2 className="profile-card-title">Maximum Heart Rate (HRmax)</h2>
+              <h2 className="profile-card-title">{t.profile.maxHr}</h2>
             </div>
           </div>
 
@@ -587,10 +595,10 @@ export const ProfileView: React.FC = () => {
               onClick={() => setIsAutoMaxHr(true)}
             >
               <div style={{ fontWeight: 700, marginBottom: '0.15rem' }}>
-                Auto-Infer from Run Data
+                {t.profile.autoMaxHrNote}
               </div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                {observedPeakHr ? `Observed Peak: ${observedPeakHr.peakHr} bpm` : `Tanaka Fallback: ${liveTanaka} bpm`}
+                {observedPeakHr ? `${t.profile.observedPeak}: ${observedPeakHr.peakHr} bpm` : `${t.profile.tanakaFallback}: ${liveTanaka} bpm`}
               </div>
             </button>
 
@@ -601,10 +609,10 @@ export const ProfileView: React.FC = () => {
               onClick={() => setIsAutoMaxHr(false)}
             >
               <div style={{ fontWeight: 700, marginBottom: '0.15rem' }}>
-                Manual Override
+                {t.profile.manualMaxHrNote}
               </div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                Lock custom Max HR value
+                {t.profile.lockCustomMaxHr}
               </div>
             </button>
           </div>
@@ -614,7 +622,7 @@ export const ProfileView: React.FC = () => {
             <div style={{ padding: '0.9rem', borderRadius: 8, background: 'rgba(6, 182, 212, 0.06)', border: '1px solid rgba(6, 182, 212, 0.25)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.4rem' }}>
                 <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#06b6d4' }}>
-                  {observedPeakHr ? 'Calibrated from Actual Run Data' : 'Estimated Baseline (No Hard Efforts Yet)'}
+                  {observedPeakHr ? t.profile.calibratedFromActualRunData : t.profile.estimatedBaselineNoHardEfforts}
                 </span>
                 <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#06b6d4' }}>
                   {effectiveMaxHr} bpm
@@ -622,13 +630,17 @@ export const ProfileView: React.FC = () => {
               </div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
                 {observedPeakHr
-                  ? `Peak of ${observedPeakHr.peakHr} bpm observed during ${observedPeakHr.activityName} (${observedPeakHr.activityDate}).`
-                  : `Tanaka formula: 208 - (0.7 × ${computedAge}) = ${liveTanaka} bpm until hard interval runs are logged.`}
+                  ? (language === 'zh'
+                      ? `在 ${observedPeakHr.activityName} (${observedPeakHr.activityDate}) 中观测到峰值 ${observedPeakHr.peakHr} bpm。`
+                      : `Peak of ${observedPeakHr.peakHr} bpm observed during ${observedPeakHr.activityName} (${observedPeakHr.activityDate}).`)
+                  : (language === 'zh'
+                      ? `Tanaka公式：208 - (0.7 × ${computedAge}) = ${liveTanaka} bpm，待记录高强度间歇训练后自动更新。`
+                      : `Tanaka formula: 208 - (0.7 × ${computedAge}) = ${liveTanaka} bpm until hard interval runs are logged.`)}
               </p>
             </div>
           ) : (
             <div className="form-group">
-              <label className="form-label" htmlFor="manual-max-hr">Manual Maximum Heart Rate (bpm)</label>
+              <label className="form-label" htmlFor="manual-max-hr">{t.profile.manualMaxHrLabel}</label>
               <input
                 id="manual-max-hr"
                 type="number"
@@ -640,7 +652,7 @@ export const ProfileView: React.FC = () => {
                 max="230"
               />
               <span className="form-hint">
-                Custom ceiling used for all zone calculations.
+                {t.profile.manualMaxHrHint}
               </span>
             </div>
           )}
@@ -655,7 +667,7 @@ export const ProfileView: React.FC = () => {
                 style={{ accentColor: 'var(--accent-cyan)' }}
                 aria-label="I don't know my max heart rate"
               />
-              <span>Auto-calibrate Max HR from run data and age</span>
+              <span>{t.profile.autoCalibrateCheckbox}</span>
             </label>
           </div>
         </section>
@@ -666,10 +678,12 @@ export const ProfileView: React.FC = () => {
         <div className="profile-card-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Activity size={18} color="#06b6d4" />
-            <h2 className="profile-card-title">Training Zones Preview (Karvonen HRR)</h2>
+            <h2 className="profile-card-title">{t.profile.trainingZonesPreview}</h2>
           </div>
           <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-            Resting HR: {restingHr} bpm • Max HR: {effectiveMaxHr} bpm
+            {language === 'zh'
+              ? `静息心率: ${restingHr} bpm • 最大心率: ${effectiveMaxHr} bpm`
+              : `Resting HR: ${restingHr} bpm • Max HR: ${effectiveMaxHr} bpm`}
           </span>
         </div>
 
@@ -677,61 +691,133 @@ export const ProfileView: React.FC = () => {
           {/* Zone 1 */}
           <div style={{ padding: '0.85rem', borderRadius: 8, background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8' }}>Zone 1</span>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8' }}>{t.profile.zone1Title}</span>
               <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#94a3b8' }}>&lt; {liveZones.z2[0]} bpm</span>
             </div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.2rem' }}>Recovery</div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.2rem' }}>{t.profile.zone1Name}</div>
             <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
-              Active warm-up &amp; recovery flush.
+              {t.profile.zone1Desc}
             </p>
           </div>
 
           {/* Zone 2 */}
           <div style={{ padding: '0.85rem', borderRadius: 8, background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#10b981' }}>Zone 2</span>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#10b981' }}>{t.profile.zone2Title}</span>
               <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#10b981' }}>{liveZones.z2[0]}–{liveZones.z2[1]} bpm</span>
             </div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#10b981', marginBottom: '0.2rem' }}>Aerobic Base</div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#10b981', marginBottom: '0.2rem' }}>{t.profile.zone2Name}</div>
             <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
-              Fat oxidation &amp; capillary density.
+              {t.profile.zone2Desc}
             </p>
           </div>
 
           {/* Zone 3 */}
           <div style={{ padding: '0.85rem', borderRadius: 8, background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#06b6d4' }}>Zone 3</span>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#06b6d4' }}>{t.profile.zone3Title}</span>
               <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#06b6d4' }}>{liveZones.z3[0]}–{liveZones.z3[1]} bpm</span>
             </div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.2rem' }}>Tempo</div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.2rem' }}>{t.profile.zone3Name}</div>
             <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
-              Steady rhythm &amp; marathon pace.
+              {t.profile.zone3Desc}
             </p>
           </div>
 
           {/* Zone 4 */}
           <div style={{ padding: '0.85rem', borderRadius: 8, background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f59e0b' }}>Zone 4</span>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f59e0b' }}>{t.profile.zone4Title}</span>
               <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#f59e0b' }}>{liveZones.z4[0]}–{liveZones.z4[1]} bpm</span>
             </div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#f59e0b', marginBottom: '0.2rem' }}>Threshold (LT2)</div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#f59e0b', marginBottom: '0.2rem' }}>{t.profile.zone4Name}</div>
             <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
-              Lactate clearance &amp; 1-hour race pace.
+              {t.profile.zone4Desc}
             </p>
           </div>
 
           {/* Zone 5 */}
           <div style={{ padding: '0.85rem', borderRadius: 8, background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#ef4444' }}>Zone 5</span>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#ef4444' }}>{t.profile.zone5Title}</span>
               <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ef4444' }}>&gt; {liveZones.z4[1]} bpm</span>
             </div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#ef4444', marginBottom: '0.2rem' }}>VO2 Max</div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#ef4444', marginBottom: '0.2rem' }}>{t.profile.zone5Name}</div>
             <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
-              Peak aerobic power &amp; fast intervals.
+              {t.profile.zone5Desc}
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Display & Typography Card */}
+      <section className="overview-card" style={{ marginTop: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+          <Type size={22} style={{ color: 'var(--accent-cyan)' }} />
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              {t.profile.displaySettings}
+            </h3>
+            <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              {t.profile.displaySettingsSub}
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              {t.profile.fontSizeLabel}
+            </label>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {(['small', 'medium', 'large', 'xlarge', 'xxlarge', 'max'] as FontSize[]).map(size => {
+                const isSelected = fontSize === size;
+                const label = size === 'small' ? t.common.fontSizeSmall
+                  : size === 'medium' ? t.common.fontSizeMedium
+                  : size === 'large' ? t.common.fontSizeLarge
+                  : size === 'xlarge' ? t.common.fontSizeXLarge
+                  : size === 'xxlarge' ? t.common.fontSizeXXLarge
+                  : t.common.fontSizeMax;
+                return (
+                  <button
+                    key={size}
+                    type="button"
+                    id={`profile-font-size-${size}`}
+                    onClick={() => setFontSize(size)}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      borderRadius: 8,
+                      border: isSelected ? '1px solid var(--accent-cyan)' : '1px solid var(--border-subtle)',
+                      background: isSelected ? 'rgba(6, 182, 212, 0.15)' : 'var(--bg-surface)',
+                      color: isSelected ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                      fontWeight: isSelected ? 700 : 500,
+                      fontSize: size === 'small' ? '0.75rem'
+                        : size === 'medium' ? '0.85rem'
+                        : size === 'large' ? '0.95rem'
+                        : size === 'xlarge' ? '1.05rem'
+                        : size === 'xxlarge' ? '1.15rem'
+                        : '1.25rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{
+            padding: '1rem',
+            background: 'var(--bg-surface)',
+            border: '1px dashed var(--border-subtle)',
+            borderRadius: 8,
+            color: 'var(--text-secondary)',
+            fontSize: '0.9rem',
+            lineHeight: 1.5
+          }}>
+            <span>{t.profile.fontSizePreview}</span>
           </div>
         </div>
       </section>
@@ -883,6 +969,23 @@ export const ProfileView: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
                   <UploadCloud size={16} style={{ color: 'var(--accent-emerald)' }} />
                   <span>{t.backup.googleTitle}</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowCredentialsModal(true)}
+                    title={language === 'zh' ? '配置自定义 Google OAuth 凭据' : 'Configure custom Google OAuth credentials'}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: '2px 4px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      borderRadius: 4
+                    }}
+                  >
+                    <Settings size={13} />
+                  </button>
                 </div>
                 {googleStatus?.isConnected && (
                   <button
@@ -1167,8 +1270,20 @@ export const ProfileView: React.FC = () => {
             <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
               {t.backup.credentialsModalTitle}
             </h3>
-            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4, margin: '0 0 1rem' }}>
-              Create a free OAuth 2.0 Web Client in Google Cloud Console with redirect URI <code>http://localhost:3001/api/auth/google/callback</code>.
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45, margin: '0 0 1rem' }}>
+              {t.backup.credentialsModalDesc}{' '}
+              <code style={{ background: 'rgba(255,255,255,0.06)', padding: '2px 5px', borderRadius: 4, color: '#38bdf8' }}>
+                http://localhost:3001/api/auth/google/callback
+              </code>
+              <br />
+              <a
+                href="https://console.cloud.google.com/apis/credentials"
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: 'var(--accent-cyan)', display: 'inline-block', marginTop: '0.4rem', fontSize: '0.75rem', textDecoration: 'underline' }}
+              >
+                🔗 {language === 'zh' ? '前往 Google Cloud Console 凭据页面' : 'Open Google Cloud Console Credentials page'} &rarr;
+              </a>
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>

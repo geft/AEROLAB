@@ -6,7 +6,8 @@ import {
   saveGoogleCredentials,
   getGoogleAuthUrl,
   getGoogleAuthStatus,
-  disconnectGoogle
+  disconnectGoogle,
+  DEFAULT_GOOGLE_CLIENT_ID
 } from '../../src/backend/auth/google-auth.js';
 
 describe('Google OAuth & Auth Helper Unit Tests', () => {
@@ -70,6 +71,19 @@ describe('Google OAuth & Auth Helper Unit Tests', () => {
     status = getGoogleAuthStatus(db);
     expect(status.isConnected).toBe(false);
     expect(status.email).toBeNull();
+    expect(status.isConfigured).toBe(true);
+  });
+
+  it('exposes the default AEROLAB Google Client ID constant', () => {
+    expect(DEFAULT_GOOGLE_CLIENT_ID).toBe('805691757155-m96h9kbbb1v1pno1qa3bfq5bn1t5k91i.apps.googleusercontent.com');
+  });
+
+  it('allows saving Google credentials without a clientSecret', () => {
+    saveGoogleCredentials(db, DEFAULT_GOOGLE_CLIENT_ID);
+    const config = getGoogleConfig(db);
+    expect(config.clientId).toBe(DEFAULT_GOOGLE_CLIENT_ID);
+    expect(config.clientSecret).toBeNull();
+    const status = getGoogleAuthStatus(db);
     expect(status.isConfigured).toBe(true);
   });
 });

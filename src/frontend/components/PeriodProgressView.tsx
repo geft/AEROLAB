@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, TrendingUp, Award, Activity, ShieldCheck, Zap, LayoutGrid, List, ArrowUpRight } from 'lucide-react';
 import { formatPace } from '../utils/formatters.js';
+import { useTranslation } from '../i18n/LanguageContext.js';
 
 export interface PeriodSummary {
   period: string; // "2026-09" or "2026"
@@ -19,6 +20,20 @@ export interface PeriodSummary {
 }
 
 export const PeriodProgressView: React.FC = () => {
+  const { t, language } = useTranslation();
+
+  const formatPeriodLabel = (p: PeriodSummary, lang: string): string => {
+    if (lang !== 'zh') return p.label;
+    if (/^\d{4}-\d{2}$/.test(p.period)) {
+      const [y, m] = p.period.split('-');
+      return `${y}年${parseInt(m, 10)}月`;
+    }
+    if (/^\d{4}$/.test(p.period)) {
+      return `${p.period}赛季`;
+    }
+    return p.label;
+  };
+
   const [data, setData] = useState<{ months: PeriodSummary[]; years: PeriodSummary[] } | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [activePeriodType, setActivePeriodType] = useState<'month' | 'year'>('month');
@@ -80,23 +95,26 @@ export const PeriodProgressView: React.FC = () => {
     return paddingTop + innerHeight - norm * innerHeight;
   };
 
-  // Build SVG path for EF line
   const efPoints = periods
     .map((p, idx) => {
-      if (p.avgEfficiencyFactor === null) return null;
-      return { x: getX(idx), y: getY_EF(p.avgEfficiencyFactor), ef: p.avgEfficiencyFactor, period: p };
+      const hasEf = typeof p.avgEfficiencyFactor === 'number' && !isNaN(p.avgEfficiencyFactor);
+      return {
+        x: getX(idx),
+        y: hasEf ? getY_EF(p.avgEfficiencyFactor!) : null,
+        ef: hasEf ? p.avgEfficiencyFactor! : null,
+        period: p.period
+      };
     })
-    .filter((pt): pt is { x: number; y: number; ef: number; period: PeriodSummary } => pt !== null);
+    .filter((pt): pt is { x: number; y: number; ef: number; period: string } => pt.y !== null && typeof pt.ef === 'number');
 
-  const efLinePath = efPoints.length > 1
-    ? efPoints.reduce((acc, pt, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${pt.x},${pt.y}`, '')
-    : '';
+  const efLinePath = efPoints.length > 0
+    ? efPoints.reduce((acc, pt, idx) => {
+        return idx === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
+      }, '')
+    : null;
 
-  // Baseline comparison
-  const baselineEf = data.months?.[0]?.avgEfficiencyFactor || 1.06;
-  const latestMonthEf = (data.months && data.months.length > 0)
-    ? (data.months[data.months.length - 1]?.avgEfficiencyFactor || 1.16)
-    : 1.16;
+  const baselineEf = periods.length > 0 && periods[0]?.avgEfficiencyFactor ? periods[0].avgEfficiencyFactor : 1.15;
+  const latestMonthEf = periods.length > 0 && periods[periods.length - 1]?.avgEfficiencyFactor ? periods[periods.length - 1].avgEfficiencyFactor! : baselineEf;
   const efficiencyImprovementPct = baselineEf > 0
     ? (((latestMonthEf - baselineEf) / baselineEf) * 100).toFixed(1)
     : '0';
@@ -106,16 +124,16 @@ export const PeriodProgressView: React.FC = () => {
       <div className="period-header-row">
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-            <span className="chart-title">Progress Over Month &amp; Year</span>
+            <span className="chart-title">{t.progress.title}</span>
             <span className="profile-sync-badge">
-              <Calendar size={13} /> Longitudinal Evolution
+              <Calendar size={13} /> {t.progress.gainInYear}
             </span>
             <span className="run-badge badge-easy_base" style={{ fontSize: '0.72rem' }}>
-              <TrendingUp size={11} style={{ marginRight: 3 }} /> +{efficiencyImprovementPct}% Economy Gain in 2026
+              <TrendingUp size={11} style={{ marginRight: 3 }} /> +{efficiencyImprovementPct}% {t.progress.gainInYear}
             </span>
           </div>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
-            Compare your monthly volume progression (km) alongside the steady improvement in cardiovascular Running Economy (EF) across training blocks.
+            {t.progress.longitudinalDesc}
           </p>
         </div>
 
@@ -127,21 +145,21 @@ export const PeriodProgressView: React.FC = () => {
               onClick={() => setRunTypeFilter('all')}
               style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem' }}
             >
-              All Runs
+              {t.progress.allRunsFilter}
             </button>
             <button
               className={`filter-pill-btn ${runTypeFilter === 'easy' ? 'active' : ''}`}
               onClick={() => setRunTypeFilter('easy')}
               style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem' }}
             >
-              Easy / Base
+              {t.progress.easyBaseFilter}
             </button>
             <button
               className={`filter-pill-btn ${runTypeFilter === 'threshold' ? 'active' : ''}`}
               onClick={() => setRunTypeFilter('threshold')}
               style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem' }}
             >
-              Threshold / VO2
+              {t.progress.thresholdVo2Filter}
             </button>
           </div>
 
@@ -151,13 +169,13 @@ export const PeriodProgressView: React.FC = () => {
               className={`volume-tab-btn ${activePeriodType === 'month' ? 'active' : ''}`}
               onClick={() => setActivePeriodType('month')}
             >
-              Monthly
+              {t.progress.monthly}
             </button>
             <button
               className={`volume-tab-btn ${activePeriodType === 'year' ? 'active' : ''}`}
               onClick={() => setActivePeriodType('year')}
             >
-              Yearly
+              {t.progress.yearly}
             </button>
           </div>
 
@@ -166,18 +184,18 @@ export const PeriodProgressView: React.FC = () => {
             <button
               className={`view-mode-btn ${viewMode === 'cards' ? 'active' : ''}`}
               onClick={() => setViewMode('cards')}
-              title="Milestone Cards"
+              title={t.progress.cardsView}
             >
               <LayoutGrid size={13} style={{ marginRight: 3, verticalAlign: 'middle' }} />
-              Cards
+              {t.progress.cardsView}
             </button>
             <button
               className={`view-mode-btn ${viewMode === 'table' ? 'active' : ''}`}
               onClick={() => setViewMode('table')}
-              title="Table View"
+              title={t.progress.tableView}
             >
               <List size={13} style={{ marginRight: 3, verticalAlign: 'middle' }} />
-              Table
+              {t.progress.tableView}
             </button>
           </div>
         </div>
@@ -189,15 +207,15 @@ export const PeriodProgressView: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
               <span style={{ width: 12, height: 12, borderRadius: 2, background: 'rgba(6, 182, 212, 0.6)' }}></span>
-              <span>Total Distance (km)</span>
+              <span>{t.progress.totalDistanceLegend}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
               <span style={{ width: 14, height: 3, borderRadius: 2, background: '#10b981' }}></span>
-              <span>Running Economy (EF)</span>
+              <span>{t.progress.runningEconomyLegend}</span>
             </div>
           </div>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-            Hover over bars to inspect period metrics
+            {t.progress.hoverHint}
           </span>
         </div>
 
@@ -420,7 +438,7 @@ export const PeriodProgressView: React.FC = () => {
                       fontWeight="700"
                       textAnchor="middle"
                     >
-                      {pt.ef.toFixed(2)}
+                      {typeof pt.ef === 'number' ? pt.ef.toFixed(2) : ''}
                     </text>
                   )}
                 </g>
@@ -448,16 +466,20 @@ export const PeriodProgressView: React.FC = () => {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <Calendar size={15} color="#06b6d4" />
-                      <span className="period-title">{p.label}</span>
+                      <span className="period-title">{formatPeriodLabel(p, language)}</span>
                       {isLatest && (
                         <span className="run-badge badge-easy_base" style={{ fontSize: '0.65rem' }}>
-                          Current Block
+                          {t.progress.currentBlock || 'Current Block'}
                         </span>
                       )}
                     </div>
                     <span className="period-subtitle">
-                      {p.runCount} logged {p.runCount === 1 ? 'activity' : 'activities'}
-                      {p.activeMonths ? ` across ${p.activeMonths} active months` : ''}
+                      {language === 'zh'
+                        ? `已记录 ${p.runCount} ${t.progress.loggedActivities}`
+                        : `${p.runCount} logged ${p.runCount === 1 ? 'activity' : 'activities'}`}
+                      {p.activeMonths
+                        ? (language === 'zh' ? `，跨越 ${p.activeMonths} 个活跃月份` : ` across ${p.activeMonths} active months`)
+                        : ''}
                     </span>
                   </div>
 
@@ -469,38 +491,40 @@ export const PeriodProgressView: React.FC = () => {
 
                 <div className="period-metrics-grid">
                   <div className="period-metric-box">
-                    <span className="period-metric-label">Running Economy</span>
+                    <span className="period-metric-label">{t.progress.runningEconomy}</span>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem' }}>
                       <span className="period-metric-num" style={{ color: '#10b981' }}>
                         {p.avgEfficiencyFactor ? p.avgEfficiencyFactor.toFixed(2) : '—'}
                       </span>
                       <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>EF</span>
                     </div>
-                    <span className="period-metric-sub">Meters / heartbeat</span>
+                    <span className="period-metric-sub">{t.progress.metersPerHeartbeat}</span>
                   </div>
 
                   <div className="period-metric-box">
-                    <span className="period-metric-label">Total Time</span>
+                    <span className="period-metric-label">{t.progress.totalTime}</span>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem' }}>
                       <span className="period-metric-num">
                         {p.totalDurationHours}
                       </span>
-                      <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>hrs</span>
+                      <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{language === 'zh' ? '小时' : 'hrs'}</span>
                     </div>
                     <span className="period-metric-sub">
-                      {p.zone2Hours ? `Zone 2: ${p.zone2Hours}h (${p.zone2Pct}%)` : 'Total cardio'}
+                      {p.zone2Hours
+                        ? (language === 'zh' ? `2区: ${p.zone2Hours}小时 (${p.zone2Pct}%)` : `Zone 2: ${p.zone2Hours}h (${p.zone2Pct}%)`)
+                        : t.progress.totalCardio}
                     </span>
                   </div>
 
                   <div className="period-metric-box">
-                    <span className="period-metric-label">Average Pace</span>
+                    <span className="period-metric-label">{t.progress.averagePace}</span>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem' }}>
                       <span className="period-metric-num" style={{ color: '#38bdf8' }}>
                         {formatPace(p.avgPaceSecKm)}
                       </span>
                     </div>
                     <span className="period-metric-sub">
-                      Avg HR: {p.avgHeartRate ? `${p.avgHeartRate} bpm` : '—'}
+                      {t.progress.avgHr}: {p.avgHeartRate ? `${p.avgHeartRate} bpm` : '—'}
                     </span>
                   </div>
                 </div>
@@ -522,7 +546,9 @@ export const PeriodProgressView: React.FC = () => {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.4rem' }}>
                         <Award size={13} color="#f59e0b" />
                         <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                          {totalCals} Physiological Calibration{totalCals !== 1 ? 's' : ''}
+                          {language === 'zh'
+                            ? `${totalCals} ${t.progress.calibrationsCount}`
+                            : `${totalCals} Physiological Calibration${totalCals !== 1 ? 's' : ''}`}
                         </span>
                       </div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
@@ -532,7 +558,7 @@ export const PeriodProgressView: React.FC = () => {
                             style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem' }}
                             title={`Best LT2 Threshold pace this period across ${lt2Cals.length} calibration${lt2Cals.length !== 1 ? 's' : ''}`}
                           >
-                            LT2 Peak: {formatPace(bestLt2.lt2_pace_sec_km)}/km
+                            {t.progress.lt2Peak}: {formatPace(bestLt2.lt2_pace_sec_km)}/km
                             {lt2Cals.length > 1 && <span style={{ opacity: 0.65, marginLeft: '0.3rem' }}>×{lt2Cals.length}</span>}
                           </span>
                         )}
@@ -542,13 +568,13 @@ export const PeriodProgressView: React.FC = () => {
                             style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem' }}
                             title={`Best LT1 Aerobic Base pace this period across ${lt1Cals.length} calibration${lt1Cals.length !== 1 ? 's' : ''}`}
                           >
-                            LT1 Base: {formatPace(bestLt1.lt1_pace_sec_km)}/km
+                            {t.progress.lt1Base}: {formatPace(bestLt1.lt1_pace_sec_km)}/km
                             {lt1Cals.length > 1 && <span style={{ opacity: 0.65, marginLeft: '0.3rem' }}>×{lt1Cals.length}</span>}
                           </span>
                         )}
                         {!bestLt2 && !bestLt1 && (
                           <span className="run-badge badge-race" style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem' }}>
-                            Benchmark Effort
+                            {t.progress.benchmarkEffort}
                           </span>
                         )}
                       </div>
@@ -564,24 +590,24 @@ export const PeriodProgressView: React.FC = () => {
           <table className="styled-table">
             <thead>
               <tr>
-                <th>Period</th>
-                <th>Activities</th>
-                <th>Distance</th>
-                <th>Duration</th>
-                <th>Aerobic Economy (EF)</th>
-                <th>Average Pace</th>
-                <th>Average HR</th>
-                <th>Zone 2 Aerobic Foundation</th>
-                <th>Calibrated Milestones</th>
+                <th>{t.progress.tablePeriod}</th>
+                <th>{t.progress.tableActivities}</th>
+                <th>{t.progress.tableDistance}</th>
+                <th>{t.progress.tableDuration}</th>
+                <th>{t.progress.tableEconomy}</th>
+                <th>{t.progress.tableAvgPace}</th>
+                <th>{t.progress.tableAvgHr}</th>
+                <th>{t.progress.tableZone2}</th>
+                <th>{t.progress.tableCalibrations}</th>
               </tr>
             </thead>
             <tbody>
               {periods.map(p => (
                 <tr key={p.period}>
-                  <td><b>{p.label}</b></td>
+                  <td><b>{formatPeriodLabel(p, language)}</b></td>
                   <td>{p.runCount}</td>
                   <td style={{ color: '#06b6d4', fontWeight: 600 }}>{p.totalDistanceKm} km</td>
-                  <td>{p.totalDurationHours} hrs</td>
+                  <td>{p.totalDurationHours} {language === 'zh' ? '小时' : 'hrs'}</td>
                   <td style={{ color: '#10b981', fontWeight: 700 }}>
                     {p.avgEfficiencyFactor ? p.avgEfficiencyFactor.toFixed(2) : '—'} EF
                   </td>
@@ -591,7 +617,9 @@ export const PeriodProgressView: React.FC = () => {
                   <td>
                     {p.calibrations && p.calibrations.length > 0 ? (
                       <span className="run-badge badge-easy_base" style={{ fontSize: '0.7rem' }}>
-                        {p.calibrations.length} {p.calibrations.length === 1 ? 'calibration' : 'calibrations'}
+                        {language === 'zh'
+                          ? `${p.calibrations.length} 项校准`
+                          : `${p.calibrations.length} ${p.calibrations.length === 1 ? 'calibration' : 'calibrations'}`}
                       </span>
                     ) : (
                       <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>

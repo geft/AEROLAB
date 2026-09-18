@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Terminal, Database, Activity, AlertTriangle, RefreshCw, X, ShieldAlert, Cpu, Trash2, ExternalLink } from 'lucide-react';
 import { clientLogger, ClientLogEntry } from '../utils/clientLogger';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface DevDiagnosticsDrawerProps {
   isOpen: boolean;
@@ -46,6 +47,7 @@ export const DevDiagnosticsDrawer: React.FC<DevDiagnosticsDrawerProps> = ({
   onClose,
   theme = 'dark'
 }) => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'logs' | 'server' | 'sandbox'>('logs');
   const [clientLogs, setClientLogs] = useState<ClientLogEntry[]>([]);
   const [serverDiag, setServerDiag] = useState<ServerDiagnostics | null>(null);
@@ -131,7 +133,7 @@ export const DevDiagnosticsDrawer: React.FC<DevDiagnosticsDrawerProps> = ({
           <div className="dev-drawer-title">
             <Terminal size={18} color="#06b6d4" />
             <span>AEROLAB Dev Diagnostics</span>
-            <span className="dev-pill">DEV MODE</span>
+            <span className="dev-pill">{t.common.devMode}</span>
           </div>
 
           <div className="dev-drawer-header-actions">

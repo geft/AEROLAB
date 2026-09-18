@@ -5,6 +5,7 @@ import { PeriodProgressView } from './PeriodProgressView';
 import { EconomyGuideModal } from './EconomyGuideModal';
 import { VdotGuideModal } from './VdotGuideModal';
 import { formatPace, formatDate } from '../utils/formatters.js';
+import { useTranslation } from '../i18n/LanguageContext.js';
 
 interface ThresholdData {
   latest: {
@@ -21,6 +22,7 @@ interface ThresholdData {
 }
 
 export const ProgressView: React.FC = () => {
+  const { t } = useTranslation();
   const [data, setData] = useState<ThresholdData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [historyViewMode, setHistoryViewMode] = useState<'cards' | 'table'>('cards');
@@ -77,34 +79,34 @@ export const ProgressView: React.FC = () => {
       {/* Overview Cards */}
       <div className="benchmarks-grid">
         <div className="benchmark-card">
-          <span className="benchmark-label">Aerobic Threshold (LT1) Pace</span>
+          <span className="benchmark-label">{t.progress.lt1Title}</span>
           <div className="benchmark-value" style={{ color: '#10b981' }}>
             {data.latest.lt1?.lt1_pace_sec_km ? formatPace(data.latest.lt1.lt1_pace_sec_km) : '5:10/km (Est.)'}
           </div>
           <span className="benchmark-sub">
-            Calibrated at {data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? data.latest.lt1?.lt1_hr ?? 145} bpm (Zone 2 Ceiling)
+            {t.progress.lt1Sub} ({data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? data.latest.lt1?.lt1_hr ?? 145} bpm)
           </span>
           <div className="threshold-marker-badge">
-            <ShieldCheck size={12} /> Zone 2 Ceiling: {data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? data.latest.lt1?.lt1_hr ?? 145} bpm
+            <ShieldCheck size={12} /> {t.progress.zone2Ceiling}: {data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? data.latest.lt1?.lt1_hr ?? 145} bpm
           </div>
         </div>
 
         <div className="benchmark-card">
-          <span className="benchmark-label">Lactate Threshold (LT2) Pace</span>
+          <span className="benchmark-label">{t.progress.lt2Title}</span>
           <div className="benchmark-value" style={{ color: '#f59e0b' }}>
-            {data.latest.lt2?.lt2_pace_sec_km ? formatPace(data.latest.lt2.lt2_pace_sec_km) : '4:10/km (Est.)'}
+            {data.latest.lt2?.lt2_pace_sec_km ? `${formatPace(data.latest.lt2.lt2_pace_sec_km)}${data.latest.lt2.is_estimated ? ' (Est.)' : ''}` : '--'}
           </div>
           <span className="benchmark-sub">
-            Anaerobic Turnpoint (~{data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? data.latest.lt2?.lt2_hr ?? 167} bpm)
+            {t.progress.lt2Sub} (~{data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? data.latest.lt2?.lt2_hr ?? 167} bpm)
           </span>
           <div className="threshold-marker-badge amber">
-            <Zap size={12} /> Zone 4 Turnpoint: {data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? data.latest.lt2?.lt2_hr ?? 167} bpm
+            <Zap size={12} /> {t.stats.anaerobicThreshold}: {data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? data.latest.lt2?.lt2_hr ?? 167} bpm
           </div>
         </div>
 
         <div className="benchmark-card" style={{ position: 'relative' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span className="benchmark-label">Estimated VO2 Max / VDOT</span>
+            <span className="benchmark-label">{t.progress.vdotTrend}</span>
             <button
               type="button"
               onClick={() => setIsVdotGuideOpen(true)}
@@ -118,12 +120,12 @@ export const ProgressView: React.FC = () => {
           <div className="benchmark-value" style={{ color: '#8b5cf6' }}>
             {data.latest.vo2Max ?? 58} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>ml/kg/min</span>
           </div>
-          <span className="benchmark-sub">Aerobic Engine Potential</span>
+          <span className="benchmark-sub">{t.stats.predictedPace}</span>
         </div>
 
         <div className="benchmark-card" style={{ position: 'relative' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span className="benchmark-label">Running Economy Index</span>
+            <span className="benchmark-label">{t.progress.economyIndex}</span>
             <button
               type="button"
               onClick={() => setIsEconomyGuideOpen(true)}
@@ -137,7 +139,7 @@ export const ProgressView: React.FC = () => {
           <div className="benchmark-value" style={{ color: '#06b6d4' }}>
             {data.latest.lt1?.baseline_economy_ef ? Number(data.latest.lt1.baseline_economy_ef).toFixed(2) : '1.15'}
           </div>
-          <span className="benchmark-sub">Meters Traveled Per Heartbeat</span>
+          <span className="benchmark-sub">{t.browse.metersPerBeat}</span>
         </div>
       </div>
 
@@ -168,13 +170,13 @@ export const ProgressView: React.FC = () => {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Award size={18} color="#06b6d4" />
-              <span className="sidebar-title">Historical Threshold Calibrations</span>
+              <span className="sidebar-title">{t.progress.benchmarksTitle}</span>
               <span className="calibration-count-badge">
                 {filteredHistory.length} of {uniqueHistory.length}
               </span>
             </div>
             <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-              Timeline of recalibrations detected across your runs.
+              {t.progress.subtitle}
             </p>
           </div>
 
@@ -185,25 +187,25 @@ export const ProgressView: React.FC = () => {
                 className={`cal-filter-btn ${calFilter === 'all' ? 'active' : ''}`}
                 onClick={() => setCalFilter('all')}
               >
-                All
+                {t.progress.filterAll}
               </button>
               <button
                 className={`cal-filter-btn ${calFilter === 'lt1' ? 'active' : ''}`}
                 onClick={() => setCalFilter('lt1')}
               >
-                LT1 Base
+                {t.progress.filterLt1}
               </button>
               <button
                 className={`cal-filter-btn ${calFilter === 'lt2' ? 'active' : ''}`}
                 onClick={() => setCalFilter('lt2')}
               >
-                LT2 Threshold
+                {t.progress.filterLt2}
               </button>
               <button
                 className={`cal-filter-btn ${calFilter === 'race' ? 'active' : ''}`}
                 onClick={() => setCalFilter('race')}
               >
-                Race Benchmark
+                {t.progress.filterRace}
               </button>
             </div>
 
@@ -215,7 +217,7 @@ export const ProgressView: React.FC = () => {
                 title="Organized Milestone Cards"
               >
                 <LayoutGrid size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                Milestones
+                {t.progress.cardsView}
               </button>
               <button
                 className={`view-mode-btn ${historyViewMode === 'table' ? 'active' : ''}`}
@@ -223,7 +225,7 @@ export const ProgressView: React.FC = () => {
                 title="Data Table View"
               >
                 <List size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                Table
+                {t.progress.tableView}
               </button>
             </div>
           </div>

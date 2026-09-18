@@ -65,6 +65,7 @@ describe('Mobile Responsiveness & View Switcher UI Tests', () => {
   };
 
   beforeEach(() => {
+    localStorage.clear();
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: any) => {
       return {
         ok: true,
@@ -92,7 +93,7 @@ describe('Mobile Responsiveness & View Switcher UI Tests', () => {
     expect(segmentedControl).toBeTruthy();
 
     const sessionsBtn = screen.getByRole('button', { name: /Sessions \(2\)/i });
-    const analysisBtn = screen.getByRole('button', { name: /Run Analysis/i });
+    const analysisBtn = screen.getByRole('button', { name: /Telemetry|Analysis/i });
     expect(sessionsBtn).toBeTruthy();
     expect(analysisBtn).toBeTruthy();
   });
@@ -110,8 +111,8 @@ describe('Mobile Responsiveness & View Switcher UI Tests', () => {
     const browseGrid = container.querySelector('.browse-grid');
     expect(browseGrid?.className).toContain('mobile-show-list');
 
-    // Click Run Analysis tab
-    const analysisBtn = screen.getByRole('button', { name: /Run Analysis/i });
+    // Click Run Telemetry tab
+    const analysisBtn = screen.getByRole('button', { name: /Telemetry|Analysis/i });
     await act(async () => {
       fireEvent.click(analysisBtn);
     });
@@ -165,7 +166,7 @@ describe('Mobile Responsiveness & View Switcher UI Tests', () => {
     const browseGrid = container.querySelector('.browse-grid');
 
     // Switch to detail view
-    const analysisBtn = screen.getByRole('button', { name: /Run Analysis/i });
+    const analysisBtn = screen.getByRole('button', { name: /Telemetry|Analysis/i });
     await act(async () => {
       fireEvent.click(analysisBtn);
     });

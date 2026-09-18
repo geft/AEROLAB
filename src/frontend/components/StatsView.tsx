@@ -1,8 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Target, Trophy, Flame, Activity, ShieldCheck, Zap, Calendar, TrendingUp, Clock, Mountain, HelpCircle, X, CheckCircle } from 'lucide-react';
 import { formatPace } from '../utils/formatters.js';
+import { useTranslation } from '../i18n/LanguageContext.js';
 
 export const StatsView: React.FC = () => {
+  const { t, language } = useTranslation();
+
+  const formatDistanceName = (name: string) => {
+    if (name === '5K') return t.stats.fiveK;
+    if (name === '10K') return t.stats.tenK;
+    if (name === 'Half Marathon') return t.stats.halfMarathon;
+    if (name === 'Marathon') return t.stats.marathon;
+    return name;
+  };
   const [data, setData] = useState<any | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [volumePeriod, setVolumePeriod] = useState<'week' | 'month' | 'year' | 'all'>('month');
@@ -81,13 +91,13 @@ export const StatsView: React.FC = () => {
         <div className="volume-header">
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <span className="chart-title">Training Volume &amp; Effort Analytics</span>
+              <span className="chart-title">{t.stats.volumeTitle}</span>
               <span className="profile-sync-badge">
-                <Calendar size={13} /> {volumeData?.periodLabel || 'Effort Aggregation'}
+                <Calendar size={13} /> {volumeData?.periodLabel || t.stats.volumeTitle}
               </span>
             </div>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
-              Aggregated mileage, total cardiovascular time, and physiological zone distribution (Zone 2 Aerobic Base vs Quality).
+              {t.stats.volumeDesc}
             </p>
           </div>
 
@@ -112,25 +122,25 @@ export const StatsView: React.FC = () => {
                 className={`volume-tab-btn ${volumePeriod === 'week' ? 'active' : ''}`}
                 onClick={() => setVolumePeriod('week')}
               >
-                Past 7 Days
+                {t.stats.periodWeek}
               </button>
               <button
                 className={`volume-tab-btn ${volumePeriod === 'month' ? 'active' : ''}`}
                 onClick={() => setVolumePeriod('month')}
               >
-                Monthly
+                {t.stats.periodMonth}
               </button>
               <button
                 className={`volume-tab-btn ${volumePeriod === 'year' ? 'active' : ''}`}
                 onClick={() => setVolumePeriod('year')}
               >
-                This Year
+                {t.stats.periodYear}
               </button>
               <button
                 className={`volume-tab-btn ${volumePeriod === 'all' ? 'active' : ''}`}
                 onClick={() => setVolumePeriod('all')}
               >
-                All-Time
+                {t.stats.periodAll}
               </button>
             </div>
           </div>
@@ -142,47 +152,47 @@ export const StatsView: React.FC = () => {
           <>
             <div className="volume-kpis-grid">
               <div className="volume-kpi-box">
-                <span className="volume-kpi-title">Total Distance</span>
+                <span className="volume-kpi-title">{t.stats.totalDist}</span>
                 <div className="volume-kpi-val" style={{ color: '#06b6d4' }}>
                   {volumeData.totalDistanceKm} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>km</span>
                 </div>
-                <span className="volume-kpi-sub">{volumeData.activityCount} recorded runs</span>
+                <span className="volume-kpi-sub">{volumeData.activityCount} {t.browse.totalRuns}</span>
               </div>
 
               <div className="volume-kpi-box">
-                <span className="volume-kpi-title">Total Time</span>
+                <span className="volume-kpi-title">{t.stats.totalTime}</span>
                 <div className="volume-kpi-val">
                   {volumeData.totalDurationHours} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>hrs</span>
                 </div>
-                <span className="volume-kpi-sub">Total cardiovascular time</span>
+                <span className="volume-kpi-sub">{t.stats.totalTime}</span>
               </div>
 
               <div className="volume-kpi-box highlight">
-                <span className="volume-kpi-title" style={{ color: '#10b981' }}>Zone 2 Aerobic Base</span>
+                <span className="volume-kpi-title" style={{ color: '#10b981' }}>{t.stats.zone2Mileage}</span>
                 <div className="volume-kpi-val" style={{ color: '#10b981' }}>
                   {volumeData.zones?.z2?.hours || 0} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>hrs</span>
                 </div>
                 <span className="volume-kpi-sub">
-                  <strong style={{ color: '#10b981' }}>{volumeData.zones?.z2?.pct || 0}%</strong> of total volume (sub-LT1)
+                  <strong style={{ color: '#10b981' }}>{volumeData.zones?.z2?.pct || 0}%</strong>
                 </span>
               </div>
 
               <div className="volume-kpi-box">
-                <span className="volume-kpi-title">Quality / Threshold (Z4+Z5)</span>
+                <span className="volume-kpi-title">{t.stats.qualityMileage}</span>
                 <div className="volume-kpi-val" style={{ color: '#f59e0b' }}>
                   {((volumeData.zones?.z4?.hours || 0) + (volumeData.zones?.z5?.hours || 0)).toFixed(1)} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>hrs</span>
                 </div>
                 <span className="volume-kpi-sub">
-                  {(((volumeData.zones?.z4?.pct || 0) + (volumeData.zones?.z5?.pct || 0))).toFixed(1)}% high-intensity stimulus
+                  {(((volumeData.zones?.z4?.pct || 0) + (volumeData.zones?.z5?.pct || 0))).toFixed(1)}%
                 </span>
               </div>
 
               <div className="volume-kpi-box">
-                <span className="volume-kpi-title">Elevation Gain</span>
+                <span className="volume-kpi-title">{t.stats.totalElev}</span>
                 <div className="volume-kpi-val">
                   {volumeData.totalElevationGainM} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>m</span>
                 </div>
-                <span className="volume-kpi-sub">Vertical climbing meters</span>
+                <span className="volume-kpi-sub">{t.stats.totalElev}</span>
               </div>
             </div>
 
@@ -190,7 +200,7 @@ export const StatsView: React.FC = () => {
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
                 <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  Time in Heart Rate Zones
+                  {t.stats.distributionTitle}
                 </span>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   {volumeData.totalDurationHours} hrs total
@@ -264,45 +274,45 @@ export const StatsView: React.FC = () => {
       {/* Current Physiological Benchmarks */}
       <section className="benchmarks-grid">
         <div className="benchmark-card">
-          <span className="benchmark-label">Aerobic Base (LT1)</span>
+          <span className="benchmark-label">{t.stats.aerobicTurnpoint}</span>
           <div className="benchmark-value" style={{ color: '#10b981' }}>
             {lt1?.lt1_pace_sec_km ? formatPace(lt1.lt1_pace_sec_km) : '5:10/km (Est.)'}
           </div>
           <span className="benchmark-sub">
-            Ceiling HR: {lt1RangeStr} bpm
+            {t.progress.zone2Ceiling}: {lt1RangeStr} bpm
           </span>
           <div className="threshold-marker-badge">
-            <ShieldCheck size={12} /> Bounded at LT1: {lt1RangeStr} bpm
+            <ShieldCheck size={12} /> {t.stats.aerobicTurnpoint}: {lt1RangeStr} bpm
           </div>
         </div>
 
         <div className="benchmark-card">
-          <span className="benchmark-label">Lactate Threshold (LT2)</span>
+          <span className="benchmark-label">{t.stats.anaerobicThreshold}</span>
           <div className="benchmark-value" style={{ color: '#f59e0b' }}>
-            {lt2?.lt2_pace_sec_km ? formatPace(lt2.lt2_pace_sec_km) : '4:10/km (Est.)'}
+            {lt2?.lt2_pace_sec_km ? `${formatPace(lt2.lt2_pace_sec_km)}${lt2.is_estimated ? ' (Est.)' : ''}` : '--'}
           </div>
           <span className="benchmark-sub">
-            Threshold HR: ~{lt2Hr} bpm
+            {t.stats.anaerobicThreshold}: ~{lt2Hr} bpm
           </span>
           <div className="threshold-marker-badge amber">
-            <Zap size={12} /> Turnpoint at LT2: {lt2Hr} bpm
+            <Zap size={12} /> {t.stats.anaerobicThreshold}: {lt2Hr} bpm
           </div>
         </div>
 
         <div className="benchmark-card">
-          <span className="benchmark-label">Estimated VO2 Max</span>
+          <span className="benchmark-label">{t.progress.vdotTrend}</span>
           <div className="benchmark-value" style={{ color: '#8b5cf6' }}>
             {vo2Max} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>ml/kg/min</span>
           </div>
-          <span className="benchmark-sub">Maximal oxygen uptake</span>
+          <span className="benchmark-sub">{t.stats.predictedPace}</span>
         </div>
 
         <div className="benchmark-card">
-          <span className="benchmark-label">Baseline Running Economy</span>
+          <span className="benchmark-label">{t.browse.efficiencyFactor}</span>
           <div className="benchmark-value" style={{ color: '#06b6d4' }}>
             {lt1?.baseline_economy_ef ?? '1.14'}
           </div>
-          <span className="benchmark-sub">Efficiency factor (speed / HR)</span>
+          <span className="benchmark-sub">{t.browse.metersPerBeat}</span>
         </div>
       </section>
 
@@ -311,13 +321,13 @@ export const StatsView: React.FC = () => {
         <div className="chart-header">
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <span className="chart-title">Calibrated Heart Rate Zones (HRR Model)</span>
+              <span className="chart-title">{t.stats.zonesTitle}</span>
               <span className="profile-sync-badge">
                 <Activity size={13} /> Continuous Auto-Calibration
               </span>
             </div>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
-              Derived from Karvonen HRR and live threshold calibrations.
+              {t.stats.subtitle}
             </p>
           </div>
         </div>
@@ -325,19 +335,19 @@ export const StatsView: React.FC = () => {
         {/* Proportional Zone Bar */}
         <div className="zone-visual-bar">
           <div className="zone-bar-segment" style={{ width: '20%', background: '#64748b' }}>
-            Z1 Recovery (&lt;{zones.z2[0]})
+            Z1 (&lt;{zones.z2[0]})
           </div>
           <div className="zone-bar-segment" style={{ width: '25%', background: '#10b981' }}>
-            Z2 Aerobic Base ({zones.z2[0]}–{zones.z2[1]})
+            Z2 ({zones.z2[0]}–{zones.z2[1]})
           </div>
           <div className="zone-bar-segment" style={{ width: '22%', background: '#06b6d4' }}>
-            Z3 Tempo ({zones.z3[0]}–{zones.z3[1]})
+            Z3 ({zones.z3[0]}–{zones.z3[1]})
           </div>
           <div className="zone-bar-segment" style={{ width: '20%', background: '#f59e0b' }}>
-            Z4 Threshold ({zones.z4[0]}–{zones.z4[1]})
+            Z4 ({zones.z4[0]}–{zones.z4[1]})
           </div>
           <div className="zone-bar-segment" style={{ width: '13%', background: '#ef4444' }}>
-            Z5 VO2 Max ({zones.z5[0]}+)
+            Z5 ({zones.z5[0]}+)
           </div>
         </div>
 
@@ -350,9 +360,9 @@ export const StatsView: React.FC = () => {
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>&lt; 60% HRR</span>
             </div>
             <div className="zone-range" style={{ color: '#94a3b8' }}>&lt; {zones.z2[0]} <span style={{ fontSize: '0.85rem' }}>bpm</span></div>
-            <span className="zone-name">Active Recovery</span>
+            <span className="zone-name">Z1</span>
             <p className="zone-desc">
-              Active warm-up, cooldown, and recovery flush.
+              {t.stats.zoneDesc.z1}
             </p>
           </div>
 
@@ -360,12 +370,12 @@ export const StatsView: React.FC = () => {
           <div className="zone-card zone-highlight">
             <div className="zone-card-header">
               <span className="zone-tag" style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#10b981' }}>Zone 2</span>
-              <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>Easy Base</span>
+              <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>{t.tags.easyBase}</span>
             </div>
             <div className="zone-range" style={{ color: '#10b981' }}>{zones.z2[0]} – {zones.z2[1]} <span style={{ fontSize: '0.85rem' }}>bpm</span></div>
-            <span className="zone-name">Aerobic Base &amp; Endurance</span>
+            <span className="zone-name">Z2</span>
             <p className="zone-desc">
-              Fat oxidation and capillary network growth.
+              {t.stats.zoneDesc.z2}
             </p>
           </div>
 
@@ -376,9 +386,9 @@ export const StatsView: React.FC = () => {
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>70–80% HRR</span>
             </div>
             <div className="zone-range" style={{ color: '#06b6d4' }}>{zones.z3[0]} – {zones.z3[1]} <span style={{ fontSize: '0.85rem' }}>bpm</span></div>
-            <span className="zone-name">Tempo &amp; Aerobic Drift</span>
+            <span className="zone-name">Z3</span>
             <p className="zone-desc">
-              Steady aerobic rhythm and marathon pace.
+              {t.stats.zoneDesc.z3}
             </p>
           </div>
 
@@ -386,12 +396,12 @@ export const StatsView: React.FC = () => {
           <div className="zone-card">
             <div className="zone-card-header">
               <span className="zone-tag" style={{ background: 'rgba(245, 158, 11, 0.2)', color: '#f59e0b' }}>Zone 4</span>
-              <span style={{ fontSize: '0.75rem', color: '#f59e0b', fontWeight: 600 }}>Threshold</span>
+              <span style={{ fontSize: '0.75rem', color: '#f59e0b', fontWeight: 600 }}>{t.tags.threshold}</span>
             </div>
             <div className="zone-range" style={{ color: '#f59e0b' }}>{zones.z4[0]} – {zones.z4[1]} <span style={{ fontSize: '0.85rem' }}>bpm</span></div>
-            <span className="zone-name">Lactate Threshold / LT2</span>
+            <span className="zone-name">Z4</span>
             <p className="zone-desc">
-              1-hour race pace and lactate clearance.
+              {t.stats.zoneDesc.z4}
             </p>
           </div>
 
@@ -402,9 +412,9 @@ export const StatsView: React.FC = () => {
               <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>&gt; 90% HRR</span>
             </div>
             <div className="zone-range" style={{ color: '#ef4444' }}>{zones.z5[0]}+ <span style={{ fontSize: '0.85rem' }}>bpm</span></div>
-            <span className="zone-name">VO2 Max &amp; Anaerobic</span>
+            <span className="zone-name">Z5</span>
             <p className="zone-desc">
-              Peak aerobic power and fast intervals.
+              {t.stats.zoneDesc.z5}
             </p>
           </div>
         </div>
@@ -414,9 +424,9 @@ export const StatsView: React.FC = () => {
       <section className="chart-card">
         <div className="chart-header">
           <div>
-            <span className="chart-title">Race Time Predictions</span>
+            <span className="chart-title">{t.stats.racePredictions}</span>
             <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.2rem' }}>
-              Modeled from your LT1 and LT2 aerobic profile.
+              {t.stats.subtitle}
             </p>
           </div>
         </div>
@@ -424,9 +434,9 @@ export const StatsView: React.FC = () => {
         <div className="predictions-grid">
           {data.predictions?.map((pred: any) => (
             <div key={pred.distanceName} className="prediction-item">
-              <span className="prediction-distance">{pred.distanceName}</span>
+              <span className="prediction-distance">{formatDistanceName(pred.distanceName)}</span>
               <div className="prediction-time">{pred.timeFormatted}</div>
-              <span className="prediction-pace">Target Pace: {pred.paceFormatted}</span>
+              <span className="prediction-pace">{t.stats.predictedPace}: {pred.paceFormatted}</span>
             </div>
           ))}
         </div>
@@ -436,21 +446,21 @@ export const StatsView: React.FC = () => {
       <section className="goal-markers-grid">
         <div className="goal-card">
           <div className="goal-card-header">
-            <span className="goal-card-title">80/20 Polarized Balance</span>
+            <span className="goal-card-title">{t.stats.polarizedBalanceTitle}</span>
             <Target size={18} color="#10b981" />
           </div>
           <div className="goal-stat-highlight" style={{ color: '#10b981', fontSize: '1.4rem' }}>
-            82% Low / 18% High
+            {language === 'zh' ? '82% 低强度 / 18% 高强度' : '82% Low / 18% High'}
           </div>
           <p className="goal-stat-desc">
-            Optimal distribution: easy volume below LT1 preserves freshness for quality threshold sessions.
+            {t.stats.polarizedBalanceDesc}
           </p>
         </div>
 
         <div className="goal-card">
           <div className="goal-card-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-              <span className="goal-card-title">Aerobic Turnpoint Margin</span>
+              <span className="goal-card-title">{t.stats.turnpointMarginTitle}</span>
               <button
                 type="button"
                 onClick={() => setIsMarginGuideOpen(true)}
@@ -467,29 +477,43 @@ export const StatsView: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem', flexWrap: 'wrap', margin: '0.4rem 0' }}>
             <div className="goal-stat-highlight" style={{ color: '#06b6d4', fontSize: '1.4rem' }}>
               {lt1 && lt2 && lt1.lt1_pace_sec_km && lt2.lt2_pace_sec_km 
-                ? `${Math.round(lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km)}s gap` 
-                : '60s gap'}
+                ? (language === 'zh' ? `差距 ${Math.round(lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km)} 秒` : `${Math.round(lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km)}s gap`)
+                : (lt1?.lt1_pace_sec_km ? (language === 'zh' ? `预估差距 ${Math.round(lt1.lt1_pace_sec_km * 0.14)} 秒` : `${Math.round(lt1.lt1_pace_sec_km * 0.14)}s est. gap`) : '--')}
             </div>
-            <span
-              style={{
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                padding: '0.2rem 0.55rem',
-                borderRadius: 6,
-                color: (lt1?.lt1_pace_sec_km && lt2?.lt2_pace_sec_km && (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km) <= 50) ? '#10b981' : (lt1?.lt1_pace_sec_km && lt2?.lt2_pace_sec_km && (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km) <= 70) ? '#06b6d4' : '#f59e0b',
-                background: (lt1?.lt1_pace_sec_km && lt2?.lt2_pace_sec_km && (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km) <= 50) ? 'rgba(16, 185, 129, 0.15)' : (lt1?.lt1_pace_sec_km && lt2?.lt2_pace_sec_km && (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km) <= 70) ? 'rgba(6, 182, 212, 0.15)' : 'rgba(245, 158, 11, 0.15)'
-              }}
-            >
-              {(lt1?.lt1_pace_sec_km && lt2?.lt2_pace_sec_km && (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km) <= 50)
-                ? 'Optimal Anchor (≤ 50s)'
-                : (lt1?.lt1_pace_sec_km && lt2?.lt2_pace_sec_km && (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km) <= 70)
-                  ? 'Well-Conditioned (50–70s)'
-                  : 'Base Opportunity (> 70s)'}
-            </span>
+            {lt1?.lt1_pace_sec_km && lt2?.lt2_pace_sec_km && (
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '0.2rem 0.55rem',
+                  borderRadius: 6,
+                  color: (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km <= 50) ? '#10b981' : (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km <= 70) ? '#06b6d4' : '#f59e0b',
+                  background: (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km <= 50) ? 'rgba(16, 185, 129, 0.15)' : (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km <= 70) ? 'rgba(6, 182, 212, 0.15)' : 'rgba(245, 158, 11, 0.15)'
+                }}
+              >
+                {lt2.is_estimated
+                  ? t.stats.turnpointEstimatedFromLt1
+                  : (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km <= 50)
+                    ? t.stats.turnpointOptimalAnchor
+                    : (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km <= 70)
+                      ? t.stats.turnpointWellConditioned
+                      : t.stats.turnpointBaseOpportunity}
+              </span>
+            )}
           </div>
 
           <p className="goal-stat-desc">
-            Pace gap between Easy ({lt1?.lt1_pace_sec_km ? formatPace(lt1.lt1_pace_sec_km) : '5:50/km'}) and Threshold ({lt2?.lt2_pace_sec_km ? formatPace(lt2.lt2_pace_sec_km) : '4:10/km'}). Narrows as aerobic fitness improves.
+            {lt1?.lt1_pace_sec_km && lt2?.lt2_pace_sec_km
+              ? (language === 'zh'
+                  ? `轻松跑 (${formatPace(lt1.lt1_pace_sec_km)}) 与乳酸阈值跑 (${formatPace(lt2.lt2_pace_sec_km)}${lt2.is_estimated ? ' 预估' : ''}) 之间的配速差距。随着有氧能力的提高，这一差距将逐渐收窄。`
+                  : `Pace gap between Easy (${formatPace(lt1.lt1_pace_sec_km)}) and Threshold (${formatPace(lt2.lt2_pace_sec_km)}${lt2.is_estimated ? ' Est.' : ''}). Narrows as aerobic fitness improves.`)
+              : lt1?.lt1_pace_sec_km
+                ? (language === 'zh'
+                    ? `轻松跑基础配速已校准为 ${formatPace(lt1.lt1_pace_sec_km)}。进行一次乳酸阈值训练以校准精准的LT2边际。`
+                    : `Easy base pace calibrated at ${formatPace(lt1.lt1_pace_sec_km)}. Run a threshold workout to calibrate precise LT2 margin.`)
+                : (language === 'zh'
+                    ? '进行稳定的有氧基础跑和阈值训练，以校准您的转折点边际。'
+                    : 'Run steady aerobic base and threshold workouts to calibrate your turnpoint margin.')}
           </p>
         </div>
       </section>
@@ -501,7 +525,7 @@ export const StatsView: React.FC = () => {
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                 <Zap size={20} color="#06b6d4" />
-                <h2 className="modal-title" style={{ color: 'var(--text-primary)' }}>Aerobic Turnpoint Margin Guide</h2>
+                <h2 className="modal-title" style={{ color: 'var(--text-primary)' }}>{t.stats.turnpointGuideTitle}</h2>
               </div>
               <button className="modal-close-btn" onClick={() => setIsMarginGuideOpen(false)}>
                 <X size={20} />
@@ -511,46 +535,50 @@ export const StatsView: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '0.5rem 0' }}>
               <div>
                 <h4 style={{ color: 'var(--text-primary)', margin: '0 0 0.4rem 0', fontSize: '0.95rem' }}>
-                  What is the Aerobic Turnpoint Margin?
+                  {t.stats.turnpointWhatIsTitle}
                 </h4>
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.55, margin: 0 }}>
-                  The <b>Aerobic Turnpoint Margin</b> is the pace spread between your <b>Aerobic Base (LT1)</b> and your <b>Lactate Threshold (LT2)</b>. In endurance physiology (e.g. Stephen Seiler, Olbrecht, Maffetone), it measures how well-developed your lipid oxidation and mitochondrial capillary foundation are relative to your maximum 1-hour sustained velocity.
+                  {language === 'zh' ? (
+                    <><b>有氧转折点边际</b>是指您的<b>基础有氧配速 (LT1)</b> 与<b>乳酸阈值配速 (LT2)</b> 之间的配速差距。在耐力生理学（如 Stephen Seiler、Olbrecht、Maffetone）中，它衡量了相对于您极限1小时持续速度而言，脂肪氧化和线粒体毛细血管基础的发展程度。</>
+                  ) : (
+                    <>The <b>Aerobic Turnpoint Margin</b> is the pace spread between your <b>Aerobic Base (LT1)</b> and your <b>Lactate Threshold (LT2)</b>. In endurance physiology (e.g. Stephen Seiler, Olbrecht, Maffetone), it measures how well-developed your lipid oxidation and mitochondrial capillary foundation are relative to your maximum 1-hour sustained velocity.</>
+                  )}
                 </p>
               </div>
 
               {/* Target Benchmark Tiers */}
               <div>
                 <h4 style={{ color: 'var(--text-primary)', margin: '0 0 0.6rem 0', fontSize: '0.88rem' }}>
-                  Target Benchmarks &amp; Standards
+                  {t.stats.turnpointStandardsTitle}
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                   <div style={{ padding: '0.75rem', borderRadius: 8, background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-                      <span style={{ fontWeight: 700, fontSize: '0.84rem', color: '#10b981' }}>35–50s/km Gap — Elite / Highly Developed Base</span>
-                      <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 600 }}>Optimal Anchor</span>
+                      <span style={{ fontWeight: 700, fontSize: '0.84rem', color: '#10b981' }}>{t.stats.turnpointTierEliteTitle}</span>
+                      <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 600 }}>{t.stats.turnpointTierEliteBadge}</span>
                     </div>
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
-                      LT1 is pulled extremely close to LT2 (LT1 speed is ~85–90% of LT2). Characteristic of high-mileage marathoners who can cruise comfortably at high aerobic speeds with zero lactate accumulation.
+                      {t.stats.turnpointTierEliteDesc}
                     </p>
                   </div>
 
                   <div style={{ padding: '0.75rem', borderRadius: 8, background: 'rgba(6, 182, 212, 0.08)', border: '1px solid rgba(6, 182, 212, 0.25)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-                      <span style={{ fontWeight: 700, fontSize: '0.84rem', color: '#06b6d4' }}>50–70s/km Gap — Well-Conditioned Base</span>
-                      <span style={{ fontSize: '0.72rem', color: '#06b6d4', fontWeight: 600 }}>Healthy Target</span>
+                      <span style={{ fontWeight: 700, fontSize: '0.84rem', color: '#06b6d4' }}>{t.stats.turnpointTierWellTitle}</span>
+                      <span style={{ fontSize: '0.72rem', color: '#06b6d4', fontWeight: 600 }}>{t.stats.turnpointTierWellBadge}</span>
                     </div>
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
-                      Healthy aerobic balance for committed amateur runners and marathoners. Easy runs stay restorative while supporting quality threshold work.
+                      {t.stats.turnpointTierWellDesc}
                     </p>
                   </div>
 
                   <div style={{ padding: '0.75rem', borderRadius: 8, background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-                      <span style={{ fontWeight: 700, fontSize: '0.84rem', color: '#f59e0b' }}>&gt; 75s/km Gap — Developing Aerobic Base</span>
-                      <span style={{ fontSize: '0.72rem', color: '#f59e0b', fontWeight: 600 }}>Room for Expansion</span>
+                      <span style={{ fontWeight: 700, fontSize: '0.84rem', color: '#f59e0b' }}>{t.stats.turnpointTierDevTitle}</span>
+                      <span style={{ fontSize: '0.72rem', color: '#f59e0b', fontWeight: 600 }}>{t.stats.turnpointTierDevBadge}</span>
                     </div>
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
-                      Indicates Aerobic Deficiency Syndrome (ADS). Easy pace lags far behind threshold capability because fat oxidation enzymes and slow-twitch capillary density are still adapting.
+                      {t.stats.turnpointTierDevDesc}
                     </p>
                   </div>
                 </div>
@@ -559,11 +587,23 @@ export const StatsView: React.FC = () => {
               {/* Your Current Status & Training Direction */}
               <div style={{ padding: '0.85rem', borderRadius: 8, background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
                 <h4 style={{ color: 'var(--text-primary)', margin: '0 0 0.4rem 0', fontSize: '0.85rem' }}>
-                  How to Optimize Your Margin:
+                  {t.stats.turnpointOptimizeTitle}
                 </h4>
                 <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                  <li><b>If your gap is &gt; 70s</b>: Increase weekly mileage strictly below LT1 (&lt; {lt1Hr} bpm). Avoid the temptation to run easy days too fast; true Zone 2 miles trigger mitochondrial biogenesis that pulls LT1 pace faster without raising heart rate.</li>
-                  <li><b>If your gap is &lt; 45s</b>: Your aerobic base is well-developed! To run faster, introduce quality LT2 threshold intervals (e.g. 3x15min in Zone 4) to lift your anaerobic ceiling higher.</li>
+                  <li>
+                    {language === 'zh' ? (
+                      <><b>若差距 &gt; 70秒</b>：严格在LT1以下（&lt; {lt1Hr} bpm）增加每周里程。避免将轻松跑跑得过快；真正的2区跑量可触发线粒体生物合成，在不提升心率的情况下拉升LT1配速。</>
+                    ) : (
+                      <><b>If your gap is &gt; 70s</b>: Increase weekly mileage strictly below LT1 (&lt; {lt1Hr} bpm). Avoid the temptation to run easy days too fast; true Zone 2 miles trigger mitochondrial biogenesis that pulls LT1 pace faster without raising heart rate.</>
+                    )}
+                  </li>
+                  <li>
+                    {language === 'zh' ? (
+                      <><b>若差距 &lt; 45秒</b>：您的有氧基础已非常发达！若想跑得更快，请引入优质的LT2阈值间歇（如4区内的3x15分钟），以进一步提升无氧天花板。</>
+                    ) : (
+                      <><b>If your gap is &lt; 45s</b>: Your aerobic base is well-developed! To run faster, introduce quality LT2 threshold intervals (e.g. 3x15min in Zone 4) to lift your anaerobic ceiling higher.</>
+                    )}
+                  </li>
                 </ul>
               </div>
 
@@ -574,7 +614,7 @@ export const StatsView: React.FC = () => {
                   style={{ width: 'auto', padding: '0.45rem 1.25rem', fontSize: '0.82rem' }}
                   onClick={() => setIsMarginGuideOpen(false)}
                 >
-                  Got It
+                  {t.stats.turnpointGotIt || 'Got It'}
                 </button>
               </div>
             </div>

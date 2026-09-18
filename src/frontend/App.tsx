@@ -10,8 +10,10 @@ import { Footer } from './components/Footer';
 import { DevDiagnosticsDrawer } from './components/DevDiagnosticsDrawer';
 import { Terminal } from 'lucide-react';
 import { clientLogger } from './utils/clientLogger';
+import { useTranslation } from './i18n/LanguageContext';
 
 export const App: React.FC = () => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabType>('browse');
   const [activities, setActivities] = useState<ActivitySummary[]>([]);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
@@ -195,7 +197,7 @@ export const App: React.FC = () => {
         title="Open Dev Diagnostics (Ctrl+Shift+D)"
       >
         <Terminal size={13} />
-        <span>DEV MODE</span>
+        <span>{t.common.devMode}</span>
       </button>
 
       <DevDiagnosticsDrawer

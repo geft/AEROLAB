@@ -257,16 +257,50 @@ describe('Run Classifier Engine (Unit)', () => {
     expect(res.runType).toBe('threshold_lt2');
   });
 
-  it('classifies vo2 intervals triggered by Zone 5 percentage or avgWorkHr', () => {
+  it('classifies vo2 intervals triggered by Zone 5 percentage or peak VO2 HR', () => {
     const meta = { ...baseMetadata, maxHeartRate: 200 };
     const intervals: DetectedInterval[] = [
-      { intervalIndex: 1, type: 'work', startSeconds: 100, durationSeconds: 120, distanceMeters: 600, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 166, maxHeartRate: 168, avgCadence: 180 }, // avgWorkHr >= 200 * 0.82 (164)
-      { intervalIndex: 2, type: 'recovery', startSeconds: 220, durationSeconds: 60, distanceMeters: 100, avgSpeedMps: 1.6, avgPaceSecKm: 600, avgHeartRate: 140, maxHeartRate: 160, avgCadence: 110 },
-      { intervalIndex: 3, type: 'work', startSeconds: 280, durationSeconds: 120, distanceMeters: 600, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 166, maxHeartRate: 168, avgCadence: 180 }
+      { intervalIndex: 1, type: 'work', startSeconds: 100, durationSeconds: 180, distanceMeters: 900, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 182, maxHeartRate: 188, avgCadence: 180 },
+      { intervalIndex: 2, type: 'recovery', startSeconds: 280, durationSeconds: 60, distanceMeters: 100, avgSpeedMps: 1.6, avgPaceSecKm: 600, avgHeartRate: 140, maxHeartRate: 170, avgCadence: 110 },
+      { intervalIndex: 3, type: 'work', startSeconds: 340, durationSeconds: 180, distanceMeters: 900, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 184, maxHeartRate: 189, avgCadence: 180 }
     ];
-    const records = createMockRecords(600, 150);
+    const records = createMockRecords(1200, 165);
     const res = classifyRun(meta, records, baseEconomy, intervals);
     expect(res.runType).toBe('intervals_vo2');
+  });
+
+  it('does not classify surges in a tempo or base run as intervals_vo2', () => {
+    // 2 brief surges during a tempo run where peak HR only reaches tempo/Z4 (168 bpm vs max 200)
+    const meta = { ...baseMetadata, maxHeartRate: 200, avgHeartRate: 155 };
+    const intervals: DetectedInterval[] = [
+      { intervalIndex: 1, type: 'work', startSeconds: 500, durationSeconds: 60, distanceMeters: 300, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 164, maxHeartRate: 168, avgCadence: 180 },
+      { intervalIndex: 2, type: 'recovery', startSeconds: 560, durationSeconds: 120, distanceMeters: 300, avgSpeedMps: 2.5, avgPaceSecKm: 400, avgHeartRate: 148, maxHeartRate: 164, avgCadence: 155 },
+      { intervalIndex: 3, type: 'work', startSeconds: 680, durationSeconds: 60, distanceMeters: 300, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 164, maxHeartRate: 168, avgCadence: 180 }
+    ];
+    const records = createMockRecords(2400, 155);
+    const res = classifyRun(meta, records, baseEconomy, intervals);
+    expect(res.runType).not.toBe('intervals_vo2');
+    expect(res.runType).toBe('easy_base');
+    expect(res.reason).toContain('surges');
+  });
+
+  it('classifies galloway run/walk sessions as easy_base, never intervals_vo2', () => {
+    const meta = { ...baseMetadata, avgHeartRate: 142, maxHeartRate: 165 };
+    // 5 walk intervals interspersed in an easy run
+    const intervals: DetectedInterval[] = [
+      { intervalIndex: 1, type: 'work', startSeconds: 0, durationSeconds: 180, distanceMeters: 375, avgSpeedMps: 2.08, avgPaceSecKm: 480, avgHeartRate: 142, maxHeartRate: 148, avgCadence: 158 },
+      { intervalIndex: 2, type: 'recovery', startSeconds: 180, durationSeconds: 45, distanceMeters: 50, avgSpeedMps: 1.11, avgPaceSecKm: 900, avgHeartRate: 125, maxHeartRate: 142, avgCadence: 110 },
+      { intervalIndex: 3, type: 'work', startSeconds: 225, durationSeconds: 180, distanceMeters: 375, avgSpeedMps: 2.08, avgPaceSecKm: 480, avgHeartRate: 144, maxHeartRate: 149, avgCadence: 158 },
+      { intervalIndex: 4, type: 'recovery', startSeconds: 405, durationSeconds: 45, distanceMeters: 50, avgSpeedMps: 1.11, avgPaceSecKm: 900, avgHeartRate: 126, maxHeartRate: 144, avgCadence: 110 },
+      { intervalIndex: 5, type: 'work', startSeconds: 450, durationSeconds: 180, distanceMeters: 375, avgSpeedMps: 2.08, avgPaceSecKm: 480, avgHeartRate: 145, maxHeartRate: 150, avgCadence: 158 },
+      { intervalIndex: 6, type: 'recovery', startSeconds: 630, durationSeconds: 45, distanceMeters: 50, avgSpeedMps: 1.11, avgPaceSecKm: 900, avgHeartRate: 127, maxHeartRate: 145, avgCadence: 110 },
+      { intervalIndex: 7, type: 'work', startSeconds: 675, durationSeconds: 180, distanceMeters: 375, avgSpeedMps: 2.08, avgPaceSecKm: 480, avgHeartRate: 145, maxHeartRate: 150, avgCadence: 158 },
+      { intervalIndex: 8, type: 'recovery', startSeconds: 855, durationSeconds: 45, distanceMeters: 50, avgSpeedMps: 1.11, avgPaceSecKm: 900, avgHeartRate: 128, maxHeartRate: 145, avgCadence: 110 }
+    ];
+    const records = createMockRecords(1800, 142);
+    const res = classifyRun(meta, records, baseEconomy, intervals, { lt1Hr: 145, lt2Hr: 165, maxHr: 180 });
+    expect(res.runType).toBe('easy_base');
+    expect(res.reason).toContain('Galloway');
   });
 
   it('classifies recovery based on maxHr * 0.72 ceiling when avg HR > 136', () => {

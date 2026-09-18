@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Tag, Copy, Check } from 'lucide-react';
 import { BUILD_INFO } from '../version.js';
+import { useTranslation } from '../i18n/LanguageContext.js';
 
 export const Footer: React.FC = () => {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
   const copyBuildDetails = () => {
@@ -19,10 +21,10 @@ export const Footer: React.FC = () => {
     <footer className="app-footer">
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', alignItems: 'center' }}>
         <div>
-          <b style={{ color: 'var(--text-primary)' }}>AEROLAB</b> Running Dynamics & Physiology Lab • Local & Offline-First
+          <b style={{ color: 'var(--text-primary)' }}>AEROLAB</b> {t.footer.tagline} • {t.footer.offlineEngine}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', justifyContent: 'center', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          <span>© 2026 AEROLAB • Designed for GJ</span>
+          <span>© 2026 AEROLAB</span>
           <span style={{ opacity: 0.4 }}>•</span>
           <button
             type="button"

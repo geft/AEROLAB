@@ -3,6 +3,15 @@ import { Calendar, CloudRain, Flame, TrendingUp, Zap, Clock, ShieldCheck, HeartP
 import { CanvasRunChart } from './CanvasRunChart';
 import { KmSplitsVisualizer } from './KmSplitsVisualizer.js';
 import { formatPace as formatPaceUtil } from '../utils/formatters.js';
+import { useTranslation } from '../i18n/LanguageContext.js';
+import { translateTag } from '../i18n/tagTranslator.js';
+import {
+  translateCoachHeadline,
+  translateCoachInsight,
+  translateCoachRecommendation,
+  translateScoreCategory,
+  translateScoreLabel
+} from '../i18n/coachTranslator.js';
 
 export interface ActivitySummary {
   id: string;
@@ -51,12 +60,19 @@ interface BrowseViewProps {
   theme?: 'dark' | 'light';
 }
 
-export function getDisplayTitle(activity: { name?: string; run_type?: string; distance_meters?: number }): string {
+export function getDisplayTitle(activity: { name?: string; run_type?: string; distance_meters?: number }, t?: any): string {
   const rawName = activity.name || '';
   const isGenericGarminName = rawName.endsWith('Running') || rawName.endsWith('Run') || rawName === 'Singapore Running' || rawName === 'Singapore Intervals';
 
   if (!isGenericGarminName && rawName.trim() !== '') {
     return rawName;
+  }
+
+  if (t?.browse?.defaultTitles) {
+    const key = activity.run_type || '';
+    if ((t.browse.defaultTitles as any)[key]) {
+      return (t.browse.defaultTitles as any)[key];
+    }
   }
 
   const typeTitles: Record<string, string> = {
@@ -123,6 +139,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
   onActivityUpdated,
   theme = 'dark'
 }) => {
+  const { t, language } = useTranslation();
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showCalendar, setShowCalendar] = useState<boolean>(false);
@@ -273,11 +290,13 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
       const items = map.get(ym)!;
       const totalKm = items.reduce((sum, item) => sum + item.distance_meters, 0) / 1000;
       const dObj = new Date(`${ym}-01`);
-      const title = ym === 'Other' ? 'Other' : dObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      const title = ym === 'Other'
+        ? (language === 'zh' ? '其他' : 'Other')
+        : dObj.toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US', { month: 'long', year: 'numeric' });
       groups.push({ ym, title, items, totalKm: Number(totalKm.toFixed(1)) });
     });
     return groups;
-  }, [filteredActivities, selectedMonth]);
+  }, [filteredActivities, selectedMonth, language]);
 
   // Auto-select first activity on initial mount only (separate from fetch effect so it doesn't loop)
   const didAutoSelect = React.useRef(false);
@@ -492,7 +511,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
           className={`mobile-browse-tab-btn ${mobileSubTab === 'detail' ? 'active' : ''}`}
           onClick={() => setMobileSubTab('detail')}
         >
-          Run Analysis
+          {t.browse.tabTelemetry}
         </button>
       </div>
 
@@ -500,7 +519,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
       <aside className="sidebar-panel">
         <div className="sidebar-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', width: '100%' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', minWidth: 0 }}>
-            <span className="sidebar-title" style={{ whiteSpace: 'nowrap' }}>Sessions</span>
+            <span className="sidebar-title" style={{ whiteSpace: 'nowrap' }}>{t.browse.title}</span>
             <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
               ({filteredActivities.length})
             </span>
@@ -551,7 +570,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
             title={showCalendar ? 'Close date calendar' : 'Filter sessions by date'}
           >
             <Calendar size={13} />
-            <span>{showCalendar ? 'Close' : (selectedDate ? new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Calendar')}</span>
+            <span>{showCalendar ? (language === 'zh' ? '关闭' : 'Close') : (selectedDate ? new Date(`${selectedDate}T00:00:00`).toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric' }) : (language === 'zh' ? '日历' : 'Calendar'))}</span>
           </button>
         </div>
 
@@ -574,8 +593,8 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               <Calendar size={12} style={{ flexShrink: 0 }} />
               <strong>
                 {selectedDate
-                  ? new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                  : new Date(`${selectedMonth}-01`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  ? new Date(`${selectedDate}T00:00:00`).toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                  : new Date(`${selectedMonth}-01`).toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US', { month: 'long', year: 'numeric' })}
               </strong>
               <span style={{ color: 'var(--text-muted)' }}>({filteredActivities.length})</span>
             </span>
@@ -602,7 +621,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
               title="Show all sessions"
             >
-              <span>All</span>
+              <span>{t.common.all || 'All'}</span>
               <X size={11} />
             </button>
           </div>
@@ -617,7 +636,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
           const firstDayOfMonth = new Date(viewYear, viewMonth, 1).getDay(); // 0 = Sun
           const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
 
-          const monthLabel = new Date(viewYear, viewMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+          const monthLabel = new Date(viewYear, viewMonth, 1).toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US', { month: 'long', year: 'numeric' });
 
           const handlePrevMonth = () => {
             const prev = new Date(viewYear, viewMonth - 1, 1);
@@ -645,7 +664,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
             setCalendarViewYm(`${ny}-${nm}`);
           };
 
-          const daysOfWeek = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+          const daysOfWeek = language === 'zh' ? ['日', '一', '二', '三', '四', '五', '六'] : ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
           return (
             <div
@@ -931,16 +950,16 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                       onMouseEnter={e => (e.currentTarget.style.color = '#f43f5e')}
                       onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
                     >
-                      Show All Runs
+                      {t.browse.showAll || 'Show All Runs'}
                     </button>
                   )}
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.66rem', color: 'var(--text-muted)', opacity: 0.85 }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ color: '#10b981' }}>● Base</span>
-                    <span style={{ color: '#f59e0b' }}>● Threshold</span>
-                    <span style={{ color: '#a855f7' }}>● VO2 Max</span>
+                    <span style={{ color: '#10b981' }}>● {t.tags.easyBase}</span>
+                    <span style={{ color: '#f59e0b' }}>● {t.tags.threshold}</span>
+                    <span style={{ color: '#a855f7' }}>● {t.tags.vo2Max}</span>
                   </span>
                 </div>
               </div>
@@ -962,7 +981,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                   return prev.toLowerCase() === tag.toLowerCase() ? 'all' : tag;
                 })}
               >
-                {tag} <span className="sidebar-filter-count">({count})</span>
+                {translateTag(tag, t)} <span className="sidebar-filter-count">({count})</span>
               </button>
             );
           })}
@@ -974,13 +993,15 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               {selectedMonth === 'all' && group.title && (
                 <div className="session-month-header">
                   <span>{group.title}</span>
-                  <span className="session-month-badge">{group.items.length} runs • {group.totalKm} km</span>
+                  <span className="session-month-badge">
+                    {group.items.length} {language === 'zh' ? t.browse.runsBadge : 'runs'} • {group.totalKm} km
+                  </span>
                 </div>
               )}
               {group.items.map(a => {
                 const isSelected = a.id === selectedActivityId;
                 const d = new Date(a.start_time);
-                const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                const dateStr = d.toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                 const distKm = (a.distance_meters / 1000).toFixed(2);
                 const paceStr = formatPace(a.avg_pace_sec_km);
                 const stars = scoreToStars(a.effectiveness_score);
@@ -1008,10 +1029,10 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                     <div className="session-card-top">
                       <span className="session-date">{dateStr}</span>
                       <span className={`run-badge badge-${a.run_type || 'easy_base'}`}>
-                        {(a.run_type || 'Easy').replace('_', ' ')}
+                        {(t.runTypes as any)[a.run_type] || (a.run_type || 'Easy').replace('_', ' ')}
                       </span>
                     </div>
-                    {isRace && <div className="session-name">{getDisplayTitle(a)}</div>}
+                    {isRace && <div className="session-name">{getDisplayTitle(a, t)}</div>}
                     <div className="session-stats">
                       <span>{distKm} km</span>
                       <span>•</span>
@@ -1026,7 +1047,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                             key={tag}
                             className={`session-tag-chip ${tag.toLowerCase() === 'strides' ? 'tag-strides' : ''}`}
                           >
-                            {tag}
+                            {translateTag(tag, t)}
                           </span>
                         ))}
                       </div>
@@ -1052,13 +1073,13 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
 
           {filteredActivities.length === 0 && (
             <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#64748b', fontSize: '0.85rem' }}>
-              No runs matching selected filter.
+              {t.browse.noRunsMatchingFilter}
             </div>
           )}
         </div>
 
         <div className="dropzone-inline" onClick={onOpenUpload}>
-          + Drop or Import New Run CSV
+          {t.browse.dropOrImportCsv}
         </div>
       </aside>
 
@@ -1095,10 +1116,10 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               <HeartPulse size={30} color="#38bdf8" />
             </div>
             <h3 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-              Ready for Your First Run
+              {t.browse.readyFirstRunTitle}
             </h3>
             <p style={{ maxWidth: 460, color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.55, margin: 0 }}>
-              Your cardiovascular baselines are calibrated and ready. Import your Garmin <code>.fit</code> or <code>.csv</code> workout files to inspect your aerobic decoupling, running economy, and AI coach debriefs.
+              {t.browse.readyFirstRunDesc}
             </p>
             <button
               onClick={onOpenUpload}
@@ -1119,7 +1140,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               }}
             >
               <Plus size={16} />
-              <span>Import First Workout (.FIT / .CSV)</span>
+              <span>{t.browse.importFirstWorkoutBtn}</span>
             </button>
           </div>
         ) : detailError ? (
@@ -1263,7 +1284,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                     </div>
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
-                      <h1 style={{ margin: 0 }}>{getDisplayTitle(act)}</h1>
+                      <h1 style={{ margin: 0 }}>{getDisplayTitle(act, t)}</h1>
                       <button
                         onClick={() => { setCustomTitle(act.name); setIsEditingTitle(true); }}
                         title="Rename activity or name special race"
@@ -1348,8 +1369,8 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.3rem', borderBottom: '1px solid var(--border-subtle)' }}>
-                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>Existing Tags</span>
-                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{currentTags.length} active</span>
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>{t.browse.existingTags}</span>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{currentTags.length} {t.browse.activeCount}</span>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', maxHeight: '230px', overflowY: 'auto' }}>
                             {COMMON_TAG_PRESETS.map(preset => {
@@ -1381,7 +1402,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                                     transition: 'all 0.15s ease'
                                   }}
                                 >
-                                  <span>{preset}</span>
+                                  <span>{translateTag(preset, t)}</span>
                                   {isApplied ? <Check size={13} color="#38bdf8" /> : <Plus size={12} color="var(--text-muted)" />}
                                 </button>
                               );
@@ -1455,16 +1476,16 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               {/* Metric chips */}
               <div className="metric-chips-grid">
                 <div className="metric-chip">
-                  <span className="metric-chip-label">Distance</span>
+                  <span className="metric-chip-label">{t.browse.distance}</span>
                   <span className="metric-chip-value">{(act.distance_meters / 1000).toFixed(2)}<span className="metric-chip-unit">km</span></span>
                 </div>
                 <div className="metric-chip">
-                  <span className="metric-chip-label">Moving Time</span>
+                  <span className="metric-chip-label">{t.browse.movingTime}</span>
                   <span className="metric-chip-value">{formatTime(act.duration_seconds)}</span>
                 </div>
                 <div className="metric-chip">
                   <span className="metric-chip-label">
-                    Avg Pace {act.steady_pace_sec_km && act.steady_pace_sec_km !== act.avg_pace_sec_km ? '(Steady)' : ''}
+                    {t.browse.avgPace} {act.steady_pace_sec_km && act.steady_pace_sec_km !== act.avg_pace_sec_km ? `(${t.browse.steadyPace})` : ''}
                   </span>
                   <span className="metric-chip-value" style={{ color: '#06b6d4' }}>
                     {formatPace(act.steady_pace_sec_km || act.avg_pace_sec_km)}
@@ -1478,7 +1499,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                 </div>
                 <div className="metric-chip">
                   <span className="metric-chip-label">
-                    {act.steady_heart_rate && act.steady_heart_rate !== act.avg_heart_rate ? 'Steady-State HR' : 'Avg Heart Rate'}
+                    {act.steady_heart_rate && act.steady_heart_rate !== act.avg_heart_rate ? t.browse.steadyHr : t.browse.avgHeartRate}
                   </span>
                   <span className="metric-chip-value" style={{ color: '#f59e0b' }}>
                     {act.steady_heart_rate || act.avg_heart_rate || '—'}
@@ -1486,17 +1507,17 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                   </span>
                   {act.steady_heart_rate && act.steady_heart_rate !== act.avg_heart_rate && (
                     <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                      Raw (incl. breaks): {act.avg_heart_rate}
+                      Raw: {act.avg_heart_rate}
                     </span>
                   )}
                 </div>
                 <div className="metric-chip">
-                  <span className="metric-chip-label">Max HR</span>
+                  <span className="metric-chip-label">{t.browse.maxHeartRate}</span>
                   <span className="metric-chip-value">{act.max_heart_rate ?? '—'}<span className="metric-chip-unit">bpm</span></span>
                 </div>
                 <div className="metric-chip">
                   <span className="metric-chip-label">
-                    Cadence {act.steady_cadence && act.steady_cadence !== act.avg_cadence ? '(Steady)' : ''}
+                    {t.browse.cadenceLabel} {act.steady_cadence && act.steady_cadence !== act.avg_cadence ? `(${t.browse.steadyPace})` : ''}
                   </span>
                   <span className="metric-chip-value">
                     {act.steady_cadence || act.avg_cadence || '—'}
@@ -1509,11 +1530,11 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                   )}
                 </div>
                 <div className="metric-chip">
-                  <span className="metric-chip-label">Elevation Gain</span>
+                  <span className="metric-chip-label">{t.browse.elevationLabel}</span>
                   <span className="metric-chip-value">+{act.elevation_gain_m ? Math.round(act.elevation_gain_m) : 0}<span className="metric-chip-unit">m</span></span>
                 </div>
                 <div className="metric-chip">
-                  <span className="metric-chip-label">Calories</span>
+                  <span className="metric-chip-label">{t.browse.caloriesLabel}</span>
                   <span className="metric-chip-value">{act.calories ?? '—'}<span className="metric-chip-unit">kcal</span></span>
                 </div>
               </div>
@@ -1538,7 +1559,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                     <ShieldCheck size={16} color="#06b6d4" />
                     <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)', fontWeight: 500 }}>
-                      <strong style={{ color: '#06b6d4' }}>Steady-State Running Isolated:</strong>{' '}
+                      <strong style={{ color: '#06b6d4' }}>{t.browse.steadyIsolated}:</strong>{' '}
                       {act.steady_pace_sec_km ? `${formatPace(act.steady_pace_sec_km)}/km pace` : ''}
                       {act.steady_cadence ? ` • ${act.steady_cadence} spm cadence` : ''}
                       {act.steady_heart_rate ? ` • ${act.steady_heart_rate} bpm HR` : ''}
@@ -1546,9 +1567,9 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                     </span>
                   </div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Excludes {act.pause_duration_seconds ? `${formatTime(act.pause_duration_seconds)} traffic stops` : ''}
+                    {t.browse.excludes} {act.pause_duration_seconds ? `${formatTime(act.pause_duration_seconds)} ${t.browse.trafficStops}` : ''}
                     {act.pause_duration_seconds && act.walk_duration_seconds ? ' & ' : ''}
-                    {act.walk_duration_seconds ? `${formatTime(act.walk_duration_seconds)} walk breaks (${Math.round(act.walk_distance_meters || 0)}m)` : ''}
+                    {act.walk_duration_seconds ? `${formatTime(act.walk_duration_seconds)} ${t.browse.walkBreaks} (${Math.round(act.walk_distance_meters || 0)}m)` : ''}
                   </div>
                 </div>
               )}
@@ -1561,7 +1582,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                 className={`filter-pill-btn ${activeSubTab === 'telemetry' ? 'active' : ''}`}
                 onClick={() => setActiveSubTab('telemetry')}
               >
-                Telemetry & Chart
+                {t.browse.tabTelemetry}
               </button>
               {(detailData.splits?.length ?? 0) > 0 && (
                 <button
@@ -1569,7 +1590,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                   className={`filter-pill-btn ${activeSubTab === 'splits' ? 'active' : ''}`}
                   onClick={() => setActiveSubTab('splits')}
                 >
-                  KM Splits ({detailData.splits.length})
+                  {t.browse.tabSplits} ({detailData.splits.length})
                 </button>
               )}
               {(intervalsTabVisible) && (
@@ -1578,7 +1599,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                   className={`filter-pill-btn ${activeSubTab === 'strides' ? 'active' : ''}`}
                   onClick={() => setActiveSubTab('strides')}
                 >
-                  Strides & Intervals ({detailData.intervals.length})
+                  {t.browse.tabIntervals} ({detailData.intervals.length})
                 </button>
               )}
               <button
@@ -1586,7 +1607,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                 className={`filter-pill-btn ${activeSubTab === 'notes' ? 'active' : ''}`}
                 onClick={() => setActiveSubTab('notes')}
               >
-                Notes & AI Coach
+                {t.browse.tabCoach}
               </button>
             </div>
 
@@ -1601,7 +1622,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                       className={`toggle-segment-btn ${focusCoreSegment ? 'active' : ''}`}
                       onClick={() => setFocusCoreSegment(!focusCoreSegment)}
                     >
-                      {focusCoreSegment ? '✓ Core Segment Focused (Warmup Trimmed)' : 'Focus Core Segment (Exclude Warmup)'}
+                      {focusCoreSegment ? `✓ ${t.browse.showAll}` : t.browse.focusCore}
                     </button>
                   </div>
 
@@ -1615,7 +1636,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                 <div className="goal-markers-grid">
                   <div className="goal-card">
                     <div className="goal-card-header">
-                      <span className="goal-card-title">Aerobic Decoupling (Pa:Hr)</span>
+                      <span className="goal-card-title">{t.browse.aerobicDecoupling}</span>
                       <HeartPulse size={18} color="#06b6d4" />
                     </div>
                     <div className="goal-stat-highlight" style={{ color: (act.aerobic_decoupling_pct ?? 0) < 4.5 ? '#10b981' : '#f59e0b' }}>
@@ -1623,38 +1644,38 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                     </div>
                     <p className="goal-stat-desc">
                       {(act.aerobic_decoupling_pct ?? 0) < 4.5
-                        ? 'Solid aerobic base. Cardiac drift stayed below the 4.5% LT1 threshold.'
-                        : 'Cardiac drift detected. Heart rate drifted higher relative to pace.'}
+                        ? t.browse.aerobicDecouplingDescSolid
+                        : t.browse.aerobicDecouplingDescDrift}
                     </p>
                   </div>
 
                   <div className="goal-card">
                     <div className="goal-card-header">
-                      <span className="goal-card-title">Running Economy (EF)</span>
+                      <span className="goal-card-title">{t.browse.efficiencyFactor}</span>
                       <Zap size={18} color="#10b981" />
                     </div>
                     <div className="goal-stat-highlight" style={{ color: '#10b981' }}>
                       {act.efficiency_factor ? `${act.efficiency_factor.toFixed(2)}` : '—'}
-                      <span style={{ fontSize: '0.85rem', color: '#94a3b8', marginLeft: '0.3rem' }}>m/min per bpm</span>
+                      <span style={{ fontSize: '0.85rem', color: '#94a3b8', marginLeft: '0.3rem' }}>{t.browse.efficiencyFactorUnits}</span>
                     </div>
                     <p className="goal-stat-desc">
-                      {act.meters_per_beat ? `${act.meters_per_beat.toFixed(2)} meters per heartbeat.` : 'Speed output per cardiovascular stroke.'}
+                      {act.meters_per_beat ? `${act.meters_per_beat.toFixed(2)} ${t.browse.metersPerHeartbeatDesc}` : t.browse.efficiencyDefaultDesc}
                     </p>
                   </div>
 
                   <div className="goal-card">
                     <div className="goal-card-header">
-                      <span className="goal-card-title">Biomechanical Dynamics</span>
+                      <span className="goal-card-title">{t.browse.biomechanicalDynamics}</span>
                       <Compass size={18} color="#8b5cf6" />
                     </div>
                     <div className="goal-stat-highlight" style={{ color: '#8b5cf6', fontSize: '1.4rem' }}>
                       {act.avg_stance_time ? `${Math.round(act.avg_stance_time)} ms` : '—'}
                       <span style={{ fontSize: '0.8rem', color: '#94a3b8', marginLeft: '0.5rem' }}>
-                        GCT • {act.avg_vertical_oscillation ? `${(act.avg_vertical_oscillation / 10).toFixed(1)} cm Osc` : ''}
+                        {t.browse.gctShort} • {act.avg_vertical_oscillation ? `${(act.avg_vertical_oscillation / 10).toFixed(1)} ${t.browse.verticalOscShort}` : ''}
                       </span>
                     </div>
                     <p className="goal-stat-desc">
-                      Reflects leg spring stiffness and vertical energy conservation.
+                      {t.browse.biomechanicalDesc}
                     </p>
                   </div>
                 </div>
@@ -1948,9 +1969,9 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                     <section className="coach-summary-card">
                       <div className="coach-header">
                         <div className="coach-title-group">
-                          <span className="coach-tag">Coach AI</span>
+                          <span className="coach-tag">{t.browse.coachTag || 'Coach AI'}</span>
                           <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                            {detailData.coachSummary.headline}
+                            {translateCoachHeadline(detailData.coachSummary.headline, language)}
                           </h3>
                         </div>
                         <button
@@ -1986,11 +2007,11 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                       {showScoreBreakdown && (
                         <div className="score-breakdown-card">
                           <div className="score-breakdown-header">
-                            <span className="score-breakdown-title">Physiological Execution Score Breakdown</span>
+                            <span className="score-breakdown-title">{t.browse.scoreBreakdownTitle}</span>
                             <span className="score-breakdown-total">
-                              Final Execution: <b>{effScore ?? '—'} / 100</b>
+                              {t.browse.scoreFinalExecution}: <b>{effScore ?? '—'} / 100</b>
                               {' · '}
-                              {coachStars === 3 ? '★★★ Gold' : coachStars === 2 ? '★★☆ Silver' : '★☆☆ Bronze'}
+                              {coachStars === 3 ? (language === 'zh' ? '★★★ 金牌' : '★★★ Gold') : coachStars === 2 ? (language === 'zh' ? '★★☆ 银牌' : '★★☆ Silver') : (language === 'zh' ? '★☆☆ 铜牌' : '★☆☆ Bronze')}
                             </span>
                           </div>
 
@@ -2001,8 +2022,8 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                               return (
                                 <div key={fIdx} className="score-factor-row">
                                   <div className="score-factor-main">
-                                    <span className="score-factor-cat">{factor.category}</span>
-                                    <span className="score-factor-label">{factor.label}</span>
+                                    <span className="score-factor-cat">{translateScoreCategory(factor.category, language)}</span>
+                                    <span className="score-factor-label">{translateScoreLabel(factor.label, language)}</span>
                                     {factor.description && (
                                       <span className="score-factor-desc">{factor.description}</span>
                                     )}
@@ -2017,16 +2038,16 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
 
                           {/* Physiological Grading Rubric (3-tier) */}
                           <div className="score-rubric-legend">
-                            <span className="rubric-legend-title">Grading Tiers</span>
+                            <span className="rubric-legend-title">{t.browse.scoreGradingTiers}</span>
                             <div className="rubric-tiers">
                               <span className={coachStars === 3 ? 'rubric-active' : ''}>
-                                <b>★★★ Gold (85–100):</b> Near-perfect execution — stable HR, optimal cadence, tight pacing
+                                <b>{t.browse.scoreGoldTier}:</b> {t.browse.scoreGoldDesc}
                               </span>
                               <span className={coachStars === 2 ? 'rubric-active' : ''}>
-                                <b>★★☆ Silver (70–84):</b> Solid stimulus — productive aerobic work with minor drift or variance
+                                <b>{t.browse.scoreSilverTier}:</b> {t.browse.scoreSilverDesc}
                               </span>
                               <span className={coachStars === 1 ? 'rubric-active' : ''}>
-                                <b>★☆☆ Bronze (&lt;70):</b> Compromised — accidental tempo, heavy drift, aborted workout
+                                <b>{t.browse.scoreBronzeTier}:</b> {t.browse.scoreBronzeDesc}
                               </span>
                             </div>
                           </div>
@@ -2037,14 +2058,14 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                         {(detailData.coachSummary.keyInsights || []).map((insight: string, idx: number) => (
                           <li key={idx} className="coach-insight-item">
                             <span className="coach-insight-bullet">◆</span>
-                            <span>{insight}</span>
+                            <span>{translateCoachInsight(insight, language)}</span>
                           </li>
                         ))}
                       </ul>
 
                       <div className="coach-recommendation">
-                        <strong style={{ color: '#06b6d4' }}>Next Step: </strong>
-                        {detailData.coachSummary.recommendation}
+                        <strong style={{ color: '#06b6d4' }}>{t.browse.nextStep}: </strong>
+                        {translateCoachRecommendation(detailData.coachSummary.recommendation, language)}
                       </div>
                     </section>
                   );
@@ -2055,7 +2076,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                   <div className="sidebar-header">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <FileText size={16} color="#06b6d4" />
-                      <span className="sidebar-title">Runner Notes & Observations</span>
+                      <span className="sidebar-title">{t.browse.runnerNotesTitle}</span>
                     </div>
                     {notesSaveStatus && (
                       <span style={{ color: '#10b981', fontSize: '0.8rem', fontWeight: 600 }}>{notesSaveStatus}</span>
@@ -2066,7 +2087,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                     rows={4}
                     value={runnerNotes}
                     onChange={e => setRunnerNotes(e.target.value)}
-                    placeholder="Log how you felt, shoe choice, route obstacles, hill/ramp walks, or weather anomalies..."
+                    placeholder={t.browse.notesPlaceholder}
                     style={{
                       width: '100%',
                       background: 'var(--bg-surface)',
@@ -2095,7 +2116,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                         cursor: runnerNotes ? 'pointer' : 'default'
                       }}
                     >
-                      Clear
+                      {t.browse.clear}
                     </button>
                     <button
                       onClick={handleSaveNotes}
@@ -2111,7 +2132,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                         cursor: 'pointer'
                       }}
                     >
-                      {isSavingNotes ? 'Saving...' : 'Save Notes'}
+                      {isSavingNotes ? '...' : t.browse.saveNotes}
                     </button>
                   </div>
                 </section>

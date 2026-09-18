@@ -4,6 +4,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { Navbar, TabType } from '../../src/frontend/components/Navbar.js';
 import { LanguageProvider } from '../../src/frontend/i18n/LanguageContext.js';
+import { FontSizeProvider } from '../../src/frontend/context/FontSizeContext.js';
 
 describe('Navbar & Theme Switcher UI Component Tests', () => {
   afterEach(() => {
@@ -116,32 +117,81 @@ describe('Navbar & Theme Switcher UI Component Tests', () => {
     expect(onOpenUpload).toHaveBeenCalledTimes(1);
   });
 
-  it('renders language switcher toggle button next to theme toggle and switches language', () => {
+  it('renders language switcher dropdown and switches language via dropdown menu', () => {
     render(
       <LanguageProvider>
-        <Navbar
-          activeTab="browse"
-          onTabChange={vi.fn()}
-          onOpenUpload={vi.fn()}
-          theme="dark"
-          onToggleTheme={vi.fn()}
-        />
+        <FontSizeProvider>
+          <Navbar
+            activeTab="browse"
+            onTabChange={vi.fn()}
+            onOpenUpload={vi.fn()}
+            theme="dark"
+            onToggleTheme={vi.fn()}
+          />
+        </FontSizeProvider>
       </LanguageProvider>
     );
 
     const langBtn = document.getElementById('language-toggle-btn');
     expect(langBtn).toBeTruthy();
-    expect(langBtn?.textContent).toContain('中文');
+    expect(langBtn?.textContent).toContain('English');
 
-    // Click language button to switch to Chinese
+    // Click language button to open dropdown menu
     fireEvent.click(langBtn!);
-    expect(langBtn?.textContent).toContain('EN');
+    const zhOption = document.getElementById('lang-option-zh');
+    expect(zhOption).toBeTruthy();
+    expect(zhOption?.textContent).toContain('简体中文');
+
+    // Select Chinese
+    fireEvent.click(zhOption!);
+    expect(langBtn?.textContent).toContain('简体中文');
     expect(document.getElementById('tab-browse-btn')?.textContent).toContain('跑步记录');
     expect(document.getElementById('tab-progress-btn')?.textContent).toContain('训练进展');
 
-    // Click again to switch back to English
+    // Click again to open menu and select English
     fireEvent.click(langBtn!);
-    expect(langBtn?.textContent).toContain('中文');
+    const enOption = document.getElementById('lang-option-en');
+    expect(enOption).toBeTruthy();
+    fireEvent.click(enOption!);
+    expect(langBtn?.textContent).toContain('English');
     expect(document.getElementById('tab-browse-btn')?.textContent).toContain('Browse');
+  });
+
+  it('renders font size dropdown and changes font size scale', () => {
+    render(
+      <LanguageProvider>
+        <FontSizeProvider>
+          <Navbar
+            activeTab="browse"
+            onTabChange={vi.fn()}
+            onOpenUpload={vi.fn()}
+            theme="dark"
+            onToggleTheme={vi.fn()}
+          />
+        </FontSizeProvider>
+      </LanguageProvider>
+    );
+
+    const fontBtn = document.getElementById('font-size-dropdown-btn');
+    expect(fontBtn).toBeTruthy();
+    expect(fontBtn?.textContent).toContain('Default');
+
+    // Open font size dropdown
+    fireEvent.click(fontBtn!);
+    const largeOption = document.getElementById('font-size-option-large');
+    expect(largeOption).toBeTruthy();
+
+    // Select large (125%)
+    fireEvent.click(largeOption!);
+    expect(document.documentElement.getAttribute('data-font-size')).toBe('large');
+    expect(fontBtn?.textContent).toContain('Large');
+
+    // Open font size dropdown again and select max (200%)
+    fireEvent.click(fontBtn!);
+    const maxOption = document.getElementById('font-size-option-max');
+    expect(maxOption).toBeTruthy();
+    fireEvent.click(maxOption!);
+    expect(document.documentElement.getAttribute('data-font-size')).toBe('max');
+    expect(fontBtn?.textContent).toContain('200%');
   });
 });

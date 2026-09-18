@@ -18,6 +18,15 @@ if (process.env.APP_VERSION) {
   version = process.env.APP_VERSION.replace(/^v/, '');
 } else if (process.env.GITHUB_REF_NAME && process.env.GITHUB_REF_NAME.startsWith('v')) {
   version = process.env.GITHUB_REF_NAME.replace(/^v/, '');
+} else {
+  try {
+    const gitTag = execSync('git describe --tags --abbrev=0', { cwd: rootDir, stdio: ['pipe', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+    if (gitTag && gitTag.startsWith('v')) {
+      version = gitTag.replace(/^v/, '');
+    }
+  } catch {}
 }
 
 // Determine git commit hash

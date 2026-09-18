@@ -11,6 +11,7 @@ describe('Onboarding Tabs & Restore Flow UI Tests', () => {
   });
 
   beforeEach(() => {
+    localStorage.clear();
     vi.restoreAllMocks();
     global.fetch = vi.fn().mockImplementation((url: string) => {
       if (url.includes('/api/profile')) {
@@ -56,15 +57,15 @@ describe('Onboarding Tabs & Restore Flow UI Tests', () => {
     fireEvent.click(screen.getByText('Restore Backup (.db)'));
     await waitFor(() => {
       expect(screen.getByText(/Restore from Database Snapshot/i)).toBeTruthy();
-      expect(screen.getByText(/Restore from Google Drive/i)).toBeTruthy();
-      expect(screen.getByText(/Sign in with Google/i)).toBeTruthy();
     });
+    expect(screen.getByText(/Restore from Google Drive/i)).toBeTruthy();
+    expect(screen.getAllByText(/Sign in with Google/i).length).toBeGreaterThan(0);
 
     // Click Import Workouts tab
     fireEvent.click(screen.getByText('Import Workouts'));
     await waitFor(() => {
       expect(screen.getByText(/Import Workout Files/i)).toBeTruthy();
-      expect(screen.getByText(/Drop your Garmin CSV or \.fit activity files/i)).toBeTruthy();
+      expect(screen.getByText(/Drop Garmin CSV or \.fit activity files/i)).toBeTruthy();
     });
   });
 });

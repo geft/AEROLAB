@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { UploadCloud, CheckCircle, AlertCircle, X, Check, Files } from 'lucide-react';
+import { useTranslation } from '../i18n/LanguageContext.js';
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ interface BatchSummary {
 }
 
 export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSuccess }) => {
+  const { t, language } = useTranslation();
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<{ current: number; total: number; currentFileName: string } | null>(null);
@@ -53,7 +55,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     });
 
     if (validFiles.length === 0) {
-      setError('Please upload .fit or .csv file(s) exported from your Garmin device or run-parser.');
+      setError(t.upload.fitCsvOnly);
       return;
     }
 
@@ -104,53 +106,64 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           body: JSON.stringify({
             content,
             filename: file.name,
-            force: effectiveOverwrite
+            force: effectiveOverwrite,
+            overwrite: effectiveOverwrite
           })
         });
 
         const data = await res.json();
-        if (!res.ok) {
-          errors++;
-          errorDetails.push({
-            filename: file.name,
-            error: data.error || `Server returned HTTP ${res.status}`
-          });
-        } else if (data.result?.status === 'skipped_non_running') {
-          skippedNonRun++;
-        } else if (data.result?.status === 'skipped_duplicate') {
-          skipped++;
-          if (validFiles.length === 1 && data.result?.activityId) {
-            singleActivityId = data.result.activityId;
+        if (res.ok && data.result) {
+          if (data.result.status === 'imported') {
+            imported++;
+            if (validFiles.length === 1 && data.result.activityId) {
+              singleActivityId = data.result.activityId;
+            }
+          } else if (data.result.status === 'skipped' || data.result.status === 'skipped_duplicate') {
+            skipped++;
+            if (validFiles.length === 1 && data.result.activityId) {
+              singleActivityId = data.result.activityId;
+            }
+            if (data.result.reason === 'non_run') {
+              skippedNonRun++;
+            }
+            skippedDetails.push({
+              filename: file.name,
+              reason: data.result.message || 'Already imported'
+            });
+          } else if (data.result.status === 'skipped_non_run') {
+            skippedNonRun++;
+            skippedDetails.push({
+              filename: file.name,
+              reason: data.result.message || 'Non-run activity ignored'
+            });
+          } else {
+            errors++;
+            errorDetails.push({
+              filename: file.name,
+              error: data.result.message || 'Upload failed'
+            });
           }
-          skippedDetails.push({
-            filename: file.name,
-            reason: 'Already imported in database'
-          });
-        } else if (data.result?.status === 'error') {
-          errors++;
-          errorDetails.push({
-            filename: file.name,
-            error: data.result.error || 'Ingestion failed'
-          });
         } else {
-          imported++;
-          if (validFiles.length === 1 && data.result?.activityId) {
-            singleActivityId = data.result.activityId;
-          }
+          errors++;
+          errorDetails.push({
+            filename: file.name,
+            error: data.error || 'Failed to process workout'
+          });
         }
       } catch (err: any) {
         errors++;
         errorDetails.push({
           filename: file.name,
-          error: err.message || 'Network error or file read failure'
+          error: err.message || 'Network error'
         });
       }
     }
 
     setUploading(false);
     setProgress(null);
-    setLastSingleActivityId(singleActivityId || null);
-    const batchSummary: BatchSummary = {
+    setLastSingleActivityId(validFiles.length === 1 ? (singleActivityId || null) : null);
+
+    setSummary({
       total: validFiles.length,
       imported,
       skipped,
@@ -158,21 +171,12 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
       errors,
       errorDetails,
       skippedDetails
-    };
-    setSummary(batchSummary);
+    });
+
     if (imported > 0 || (validFiles.length === 1 && singleActivityId)) {
       onUploadSuccess(validFiles.length === 1 ? singleActivityId : undefined);
     }
-
-    // If single file and successfully imported without error, auto-close after a short preview
-    if (validFiles.length === 1 && imported === 1 && errors === 0) {
-      setStatusMessage('Activity successfully imported!');
-      setTimeout(() => {
-        handleClose();
-      }, 750);
-    }
   };
-
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -202,7 +206,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Files size={20} color="var(--accent-cyan)" />
-            <h2 className="modal-title" style={{ color: 'var(--text-primary)' }}>Import Garmin Runs (FIT or CSV)</h2>
+            <h2 className="modal-title" style={{ color: 'var(--text-primary)' }}>{t.upload.title}</h2>
           </div>
           <button className="modal-close-btn" onClick={handleClose}><X size={20} /></button>
         </div>
@@ -219,10 +223,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
               <UploadCloud size={44} color="var(--accent-cyan)" />
               <div>
                 <p style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
-                  Drag & Drop one or multiple FIT or CSV files here
+                  {t.upload.dragDrop}
                 </p>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                  Supports multi-file batch upload — native Garmin .FIT and exported .CSV
+                  {t.upload.selectFiles}
                 </p>
               </div>
               <input
@@ -250,7 +254,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                 onChange={e => setOverwrite(e.target.checked)}
                 style={{ cursor: 'pointer', accentColor: 'var(--accent-cyan)' }}
               />
-              <span>Overwrite / re-calculate if activity was already imported</span>
+              <span>{t.upload.overwriteTip}</span>
             </label>
           </>
         )}
@@ -260,7 +264,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '1rem 0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
               <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
-                Importing {progress.current} of {progress.total} run{progress.total > 1 ? 's' : ''}...
+                {t.upload.importingCount} ({progress.current}/{progress.total})
               </span>
               <span style={{ color: 'var(--accent-cyan)', fontWeight: 700 }}>
                 {Math.round((progress.current / progress.total) * 100)}%
@@ -316,52 +320,48 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
               <span>
                 {summary.errors > 0
                   ? summary.imported > 0
-                    ? 'Batch Ingestion Completed with Warnings'
-                    : 'Batch Ingestion Failed'
+                    ? t.upload.batchWarnings
+                    : t.upload.batchFailed
                   : summary.imported === 0 && summary.skipped > 0
-                    ? (summary.total === 1 ? 'Activity Already in Database (Duplicate)' : 'All Runs Already in Database (Duplicates)')
-                    : 'Batch Ingestion Completed Successfully'}
+                    ? t.upload.alreadyInDatabase
+                    : t.upload.batchSuccess}
               </span>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: summary.skippedNonRun > 0 ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: '0.5rem', textAlign: 'center' }}>
               <div style={{ background: 'var(--bg-card)', padding: '0.75rem', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
                 <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>{summary.imported}</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Imported</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{t.upload.importedCard}</div>
               </div>
 
               <div style={{ background: 'var(--bg-card)', padding: '0.75rem', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
                 <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--accent-amber)' }}>{summary.skipped}</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Skipped (Dup)</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{t.upload.skippedCard}</div>
               </div>
 
               {summary.skippedNonRun > 0 && (
                 <div style={{ background: 'var(--bg-card)', padding: '0.75rem', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
                   <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-secondary)' }}>{summary.skippedNonRun}</div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Non-Run / Sleep</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{t.upload.nonRunCard}</div>
                 </div>
               )}
 
               <div style={{ background: 'var(--bg-card)', padding: '0.75rem', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
                 <div style={{ fontSize: '1.25rem', fontWeight: 800, color: summary.errors > 0 ? 'var(--accent-rose)' : 'var(--text-muted)' }}>{summary.errors}</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Errors</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{t.upload.errorsCard}</div>
               </div>
             </div>
 
-            {/* Detailed Error Breakdown List */}
+            {/* Detailed Errors Section */}
             {summary.errorDetails && summary.errorDetails.length > 0 && (
               <div style={{
-                background: 'rgba(244, 63, 94, 0.08)',
-                border: '1px solid rgba(244, 63, 94, 0.3)',
-                borderRadius: 8,
-                padding: '0.85rem',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '0.6rem'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--accent-rose)', fontWeight: 700, fontSize: '0.82rem' }}>
                   <AlertCircle size={15} />
-                  <span>Error Details ({summary.errorDetails.length} file{summary.errorDetails.length > 1 ? 's' : ''}):</span>
+                  <span>{t.upload.errorDetails} ({summary.errorDetails.length}):</span>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '160px', overflowY: 'auto' }}>
@@ -386,7 +386,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                         </div>
                         {isUniqueError && (
                           <div style={{ color: 'var(--accent-amber)', fontSize: '0.72rem', marginTop: '0.25rem' }}>
-                            💡 Tip: This activity already exists in the database. Enable the <b>"Overwrite / re-calculate"</b> option to replace it.
+                            {language === 'zh'
+                              ? '💡 提示：该训练已存在于数据库中。勾选“强制覆盖并重新计算”选项以替换。'
+                              : '💡 Tip: This activity already exists in the database. Enable the "Overwrite / re-calculate" option to replace it.'}
                           </div>
                         )}
                       </div>
@@ -406,7 +408,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                 borderRadius: 6,
                 border: '1px solid var(--border-subtle)'
               }}>
-                ℹ️ {summary.skipped} file{summary.skipped > 1 ? 's were' : ' was'} skipped because the workout already exists in your database. Click <b>"Retry with Overwrite"</b> below if you wish to re-calculate and overwrite existing data.
+                {language === 'zh'
+                  ? `ℹ️ 已跳过 ${summary.skipped} 个已有训练记录。如需重新计算并覆盖，请点击下方的“强制覆盖并重试”。`
+                  : `ℹ️ ${summary.skipped} file${summary.skipped > 1 ? 's were' : ' was'} skipped because the workout already exists in your database. Click "Retry with Overwrite" below if you wish to re-calculate and overwrite existing data.`}
               </div>
             )}
 
@@ -429,7 +433,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                     cursor: 'pointer'
                   }}
                 >
-                  Retry with Overwrite
+                  {t.upload.retryWithOverwrite}
                 </button>
               )}
 
@@ -451,7 +455,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                     cursor: 'pointer'
                   }}
                 >
-                  View Run
+                  {t.upload.viewRun}
                 </button>
               )}
 
@@ -469,7 +473,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                   cursor: 'pointer'
                 }}
               >
-                Done
+                {t.upload.done}
               </button>
             </div>
           </div>

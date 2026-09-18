@@ -116,11 +116,11 @@ authRouter.get('/google/status', (req: Request, res: Response) => {
 authRouter.post('/google/credentials', (req: Request, res: Response) => {
   try {
     const { clientId, clientSecret } = req.body || {};
-    if (!clientId || !clientSecret) {
-      return res.status(400).json({ error: 'Both clientId and clientSecret are required' });
+    if (!clientId) {
+      return res.status(400).json({ error: 'Google Client ID is required' });
     }
     const db = getDatabase();
-    saveGoogleCredentials(db, clientId, clientSecret);
+    saveGoogleCredentials(db, clientId, clientSecret || '');
     const status = getGoogleAuthStatus(db);
     res.json({ status: 'ok', authStatus: status });
   } catch (err: any) {

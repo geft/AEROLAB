@@ -72,6 +72,47 @@ export function classifyRun(
     };
   }
 
+  // 1b. Check for Galloway Run/Walk method
+  // Galloway sessions have repeated scheduled walk breaks interspersed with easy running.
+  // We identify:
+  // - 4+ distinct walking recoveries or walking episodes (cadence < 125, duration >= 15s)
+  // - Overall cardiovascular load is aerobic: avg HR near/below LT1, negligible Z4/Z5 (< 15%)
+  const walkingBouts = detectedIntervals.filter(
+    i => i.type === 'recovery' && (i.avgCadence < 128 || i.avgSpeedMps < 1.8) && i.durationSeconds >= 15
+  ).length;
+
+  let recordWalkBouts = 0;
+  let inWalk = false;
+  let walkStreak = 0;
+  for (const r of records) {
+    const cad = r.cadence ?? 0;
+    const spd = r.speedMps ?? 0;
+    if (cad > 0 && cad < 125 && spd < 1.8) {
+      walkStreak++;
+      if (walkStreak >= 15 && !inWalk) {
+        inWalk = true;
+        recordWalkBouts++;
+      }
+    } else if (cad >= 128) {
+      inWalk = false;
+      walkStreak = 0;
+    }
+  }
+
+  const gallowayWalkCount = Math.max(walkingBouts, recordWalkBouts);
+  const isGallowaySession = gallowayWalkCount >= 4 &&
+    (zoneDist.z4Pct + zoneDist.z5Pct < 15) &&
+    (avgHr <= (lt1 ?? 148) + 6 || (zoneDist.z1Pct + zoneDist.z2Pct >= 50));
+
+  if (isGallowaySession) {
+    const isLong = durationMin >= 100;
+    return {
+      runType: isLong ? 'long_run' : 'easy_base',
+      confidence: 0.92,
+      reason: `Aerobic base run with Galloway run/walk intervals (${gallowayWalkCount} walk breaks, avg HR ${avgHr} bpm)`
+    };
+  }
+
   // 2. Evaluate Structured Work Intervals (Threshold vs VO2 Max vs Failed)
   //    Structure = rep count + work/recovery durations + regularity.
   //    Intensity = profile-relative HR zone occupancy.
@@ -133,11 +174,23 @@ export function classifyRun(
 
     // B. VO2 Max Intervals: short repeated structure (median work <= 6 min,
     //    2+ reps) with Z5 spikes (profile-relative max-HR attainment).
-    const vo2RepCount = workIntervals.filter(i => i.maxHeartRate >= z5Floor || i.maxHeartRate >= z4Floor + 3).length;
+    const vo2RepCount = workIntervals.filter(i => i.maxHeartRate >= z5Floor || i.maxHeartRate >= effMax * 0.91).length;
+    const hasVo2Intensity = vo2RepCount >= 2 || (vo2RepCount >= 1 && zoneDist.z5Pct >= 4) || (zoneDist.z5Pct >= 6 && zoneDist.z5Seconds >= 120);
+    const hasExplicitVo2 = nameLower.includes('vo2') || nameLower.includes('v02');
+
+    // Surges check: If work intervals are sporadic brief bursts in a steady tempo/base run,
+    // do not classify as VO2 max without explicit VO2 name or actual sustained VO2 intensity.
+    const isSporadicSurges =
+      !hasExplicitVo2 &&
+      (totalWorkDurationSec < 300 || totalWorkDurationSec < metadata.totalDurationSeconds * 0.22) &&
+      vo2RepCount < 2 &&
+      zoneDist.z5Pct < 4;
+
     const isVo2Intervals =
+      !isSporadicSurges &&
       workIntervals.length >= 2 &&
       medianWorkSec <= 360 &&
-      (vo2RepCount >= 1 || zoneDist.z5Pct >= 4 || avgWorkHr >= z4Floor - 8 || nameLower.includes('vo2'));
+      (hasExplicitVo2 || hasVo2Intensity);
 
     if (isVo2Intervals) {
       const stimulusMissed = maxWorkHr < z4Floor - 6;
@@ -194,9 +247,13 @@ export function classifyRun(
   }
 
   // 6. Default to Easy / Aerobic base
+  const hasSurges = workIntervals.length > 0;
+  const isTempoZ3 = zoneDist.z3Pct >= 25 || (zoneDist.z3Pct + zoneDist.z4Pct >= 35);
   return {
     runType: 'easy_base',
     confidence: 0.9,
-    reason: `Aerobic base effort (avg HR ${avgHr}, decoupling ${economy.aerobicDecouplingPct ?? 0}%)`
+    reason: isTempoZ3
+      ? `Aerobic tempo effort${hasSurges ? ' with surges' : ''} (avg HR ${avgHr} bpm, decoupling ${economy.aerobicDecouplingPct ?? 0}%)`
+      : `Aerobic base effort${hasSurges ? ' with strides/surges' : ''} (avg HR ${avgHr} bpm, decoupling ${economy.aerobicDecouplingPct ?? 0}%)`
   };
 }

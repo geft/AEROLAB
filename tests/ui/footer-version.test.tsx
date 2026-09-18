@@ -24,7 +24,7 @@ describe('Footer Auto-Versioning UI Component Tests', () => {
     render(<Footer />);
 
     // Copyright label
-    expect(screen.getByText(/© 2026 AEROLAB • Designed for GJ/i)).toBeTruthy();
+    expect(screen.getByText(/© 2026 AEROLAB/i)).toBeTruthy();
 
     // Auto version badge
     expect(screen.getByText(`v${BUILD_INFO.version}`)).toBeTruthy();

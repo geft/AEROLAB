@@ -47,13 +47,32 @@ describe('AEROLAB App Full Integration Tests', () => {
 
   const mockThresholds = {
     latest: {
-      lt1_hr: 140,
-      lt1_pace_sec_km: 330,
-      lt2_hr: 165,
-      lt2_pace_sec_km: 270,
-      baseline_economy_ef: 1.25,
-      effective_date: '2026-09-12'
+      lt1: {
+        lt1_hr: 140,
+        lt1_pace_sec_km: 330,
+        baseline_economy_ef: 1.25,
+        effective_date: '2026-09-12'
+      },
+      lt2: {
+        lt2_hr: 165,
+        lt2_pace_sec_km: 270,
+        effective_date: '2026-09-12'
+      },
+      vo2Max: 58
     },
+    currentThresholds: {
+      lt1Hr: 140,
+      lt2Hr: 165,
+      lt1Range: [139, 141]
+    },
+    zones: {
+      z1: [0, 126],
+      z2: [127, 140],
+      z3: [141, 164],
+      z4: [165, 180],
+      z5: [181, 203]
+    },
+    predictions: [],
     history: [],
     economyTrend: []
   };
@@ -66,6 +85,36 @@ describe('AEROLAB App Full Integration Tests', () => {
         return {
           ok: true,
           json: async () => mockThresholds
+        } as any;
+      }
+      if (urlStr.includes('/api/activities/volume')) {
+        return {
+          ok: true,
+          json: async () => ({
+            period: 'month',
+            periodLabel: 'Past 30 Days',
+            totalDistanceKm: 71.6,
+            totalDurationHours: 8.2,
+            activityCount: 5,
+            elevationGainM: 135,
+            avgEf: 1.16,
+            zones: {
+              z1: { hours: 0, pct: 0 },
+              z2: { hours: 3.9, pct: 48 },
+              z3: { hours: 2.1, pct: 26 },
+              z4: { hours: 1.5, pct: 18 },
+              z5: { hours: 0.7, pct: 8 }
+            }
+          })
+        } as any;
+      }
+      if (urlStr.includes('/api/activities/progress-history')) {
+        return {
+          ok: true,
+          json: async () => ({
+            months: [{ period: '2026-09', label: 'Sep 2026' }],
+            years: [{ period: '2026', label: '2026 Season' }]
+          })
         } as any;
       }
       if (urlStr.includes('/api/activities/24321232759')) {
@@ -144,8 +193,8 @@ describe('AEROLAB App Full Integration Tests', () => {
     fireEvent.click(statsTab!);
 
     await waitFor(() => {
-      expect(screen.getByText(/aerobic base \(lt1\)/i)).toBeTruthy();
-      expect(screen.getByText(/lactate threshold \(lt2\)/i)).toBeTruthy();
+      expect(screen.getAllByText(/aerobic.*\(lt1\)/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/anaerobic.*\(lt2\)/i).length).toBeGreaterThan(0);
     });
 
     // Switch to Profile View
@@ -154,7 +203,7 @@ describe('AEROLAB App Full Integration Tests', () => {
     fireEvent.click(profileTab!);
 
     await waitFor(() => {
-      expect(screen.getByText(/Cardio Baselines & Resting HR/i)).toBeTruthy();
+      expect(screen.getByDisplayValue('55')).toBeTruthy();
       expect(screen.getByText(/Inferred Physiological Thresholds/i)).toBeTruthy();
     });
 
@@ -266,6 +315,42 @@ describe('AEROLAB App Full Integration Tests', () => {
 
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: any, options: any) => {
       const urlStr = String(url);
+      if (urlStr.includes('/api/thresholds')) {
+        return {
+          ok: true,
+          json: async () => mockThresholds
+        } as any;
+      }
+      if (urlStr.includes('/api/activities/volume')) {
+        return {
+          ok: true,
+          json: async () => ({
+            period: 'month',
+            periodLabel: 'Past 30 Days',
+            totalDistanceKm: 71.6,
+            totalDurationHours: 8.2,
+            activityCount: 5,
+            elevationGainM: 135,
+            avgEf: 1.16,
+            zones: {
+              z1: { hours: 0, pct: 0 },
+              z2: { hours: 3.9, pct: 48 },
+              z3: { hours: 2.1, pct: 26 },
+              z4: { hours: 1.5, pct: 18 },
+              z5: { hours: 0.7, pct: 8 }
+            }
+          })
+        } as any;
+      }
+      if (urlStr.includes('/api/activities/progress-history')) {
+        return {
+          ok: true,
+          json: async () => ({
+            months: [{ period: '2026-09', label: 'Sep 2026' }],
+            years: [{ period: '2026', label: '2026 Season' }]
+          })
+        } as any;
+      }
       if (urlStr.includes('/api/ingest/upload')) {
         activitiesList = [newActivity, ...mockActivities];
         return {
@@ -330,7 +415,7 @@ describe('AEROLAB App Full Integration Tests', () => {
     const statsTab = document.getElementById('tab-stats-btn');
     fireEvent.click(statsTab!);
     await waitFor(() => {
-      expect(screen.getByText(/aerobic base \(lt1\)/i)).toBeTruthy();
+      expect(screen.getAllByText(/aerobic.*\(lt1\)/i).length).toBeGreaterThan(0);
     });
 
     // Open upload modal
@@ -388,8 +473,8 @@ describe('AEROLAB App Full Integration Tests', () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText('Cardiovascular Baseline Setup')).toBeTruthy();
-      expect(screen.getByText(/Required before your data can be calibrated/i)).toBeTruthy();
+      expect(screen.getByText(/Cardiovascular.*Baseline/i)).toBeTruthy();
+      expect(screen.getByText(/Complete baseline calibration/i)).toBeTruthy();
     });
   });
 });

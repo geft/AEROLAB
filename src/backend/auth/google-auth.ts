@@ -32,28 +32,31 @@ export function ensureGoogleAuthTable(db: Database.Database): void {
   `);
 }
 
+export const DEFAULT_GOOGLE_CLIENT_ID = '805691757155-m96h9kbbb1v1pno1qa3bfq5bn1t5k91i.apps.googleusercontent.com';
+
 export function getGoogleConfig(db: Database.Database): { clientId: string | null; clientSecret: string | null } {
   ensureGoogleAuthTable(db);
   const row = db.prepare("SELECT client_id, client_secret FROM google_auth WHERE id = 'primary'").get() as any;
-  const clientId = row?.client_id || process.env.GOOGLE_CLIENT_ID || null;
+  const clientId = row?.client_id || process.env.GOOGLE_CLIENT_ID || (process.env.NODE_ENV === 'test' ? null : DEFAULT_GOOGLE_CLIENT_ID);
   const clientSecret = row?.client_secret || process.env.GOOGLE_CLIENT_SECRET || null;
   return { clientId, clientSecret };
 }
 
-export function saveGoogleCredentials(db: Database.Database, clientId: string, clientSecret: string): void {
+export function saveGoogleCredentials(db: Database.Database, clientId: string, clientSecret: string = ''): void {
   ensureGoogleAuthTable(db);
+  const secret = (clientSecret || '').trim();
   const existing = db.prepare("SELECT id FROM google_auth WHERE id = 'primary'").get();
   if (existing) {
     db.prepare(`
       UPDATE google_auth
       SET client_id = ?, client_secret = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = 'primary'
-    `).run(clientId.trim(), clientSecret.trim());
+    `).run(clientId.trim(), secret);
   } else {
     db.prepare(`
       INSERT INTO google_auth (id, client_id, client_secret)
       VALUES ('primary', ?, ?)
-    `).run(clientId.trim(), clientSecret.trim());
+    `).run(clientId.trim(), secret);
   }
 }
 
@@ -97,23 +100,27 @@ export async function exchangeCodeForTokens(
 ): Promise<{ success: boolean; email?: string; name?: string; picture?: string; error?: string }> {
   ensureGoogleAuthTable(db);
   const { clientId, clientSecret } = getGoogleConfig(db);
-  if (!clientId || !clientSecret) {
-    return { success: false, error: 'Missing Google Client ID or Client Secret' };
+  if (!clientId) {
+    return { success: false, error: 'Missing Google Client ID' };
   }
 
   const redirectUri = getRedirectUri(origin);
 
   try {
+    const params: Record<string, string> = {
+      code,
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code'
+    };
+    if (clientSecret) {
+      params.client_secret = clientSecret;
+    }
+
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        code,
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: redirectUri,
-        grant_type: 'authorization_code'
-      }).toString()
+      body: new URLSearchParams(params).toString()
     });
 
     if (!tokenRes.ok) {
@@ -159,7 +166,7 @@ export async function exchangeCodeForTokens(
       db.prepare(`
         INSERT INTO google_auth (id, client_id, client_secret, access_token, refresh_token, expiry_date, email, name, picture)
         VALUES ('primary', ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(clientId, clientSecret, accessToken, finalRefreshToken, expiryDate, email, name, picture);
+      `).run(clientId, clientSecret || '', accessToken, finalRefreshToken, expiryDate, email, name, picture);
     }
 
     return {
@@ -190,18 +197,22 @@ export async function getValidAccessToken(db: Database.Database): Promise<string
   }
 
   const { clientId, clientSecret } = getGoogleConfig(db);
-  if (!clientId || !clientSecret) return null;
+  if (!clientId) return null;
 
   try {
+    const params: Record<string, string> = {
+      client_id: clientId,
+      refresh_token: row.refresh_token,
+      grant_type: 'refresh_token'
+    };
+    if (clientSecret) {
+      params.client_secret = clientSecret;
+    }
+
     const res = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        refresh_token: row.refresh_token,
-        grant_type: 'refresh_token'
-      }).toString()
+      body: new URLSearchParams(params).toString()
     });
 
     if (!res.ok) return null;

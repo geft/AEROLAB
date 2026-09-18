@@ -54,17 +54,18 @@ thresholdsRouter.get('/', (req, res) => {
       LIMIT 1
     `).get() as { lt2_hr: number; lt2_pace_sec_km: number; effective_date: string } | undefined;
 
-    const latestLt1 = latestLt1Row || {
+    const latestLt1Pace = latestLt1Row?.lt1_pace_sec_km ?? currentThresholds.lt1PaceSecKm;
+    const latestLt2Pace = latestLt2Row?.lt2_pace_sec_km ?? currentThresholds.lt2PaceSecKm;
+
+    const latestLt1 = latestLt1Row ? {
+      ...latestLt1Row,
+      is_estimated: false
+    } : {
       lt1_hr: currentThresholds.lt1Hr,
       lt1_pace_sec_km: currentThresholds.lt1PaceSecKm,
       effective_date: currentThresholds.lastCalibratedDate || 'Baseline',
-      baseline_economy_ef: 1.14
-    };
-
-    const latestLt2 = latestLt2Row || {
-      lt2_hr: currentThresholds.lt2Hr,
-      lt2_pace_sec_km: currentThresholds.lt2PaceSecKm,
-      effective_date: currentThresholds.lastCalibratedDate || 'Baseline'
+      baseline_economy_ef: 1.14,
+      is_estimated: !currentThresholds.lt1PaceSecKm
     };
 
     // Average overall pace from recent runs for prediction baseline
@@ -73,6 +74,32 @@ thresholdsRouter.get('/', (req, res) => {
       FROM activities
       WHERE avg_pace_sec_km IS NOT NULL
     `).get() as { avg_pace: number | null } | undefined;
+
+    // If LT2 has not been calibrated through a threshold workout or race:
+    // Estimate LT2 pace based on aerobic turnpoint mechanics (~86% of LT1 pace),
+    // or from recent overall running pace.
+    let effectiveLt2Pace: number | null = latestLt2Pace;
+    let isLt2Estimated = false;
+
+    if (!effectiveLt2Pace) {
+      if (latestLt1Pace) {
+        effectiveLt2Pace = Math.round(latestLt1Pace * 0.86);
+        isLt2Estimated = true;
+      } else if (avgRecent?.avg_pace) {
+        effectiveLt2Pace = Math.round(avgRecent.avg_pace * 0.88);
+        isLt2Estimated = true;
+      }
+    }
+
+    const latestLt2 = latestLt2Row ? {
+      ...latestLt2Row,
+      is_estimated: false
+    } : {
+      lt2_hr: currentThresholds.lt2Hr,
+      lt2_pace_sec_km: effectiveLt2Pace,
+      effective_date: isLt2Estimated ? (latestLt1Pace ? 'Estimated from LT1' : 'Estimated from Recent Runs') : (currentThresholds.lastCalibratedDate || 'Baseline'),
+      is_estimated: isLt2Estimated
+    };
 
     // Check for proven 5K benchmark (from actual 5k time trial / race or profile PB)
     let benchmark5kPace: number | null = null;

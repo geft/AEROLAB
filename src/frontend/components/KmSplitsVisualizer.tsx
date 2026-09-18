@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Gauge, Heart, Zap, Mountain, TrendingUp, TrendingDown, Award, Clock, ArrowRight, Activity, Minus } from 'lucide-react';
 import { formatPace, formatDuration, formatEfficiency } from '../utils/formatters.js';
+import { useTranslation } from '../i18n/LanguageContext.js';
 
 export interface SplitItem {
   id?: number;
@@ -36,6 +37,7 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
   lt2Hr = 167,
   compact = false
 }) => {
+  const { t } = useTranslation();
   const [selectedMetric, setSelectedMetric] = useState<SplitMetric>('pace');
 
   // Filter out invalid splits
@@ -132,7 +134,7 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
     return (
       <div className="splits-empty-state">
         <Clock size={28} color="var(--text-muted)" />
-        <p>No kilometer split data available for this activity.</p>
+        <p>{t.splits.noSplits || 'No kilometer split data available'}</p>
       </div>
     );
   }
@@ -144,9 +146,9 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
         <div className="splits-title-area">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Activity size={18} color="var(--accent-cyan)" />
-            <span className="splits-section-title">Kilometer Split Paces &amp; Dynamics</span>
+            <span className="splits-section-title">{t.splits.title}</span>
           </div>
-          <span className="splits-count-badge">{validSplits.length} splits</span>
+          <span className="splits-count-badge">{validSplits.length} {t.splits.split}</span>
         </div>
 
         {/* Metric Selector Pills */}
@@ -157,7 +159,7 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
             title="Visualize Pace Variation (min/km)"
           >
             <Gauge size={13} />
-            <span>Pace</span>
+            <span>{t.splits.pace}</span>
           </button>
           <button
             className={`metric-pill-btn ${selectedMetric === 'hr' ? 'active' : ''}`}
@@ -165,7 +167,7 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
             title="Visualize Heart Rate Variation (bpm)"
           >
             <Heart size={13} />
-            <span>Heart Rate</span>
+            <span>{t.splits.heartRate}</span>
           </button>
           <button
             className={`metric-pill-btn ${selectedMetric === 'ef' ? 'active' : ''}`}
@@ -173,7 +175,7 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
             title="Visualize Efficiency Factor Variation"
           >
             <Zap size={13} />
-            <span>Efficiency</span>
+            <span>{t.splits.efficiency}</span>
           </button>
           <button
             className={`metric-pill-btn ${selectedMetric === 'elevation' ? 'active' : ''}`}
@@ -181,7 +183,7 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
             title="Visualize Elevation Profile per KM"
           >
             <Mountain size={13} />
-            <span>Elevation</span>
+            <span>{t.splits.elevation}</span>
           </button>
         </div>
       </div>

@@ -27,7 +27,13 @@ console.log('🚀 Packaging Chromium-Free AEROLAB Distribution...');
 execSync('node scripts/build-all.js', { cwd: rootDir, stdio: 'inherit' });
 
 const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'));
-const version = pkg.version || '1.0.0';
+let version = pkg.version || '1.0.0';
+try {
+  const gitTag = execSync('git describe --tags --abbrev=0', { cwd: rootDir, stdio: ['pipe', 'pipe', 'ignore'] }).toString().trim();
+  if (gitTag && gitTag.startsWith('v')) {
+    version = gitTag.replace(/^v/, '');
+  }
+} catch {}
 
 const targetDir = path.join(rootDir, 'release', 'AEROLAB-ChromiumFree');
 const zipFile = path.join(rootDir, 'release', `AEROLAB-Windows-v${version}.zip`);
@@ -66,6 +72,27 @@ for (const file of rootFiles) {
   if (fs.existsSync(src)) {
     fs.copyFileSync(src, path.join(targetDir, file));
   }
+}
+
+// 2b. Bundle portable Node.js runtime into bin/node.exe
+const binDest = path.join(targetDir, 'bin');
+fs.mkdirSync(binDest, { recursive: true });
+const bundledNodeDest = path.join(binDest, 'node.exe');
+
+let sourceNode = process.execPath;
+if (!fs.existsSync(sourceNode) && process.platform === 'win32') {
+  const standardNode = 'C:\\Program Files\\nodejs\\node.exe';
+  if (fs.existsSync(standardNode)) {
+    sourceNode = standardNode;
+  }
+}
+
+if (fs.existsSync(sourceNode)) {
+  console.log(`📦 Bundling portable Node runtime from: ${sourceNode}...`);
+  fs.copyFileSync(sourceNode, bundledNodeDest);
+} else {
+  console.error('❌ Error: Could not locate node.exe to bundle into bin/');
+  process.exit(1);
 }
 
 // 3. Copy dist, dist-backend, scripts
@@ -127,8 +154,8 @@ OPTIONAL:
   shortcut directly onto your Windows Desktop.
 
 REQUIREMENTS:
-- Google Chrome or Microsoft Edge (pre-installed on Windows).
-- Node.js (https://nodejs.org).
+- Google Chrome or Microsoft Edge (pre-installed on modern Windows).
+- Zero external dependencies: Node.js runtime is pre-packaged and self-contained!
 
 ZERO CHROMIUM FOOTPRINT:
 This version leverages your existing browser in standalone
@@ -137,40 +164,66 @@ app mode, saving ~90 MB of bundled browser downloads!
 fs.writeFileSync(path.join(targetDir, 'README.txt'), readmeContent, 'utf8');
 
 // 6. Compress Archive
+// 6. Compress Archive (intermediate payload for installer)
 if (fs.existsSync(zipFile)) {
   fs.unlinkSync(zipFile);
 }
 
-console.log(`🗜️  Compressing to ${path.basename(zipFile)}...`);
+console.log(`🗜️  Compressing payload archive...`);
 if (process.platform === 'win32') {
   execSync(`powershell -NoProfile -Command "Compress-Archive -Path '${targetDir}\\*' -DestinationPath '${zipFile}' -CompressionLevel Optimal"`, { stdio: 'inherit' });
 } else {
   execSync(`cd "${rootDir}/release" && zip -r "${zipFile}" AEROLAB-ChromiumFree`, { stdio: 'inherit' });
 }
 
-if (fs.existsSync(zipFile)) {
-  fs.copyFileSync(zipFile, zipFileGeneric);
-  const stat = fs.statSync(zipFile);
-  const sizeMb = (stat.size / 1024 / 1024).toFixed(2);
-  console.log(`\x1b[32m✔ Package complete: ${path.basename(zipFile)} (${sizeMb} MB)\x1b[0m`);
-}
-
-// 7. Compile Native Windows Installer (.exe) with embedded zip payload & aerolab.ico
+// 7. Compile Native Windows Installer (.exe) with embedded payload & aerolab.ico
 if (process.platform === 'win32') {
   const cscPath = 'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe';
   const installerCs = path.join(rootDir, 'installer.cs');
   const icoPath = path.join(rootDir, 'aerolab.ico');
-  const installerExe = path.join(rootDir, 'release', `AEROLAB-Setup-v${version}.exe`);
-  const installerExeGeneric = path.join(rootDir, 'release', 'AEROLAB-Setup.exe');
+  const installerExe = path.join(rootDir, 'release', 'AEROLAB-Setup.exe');
 
   if (fs.existsSync(cscPath) && fs.existsSync(installerCs) && fs.existsSync(zipFile)) {
     console.log('🔨 Compiling AEROLAB-Setup.exe Native Windows Installer...');
     execSync(`"${cscPath}" /nologo /target:winexe /win32icon:"${icoPath}" /resource:"${zipFile}",payload.zip /out:"${installerExe}" /r:System.Windows.Forms.dll,System.Drawing.dll,System.IO.Compression.dll,System.IO.Compression.FileSystem.dll "${installerCs}"`, { stdio: 'inherit' });
+    
+    // Clean up intermediate files so only 1 single installer executable exists in release/
+    if (fs.existsSync(zipFile)) {
+      fs.unlinkSync(zipFile);
+    }
+    if (fs.existsSync(zipFileGeneric)) {
+      fs.unlinkSync(zipFileGeneric);
+    }
+    const legacyZip = path.join(rootDir, 'release', 'AEROLAB-ChromiumFree-Windows.zip');
+    if (fs.existsSync(legacyZip)) {
+      fs.unlinkSync(legacyZip);
+    }
+    const legacyInstaller = path.join(rootDir, 'release', 'AEROLAB-Installer.exe');
+    if (fs.existsSync(legacyInstaller)) {
+      fs.unlinkSync(legacyInstaller);
+    }
+    const oldVersionedSetup = path.join(rootDir, 'release', `AEROLAB-Setup-v${version}.exe`);
+    if (fs.existsSync(oldVersionedSetup) && oldVersionedSetup !== installerExe) {
+      fs.unlinkSync(oldVersionedSetup);
+    }
+
+    // Clean up staging directory so ONLY the single installer executable remains in release/
+    if (fs.existsSync(targetDir)) {
+      console.log('🧹 Cleaning up staging payload directory...');
+      try {
+        fs.rmSync(targetDir, { recursive: true, force: true });
+      } catch (err) {
+        try {
+          execSync(`powershell -NoProfile -Command "Remove-Item -Path '${targetDir}' -Recurse -Force -ErrorAction SilentlyContinue"`);
+        } catch {}
+      }
+    }
+
     if (fs.existsSync(installerExe)) {
-      fs.copyFileSync(installerExe, installerExeGeneric);
       const instStat = fs.statSync(installerExe);
       const instSizeMb = (instStat.size / 1024 / 1024).toFixed(2);
       console.log(`\x1b[32m✔ Windows Installer complete: ${path.basename(installerExe)} (${instSizeMb} MB)\x1b[0m`);
     }
   }
 }
+
