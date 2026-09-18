@@ -323,7 +323,7 @@ export const StatsView: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
               <span className="chart-title">{t.stats.zonesTitle}</span>
               <span className="profile-sync-badge">
-                <Activity size={13} /> Continuous Auto-Calibration
+                <Activity size={13} /> {t.stats.continuousAutoCalibration}
               </span>
             </div>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>

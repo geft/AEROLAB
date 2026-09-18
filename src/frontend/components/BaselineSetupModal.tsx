@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { HeartPulse, Calendar, Activity, Zap, CheckCircle2, ShieldCheck, Flame } from 'lucide-react';
 import { calculateAgeFromDob } from '../utils/formatters.js';
+import { useTranslation } from '../i18n/LanguageContext.js';
 
 interface BaselineSetupModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
   initialMaxHr = 190,
   initialVo2Max = 48
 }) => {
+  const { t, language } = useTranslation();
   const [dob, setDob] = useState<string>(initialDob);
   const [gender, setGender] = useState<string>(initialGender);
   const [restingHr, setRestingHr] = useState<number>(initialRestingHr);
@@ -137,10 +139,10 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
           </div>
           <div>
             <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-              Cardiovascular Baseline Setup
+              {t.baselineSetup.modalTitle}
             </h2>
             <p style={{ margin: '0.15rem 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              Calibrate your heart rate zones, thresholds, and AI coach before starting.
+              {t.baselineSetup.modalSubtitle}
             </p>
           </div>
         </div>
@@ -166,7 +168,7 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
               <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Date of Birth
+                {t.baselineSetup.dobLabel}
               </label>
               <span
                 style={{
@@ -179,7 +181,7 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
                   borderRadius: 999
                 }}
               >
-                Age: {computedAge} yrs (auto-computed)
+                {language === 'zh' ? `年龄: ${computedAge} 岁 (自动计算)` : `Age: ${computedAge} yrs (auto-computed)`}
               </span>
             </div>
             <input
@@ -198,14 +200,14 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
               }}
             />
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
-              Used to predict cardiovascular ceilings. You will never need to manually update your age.
+              {language === 'zh' ? '用于估算心血管上限，您未来无需手动更新年龄。' : 'Used to predict cardiovascular ceilings. You will never need to manually update your age.'}
             </div>
           </div>
 
           {/* Biological Gender */}
           <div>
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
-              Biological Gender
+              {t.baselineSetup.genderLabel}
             </label>
             <select
               value={gender}
@@ -220,17 +222,17 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
                 fontSize: '0.85rem'
               }}
             >
-              <option value="Prefer not to say">Prefer not to say</option>
-              <option value="Female">Female</option>
-              <option value="Male">Male</option>
-              <option value="Non-binary">Non-binary</option>
+              <option value="Prefer not to say">{language === 'zh' ? '不便透露' : 'Prefer not to say'}</option>
+              <option value="Female">{language === 'zh' ? '女性' : 'Female'}</option>
+              <option value="Male">{language === 'zh' ? '男性' : 'Male'}</option>
+              <option value="Non-binary">{language === 'zh' ? '非二元性别' : 'Non-binary'}</option>
             </select>
           </div>
 
           {/* Resting Heart Rate */}
           <div>
             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
-              Resting Heart Rate (bpm)
+              {t.baselineSetup.restingHrLabel}
             </label>
             <input
               type="number"
@@ -250,7 +252,7 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
               }}
             />
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
-              Your waking resting pulse or watch sleep average. Used for Karvonen Heart Rate Reserve (HRR).
+              {language === 'zh' ? '您的清晨静息脉搏或运动手表睡眠均值，用于卡氏心率储备 (HRR) 计算。' : 'Your waking resting pulse or watch sleep average. Used for Karvonen Heart Rate Reserve (HRR).'}
             </div>
           </div>
 
@@ -258,7 +260,7 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
           <div style={{ padding: '0.85rem', borderRadius: 10, background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-subtle)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
               <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Maximum Heart Rate
+                {t.baselineSetup.maxHrLabel}
               </label>
               <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f59e0b' }}>
                 {effectiveMaxHr} bpm
@@ -272,12 +274,16 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
                 onChange={e => setIsAutoMaxHr(e.target.checked)}
                 style={{ cursor: 'pointer' }}
               />
-              <span>Auto-estimate from age & infer from hard workouts (Recommended)</span>
+              <span>{t.baselineSetup.maxHrAutoOption}</span>
             </label>
 
             {isAutoMaxHr ? (
               <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                Predicted baseline: <strong style={{ color: '#38bdf8' }}>{tanakaMaxHr} bpm</strong> via Tanaka formula (<code>208 - 0.7 × {computedAge}</code>). Once you upload all-out 5K time trials or VO2 Max intervals, AEROLAB will dynamically adapt to your true peak effort.
+                {language === 'zh' ? (
+                  <>预估基准: <strong style={{ color: '#38bdf8' }}>{tanakaMaxHr} bpm</strong>（田中公式 <code>208 - 0.7 × {computedAge}</code>）。当您上传 5公里 全力测试或最大摄氧量冲刺间歇后，AEROLAB 将自动适应您的实测峰值。</>
+                ) : (
+                  <>Predicted baseline: <strong style={{ color: '#38bdf8' }}>{tanakaMaxHr} bpm</strong> via Tanaka formula (<code>208 - 0.7 × {computedAge}</code>). Once you upload all-out 5K time trials or VO2 Max intervals, AEROLAB will dynamically adapt to your true peak effort.</>
+                )}
               </div>
             ) : (
               <div>
@@ -299,7 +305,7 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
                   }}
                 />
                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
-                  Laboratory ramp test or all-out field test benchmark.
+                  {language === 'zh' ? '实验室力竭台阶测试或实测全力冲刺测试值。' : 'Laboratory ramp test or all-out field test benchmark.'}
                 </div>
               </div>
             )}
@@ -309,7 +315,7 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
-                VO2 Max (Optional)
+                {t.baselineSetup.vo2MaxLabel}
               </label>
               <input
                 type="number"
@@ -331,13 +337,13 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
-                Primary Focus
+                {t.baselineSetup.goalLabel}
               </label>
               <input
                 type="text"
                 value={goal}
                 onChange={e => setGoal(e.target.value)}
-                placeholder="e.g. 10k race, Aerobic Base"
+                placeholder={language === 'zh' ? '例如 10公里 突破、全马破3、有氧基础' : 'e.g. 10k race, Aerobic Base'}
                 style={{
                   width: '100%',
                   padding: '0.55rem 0.7rem',
@@ -374,7 +380,7 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
             }}
           >
             <ShieldCheck size={18} />
-            <span>{saving ? 'Saving Baselines...' : 'Save Baselines & Start AEROLAB'}</span>
+            <span>{saving ? t.baselineSetup.savingBtn : t.baselineSetup.submitBtn}</span>
           </button>
         </form>
       </div>

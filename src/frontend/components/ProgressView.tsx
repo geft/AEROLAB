@@ -6,6 +6,7 @@ import { EconomyGuideModal } from './EconomyGuideModal';
 import { VdotGuideModal } from './VdotGuideModal';
 import { formatPace, formatDate } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
+import { translateCalibrationNote, translateActivityName } from '../i18n/coachTranslator.js';
 
 interface ThresholdData {
   latest: {
@@ -22,7 +23,7 @@ interface ThresholdData {
 }
 
 export const ProgressView: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const [data, setData] = useState<ThresholdData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [historyViewMode, setHistoryViewMode] = useState<'cards' | 'table'>('cards');
@@ -149,15 +150,15 @@ export const ProgressView: React.FC = () => {
           <ShieldCheck size={20} color="#10b981" />
           <div>
             <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              Live Calibrations: LT1 @ {data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? 145} bpm • LT2 @ {data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? 167} bpm
+              {t.progress.liveCalibrations}: LT1 @ {data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? 145} bpm • LT2 @ {data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? 167} bpm
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              Thresholds and training zones calibrate automatically from your runs.
+              {t.progress.liveCalibrationsDesc}
             </div>
           </div>
         </div>
         <div className="profile-sync-badge">
-          <Activity size={13} /> Synchronized with Athlete Profile
+          <Activity size={13} /> {t.progress.syncWithProfile}
         </div>
       </div>
 
@@ -250,16 +251,16 @@ export const ProgressView: React.FC = () => {
                       </span>
                       <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>•</span>
                       <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                        {h.activity_name || 'Calibration Run'} {distKm ? `(${distKm} km)` : ''}
+                        {translateActivityName(h.activity_name || (language === 'zh' ? '校准跑步' : 'Calibration Run'), language)} {distKm ? `(${distKm} km)` : ''}
                       </span>
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <span className="run-badge badge-easy_base" style={{ fontSize: '0.68rem' }}>
-                        {(h.confidence * 100).toFixed(0)}% Confidence
+                        {(h.confidence * 100).toFixed(0)}% {t.progress.confidence}
                       </span>
                       <span className={`run-badge ${isRace ? 'badge-race' : (isLt2 ? 'badge-threshold_lt2' : 'badge-easy_base')}`}>
-                        {isRace ? 'Race Benchmark' : (isLt2 ? 'LT2 Threshold' : 'LT1 Aerobic Base')}
+                        {isRace ? t.progress.raceBenchmark : (isLt2 ? t.progress.lt2ThresholdBadge : t.progress.lt1AerobicBaseBadge)}
                       </span>
                     </div>
                   </div>
@@ -268,13 +269,13 @@ export const ProgressView: React.FC = () => {
                     {isLt2 ? (
                       <>
                         <div className="calibration-metric-item">
-                          <span className="calibration-metric-label">Lactate Threshold (LT2) Pace</span>
+                          <span className="calibration-metric-label">{t.progress.lt2PaceLabel}</span>
                           <span className="calibration-metric-val" style={{ color: '#f59e0b' }}>
                             {formatPace(h.lt2_pace_sec_km)}
                           </span>
                         </div>
                         <div className="calibration-metric-item">
-                          <span className="calibration-metric-label">Threshold Heart Rate</span>
+                          <span className="calibration-metric-label">{t.progress.thresholdHrLabel}</span>
                           <span className="calibration-metric-val" style={{ color: '#f59e0b' }}>
                             ~{h.lt2_hr || 167} <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>bpm</span>
                           </span>
@@ -283,13 +284,13 @@ export const ProgressView: React.FC = () => {
                     ) : (
                       <>
                         <div className="calibration-metric-item">
-                          <span className="calibration-metric-label">Aerobic Base (LT1) Pace</span>
+                          <span className="calibration-metric-label">{t.progress.lt1PaceLabel}</span>
                           <span className="calibration-metric-val" style={{ color: '#10b981' }}>
                             {formatPace(h.lt1_pace_sec_km)}
                           </span>
                         </div>
                         <div className="calibration-metric-item">
-                          <span className="calibration-metric-label">Aerobic Heart Rate</span>
+                          <span className="calibration-metric-label">{t.progress.aerobicHrLabel}</span>
                           <span className="calibration-metric-val" style={{ color: '#10b981' }}>
                             ~{h.lt1_hr || 136} <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>bpm</span>
                           </span>
@@ -298,7 +299,7 @@ export const ProgressView: React.FC = () => {
                     )}
 
                     <div className="calibration-metric-item">
-                      <span className="calibration-metric-label">Baseline Economy</span>
+                      <span className="calibration-metric-label">{t.progress.baselineEconomyLabel}</span>
                       <span className="calibration-metric-val" style={{ color: '#06b6d4' }}>
                         {h.baseline_economy_ef ? Number(h.baseline_economy_ef).toFixed(2) : '—'} <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>EF</span>
                       </span>
@@ -307,7 +308,7 @@ export const ProgressView: React.FC = () => {
 
                   {h.notes && (
                     <div className="calibration-card-note">
-                      "{h.notes}"
+                      "{translateCalibrationNote(h.notes, language)}"
                     </div>
                   )}
                 </div>
@@ -316,7 +317,7 @@ export const ProgressView: React.FC = () => {
 
             {uniqueHistory.length === 0 && (
               <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b', fontSize: '0.85rem' }}>
-                Thresholds will automatically record here after your first steady Zone 2 or threshold run.
+                {t.progress.noThresholdsYet}
               </div>
             )}
           </div>
@@ -325,27 +326,27 @@ export const ProgressView: React.FC = () => {
             <table className="styled-table">
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Run Source</th>
-                  <th>LT1 (Aerobic) Pace</th>
-                  <th>LT1 Heart Rate</th>
-                  <th>LT2 (Threshold) Pace</th>
-                  <th>LT2 Heart Rate</th>
-                  <th>Confidence</th>
-                  <th>Calibration Note</th>
+                  <th>{t.progress.tableDate}</th>
+                  <th>{t.progress.tableRunSource}</th>
+                  <th>{t.progress.tableLt1Pace}</th>
+                  <th>{t.progress.tableLt1Hr}</th>
+                  <th>{t.progress.tableLt2Pace}</th>
+                  <th>{t.progress.tableLt2Hr}</th>
+                  <th>{t.progress.tableConfidence}</th>
+                  <th>{t.progress.tableCalibrationNote}</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredHistory.map((h, i) => (
                   <tr key={h.id || i}>
                     <td><b>{formatDate(h.effective_date)}</b></td>
-                    <td>{h.activity_name || 'Steady calibration run'}</td>
+                    <td>{translateActivityName(h.activity_name || (language === 'zh' ? '平稳校准跑' : 'Steady calibration run'), language)}</td>
                     <td style={{ color: '#10b981', fontWeight: 600 }}>{formatPace(h.lt1_pace_sec_km)}</td>
                     <td>{h.lt1_hr ? `${h.lt1_hr} bpm` : '—'}</td>
                     <td style={{ color: '#f59e0b', fontWeight: 600 }}>{formatPace(h.lt2_pace_sec_km)}</td>
                     <td>{h.lt2_hr ? `${h.lt2_hr} bpm` : '—'}</td>
                     <td><span className="run-badge badge-easy_base">{(h.confidence * 100).toFixed(0)}%</span></td>
-                    <td style={{ color: '#94a3b8', fontSize: '0.8rem' }}>{h.notes}</td>
+                    <td style={{ color: '#94a3b8', fontSize: '0.8rem' }}>{translateCalibrationNote(h.notes, language)}</td>
                   </tr>
                 ))}
 
