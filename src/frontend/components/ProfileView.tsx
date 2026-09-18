@@ -783,14 +783,12 @@ export const ProfileView: React.FC = () => {
               {t.profile.fontSizeLabel}
             </label>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {(['small', 'medium', 'large', 'xlarge', 'xxlarge', 'max'] as FontSize[]).map(size => {
+              {(['small', 'medium', 'large', 'xlarge'] as FontSize[]).map(size => {
                 const isSelected = fontSize === size;
                 const label = size === 'small' ? t.common.fontSizeSmall
                   : size === 'medium' ? t.common.fontSizeMedium
                   : size === 'large' ? t.common.fontSizeLarge
-                  : size === 'xlarge' ? t.common.fontSizeXLarge
-                  : size === 'xxlarge' ? t.common.fontSizeXXLarge
-                  : t.common.fontSizeMax;
+                  : t.common.fontSizeXLarge;
                 return (
                   <button
                     key={size}
@@ -807,9 +805,7 @@ export const ProfileView: React.FC = () => {
                       fontSize: size === 'small' ? '0.75rem'
                         : size === 'medium' ? '0.85rem'
                         : size === 'large' ? '0.95rem'
-                        : size === 'xlarge' ? '1.05rem'
-                        : size === 'xxlarge' ? '1.15rem'
-                        : '1.25rem',
+                        : '1.05rem',
                       cursor: 'pointer',
                       transition: 'all 0.15s ease'
                     }}
@@ -919,7 +915,7 @@ export const ProfileView: React.FC = () => {
                 id="download-db-btn"
                 onClick={handleDownloadSnapshot}
                 style={{
-                  flex: 1,
+                  flex: '1 1 170px',
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -927,14 +923,16 @@ export const ProfileView: React.FC = () => {
                   background: 'rgba(56, 189, 248, 0.12)',
                   color: '#38bdf8',
                   border: '1px solid rgba(56, 189, 248, 0.35)',
-                  padding: '0.6rem 0.85rem',
+                  padding: '0.65rem 0.85rem',
                   borderRadius: 8,
                   fontSize: '0.8rem',
                   fontWeight: 600,
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  minHeight: '40px',
+                  whiteSpace: 'nowrap'
                 }}
               >
-                <Download size={14} />
+                <Download size={14} style={{ flexShrink: 0 }} />
                 <span>{t.backup.downloadButton}</span>
               </button>
 
@@ -954,7 +952,7 @@ export const ProfileView: React.FC = () => {
                 onClick={() => restoreFileInputRef.current?.click()}
                 disabled={isRestoring}
                 style={{
-                  flex: 1,
+                  flex: '1 1 170px',
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -962,14 +960,16 @@ export const ProfileView: React.FC = () => {
                   background: 'rgba(168, 85, 247, 0.12)',
                   color: '#c084fc',
                   border: '1px solid rgba(168, 85, 247, 0.35)',
-                  padding: '0.6rem 0.85rem',
+                  padding: '0.65rem 0.85rem',
                   borderRadius: 8,
                   fontSize: '0.8rem',
                   fontWeight: 600,
-                  cursor: isRestoring ? 'wait' : 'pointer'
+                  cursor: isRestoring ? 'wait' : 'pointer',
+                  minHeight: '40px',
+                  whiteSpace: 'nowrap'
                 }}
               >
-                <FileUp size={14} />
+                <FileUp size={14} style={{ flexShrink: 0 }} />
                 <span>{isRestoring ? t.backup.restoring : t.backup.restoreFileButton}</span>
               </button>
             </div>

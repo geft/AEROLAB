@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Compass, TrendingUp, BarChart2, User, UploadCloud, Sun, Moon, Globe, Type, ChevronDown, Check } from 'lucide-react';
+import { Compass, TrendingUp, BarChart2, User, UploadCloud, Sun, Moon, Globe, Type, ChevronDown, Check, Minus, Plus } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
-import { useFontSize, FontSize } from '../context/FontSizeContext.js';
+import { useFontSize, FontSize, FONT_SIZES, FONT_PERCENTAGES } from '../context/FontSizeContext.js';
 
 export type TabType = 'browse' | 'progress' | 'stats' | 'profile';
 
@@ -13,18 +13,6 @@ interface NavbarProps {
   onToggleTheme: () => void;
 }
 
-function getFontSizeLabel(size: FontSize, t: any): string {
-  switch (size) {
-    case 'small': return t.common.fontSizeSmall || 'Small (75%)';
-    case 'medium': return t.common.fontSizeMedium || 'Default (100%)';
-    case 'large': return t.common.fontSizeLarge || 'Large (125%)';
-    case 'xlarge': return t.common.fontSizeXLarge || 'Extra Large (150%)';
-    case 'xxlarge': return t.common.fontSizeXXLarge || 'Huge (175%)';
-    case 'max': return t.common.fontSizeMax || 'Maximum (200%)';
-    default: return 'Default (100%)';
-  }
-}
-
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   onTabChange,
@@ -33,20 +21,15 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleTheme
 }) => {
   const { language, setLanguage, t } = useTranslation();
-  const { fontSize, setFontSize } = useFontSize();
+  const { fontSize, setFontSize, increaseFontSize, decreaseFontSize } = useFontSize();
   const [langMenuOpen, setLangMenuOpen] = useState(false);
-  const [fontMenuOpen, setFontMenuOpen] = useState(false);
 
   const langRef = useRef<HTMLDivElement>(null);
-  const fontRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (langRef.current && !langRef.current.contains(e.target as Node)) {
         setLangMenuOpen(false);
-      }
-      if (fontRef.current && !fontRef.current.contains(e.target as Node)) {
-        setFontMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -145,41 +128,34 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </div>
 
-        {/* Font Size Dropdown */}
-        <div className="nav-dropdown-wrapper" ref={fontRef}>
+        {/* Font Size Stepper (+ / -) */}
+        <div className="font-size-stepper" title={`${t.nav.fontSize}: ${FONT_PERCENTAGES[fontSize]}%`} id="font-size-stepper">
           <button
-            id="font-size-dropdown-btn"
-            className="theme-toggle-btn"
-            onClick={() => setFontMenuOpen(prev => !prev)}
-            title={t.nav.fontSize}
-            aria-label={t.nav.fontSize}
-            aria-expanded={fontMenuOpen}
+            type="button"
+            id="font-size-dec-btn"
+            className="font-stepper-btn"
+            onClick={decreaseFontSize}
+            disabled={fontSize === 'small'}
+            aria-label="Decrease font size"
+            title="Decrease font size (-)"
           >
-            <Type size={15} className="theme-icon" />
-            <span className="theme-label">{getFontSizeLabel(fontSize, t)}</span>
-            <ChevronDown size={12} className={`dropdown-chevron ${fontMenuOpen ? 'open' : ''}`} />
+            <Minus size={13} />
           </button>
-
-          {fontMenuOpen && (
-            <div className="nav-dropdown-menu" role="menu" id="font-size-dropdown-menu">
-              {(['small', 'medium', 'large', 'xlarge', 'xxlarge', 'max'] as FontSize[]).map(size => (
-                <button
-                  key={size}
-                  type="button"
-                  id={`font-size-option-${size}`}
-                  className={`nav-dropdown-item ${fontSize === size ? 'active' : ''}`}
-                  onClick={() => {
-                    setFontSize(size);
-                    setFontMenuOpen(false);
-                  }}
-                  role="menuitem"
-                >
-                  <span>{getFontSizeLabel(size, t)}</span>
-                  {fontSize === size && <Check size={13} />}
-                </button>
-              ))}
-            </div>
-          )}
+          <span className="font-stepper-label" id="font-size-current-val">
+            <Type size={12} style={{ opacity: 0.7 }} />
+            <span>{FONT_PERCENTAGES[fontSize]}%</span>
+          </span>
+          <button
+            type="button"
+            id="font-size-inc-btn"
+            className="font-stepper-btn"
+            onClick={increaseFontSize}
+            disabled={fontSize === 'xlarge'}
+            aria-label="Increase font size"
+            title="Increase font size (+)"
+          >
+            <Plus size={13} />
+          </button>
         </div>
 
         <button

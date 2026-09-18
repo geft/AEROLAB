@@ -172,26 +172,37 @@ describe('Navbar & Theme Switcher UI Component Tests', () => {
       </LanguageProvider>
     );
 
-    const fontBtn = document.getElementById('font-size-dropdown-btn');
-    expect(fontBtn).toBeTruthy();
-    expect(fontBtn?.textContent).toContain('Default');
+    const incBtn = document.getElementById('font-size-inc-btn');
+    const decBtn = document.getElementById('font-size-dec-btn');
+    const label = document.getElementById('font-size-current-val');
 
-    // Open font size dropdown
-    fireEvent.click(fontBtn!);
-    const largeOption = document.getElementById('font-size-option-large');
-    expect(largeOption).toBeTruthy();
+    expect(incBtn).toBeTruthy();
+    expect(decBtn).toBeTruthy();
+    expect(label?.textContent).toContain('100%');
 
-    // Select large (125%)
-    fireEvent.click(largeOption!);
+    // Click + to reach large (125%)
+    fireEvent.click(incBtn!);
     expect(document.documentElement.getAttribute('data-font-size')).toBe('large');
-    expect(fontBtn?.textContent).toContain('Large');
+    expect(label?.textContent).toContain('125%');
 
-    // Open font size dropdown again and select max (200%)
-    fireEvent.click(fontBtn!);
-    const maxOption = document.getElementById('font-size-option-max');
-    expect(maxOption).toBeTruthy();
-    fireEvent.click(maxOption!);
-    expect(document.documentElement.getAttribute('data-font-size')).toBe('max');
-    expect(fontBtn?.textContent).toContain('200%');
+    // Click + to reach xlarge (150% max cap)
+    fireEvent.click(incBtn!);
+    expect(document.documentElement.getAttribute('data-font-size')).toBe('xlarge');
+    expect(label?.textContent).toContain('150%');
+    expect((incBtn as HTMLButtonElement).disabled).toBe(true);
+
+    // Click - to step down
+    fireEvent.click(decBtn!);
+    expect(document.documentElement.getAttribute('data-font-size')).toBe('large');
+    expect(label?.textContent).toContain('125%');
+
+    fireEvent.click(decBtn!);
+    expect(document.documentElement.getAttribute('data-font-size')).toBe('medium');
+    expect(label?.textContent).toContain('100%');
+
+    fireEvent.click(decBtn!);
+    expect(document.documentElement.getAttribute('data-font-size')).toBe('small');
+    expect(label?.textContent).toContain('75%');
+    expect((decBtn as HTMLButtonElement).disabled).toBe(true);
   });
 });

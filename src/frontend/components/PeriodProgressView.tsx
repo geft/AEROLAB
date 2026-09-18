@@ -464,11 +464,11 @@ export const PeriodProgressView: React.FC = () => {
               >
                 <div className="period-card-header">
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Calendar size={15} color="#06b6d4" />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <Calendar size={15} color="#06b6d4" style={{ flexShrink: 0 }} />
                       <span className="period-title">{formatPeriodLabel(p, language)}</span>
                       {isLatest && (
-                        <span className="run-badge badge-easy_base" style={{ fontSize: '0.65rem' }}>
+                        <span className="run-badge badge-easy_base" style={{ fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
                           {t.progress.currentBlock || 'Current Block'}
                         </span>
                       )}
@@ -492,7 +492,7 @@ export const PeriodProgressView: React.FC = () => {
                 <div className="period-metrics-grid">
                   <div className="period-metric-box">
                     <span className="period-metric-label">{t.progress.runningEconomy}</span>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', whiteSpace: 'nowrap' }}>
                       <span className="period-metric-num" style={{ color: '#10b981' }}>
                         {p.avgEfficiencyFactor ? p.avgEfficiencyFactor.toFixed(2) : '—'}
                       </span>
@@ -503,7 +503,7 @@ export const PeriodProgressView: React.FC = () => {
 
                   <div className="period-metric-box">
                     <span className="period-metric-label">{t.progress.totalTime}</span>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', whiteSpace: 'nowrap' }}>
                       <span className="period-metric-num">
                         {p.totalDurationHours}
                       </span>
@@ -518,7 +518,7 @@ export const PeriodProgressView: React.FC = () => {
 
                   <div className="period-metric-box">
                     <span className="period-metric-label">{t.progress.averagePace}</span>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', whiteSpace: 'nowrap' }}>
                       <span className="period-metric-num" style={{ color: '#38bdf8' }}>
                         {formatPace(p.avgPaceSecKm)}
                       </span>
@@ -558,7 +558,7 @@ export const PeriodProgressView: React.FC = () => {
                             style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem' }}
                             title={`Best LT2 Threshold pace this period across ${lt2Cals.length} calibration${lt2Cals.length !== 1 ? 's' : ''}`}
                           >
-                            {t.progress.lt2Peak}: {formatPace(bestLt2.lt2_pace_sec_km)}/km
+                            {t.progress.lt2Peak}: {formatPace(bestLt2.lt2_pace_sec_km)}
                             {lt2Cals.length > 1 && <span style={{ opacity: 0.65, marginLeft: '0.3rem' }}>×{lt2Cals.length}</span>}
                           </span>
                         )}
@@ -568,7 +568,7 @@ export const PeriodProgressView: React.FC = () => {
                             style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem' }}
                             title={`Best LT1 Aerobic Base pace this period across ${lt1Cals.length} calibration${lt1Cals.length !== 1 ? 's' : ''}`}
                           >
-                            {t.progress.lt1Base}: {formatPace(bestLt1.lt1_pace_sec_km)}/km
+                            {t.progress.lt1Base}: {formatPace(bestLt1.lt1_pace_sec_km)}
                             {lt1Cals.length > 1 && <span style={{ opacity: 0.65, marginLeft: '0.3rem' }}>×{lt1Cals.length}</span>}
                           </span>
                         )}

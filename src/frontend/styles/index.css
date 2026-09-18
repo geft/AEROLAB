@@ -91,20 +91,14 @@ html[data-font-size="125"] {
 
 html[data-font-size="xlarge"],
 html[data-font-size="150%"],
-html[data-font-size="150"] {
-  --base-font-size: 24px;
-}
-
+html[data-font-size="150"],
 html[data-font-size="xxlarge"],
 html[data-font-size="175%"],
-html[data-font-size="175"] {
-  --base-font-size: 28px;
-}
-
+html[data-font-size="175"],
 html[data-font-size="max"],
 html[data-font-size="200%"],
 html[data-font-size="200"] {
-  --base-font-size: 32px;
+  --base-font-size: 24px;
 }
 
 * {
@@ -261,7 +255,65 @@ body {
   color: #8b5cf6;
 }
 
-/* Nav Dropdowns (Language & Font Size) */
+/* Font Size Stepper Control (+ / -) in Navbar */
+.font-size-stepper {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 2px 4px;
+  gap: 2px;
+  user-select: none;
+  transition: all 0.2s ease;
+}
+
+[data-theme="light"] .font-size-stepper {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.font-stepper-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.font-stepper-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .font-stepper-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.font-stepper-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.font-stepper-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  padding: 0 0.35rem;
+  min-width: 52px;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Nav Dropdowns (Language & Options) */
 .nav-dropdown-wrapper {
   position: relative;
   display: inline-flex;
@@ -2134,15 +2186,15 @@ body {
 
 .period-cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 1.15rem;
 }
 
 .period-milestone-card {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
-  padding: 1rem;
+  padding: 1rem 1.15rem;
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
@@ -2164,7 +2216,8 @@ body {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.65rem;
+  flex-wrap: wrap;
 }
 
 .period-title {
@@ -2172,23 +2225,27 @@ body {
   font-size: 1.05rem;
   font-weight: 700;
   color: var(--text-primary);
+  white-space: nowrap;
 }
 
 .period-subtitle {
   font-size: 0.75rem;
   color: var(--text-muted);
   display: block;
-  margin-top: 0.15rem;
+  margin-top: 0.2rem;
+  line-height: 1.35;
 }
 
 .period-volume-badge {
   display: flex;
   align-items: baseline;
-  gap: 0.2rem;
+  gap: 0.25rem;
   background: rgba(6, 182, 212, 0.12);
   border: 1px solid rgba(6, 182, 212, 0.3);
-  padding: 0.2rem 0.55rem;
+  padding: 0.25rem 0.65rem;
   border-radius: 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .period-volume-badge .volume-val {
@@ -2206,37 +2263,46 @@ body {
 
 .period-metrics-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
-  background: rgba(0, 0, 0, 0.15);
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 0.65rem;
+  background: rgba(0, 0, 0, 0.18);
   border-radius: 8px;
-  padding: 0.65rem 0.75rem;
+  padding: 0.75rem 0.85rem;
 }
 
 .period-metric-box {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.2rem;
+  min-width: 0;
 }
 
 .period-metric-label {
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   color: var(--text-muted);
   text-transform: uppercase;
   font-weight: 600;
   letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .period-metric-num {
   font-family: var(--font-heading);
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--text-primary);
+  white-space: nowrap;
 }
 
 .period-metric-sub {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
 }
 
 .period-calibrations-row {
