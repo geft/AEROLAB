@@ -12,6 +12,9 @@ export default defineConfig({
         singleFork: true
       }
     },
+    env: {
+      DATABASE_PATH: ':memory:'
+    },
     include: ['tests/**/*.{test,spec}.{ts,tsx}']
   }
 });

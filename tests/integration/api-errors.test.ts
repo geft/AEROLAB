@@ -4,11 +4,12 @@ import { createServer } from '../../src/backend/server.js';
 import { getDatabase } from '../../src/backend/db/client.js';
 
 describe('API Error Handling & Dev Diagnostics Integration Tests', () => {
-  const app = createServer();
+  let app: any;
 
   beforeAll(() => {
     process.env.DATABASE_PATH = ':memory:';
     getDatabase(':memory:');
+    app = createServer();
   });
 
   it('GET /api/dev/diagnostics returns system info, db counts, and recent logs', async () => {

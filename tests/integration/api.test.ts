@@ -5,13 +5,14 @@ import { getDatabase } from '../../src/backend/db/client.js';
 import { getBenchmark, toCsv } from '../fixtures/benchmark-runs.js';
 
 describe('API Server Integration Tests', () => {
-  const app = createServer();
+  let app: any;
   const benchmarkContent = toCsv(getBenchmark('bench-easy-60'));
 
   beforeAll(() => {
     // In-memory test DB
     process.env.DATABASE_PATH = ':memory:';
     getDatabase(':memory:');
+    app = createServer();
   });
 
   it('GET /api/health returns ok status', async () => {

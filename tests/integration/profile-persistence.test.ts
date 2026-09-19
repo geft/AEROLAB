@@ -8,12 +8,13 @@ import { evaluateThresholdUpdate } from '../../src/backend/physiology/threshold-
 import { getBenchmark, toCsv } from '../fixtures/benchmark-runs.js';
 
 describe('Athlete Profile & Resting HR Persistence Tests', () => {
-  const app = createServer();
+  let app: any;
   const benchmarkContent = toCsv(getBenchmark('bench-easy-60'));
 
   beforeAll(() => {
     process.env.DATABASE_PATH = ':memory:';
     getDatabase(':memory:');
+    app = createServer();
   });
 
   it('sets and verifies custom resting HR (54 bpm)', async () => {
