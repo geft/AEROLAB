@@ -195,13 +195,14 @@ describe('Mobile Responsiveness & View Switcher UI Tests', () => {
     );
 
     const icons = container.querySelectorAll('.nav-tab-icon');
-    expect(icons.length).toBe(4);
+    expect(icons.length).toBe(5);
 
     const labels = container.querySelectorAll('.nav-tab-label');
-    expect(labels.length).toBe(4);
+    expect(labels.length).toBe(5);
     expect(labels[0].textContent).toBe('Browse');
     expect(labels[1].textContent).toBe('Progress');
     expect(labels[2].textContent).toBe('Stats');
     expect(labels[3].textContent).toBe('Profile');
+    expect(labels[4].textContent).toBe('Settings');
   });
 });

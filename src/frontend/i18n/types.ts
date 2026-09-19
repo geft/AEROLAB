@@ -7,6 +7,7 @@ export interface Translations {
     progress: string;
     stats: string;
     profile: string;
+    settings: string;
     dayMode: string;
     nightMode: string;
     importRuns: string;

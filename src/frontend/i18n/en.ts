@@ -7,6 +7,7 @@ export const en: Translations = {
     progress: 'Progress',
     stats: 'Stats',
     profile: 'Profile',
+    settings: 'Settings',
     dayMode: 'Day Mode',
     nightMode: 'Night Mode',
     importRuns: 'Import FIT / CSV',

@@ -7,6 +7,7 @@ export const zh: Translations = {
     progress: '训练进展',
     stats: '生理指标',
     profile: '跑者档案',
+    settings: '设置',
     dayMode: '日间模式',
     nightMode: '夜间模式',
     importRuns: '导入数据 (FIT / CSV)',

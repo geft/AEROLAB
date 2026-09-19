@@ -4,6 +4,7 @@ import { BrowseView, ActivitySummary } from './components/BrowseView';
 import { ProgressView } from './components/ProgressView';
 import { StatsView } from './components/StatsView';
 import { ProfileView } from './components/ProfileView';
+import { SettingsView } from './components/SettingsView';
 import { UploadModal } from './components/UploadModal';
 import { BackupModal } from './components/BackupModal';
 import { OnboardingPage } from './components/OnboardingPage';
@@ -182,7 +183,22 @@ export const App: React.FC = () => {
         {activeTab === 'stats' && <StatsView />}
 
         {activeTab === 'profile' && (
-          <ProfileView onOpenBackup={() => setIsBackupOpen(true)} />
+          <ProfileView
+            onOpenBackup={() => setIsBackupOpen(true)}
+            onNavigateToSettings={() => setActiveTab('settings')}
+          />
+        )}
+
+        {activeTab === 'settings' && (
+          <SettingsView
+            onRestoreComplete={() => {
+              checkProfileConfigured();
+              fetchActivities();
+            }}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            onOpenDevDiagnostics={() => setIsDevDrawerOpen(true)}
+          />
         )}
       </main>
 

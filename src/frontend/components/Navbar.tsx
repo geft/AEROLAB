@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Compass, TrendingUp, BarChart2, User, UploadCloud, Sun, Moon, Globe, Type, ChevronDown, Check, Minus, Plus, HardDrive } from 'lucide-react';
+import { Compass, TrendingUp, BarChart2, User, Settings, UploadCloud, Sun, Moon, Globe, Type, ChevronDown, Check, Minus, Plus, HardDrive, MoreHorizontal, Terminal } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { useFontSize, FontSize, FONT_SIZES, FONT_PERCENTAGES } from '../context/FontSizeContext.js';
 
-export type TabType = 'browse' | 'progress' | 'stats' | 'profile';
+export type TabType = 'browse' | 'progress' | 'stats' | 'profile' | 'settings';
 
 interface NavbarProps {
   activeTab: TabType;
@@ -25,13 +25,18 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { language, setLanguage, t } = useTranslation();
   const { fontSize, setFontSize, increaseFontSize, decreaseFontSize } = useFontSize();
   const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 
   const langRef = useRef<HTMLDivElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (langRef.current && !langRef.current.contains(e.target as Node)) {
         setLangMenuOpen(false);
+      }
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setMoreMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -80,119 +85,197 @@ export const Navbar: React.FC<NavbarProps> = ({
           <User size={18} className="nav-tab-icon" />
           <span className="nav-tab-label">{t.nav.profile}</span>
         </button>
+        <button
+          id="tab-settings-btn"
+          className={`nav-tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
+          onClick={() => onTabChange('settings')}
+        >
+          <Settings size={18} className="nav-tab-icon" />
+          <span className="nav-tab-label">{t.nav.settings}</span>
+        </button>
       </nav>
 
       <div className="nav-actions">
-        {/* Language Dropdown */}
-        <div className="nav-dropdown-wrapper" ref={langRef}>
+        {/* Desktop Actions (visible on full desktop, consolidated into more-menu on split-screen) */}
+        <div className="nav-desktop-actions">
+          {/* Language Dropdown */}
+          <div className="nav-dropdown-wrapper" ref={langRef}>
+            <button
+              id="language-toggle-btn"
+              className="theme-toggle-btn lang-toggle-btn"
+              onClick={() => setLangMenuOpen(prev => !prev)}
+              title={t.nav.langTitle}
+              aria-label={t.nav.langTitle}
+              aria-expanded={langMenuOpen}
+            >
+              <Globe size={15} className="theme-icon" />
+              <span className="lang-code-label">{language === 'zh' ? '中' : 'EN'}</span>
+              <span className="theme-label">{language === 'zh' ? '简体中文' : 'English'}</span>
+              <ChevronDown size={11} className={`dropdown-chevron ${langMenuOpen ? 'open' : ''}`} />
+            </button>
+
+            {langMenuOpen && (
+              <div className="nav-dropdown-menu" role="menu" id="language-dropdown-menu">
+                <button
+                  type="button"
+                  id="lang-option-en"
+                  className={`nav-dropdown-item ${language === 'en' ? 'active' : ''}`}
+                  onClick={() => {
+                    setLanguage('en');
+                    setLangMenuOpen(false);
+                  }}
+                  role="menuitem"
+                >
+                  <span>{t.nav.langEnglish}</span>
+                  {language === 'en' && <Check size={13} />}
+                </button>
+                <button
+                  type="button"
+                  id="lang-option-zh"
+                  className={`nav-dropdown-item ${language === 'zh' ? 'active' : ''}`}
+                  onClick={() => {
+                    setLanguage('zh');
+                    setLangMenuOpen(false);
+                  }}
+                  role="menuitem"
+                >
+                  <span>{t.nav.langChinese}</span>
+                  {language === 'zh' && <Check size={13} />}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Font Size Stepper (+ / -) */}
+          <div className="font-size-stepper" title={`${t.nav.fontSize}: ${FONT_PERCENTAGES[fontSize]}%`} id="font-size-stepper">
+            <button
+              type="button"
+              id="font-size-dec-btn"
+              className="font-stepper-btn"
+              onClick={decreaseFontSize}
+              disabled={fontSize === 'small'}
+              aria-label="Decrease font size"
+              title="Decrease font size (-)"
+            >
+              <Minus size={13} />
+            </button>
+            <span className="font-stepper-label" id="font-size-current-val">
+              <Type size={12} style={{ opacity: 0.7 }} />
+              <span>{FONT_PERCENTAGES[fontSize]}%</span>
+            </span>
+            <button
+              type="button"
+              id="font-size-inc-btn"
+              className="font-stepper-btn"
+              onClick={increaseFontSize}
+              disabled={fontSize === 'xlarge'}
+              aria-label="Increase font size"
+              title="Increase font size (+)"
+            >
+              <Plus size={13} />
+            </button>
+          </div>
+
+          {/* Theme Toggle */}
           <button
-            id="language-toggle-btn"
-            className="theme-toggle-btn lang-toggle-btn"
-            onClick={() => setLangMenuOpen(prev => !prev)}
-            title={t.nav.langTitle}
-            aria-label={t.nav.langTitle}
-            aria-expanded={langMenuOpen}
+            id="theme-toggle-btn"
+            className="theme-toggle-btn"
+            onClick={onToggleTheme}
+            title={theme === 'dark' ? t.nav.dayMode : t.nav.nightMode}
+            aria-label={theme === 'dark' ? t.nav.dayMode : t.nav.nightMode}
           >
-            <Globe size={15} className="theme-icon" />
-            <span className="lang-code-label">{language === 'zh' ? '中' : 'EN'}</span>
-            <span className="theme-label">{language === 'zh' ? '简体中文' : 'English'}</span>
-            <ChevronDown size={11} className={`dropdown-chevron ${langMenuOpen ? 'open' : ''}`} />
+            {theme === 'dark' ? (
+              <>
+                <Sun size={15} className="theme-icon sun" />
+                <span className="theme-label">{t.nav.dayMode}</span>
+              </>
+            ) : (
+              <>
+                <Moon size={15} className="theme-icon moon" />
+                <span className="theme-label">{t.nav.nightMode}</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Split-Screen Consolidated "More / Actions" Dropdown */}
+        <div className="nav-compact-actions" ref={moreMenuRef}>
+          <button
+            type="button"
+            id="nav-more-menu-btn"
+            className="theme-toggle-btn nav-more-trigger-btn"
+            onClick={() => setMoreMenuOpen(prev => !prev)}
+            title="Options & Appearance"
+            aria-label="Options & Appearance"
+            aria-expanded={moreMenuOpen}
+          >
+            <MoreHorizontal size={18} />
           </button>
 
-          {langMenuOpen && (
-            <div className="nav-dropdown-menu" role="menu" id="language-dropdown-menu">
+          {moreMenuOpen && (
+            <div className="nav-dropdown-menu nav-more-dropdown-menu" role="menu">
+              <div className="nav-dropdown-section-title">Appearance & Display</div>
               <button
                 type="button"
-                id="lang-option-en"
-                className={`nav-dropdown-item ${language === 'en' ? 'active' : ''}`}
+                id="more-menu-theme-btn"
+                className="nav-dropdown-item"
                 onClick={() => {
-                  setLanguage('en');
-                  setLangMenuOpen(false);
+                  onToggleTheme();
+                  setMoreMenuOpen(false);
                 }}
-                role="menuitem"
               >
-                <span>{t.nav.langEnglish}</span>
-                {language === 'en' && <Check size={13} />}
+                {theme === 'dark' ? (
+                  <>
+                    <Sun size={15} className="theme-icon sun" />
+                    <span>{t.nav.dayMode}</span>
+                  </>
+                ) : (
+                  <>
+                    <Moon size={15} className="theme-icon moon" />
+                    <span>{t.nav.nightMode}</span>
+                  </>
+                )}
               </button>
-              <button
-                type="button"
-                id="lang-option-zh"
-                className={`nav-dropdown-item ${language === 'zh' ? 'active' : ''}`}
-                onClick={() => {
-                  setLanguage('zh');
-                  setLangMenuOpen(false);
-                }}
-                role="menuitem"
-              >
-                <span>{t.nav.langChinese}</span>
-                {language === 'zh' && <Check size={13} />}
-              </button>
+
+              <div className="nav-dropdown-item font-size-row" style={{ justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Font Size</span>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={decreaseFontSize}
+                    disabled={fontSize === 'small'}
+                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', width: 22, height: 22, borderRadius: 4, cursor: 'pointer' }}
+                  >
+                    -
+                  </button>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 600, minWidth: 36, textAlign: 'center' }}>{FONT_PERCENTAGES[fontSize]}%</span>
+                  <button
+                    type="button"
+                    onClick={increaseFontSize}
+                    disabled={fontSize === 'xlarge'}
+                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', width: 22, height: 22, borderRadius: 4, cursor: 'pointer' }}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {onOpenBackup && (
+                <button
+                  type="button"
+                  className="nav-dropdown-item"
+                  onClick={() => {
+                    onOpenBackup();
+                    setMoreMenuOpen(false);
+                  }}
+                >
+                  <HardDrive size={15} />
+                  <span>{t.nav.backup}</span>
+                </button>
+              )}
             </div>
           )}
         </div>
-
-        {/* Font Size Stepper (+ / -) */}
-        <div className="font-size-stepper" title={`${t.nav.fontSize}: ${FONT_PERCENTAGES[fontSize]}%`} id="font-size-stepper">
-          <button
-            type="button"
-            id="font-size-dec-btn"
-            className="font-stepper-btn"
-            onClick={decreaseFontSize}
-            disabled={fontSize === 'small'}
-            aria-label="Decrease font size"
-            title="Decrease font size (-)"
-          >
-            <Minus size={13} />
-          </button>
-          <span className="font-stepper-label" id="font-size-current-val">
-            <Type size={12} style={{ opacity: 0.7 }} />
-            <span>{FONT_PERCENTAGES[fontSize]}%</span>
-          </span>
-          <button
-            type="button"
-            id="font-size-inc-btn"
-            className="font-stepper-btn"
-            onClick={increaseFontSize}
-            disabled={fontSize === 'xlarge'}
-            aria-label="Increase font size"
-            title="Increase font size (+)"
-          >
-            <Plus size={13} />
-          </button>
-        </div>
-
-        {/* Theme Toggle */}
-        <button
-          id="theme-toggle-btn"
-          className="theme-toggle-btn"
-          onClick={onToggleTheme}
-          title={theme === 'dark' ? t.nav.dayMode : t.nav.nightMode}
-          aria-label={theme === 'dark' ? t.nav.dayMode : t.nav.nightMode}
-        >
-          {theme === 'dark' ? (
-            <>
-              <Sun size={15} className="theme-icon sun" />
-              <span className="theme-label">{t.nav.dayMode}</span>
-            </>
-          ) : (
-            <>
-              <Moon size={15} className="theme-icon moon" />
-              <span className="theme-label">{t.nav.nightMode}</span>
-            </>
-          )}
-        </button>
-
-        {/* Backup Modal Button */}
-        <button
-          id="nav-backup-btn"
-          className="backup-btn"
-          onClick={onOpenBackup}
-          title={t.nav.backup}
-          aria-label={t.nav.backup}
-        >
-          <HardDrive size={15} />
-          <span className="nav-btn-text">{t.nav.backup}</span>
-        </button>
 
         {/* Upload / Import Runs Button */}
         <button id="nav-upload-btn" className="upload-btn" onClick={onOpenUpload} title={t.upload.title}>

@@ -25,9 +25,10 @@ interface ProfileData {
 
 interface ProfileViewProps {
   onOpenBackup?: () => void;
+  onNavigateToSettings?: () => void;
 }
 
-export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup }) => {
+export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNavigateToSettings }) => {
   const { t, language } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -533,8 +534,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup }) => {
         </div>
       </section>
 
-      {/* Database Backup & Cloud Sync Quick Access */}
-      {onOpenBackup && (
+      {/* Database Backup & Cloud Sync Quick Access -> Navigate to Settings */}
+      {(onNavigateToSettings || onOpenBackup) && (
         <section className="overview-card" style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <HardDrive size={22} style={{ color: 'var(--accent-cyan)' }} />
@@ -550,7 +551,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup }) => {
           <button
             type="button"
             id="profile-open-backup-btn"
-            onClick={onOpenBackup}
+            onClick={() => {
+              if (onNavigateToSettings) onNavigateToSettings();
+              else if (onOpenBackup) onOpenBackup();
+            }}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -567,7 +571,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup }) => {
             }}
           >
             <FolderSync size={15} />
-            <span>{t.backup.cardTitle}</span>
+            <span>Open Settings & Backups →</span>
           </button>
         </section>
       )}
