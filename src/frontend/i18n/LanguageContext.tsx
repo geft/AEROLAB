@@ -26,8 +26,12 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [language, setLanguageState] = useState<Language>(() => {
     try {
       const stored = localStorage.getItem('aerolab_lang');
-      if (stored === 'zh' || stored === 'en') {
+      if (stored === 'en') {
         return stored;
+      }
+      if (stored === 'zh') {
+        // Reset and purge accidental Chinese selection back to English
+        localStorage.removeItem('aerolab_lang');
       }
     } catch {}
     return 'en';
