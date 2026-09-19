@@ -448,6 +448,7 @@ export interface Translations {
     downloadSnapshotDesc: string;
     downloadButton: string;
     autoBackupTitle: string;
+    autoBackupDesc: string;
     autoBackupToggle: string;
     customFolderLabel: string;
     customFolderPlaceholder: string;
