@@ -253,45 +253,11 @@ export function translateScoreLabel(label: string, lang: string): string {
   return map[label] || label;
 }
 
-export function translateCalibrationNote(note: string, lang: string): string {
-  if (lang !== 'zh' || !note) return note;
-
-  if (note.includes('Calibrated Lactate Threshold (LT2) from structured quality intervals')) {
-    return '根据高质量结构化间歇跑校准第二乳酸阈值 (LT2)';
-  }
-  if (note.includes('Calibrated Lactate Threshold (LT2) from all-out 5K race pace')) {
-    return '根据 5公里 全力竞速配速校准第二乳酸阈值 (LT2)';
-  }
-  if (note.includes('Calibrated Aerobic Base (LT1) from steady aerobic run')) {
-    return note.replace(/Calibrated Aerobic Base \(LT1\) from steady aerobic run \((.*?)\)/, '根据平稳有氧跑校准第一乳酸阈值 (LT1)（$1）')
-               .replace('Decoupling:', '有氧解耦:')
-               .replace('steady', '平稳');
-  }
-  if (note.includes('Calibrated dual LT1/LT2 baseline')) {
-    return note.replace(/Calibrated dual LT1\/LT2 baseline \((.*?)\)/, '校准 LT1/LT2 双生理阈值基准（$1）')
-               .replace('Decoupling:', '有氧解耦:')
-               .replace('steady', '平稳');
-  }
-  if (note.includes('Threshold calibration update')) {
-    return '生理阈值校准更新';
-  }
-  if (note.includes('Steady calibration run')) {
-    return '平稳校准跑';
-  }
-
+export function translateCalibrationNote(note: string, _lang?: string): string {
   return note;
 }
 
-export function translateActivityName(name: string, lang: string): string {
-  if (lang !== 'zh' || !name) return name;
-  return name
-    .replace(/\bThreshold\b/g, '乳酸阈值跑')
-    .replace(/\bRunning\b/g, '跑步')
-    .replace(/\bIntervals\b/g, '间歇跑')
-    .replace(/\bEasy Run\b/g, '轻松跑')
-    .replace(/\bLong Run\b/g, '长距离跑')
-    .replace(/\bRecovery\b/g, '恢复跑')
-    .replace(/\bRace\b/g, '比赛')
-    .replace(/\bTempo\b/g, '节奏跑')
-    .replace(/\bCalibration Run\b/g, '校准跑步');
+export function translateActivityName(name: string, _lang?: string): string {
+  return name;
 }
+
