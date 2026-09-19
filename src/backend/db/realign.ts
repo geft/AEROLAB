@@ -267,15 +267,17 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
       DELETE FROM physiological_thresholds
       WHERE (lt1_hr IS NOT NULL AND lt1_hr > 156)
          OR (lt1_pace_sec_km IS NOT NULL AND lt1_pace_sec_km < 200)
-         OR (source_activity_id IS NOT NULL AND source_activity_id IN (
+         OR source_activity_id IS NULL
+         OR source_activity_id NOT IN (SELECT id FROM activities)
+         OR source_activity_id IN (
         SELECT t.source_activity_id FROM physiological_thresholds t
-        LEFT JOIN activities a ON a.id = t.source_activity_id
-        WHERE a.id IS NULL OR (
+        JOIN activities a ON a.id = t.source_activity_id
+        WHERE (
           t.lt2_hr IS NOT NULL AND a.run_type NOT IN ('threshold_lt2', 'race')
         ) OR (
           t.lt1_hr IS NOT NULL AND t.lt2_hr IS NULL AND a.run_type NOT IN ('easy_base', 'long_run')
         )
-      ))
+      )
     `).run();
     stats.thresholdsPruned += prunable.changes ?? 0;
   } catch (err: any) {
