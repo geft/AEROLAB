@@ -86,23 +86,23 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
       if (diff <= -3) {
         pacingStrategy = {
           type: 'negative',
-          label: `Negative Split (${Math.abs(diff)}s/km faster in 2nd half)`,
+          label: t.splits.negativeSplitTitle.replace('{diff}', String(Math.abs(diff))),
           diffSec: diff,
-          desc: 'Progressive acceleration — exemplary pacing discipline without early burn-out.'
+          desc: t.splits.negativeSplitDesc
         };
       } else if (diff >= 4) {
         pacingStrategy = {
           type: 'positive',
-          label: `Positive Split (${diff}s/km slower in 2nd half)`,
+          label: t.splits.positiveSplitTitle.replace('{diff}', String(diff)),
           diffSec: diff,
-          desc: 'Early surge fatigue — pace drifted slower as glycogen and cardiac cost accumulated.'
+          desc: t.splits.positiveSplitDesc
         };
       } else {
         pacingStrategy = {
           type: 'even',
-          label: `Even Pacing (±${Math.abs(diff)}s/km across halves)`,
+          label: t.splits.evenPacingTitle.replace('{diff}', String(Math.abs(diff))),
           diffSec: diff,
-          desc: 'Metronomic consistency — steady metabolic conservation throughout the session.'
+          desc: t.splits.evenPacingDesc
         };
       }
     }
@@ -128,7 +128,7 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
       pacingStrategy,
       paceStdDev
     };
-  }, [validSplits, overallAvgPace, overallAvgHr]);
+  }, [validSplits, overallAvgPace, overallAvgHr, t]);
 
   if (validSplits.length === 0 || !stats) {
     return (
@@ -156,7 +156,7 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
           <button
             className={`metric-pill-btn ${selectedMetric === 'pace' ? 'active' : ''}`}
             onClick={() => setSelectedMetric('pace')}
-            title="Visualize Pace Variation (min/km)"
+            title={t.splits.pace}
           >
             <Gauge size={13} />
             <span>{t.splits.pace}</span>
@@ -164,7 +164,7 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
           <button
             className={`metric-pill-btn ${selectedMetric === 'hr' ? 'active' : ''}`}
             onClick={() => setSelectedMetric('hr')}
-            title="Visualize Heart Rate Variation (bpm)"
+            title={t.splits.heartRate}
           >
             <Heart size={13} />
             <span>{t.splits.heartRate}</span>
@@ -172,7 +172,7 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
           <button
             className={`metric-pill-btn ${selectedMetric === 'ef' ? 'active' : ''}`}
             onClick={() => setSelectedMetric('ef')}
-            title="Visualize Efficiency Factor Variation"
+            title={t.splits.efficiency}
           >
             <Zap size={13} />
             <span>{t.splits.efficiency}</span>
@@ -180,7 +180,7 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
           <button
             className={`metric-pill-btn ${selectedMetric === 'elevation' ? 'active' : ''}`}
             onClick={() => setSelectedMetric('elevation')}
-            title="Visualize Elevation Profile per KM"
+            title={t.splits.elevation}
           >
             <Mountain size={13} />
             <span>{t.splits.elevation}</span>
@@ -192,7 +192,7 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
       {!compact && (
         <div className="splits-insights-banner">
           <div className="split-insight-card">
-            <span className="split-insight-label">Fastest Split</span>
+            <span className="split-insight-label">{t.splits.fastestSplit}</span>
             <div className="split-insight-val cyan">
               {stats.fastestSplit?.avg_pace_sec_km ? formatPace(stats.fastestSplit.avg_pace_sec_km) : '—'}
             </div>
@@ -202,7 +202,7 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
           </div>
 
           <div className="split-insight-card">
-            <span className="split-insight-label">Slowest Split</span>
+            <span className="split-insight-label">{t.splits.slowestSplit}</span>
             <div className="split-insight-val amber">
               {stats.slowestSplit?.avg_pace_sec_km ? formatPace(stats.slowestSplit.avg_pace_sec_km) : '—'}
             </div>
@@ -212,12 +212,12 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
           </div>
 
           <div className="split-insight-card">
-            <span className="split-insight-label">Pace Spread (Δ)</span>
+            <span className="split-insight-label">{t.splits.paceSpread}</span>
             <div className="split-insight-val" style={{ color: stats.paceSpreadSec <= 15 ? 'var(--accent-green)' : 'var(--text-primary)' }}>
               ±{stats.paceSpreadSec}s
             </div>
             <span className="split-insight-sub">
-              Std Dev: ±{stats.paceStdDev}s/km
+              {t.splits.stdDev}: ±{stats.paceStdDev}s/km
             </span>
           </div>
 
@@ -362,47 +362,47 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
               {/* Secondary Telemetry Chips */}
               <div className="split-secondary-stats">
                 {selectedMetric !== 'pace' && (
-                  <span className="sec-chip pace" title="Pace">
+                  <span className="sec-chip pace" title={t.splits.pace}>
                     <Gauge size={11} /> {formatPace(pace)}
                   </span>
                 )}
                 {selectedMetric !== 'hr' && hr && (
-                  <span className="sec-chip hr" title="Heart Rate">
+                  <span className="sec-chip hr" title={t.splits.heartRate}>
                     <Heart size={11} color={hr >= lt2Hr ? '#f59e0b' : hr > lt1Hr ? '#06b6d4' : '#10b981'} />
                     {Math.round(hr)}
                   </span>
                 )}
                 {selectedMetric !== 'ef' && ef && (
-                  <span className="sec-chip ef" title="Efficiency Factor">
+                  <span className="sec-chip ef" title={t.splits.efficiency}>
                     <Zap size={11} /> {formatEfficiency(ef)}
                   </span>
                 )}
                 {selectedMetric !== 'elevation' && elev !== 0 && (
-                  <span className="sec-chip elev" title="Elevation Delta">
+                  <span className="sec-chip elev" title={t.splits.elevation}>
                     <Mountain size={11} /> {elev > 0 ? `+${Math.round(elev)}m` : `${Math.round(elev)}m`}
                   </span>
                 )}
                 {split.avg_cadence && (
-                  <span className="sec-chip" style={{ color: 'var(--text-secondary)' }} title="Cadence">
+                  <span className="sec-chip" style={{ color: 'var(--text-secondary)' }} title={t.splits.cadence}>
                     {Math.round(split.avg_cadence)} spm
                   </span>
                 )}
                 {split.avg_stance_time && (
-                  <span className="sec-chip" style={{ color: '#a78bfa' }} title="Ground Contact Time">
+                  <span className="sec-chip" style={{ color: '#a78bfa' }} title={t.browse.groundContactTime}>
                     {Math.round(split.avg_stance_time)} ms
                   </span>
                 )}
                 {split.avg_vert_osc && (
-                  <span className="sec-chip" style={{ color: '#818cf8' }} title="Vertical Oscillation">
+                  <span className="sec-chip" style={{ color: '#818cf8' }} title={t.browse.verticalOscillation}>
                     {(split.avg_vert_osc / 10).toFixed(1)} cm
                   </span>
                 )}
                 {split.avg_vert_ratio && (
-                  <span className="sec-chip" style={{ color: '#c084fc' }} title="Vertical Ratio">
+                  <span className="sec-chip" style={{ color: '#c084fc' }} title={t.browse.verticalRatio}>
                     VR {split.avg_vert_ratio.toFixed(1)}%
                   </span>
                 )}
-                <span className="sec-chip time" title="Split Duration">
+                <span className="sec-chip time" title={t.common.duration}>
                   <Clock size={11} /> {formatDuration(split.duration_seconds)}
                 </span>
               </div>

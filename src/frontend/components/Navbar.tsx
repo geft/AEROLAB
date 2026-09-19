@@ -205,8 +205,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             id="nav-more-menu-btn"
             className="theme-toggle-btn nav-more-trigger-btn"
             onClick={() => setMoreMenuOpen(prev => !prev)}
-            title="Options & Appearance"
-            aria-label="Options & Appearance"
+            title={t.nav.moreOptions}
+            aria-label={t.nav.moreOptions}
             aria-expanded={moreMenuOpen}
           >
             <MoreHorizontal size={18} />
@@ -242,7 +242,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {language === 'zh' && <Check size={13} style={{ marginLeft: 'auto' }} />}
               </button>
 
-              <div className="nav-dropdown-section-title" style={{ marginTop: '0.35rem' }}>Appearance & Display</div>
+              <div className="nav-dropdown-section-title" style={{ marginTop: '0.35rem' }}>{t.nav.appearance}</div>
               <button
                 type="button"
                 id="more-menu-theme-btn"
@@ -266,7 +266,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
 
               <div className="nav-dropdown-item font-size-row" style={{ justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Font Size</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t.nav.fontSize}</span>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                   <button
                     type="button"
@@ -287,23 +287,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </button>
                 </div>
               </div>
-
-              {onOpenBackup && (
-                <>
-                  <div className="nav-dropdown-section-title" style={{ marginTop: '0.35rem' }}>Data & Backups</div>
-                  <button
-                    type="button"
-                    className="nav-dropdown-item"
-                    onClick={() => {
-                      onOpenBackup();
-                      setMoreMenuOpen(false);
-                    }}
-                  >
-                    <HardDrive size={15} />
-                    <span>{t.nav.backup}</span>
-                  </button>
-                </>
-              )}
             </div>
           )}
         </div>

@@ -110,7 +110,7 @@ export const StatsView: React.FC = () => {
                 style={{ height: '32px', fontSize: '0.78rem', padding: '0 0.6rem', minWidth: '130px' }}
                 title="Select specific month to analyze"
               >
-                <option value="all">All / Recent (30d)</option>
+                <option value="all">{t.stats.allRecentMonth}</option>
                 {availableMonths.map(m => (
                   <option key={m.period} value={m.period}>{m.label}</option>
                 ))}

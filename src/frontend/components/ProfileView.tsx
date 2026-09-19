@@ -449,7 +449,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
                 checked={isAutoMaxHr}
                 onChange={e => setIsAutoMaxHr(e.target.checked)}
                 style={{ accentColor: 'var(--accent-cyan)' }}
-                aria-label="I don't know my max heart rate"
+                aria-label={t.profile.iDontKnowMaxHr}
               />
               <span>{t.profile.autoCalibrateCheckbox}</span>
             </label>
@@ -571,7 +571,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
             }}
           >
             <FolderSync size={15} />
-            <span>Open Settings & Backups →</span>
+            <span>{t.profile.openSettingsAndBackups}</span>
           </button>
         </section>
       )}

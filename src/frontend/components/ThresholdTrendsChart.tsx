@@ -286,7 +286,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
       <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginBottom: '0.75rem', flexWrap: 'wrap', fontSize: '0.78rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
           <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b' }}></span>
-          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>LT2 Threshold:</span>
+          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{t.progress.lt2ThresholdBadge}:</span>
           <span style={{ color: '#f59e0b', fontWeight: 700 }}>
             {currentThresholds?.lt2PaceSecKm ? formatPace(currentThresholds.lt2PaceSecKm) : '--'}
             {currentThresholds?.lt2Hr ? ` (~${currentThresholds.lt2Hr} bpm)` : ''}
@@ -295,7 +295,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
           <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#10b981' }}></span>
-          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>LT1 Aerobic Base:</span>
+          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{t.progress.lt1AerobicBaseBadge}:</span>
           <span style={{ color: '#10b981', fontWeight: 700 }}>
             {currentThresholds?.lt1PaceSecKm ? formatPace(currentThresholds.lt1PaceSecKm) : '--'}
             {currentThresholds?.lt1Hr ? ` (~${currentThresholds.lt1Hr} bpm)` : ''}
@@ -518,7 +518,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
                 <span style={{ fontWeight: 700, color: hoveredPoint.type === 'lt1' ? '#34d399' : '#fbbf24' }}>
-                  {hoveredPoint.type === 'lt1' ? 'LT1 Aerobic Base' : 'LT2 Threshold'}
+                  {hoveredPoint.type === 'lt1' ? t.progress.lt1AerobicBaseBadge : t.progress.lt2ThresholdBadge}
                 </span>
                 <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
                   {formatDate(hoveredPoint.item.effective_date)}
@@ -526,7 +526,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', margin: '0.2rem 0' }}>
-                <span style={{ color: '#cbd5e1' }}>Pace:</span>
+                <span style={{ color: '#cbd5e1' }}>{t.common.pace}:</span>
                 <span style={{ fontWeight: 700, color: '#fff' }}>
                   {hoveredPoint.type === 'lt1'
                     ? (hoveredPoint.item.lt1_pace_sec_km ? formatPace(hoveredPoint.item.lt1_pace_sec_km) : '--')
@@ -535,7 +535,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', margin: '0.2rem 0' }}>
-                <span style={{ color: '#cbd5e1' }}>Heart Rate:</span>
+                <span style={{ color: '#cbd5e1' }}>{t.common.heartRate}:</span>
                 <span style={{ fontWeight: 700, color: '#fff' }}>
                   {hoveredPoint.type === 'lt1'
                     ? `${hoveredPoint.item.lt1_hr || '--'} bpm`
@@ -544,7 +544,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', margin: '0.2rem 0' }}>
-                <span style={{ color: '#cbd5e1' }}>Confidence:</span>
+                <span style={{ color: '#cbd5e1' }}>{t.common.confidence}:</span>
                 <span style={{ fontWeight: 600, color: '#38bdf8' }}>
                   {(hoveredPoint.item.confidence * 100).toFixed(0)}%
                 </span>

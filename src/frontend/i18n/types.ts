@@ -17,6 +17,8 @@ export interface Translations {
     langEnglish: string;
     langChinese: string;
     backup: string;
+    appearance: string;
+    moreOptions: string;
   };
   common: {
     loading: string;
@@ -50,6 +52,9 @@ export interface Translations {
     devMode: string;
     showDevButton: string;
     showDevButtonDesc: string;
+    enabled: string;
+    disabled: string;
+    confidence: string;
     fontSizeSmall: string;
     fontSizeMedium: string;
     fontSizeLarge: string;
@@ -193,6 +198,14 @@ export interface Translations {
     fastestSplit: string;
     slowestSplit: string;
     noSplits: string;
+    paceSpread: string;
+    stdDev: string;
+    negativeSplitTitle: string;
+    negativeSplitDesc: string;
+    positiveSplitTitle: string;
+    positiveSplitDesc: string;
+    evenPacingTitle: string;
+    evenPacingDesc: string;
   };
   progress: {
     title: string;
@@ -303,6 +316,7 @@ export interface Translations {
     periodMonth: string;
     periodYear: string;
     periodAll: string;
+    allRecentMonth: string;
     totalDist: string;
     totalTime: string;
     totalElev: string;
@@ -399,6 +413,8 @@ export interface Translations {
     shoeStatus: string;
     shoeActive: string;
     shoeRetired: string;
+    openSettingsAndBackups: string;
+    iDontKnowMaxHr: string;
     deleteShoe: string;
     displaySettings: string;
     displaySettingsSub: string;
@@ -490,6 +506,12 @@ export interface Translations {
     saveSettings: string;
     restoreConfirm: string;
     restoreFromCloud: string;
+    googleConnectedStatus: string;
+    availableGdriveSnapshots: string;
+    hide: string;
+    noGdriveBackups: string;
+    restoreAction: string;
+    refreshAction: string;
   };
   onboarding: {
     brandTitle: string;
@@ -589,5 +611,24 @@ export interface Translations {
     goalLabel: string;
     submitBtn: string;
     savingBtn: string;
+  };
+  settingsView: {
+    pageTitle: string;
+    pageSubtitle: string;
+    appearanceTitle: string;
+    appearanceSubtitle: string;
+    themeTitle: string;
+    themeSubtitle: string;
+    switchToDay: string;
+    switchToNight: string;
+    fontSizeTitle: string;
+    fontSizeSubtitle: string;
+    fontCompact: string;
+    fontDefault: string;
+    fontLarge: string;
+    fontXLarge: string;
+    devTitle: string;
+    devSubtitle: string;
+    openDiagnostics: string;
   };
 }

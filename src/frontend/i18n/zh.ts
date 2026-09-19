@@ -16,7 +16,9 @@ export const zh: Translations = {
     fontSize: '字体大小',
     langEnglish: 'English',
     langChinese: '简体中文',
-    backup: '数据备份与同步'
+    backup: '数据备份与同步',
+    appearance: '外观与显示',
+    moreOptions: '选项与偏好'
   },
   common: {
     loading: '加载中...',
@@ -50,6 +52,9 @@ export const zh: Translations = {
     devMode: '开发者模式',
     showDevButton: '显示开发者悬浮按钮',
     showDevButtonDesc: '在屏幕右下角显示「开发者模式」快捷悬浮按钮。',
+    enabled: '已启用',
+    disabled: '已禁用',
+    confidence: '置信度',
     fontSizeSmall: '紧凑 (75%)',
     fontSizeMedium: '默认 (100%)',
     fontSizeLarge: '大号 (125%)',
@@ -192,7 +197,15 @@ export const zh: Translations = {
     efficiency: '效率 (EF)',
     fastestSplit: '最快公里',
     slowestSplit: '最慢公里',
-    noSplits: '暂无公里分段数据'
+    noSplits: '暂无公里分段数据',
+    paceSpread: '配速跨度 (Δ)',
+    stdDev: '标准差',
+    negativeSplitTitle: '后半程加速负分段 (后半程快 {diff} 秒/公里)',
+    negativeSplitDesc: '渐进式加速 — 绝佳的配速纪律，避免了前期体能过早消耗。',
+    positiveSplitTitle: '后半程降速正分段 (后半程慢 {diff} 秒/公里)',
+    positiveSplitDesc: '前期冲刺疲劳 — 随着肌糖原消耗与心血管漂移，后程配速有所下降。',
+    evenPacingTitle: '均速跑配速 (前后半程相差仅 ±{diff} 秒/公里)',
+    evenPacingDesc: '如节拍器般稳定 — 全程保持平稳的代谢负荷与体能储备。'
   },
   progress: {
     title: '训练进展与进阶趋势',
@@ -303,6 +316,7 @@ export const zh: Translations = {
     periodMonth: '月度',
     periodYear: '年度',
     periodAll: '历史全周期',
+    allRecentMonth: '全部 / 近30天',
     totalDist: '累计跑量',
     totalTime: '跑步总时长',
     totalElev: '累计爬升',
@@ -399,6 +413,8 @@ export const zh: Translations = {
     shoeStatus: '状态',
     shoeActive: '服役中',
     shoeRetired: '已退役',
+    openSettingsAndBackups: '打开设置与备份中心 →',
+    iDontKnowMaxHr: '我不知道我的最大心率',
     deleteShoe: '删除跑鞋',
     displaySettings: '显示与字体设置',
     displaySettingsSub: '根据您的视觉偏好自定义界面的字体与缩放大小',
@@ -489,7 +505,13 @@ export const zh: Translations = {
     downloadAction: '下载',
     saveSettings: '保存目录',
     restoreConfirm: '确定要恢复数据库快照吗？这将替换当前的所有活动记录。',
-    restoreFromCloud: '查看云端备份'
+    restoreFromCloud: '查看云端备份',
+    googleConnectedStatus: '已连接至 Google 云端硬盘',
+    availableGdriveSnapshots: '可用的 Google 云端硬盘快照',
+    hide: '收起',
+    noGdriveBackups: 'Google 云端硬盘中暂无备份。',
+    restoreAction: '还原',
+    refreshAction: '刷新'
   },
   onboarding: {
     brandTitle: 'AEROLAB',
@@ -589,5 +611,24 @@ export const zh: Translations = {
     goalLabel: '主要训练目标 / 专注方向',
     submitBtn: '保存基准并进入系统',
     savingBtn: '正在保存基准…'
+  },
+  settingsView: {
+    pageTitle: '设置',
+    pageSubtitle: '管理离线 SQLite 数据库快照、Google Drive 云端同步及界面显示偏好。',
+    appearanceTitle: '界面与外观',
+    appearanceSubtitle: '自定义界面视觉主题以及适合高分辨率或分屏显示的字体缩放。',
+    themeTitle: '主题配色',
+    themeSubtitle: '在沉浸低眩光夜间模式与高对比度日间模式之间无缝切换。',
+    switchToDay: '切换为日间模式',
+    switchToNight: '切换为夜间模式',
+    fontSizeTitle: '字体缩放比例',
+    fontSizeSubtitle: '针对分屏窗口或大屏显示器缩放界面文字。',
+    fontCompact: '紧凑 (75%)',
+    fontDefault: '默认 (100%)',
+    fontLarge: '大号 (125%)',
+    fontXLarge: '特大 (150%)',
+    devTitle: '开发者诊断与系统运行状况',
+    devSubtitle: '查看实时数据库统计、底层引擎遥测数据与服务运行日志。快捷键：Ctrl+Shift+D',
+    openDiagnostics: '打开诊断面板'
   }
 };

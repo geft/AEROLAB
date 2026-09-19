@@ -436,7 +436,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
                     </div>
                     <div style={{ fontSize: '0.7rem', color: 'var(--accent-emerald)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                       <CheckCircle2 size={11} />
-                      <span>Connected to Google Drive</span>
+                      <span>{t.backup.googleConnectedStatus}</span>
                     </div>
                   </div>
                 </div>
@@ -543,11 +543,11 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
       {showGdriveRestoreList && (
         <div style={{ background: 'var(--bg-surface)', padding: '1.25rem', borderRadius: 12, border: '1px solid var(--border-subtle)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>Available Google Drive Snapshots</span>
-            <button type="button" onClick={() => setShowGdriveRestoreList(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.75rem' }}>Hide</button>
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>{t.backup.availableGdriveSnapshots}</span>
+            <button type="button" onClick={() => setShowGdriveRestoreList(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.75rem' }}>{t.backup.hide}</button>
           </div>
           {gdriveBackups.length === 0 ? (
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No backups found in Google Drive yet.</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{t.backup.noGdriveBackups}</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               {gdriveBackups.map(file => (
@@ -571,7 +571,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
                       cursor: isRestoring ? 'wait' : 'pointer'
                     }}
                   >
-                    Restore
+                    {t.backup.restoreAction}
                   </button>
                 </div>
               ))}
@@ -698,7 +698,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
           </div>
           <button type="button" onClick={fetchDbStatus} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem' }}>
             <RefreshCw size={12} />
-            <span>Refresh</span>
+            <span>{t.backup.refreshAction}</span>
           </button>
         </div>
 

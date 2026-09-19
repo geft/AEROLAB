@@ -25,10 +25,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const { fontSize, setFontSize } = useFontSize();
 
   const fontOptions: { key: FontSize; label: string }[] = [
-    { key: 'small', label: 'Compact (75%)' },
-    { key: 'medium', label: 'Default (100%)' },
-    { key: 'large', label: 'Large (125%)' },
-    { key: 'xlarge', label: 'Extra Large (150%)' }
+    { key: 'small', label: t.settingsView.fontCompact },
+    { key: 'medium', label: t.settingsView.fontDefault },
+    { key: 'large', label: t.settingsView.fontLarge },
+    { key: 'xlarge', label: t.settingsView.fontXLarge }
   ];
 
   return (
@@ -50,10 +50,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
           <div>
             <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-              {t.nav.settings}
+              {t.settingsView.pageTitle}
             </h1>
             <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              Manage offline SQLite database snapshots, Google Drive cloud synchronization, and display preferences.
+              {t.settingsView.pageSubtitle}
             </p>
           </div>
         </div>
@@ -82,10 +82,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <Sun size={20} style={{ color: '#f59e0b' }} />
           <div>
             <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              Display & Appearance
+              {t.settingsView.appearanceTitle}
             </h2>
             <p style={{ margin: '0.15rem 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              Customize visual theme and font scaling for high-resolution monitors.
+              {t.settingsView.appearanceSubtitle}
             </p>
           </div>
         </div>
@@ -104,10 +104,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           }}>
             <div>
               <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                Color Theme
+                {t.settingsView.themeTitle}
               </span>
               <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0' }}>
-                Toggle between sleek low-light Night Mode and high-contrast Day Mode.
+                {t.settingsView.themeSubtitle}
               </p>
             </div>
 
@@ -131,12 +131,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               {theme === 'dark' ? (
                 <>
                   <Sun size={15} style={{ color: '#f59e0b' }} />
-                  <span>Switch to Day Mode</span>
+                  <span>{t.settingsView.switchToDay}</span>
                 </>
               ) : (
                 <>
                   <Moon size={15} style={{ color: '#8b5cf6' }} />
-                  <span>Switch to Night Mode</span>
+                  <span>{t.settingsView.switchToNight}</span>
                 </>
               )}
             </button>
@@ -157,11 +157,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                 <Type size={16} style={{ color: 'var(--accent-cyan)' }} />
                 <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Font Size Scaling ({FONT_PERCENTAGES[fontSize]}%)
+                  {t.settingsView.fontSizeTitle} ({FONT_PERCENTAGES[fontSize]}%)
                 </span>
               </div>
               <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0' }}>
-                Scale UI typography for split-screen windows or larger displays.
+                {t.settingsView.fontSizeSubtitle}
               </p>
             </div>
 
@@ -199,10 +199,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <Terminal size={22} style={{ color: '#8b5cf6' }} />
             <div>
               <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                Developer Diagnostics & System Health
+                {t.settingsView.devTitle}
               </h3>
               <p style={{ margin: '0.15rem 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                Inspect live database counts, engine telemetry, and server logs. Shortcut: <kbd style={{ background: 'var(--bg-card)', padding: '1px 5px', borderRadius: 4, border: '1px solid var(--border-subtle)' }}>Ctrl+Shift+D</kbd>
+                {t.settingsView.devSubtitle}
               </p>
             </div>
           </div>
@@ -227,7 +227,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               }}
             >
               <Terminal size={14} />
-              <span>Open Diagnostics Drawer</span>
+              <span>{t.settingsView.openDiagnostics}</span>
             </button>
           )}
         </div>
@@ -259,7 +259,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               style={{ accentColor: '#8b5cf6', width: 17, height: 17, cursor: 'pointer' }}
             />
             <span style={{ fontSize: '0.8rem', fontWeight: 600, color: showDevFloatingBtn ? 'var(--accent-cyan)' : 'var(--text-muted)' }}>
-              {showDevFloatingBtn ? 'Enabled' : 'Disabled'}
+              {showDevFloatingBtn ? t.common.enabled : t.common.disabled}
             </span>
           </label>
         </div>

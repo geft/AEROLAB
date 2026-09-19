@@ -16,7 +16,9 @@ export const en: Translations = {
     fontSize: 'Font Size',
     langEnglish: 'English',
     langChinese: '简体中文',
-    backup: 'Backup & Sync'
+    backup: 'Backup & Sync',
+    appearance: 'Appearance & Display',
+    moreOptions: 'Options & Appearance'
   },
   common: {
     loading: 'Loading...',
@@ -50,6 +52,9 @@ export const en: Translations = {
     devMode: 'DEV MODE',
     showDevButton: 'Show Floating Dev Mode Button',
     showDevButtonDesc: 'Display the floating "DEV MODE" trigger button in the bottom right corner of the screen.',
+    enabled: 'Enabled',
+    disabled: 'Disabled',
+    confidence: 'Confidence',
     fontSizeSmall: 'Small (75%)',
     fontSizeMedium: 'Default (100%)',
     fontSizeLarge: 'Large (125%)',
@@ -192,7 +197,15 @@ export const en: Translations = {
     efficiency: 'Efficiency (EF)',
     fastestSplit: 'Fastest Split',
     slowestSplit: 'Slowest Split',
-    noSplits: 'No kilometer split data available'
+    noSplits: 'No kilometer split data available',
+    paceSpread: 'Pace Spread (Δ)',
+    stdDev: 'Std Dev',
+    negativeSplitTitle: 'Negative Split ({diff}s/km faster in 2nd half)',
+    negativeSplitDesc: 'Progressive acceleration — exemplary pacing discipline without early burn-out.',
+    positiveSplitTitle: 'Positive Split ({diff}s/km slower in 2nd half)',
+    positiveSplitDesc: 'Early surge fatigue — pace drifted slower as glycogen and cardiac cost accumulated.',
+    evenPacingTitle: 'Even Pacing (±{diff}s/km across halves)',
+    evenPacingDesc: 'Metronomic consistency — steady metabolic conservation throughout the session.'
   },
   progress: {
     title: 'Progress Over Months & Years',
@@ -303,6 +316,7 @@ export const en: Translations = {
     periodMonth: 'Monthly',
     periodYear: 'This Year',
     periodAll: 'All-Time',
+    allRecentMonth: 'All / Recent (30d)',
     totalDist: 'Total Distance',
     totalTime: 'Total Running Time',
     totalElev: 'Total Elevation Gain',
@@ -399,6 +413,8 @@ export const en: Translations = {
     shoeStatus: 'Status',
     shoeActive: 'Active',
     shoeRetired: 'Retired',
+    openSettingsAndBackups: 'Open Settings & Backups →',
+    iDontKnowMaxHr: "I don't know my max heart rate",
     deleteShoe: 'Delete Shoe',
     displaySettings: 'Display & Typography',
     displaySettingsSub: 'Adjust application font sizing and text scaling to your visual comfort',
@@ -489,7 +505,13 @@ export const en: Translations = {
     downloadAction: 'Download',
     saveSettings: 'Save Folder',
     restoreConfirm: 'Are you sure you want to restore? This will replace current database activities.',
-    restoreFromCloud: 'View Cloud Backups'
+    restoreFromCloud: 'View Cloud Backups',
+    googleConnectedStatus: 'Connected to Google Drive',
+    availableGdriveSnapshots: 'Available Google Drive Snapshots',
+    hide: 'Hide',
+    noGdriveBackups: 'No backups found in Google Drive yet.',
+    restoreAction: 'Restore',
+    refreshAction: 'Refresh'
   },
   onboarding: {
     brandTitle: 'AEROLAB',
@@ -589,5 +611,24 @@ export const en: Translations = {
     goalLabel: 'Primary Training Focus / Goal',
     submitBtn: 'Save Baselines & Start AEROLAB',
     savingBtn: 'Saving Baselines…'
+  },
+  settingsView: {
+    pageTitle: 'Settings',
+    pageSubtitle: 'Manage offline SQLite database snapshots, Google Drive cloud synchronization, and display preferences.',
+    appearanceTitle: 'Display & Appearance',
+    appearanceSubtitle: 'Customize visual theme and font scaling for high-resolution monitors.',
+    themeTitle: 'Color Theme',
+    themeSubtitle: 'Toggle between sleek low-light Night Mode and high-contrast Day Mode.',
+    switchToDay: 'Switch to Day Mode',
+    switchToNight: 'Switch to Night Mode',
+    fontSizeTitle: 'Font Size Scaling',
+    fontSizeSubtitle: 'Scale UI typography for split-screen windows or larger displays.',
+    fontCompact: 'Compact (75%)',
+    fontDefault: 'Default (100%)',
+    fontLarge: 'Large (125%)',
+    fontXLarge: 'Extra Large (150%)',
+    devTitle: 'Developer Diagnostics & System Health',
+    devSubtitle: 'Inspect live database counts, engine telemetry, and server logs. Shortcut: Ctrl+Shift+D',
+    openDiagnostics: 'Open Diagnostics Drawer'
   }
 };
