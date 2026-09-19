@@ -367,6 +367,11 @@ databaseRouter.post('/settings', (req: Request, res: Response) => {
   try {
     const db = getDatabase();
     const { autoBackupEnabled, backupDirectory, backupIntervalDays, cloudSyncEnabled } = req.body || {};
+
+    if (backupDirectory && !isSafeBackupDirectory(String(backupDirectory).trim())) {
+      return res.status(400).json({ error: 'Invalid or unsafe backup directory path.' });
+    }
+
     const updated = saveBackupSettings(db, {
       ...(autoBackupEnabled !== undefined ? { autoBackupEnabled: Boolean(autoBackupEnabled) } : {}),
       ...(backupDirectory ? { backupDirectory: String(backupDirectory).trim() } : {}),
