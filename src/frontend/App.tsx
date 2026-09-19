@@ -5,6 +5,7 @@ import { ProgressView } from './components/ProgressView';
 import { StatsView } from './components/StatsView';
 import { ProfileView } from './components/ProfileView';
 import { UploadModal } from './components/UploadModal';
+import { BackupModal } from './components/BackupModal';
 import { OnboardingPage } from './components/OnboardingPage';
 import { Footer } from './components/Footer';
 import { DevDiagnosticsDrawer } from './components/DevDiagnosticsDrawer';
@@ -18,6 +19,7 @@ export const App: React.FC = () => {
   const [activities, setActivities] = useState<ActivitySummary[]>([]);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState<boolean>(false);
+  const [isBackupOpen, setIsBackupOpen] = useState<boolean>(false);
   // null = still loading, false = needs onboarding, true = ready
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -158,6 +160,7 @@ export const App: React.FC = () => {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onOpenUpload={() => setIsUploadOpen(true)}
+        onOpenBackup={() => setIsBackupOpen(true)}
         theme={theme}
         onToggleTheme={toggleTheme}
       />
@@ -178,7 +181,9 @@ export const App: React.FC = () => {
 
         {activeTab === 'stats' && <StatsView />}
 
-        {activeTab === 'profile' && <ProfileView />}
+        {activeTab === 'profile' && (
+          <ProfileView onOpenBackup={() => setIsBackupOpen(true)} />
+        )}
       </main>
 
       <Footer />
@@ -187,6 +192,15 @@ export const App: React.FC = () => {
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
         onUploadSuccess={handleUploadSuccess}
+      />
+
+      <BackupModal
+        isOpen={isBackupOpen}
+        onClose={() => setIsBackupOpen(false)}
+        onRestoreComplete={() => {
+          checkProfileConfigured();
+          fetchActivities();
+        }}
       />
 
       <button

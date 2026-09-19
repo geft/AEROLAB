@@ -14,7 +14,8 @@ export const zh: Translations = {
     langTitle: '选择显示语言',
     fontSize: '字体大小',
     langEnglish: 'English',
-    langChinese: '简体中文'
+    langChinese: '简体中文',
+    backup: '数据备份与同步'
   },
   common: {
     loading: '加载中...',
@@ -265,7 +266,17 @@ export const zh: Translations = {
     tableLt2Pace: 'LT2 (阈值) 配速',
     tableLt2Hr: 'LT2 心率',
     tableConfidence: '置信度',
-    tableCalibrationNote: '校准说明'
+    tableCalibrationNote: '校准说明',
+    thresholdTrendsTitle: '乳酸与有氧生理阈值趋势 (LT1 & LT2)',
+    thresholdTrendsDesc: '长期追踪您的第一乳酸阈值 (LT1) 和第二乳酸阈值 (LT2) 配速与心率演变。',
+    paceTrend: '配速趋势',
+    hrTrend: '心率趋势',
+    rangeAll: '全部',
+    range6m: '近6个月',
+    range3m: '近3个月',
+    activeLt2Ref: '当前 LT2 基准',
+    activeLt1Ref: '当前 LT1 基准',
+    noTrendData: '所选时间段内暂无足够校准数据。'
   },
   stats: {
     title: '生理特征与能力画像',
@@ -367,7 +378,7 @@ export const zh: Translations = {
     zone1Name: '积极恢复',
     zone1Desc: '动态热身与排酸恢复。',
     zone2Title: '2区',
-    zone2Name: '有氧基础',
+    zone2Name: '有氧基础 (LT1)',
     zone2Desc: '脂肪氧化与毛细血管密度。',
     zone3Title: '3区',
     zone3Name: '马拉松/节奏跑',
@@ -451,7 +462,19 @@ export const zh: Translations = {
     restoreFromGdrive: '从 Google Drive 还原',
     restoreSuccess: '数据库已成功还原！',
     restoreFailed: '还原失败，请检查所选文件是否为有效的 AEROLAB 数据库。',
-    restoring: '正在还原数据库…'
+    restoring: '正在还原数据库…',
+    googleConnected: '已连接至 Google 云端硬盘',
+    googleDisconnected: '已断开 Google 账号连接',
+    settingsSaved: '备份设置已成功保存',
+    connectGoogle: '连接 Google 云端硬盘',
+    syncing: '正在同步…',
+    syncButton: '立即同步到云端',
+    viewCloudBackups: '云端备份',
+    availableBackups: '可用的云端备份快照',
+    autoBackup: '自动定期备份',
+    enableAutoBackup: '启用自动备份',
+    selectFolder: '选择文件夹',
+    backingUp: '正在备份…'
   },
   onboarding: {
     brandTitle: 'AEROLAB',

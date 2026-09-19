@@ -15,6 +15,7 @@ export interface Translations {
     fontSize: string;
     langEnglish: string;
     langChinese: string;
+    backup: string;
   };
   common: {
     loading: string;
@@ -266,6 +267,16 @@ export interface Translations {
     tableLt2Hr: string;
     tableConfidence: string;
     tableCalibrationNote: string;
+    thresholdTrendsTitle: string;
+    thresholdTrendsDesc: string;
+    paceTrend: string;
+    hrTrend: string;
+    rangeAll: string;
+    range6m: string;
+    range3m: string;
+    activeLt2Ref: string;
+    activeLt1Ref: string;
+    noTrendData: string;
   };
   stats: {
     title: string;
@@ -452,6 +463,18 @@ export interface Translations {
     restoreSuccess: string;
     restoreFailed: string;
     restoring: string;
+    googleConnected: string;
+    googleDisconnected: string;
+    settingsSaved: string;
+    connectGoogle: string;
+    syncing: string;
+    syncButton: string;
+    viewCloudBackups: string;
+    availableBackups: string;
+    autoBackup: string;
+    enableAutoBackup: string;
+    selectFolder: string;
+    backingUp: string;
   };
   onboarding: {
     brandTitle: string;

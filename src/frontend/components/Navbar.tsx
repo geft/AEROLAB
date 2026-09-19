@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Compass, TrendingUp, BarChart2, User, UploadCloud, Sun, Moon, Globe, Type, ChevronDown, Check, Minus, Plus } from 'lucide-react';
+import { Compass, TrendingUp, BarChart2, User, UploadCloud, Sun, Moon, Globe, Type, ChevronDown, Check, Minus, Plus, HardDrive } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { useFontSize, FontSize, FONT_SIZES, FONT_PERCENTAGES } from '../context/FontSizeContext.js';
 
@@ -9,6 +9,7 @@ interface NavbarProps {
   activeTab: TabType;
   onTabChange: (tab: TabType) => void;
   onOpenUpload: () => void;
+  onOpenBackup?: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
 }
@@ -17,6 +18,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   onTabChange,
   onOpenUpload,
+  onOpenBackup,
   theme,
   onToggleTheme
 }) => {
@@ -85,15 +87,16 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="nav-dropdown-wrapper" ref={langRef}>
           <button
             id="language-toggle-btn"
-            className="theme-toggle-btn"
+            className="theme-toggle-btn lang-toggle-btn"
             onClick={() => setLangMenuOpen(prev => !prev)}
             title={t.nav.langTitle}
             aria-label={t.nav.langTitle}
             aria-expanded={langMenuOpen}
           >
             <Globe size={15} className="theme-icon" />
+            <span className="lang-code-label">{language === 'zh' ? '中' : 'EN'}</span>
             <span className="theme-label">{language === 'zh' ? '简体中文' : 'English'}</span>
-            <ChevronDown size={12} className={`dropdown-chevron ${langMenuOpen ? 'open' : ''}`} />
+            <ChevronDown size={11} className={`dropdown-chevron ${langMenuOpen ? 'open' : ''}`} />
           </button>
 
           {langMenuOpen && (
@@ -158,6 +161,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </div>
 
+        {/* Theme Toggle */}
         <button
           id="theme-toggle-btn"
           className="theme-toggle-btn"
@@ -178,9 +182,22 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </button>
 
+        {/* Backup Modal Button */}
+        <button
+          id="nav-backup-btn"
+          className="backup-btn"
+          onClick={onOpenBackup}
+          title={t.nav.backup}
+          aria-label={t.nav.backup}
+        >
+          <HardDrive size={15} />
+          <span className="nav-btn-text">{t.nav.backup}</span>
+        </button>
+
+        {/* Upload / Import Runs Button */}
         <button id="nav-upload-btn" className="upload-btn" onClick={onOpenUpload} title={t.upload.title}>
           <UploadCloud size={16} />
-          <span>{t.nav.importRuns}</span>
+          <span className="nav-btn-text">{t.nav.importRuns}</span>
         </button>
       </div>
     </header>

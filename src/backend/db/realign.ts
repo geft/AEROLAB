@@ -252,12 +252,16 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
   // Phase 2: rebuild threshold calibrations chronologically. Stale rows whose
   // source activity no longer qualifies, or unphysiological rows (LT1 > 156 or pace < 200), are pruned first.
   try {
-    // Reset athlete_profile if previously poisoned by unphysiological LT1
+    // Initialize athlete_profile baseline cleanly before chronological threshold replay
+    const prof = db.prepare('SELECT max_hr, resting_hr, age FROM athlete_profile WHERE id = ?').get('primary') as any;
+    const effMax = prof?.max_hr || 203;
+    const effRhr = prof?.resting_hr || 54;
+    const initialLt1 = Math.round(effRhr + (effMax - effRhr) * 0.65); // ~151 bpm
     db.prepare(`
       UPDATE athlete_profile
-      SET lt1_hr = 148, lt1_min_hr = 147, lt1_max_hr = 149, z3_start_hr = 150
-      WHERE lt1_hr > 156 OR lt1_hr IS NULL
-    `).run();
+      SET lt1_hr = ?, lt1_min_hr = ?, lt1_max_hr = ?, z3_start_hr = ?
+      WHERE id = 'primary'
+    `).run(initialLt1, initialLt1 - 1, initialLt1 + 1, initialLt1 + 1);
 
     const prunable = db.prepare(`
       DELETE FROM physiological_thresholds

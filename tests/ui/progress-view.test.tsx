@@ -305,4 +305,37 @@ describe('ProgressView UI Tests', () => {
       expect(screen.getByText('Singapore - Threshold (14.6 km)')).toBeDefined();
     });
   });
+
+  it('renders physiological threshold trends chart and toggles between Pace and HR metrics', async () => {
+    render(<ProgressView />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Physiological Threshold Trends (LT1 & LT2)')).toBeDefined();
+    });
+
+    // Check Pace Trend and Heart Rate Trend toggle buttons
+    const paceBtn = screen.getByRole('button', { name: /Pace Trend/i });
+    const hrBtn = screen.getByRole('button', { name: /Heart Rate Trend/i });
+    expect(paceBtn).toBeDefined();
+    expect(hrBtn).toBeDefined();
+
+    // Verify Active Baselines exist
+    expect(screen.getByText('LT2 Threshold:')).toBeDefined();
+    expect(screen.getByText('LT1 Aerobic Base:')).toBeDefined();
+
+    // Toggle to Heart Rate Trend
+    fireEvent.click(hrBtn);
+
+    await waitFor(() => {
+      expect(hrBtn.className).toContain('active');
+    });
+
+    // Toggle to 3 Months range
+    const range3mBtn = screen.getByRole('button', { name: '3 Months' });
+    fireEvent.click(range3mBtn);
+
+    await waitFor(() => {
+      expect(range3mBtn.className).toContain('active');
+    });
+  });
 });

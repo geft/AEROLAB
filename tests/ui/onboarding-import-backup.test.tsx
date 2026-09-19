@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { OnboardingPage } from '../../src/frontend/components/OnboardingPage.js';
 import { ProfileView } from '../../src/frontend/components/ProfileView.js';
+import { BackupModal } from '../../src/frontend/components/BackupModal.js';
 import { LanguageProvider } from '../../src/frontend/i18n/LanguageContext.js';
 
 describe('Onboarding & Profile Backup / Import UI Component Tests', () => {
@@ -220,10 +221,10 @@ describe('Onboarding & Profile Backup / Import UI Component Tests', () => {
     });
   });
 
-  it('triggers local database backup from ProfileView', async () => {
+  it('triggers local database backup from BackupModal', async () => {
     render(
       <LanguageProvider>
-        <ProfileView />
+        <BackupModal isOpen={true} onClose={vi.fn()} />
       </LanguageProvider>
     );
 

@@ -14,7 +14,8 @@ export const en: Translations = {
     langTitle: 'Select Application Language',
     fontSize: 'Font Size',
     langEnglish: 'English',
-    langChinese: '简体中文'
+    langChinese: '简体中文',
+    backup: 'Backup & Sync'
   },
   common: {
     loading: 'Loading...',
@@ -265,7 +266,17 @@ export const en: Translations = {
     tableLt2Pace: 'LT2 (Threshold) Pace',
     tableLt2Hr: 'LT2 Heart Rate',
     tableConfidence: 'Confidence',
-    tableCalibrationNote: 'Calibration Note'
+    tableCalibrationNote: 'Calibration Note',
+    thresholdTrendsTitle: 'Physiological Threshold Trends (LT1 & LT2)',
+    thresholdTrendsDesc: 'Longitudinal progression of your Aerobic Threshold (LT1) and Lactate Threshold (LT2) over time.',
+    paceTrend: 'Pace Trend',
+    hrTrend: 'Heart Rate Trend',
+    rangeAll: 'All Time',
+    range6m: '6 Months',
+    range3m: '3 Months',
+    activeLt2Ref: 'Active LT2 Baseline',
+    activeLt1Ref: 'Active LT1 Baseline',
+    noTrendData: 'Not enough calibration data in selected range.'
   },
   stats: {
     title: 'Physiological Profiling & Capabilities',
@@ -367,7 +378,7 @@ export const en: Translations = {
     zone1Name: 'Recovery',
     zone1Desc: 'Active warm-up & recovery flush.',
     zone2Title: 'Zone 2',
-    zone2Name: 'Aerobic Base',
+    zone2Name: 'Aerobic Base (LT1)',
     zone2Desc: 'Fat oxidation & capillary density.',
     zone3Title: 'Zone 3',
     zone3Name: 'Tempo',
@@ -451,7 +462,19 @@ export const en: Translations = {
     restoreFromGdrive: 'Restore from Google Drive',
     restoreSuccess: 'Database restored successfully!',
     restoreFailed: 'Restore failed. Please verify the file is a valid AEROLAB database.',
-    restoring: 'Restoring database…'
+    restoring: 'Restoring database…',
+    googleConnected: 'Connected to Google Drive',
+    googleDisconnected: 'Disconnected from Google Drive',
+    settingsSaved: 'Backup settings saved successfully',
+    connectGoogle: 'Connect Google Drive',
+    syncing: 'Syncing to Drive…',
+    syncButton: 'Sync to Drive Now',
+    viewCloudBackups: 'Cloud Backups',
+    availableBackups: 'Available Cloud Backups',
+    autoBackup: 'Automatic Backups',
+    enableAutoBackup: 'Enable Automatic Backups',
+    selectFolder: 'Choose Folder',
+    backingUp: 'Backing up…'
   },
   onboarding: {
     brandTitle: 'AEROLAB',

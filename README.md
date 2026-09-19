@@ -147,7 +147,7 @@ npm install
 ```
 
 ### 2. Run Automated Tests
-Runs the complete test suite (37 test suites, 247 automated tests, 100% passing) spanning physiology unit tests, binary/CSV ingestion, API integration, and React UI user flows:
+Runs the complete test suite (37 test suites, 257 automated tests, 100% passing) spanning physiology unit tests, binary/CSV ingestion, API integration, and React UI user flows:
 ```bash
 npm test
 ```
@@ -229,6 +229,7 @@ AEROLAB operates on a **single embedded SQLite WAL database file** (`data/runs.d
   4. **Notes & AI Coach**: Intelligent physiological debrief with clickable **Score Breakdown Modal**, grading rubric, and an editable, auto-saving runner's notebook.
 
 ### 2. Progress View
+- **Physiological Threshold Trends (LT1 & LT2)**: Interactive timeline chart visualizing the progression of your Aerobic Base (LT1) and Lactate Threshold (LT2) over time, with instant toggles between **Pace Trend (min/km)** and **Heart Rate Trend (bpm)**, time-range filtering (`All Time`, `6 Months`, `3 Months`), interactive hover tooltips, and active baseline reference lines.
 - **Period Progress & Mileage**: View total running volume, month-by-month and year-by-year mileage, and zone breakdown distributions.
 - **Pace-Dependent Running Economy Curves**: Plots Moving Speed vs. Heart Rate and Meters per Beat across pace bands, with toggleable filters (`All Runs`, `Easy Base`, `Threshold`).
 - **Historical Threshold Calibrations**: Organized milestones and data table bounded in a sleek scroll container with filter pills (`All`, `LT1 Base`, `LT2 Threshold`, `Race`) to easily navigate historical recalibrations.
@@ -312,6 +313,21 @@ Finish times for 5K, 10K, Half Marathon, and Marathon are modeled by combining R
 
 ### 9. Tanaka Formula for Estimated Max Heart Rate
 - `HR_max = 208 - (0.7 * age)`
+
+### 10. Cruising Block LT1 Detection & Recovery Week Protection
+- **Cruising Block Extraction**: Instead of whole-run averages (which dilute sustained aerobic work with warmups and walk breaks), AEROLAB scans for contiguous cruising segments (>= 20 mins, >= 3.5 km) with low aerobic decoupling (-8.0% to +3.8%).
+- **Stimulus Floor Gate**: Enforces `stimulusFloorHr = Math.max(145, currentLt1 - 5)`. Slower recovery runs (e.g. 130-138 bpm) never touch or depress the athlete's calibrated aerobic threshold.
+
+### 11. Tropical Window & Acceleration Ramp Trimming for LT2
+- **Acceleration Ramp Trimming**: Strips the initial 10-12s acceleration ramp from standing/walking starts (< 2.2 m/s), ensuring interval pace reflects true cruising speed matching the athlete's Garmin watch display.
+- **Tropical Window (30-Minute Quality Cap)**: High ambient heat and humidity induce progressive hyperthermia and dehydration drift after 30+ minutes of quality work. Quality work evaluation is capped at 1800s (30 mins) to capture the true uncorrupted threshold plateau.
+- **Cardiac Lag Compensation**: Evaluates plateau heart rate after recovery drops rather than averaging the initial 60-90s climbing phase.
+
+### 12. Rolling Confidence- & Recency-Weighted Threshold Aggregation
+- **Multi-Session Smoothing**: Replaces volatile single-session `LIMIT 1` jumping with a multi-session weighted moving baseline across up to 5 qualifying sessions over a 45-day window.
+- **Weighting Formula**: `Weight = Confidence * max(0.25, 1 - (DaysAgo / 45))`.
+- **Protocol Confidence**: Awards higher confidence (0.90 - 0.92) to tight-rest threshold intervals (<= 90s) and long aerobic cruising blocks (>= 40m), while applying continuous penalties for extended recoveries (>= 150s).
+- **Smooth Profile Sync**: Continuously keeps `athlete_profile` training zones synchronized with the athlete's stable biological baseline without abrupt week-to-week whiplash.
 
 ---
 

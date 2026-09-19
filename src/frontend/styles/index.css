@@ -414,6 +414,84 @@ body {
   border-color: rgba(0, 0, 0, 0.15);
 }
 
+.backup-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 0.825rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+[data-theme="light"] .backup-btn {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.backup-btn:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--border-active);
+}
+
+.theme-toggle-btn.icon-only {
+  padding: 0.45rem 0.6rem;
+  justify-content: center;
+  min-width: 36px;
+}
+
+.lang-toggle-btn {
+  padding: 0.45rem 0.65rem;
+  gap: 0.35rem;
+}
+
+.lang-code-label {
+  display: none;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+/* Split-screen & Medium Desktop Responsive Layout */
+@media (max-width: 1120px) {
+  .navbar {
+    padding: 0.75rem 1.25rem;
+    gap: 0.5rem;
+  }
+  .nav-tabs {
+    padding: 0.2rem;
+  }
+  .nav-tab-btn {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.82rem;
+    gap: 0.35rem;
+  }
+  .nav-actions {
+    gap: 0.4rem;
+  }
+  .theme-toggle-btn .theme-label,
+  .lang-toggle-btn .theme-label,
+  .backup-btn .nav-btn-text,
+  .upload-btn .nav-btn-text {
+    display: none;
+  }
+  .lang-code-label {
+    display: inline;
+  }
+  .theme-toggle-btn,
+  .backup-btn,
+  .upload-btn {
+    padding: 0.45rem 0.65rem;
+    justify-content: center;
+    min-width: 36px;
+  }
+}
+
 /* Main content */
 .main-content {
   flex: 1;

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { TrendingUp, Activity, Compass, Zap, ShieldCheck, Calendar, List, LayoutGrid, Award } from 'lucide-react';
 import { getDisplayTitle } from './BrowseView';
 import { PeriodProgressView } from './PeriodProgressView';
+import { ThresholdTrendsChart } from './ThresholdTrendsChart';
 import { EconomyGuideModal } from './EconomyGuideModal';
 import { VdotGuideModal } from './VdotGuideModal';
 import { formatPace, formatDate } from '../utils/formatters.js';
@@ -95,7 +96,7 @@ export const ProgressView: React.FC = () => {
         <div className="benchmark-card">
           <span className="benchmark-label">{t.progress.lt2Title}</span>
           <div className="benchmark-value" style={{ color: '#f59e0b' }}>
-            {data.latest.lt2?.lt2_pace_sec_km ? `${formatPace(data.latest.lt2.lt2_pace_sec_km)}${data.latest.lt2.is_estimated ? ' (Est.)' : ''}` : '--'}
+            {data.latest.lt2?.lt2_pace_sec_km ? `${formatPace(data.latest.lt2.lt2_pace_sec_km)}${(data.latest.lt2 as any)?.is_estimated ? ' (Est.)' : ''}` : '--'}
           </div>
           <span className="benchmark-sub">
             {t.progress.lt2Sub} (~{data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? data.latest.lt2?.lt2_hr ?? 167} bpm)
@@ -161,6 +162,12 @@ export const ProgressView: React.FC = () => {
           <Activity size={13} /> {t.progress.syncWithProfile}
         </div>
       </div>
+
+      {/* Physiological Threshold Trends (LT1 & LT2) */}
+      <ThresholdTrendsChart
+        history={data.history}
+        currentThresholds={data.currentThresholds}
+      />
 
       {/* Monthly & Yearly Longitudinal Progress Overview */}
       <PeriodProgressView />

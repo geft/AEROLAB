@@ -59,6 +59,8 @@ thresholdsRouter.get('/', (req, res) => {
 
     const latestLt1 = latestLt1Row ? {
       ...latestLt1Row,
+      lt1_hr: currentThresholds.lt1Hr,
+      lt1_pace_sec_km: currentThresholds.lt1PaceSecKm || latestLt1Row.lt1_pace_sec_km,
       is_estimated: false
     } : {
       lt1_hr: currentThresholds.lt1Hr,
@@ -78,7 +80,7 @@ thresholdsRouter.get('/', (req, res) => {
     // If LT2 has not been calibrated through a threshold workout or race:
     // Estimate LT2 pace based on aerobic turnpoint mechanics (~86% of LT1 pace),
     // or from recent overall running pace.
-    let effectiveLt2Pace: number | null = latestLt2Pace;
+    let effectiveLt2Pace: number | null = currentThresholds.lt2PaceSecKm || latestLt2Pace;
     let isLt2Estimated = false;
 
     if (!effectiveLt2Pace) {
@@ -93,6 +95,8 @@ thresholdsRouter.get('/', (req, res) => {
 
     const latestLt2 = latestLt2Row ? {
       ...latestLt2Row,
+      lt2_hr: currentThresholds.lt2Hr,
+      lt2_pace_sec_km: currentThresholds.lt2PaceSecKm || effectiveLt2Pace,
       is_estimated: false
     } : {
       lt2_hr: currentThresholds.lt2Hr,
