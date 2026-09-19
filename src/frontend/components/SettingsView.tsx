@@ -32,7 +32,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   ];
 
   return (
-    <div className="settings-view" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: 1100, margin: '0 auto' }}>
+    <div className="settings-view">
       {/* Page Header */}
       <div className="overview-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', padding: '1.5rem 1.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>

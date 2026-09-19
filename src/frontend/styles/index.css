@@ -2744,8 +2744,14 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
+}
+
+.settings-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
 }
 
 .profile-header-banner {
