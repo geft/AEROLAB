@@ -3,7 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { getDatabase } from './db/client.js';
+import { getDatabase, closeDatabase } from './db/client.js';
 import { activitiesRouter } from './routes/activities.js';
 import { thresholdsRouter } from './routes/thresholds.js';
 import { ingestRouter } from './routes/ingest.js';
@@ -17,11 +17,37 @@ const currentDir = typeof __dirname !== 'undefined'
   ? __dirname
   : (typeof import.meta !== 'undefined' && import.meta.url ? path.dirname(fileURLToPath(import.meta.url)) : process.cwd());
 
-
 export function createServer() {
   const app = express();
 
-  app.use(cors());
+  // Standard Security Headers
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    next();
+  });
+
+  // Restrict CORS to local development and desktop loopback origins
+  const allowedOrigins = [
+    /^http:\/\/localhost(:\d+)?$/,
+    /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+    /^http:\/\/\[::1\](:\d+)?$/
+  ];
+
+  app.use(cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (same-origin, Electron, direct curl/testing)
+      if (!origin) return callback(null, true);
+      const isAllowed = allowedOrigins.some(pattern => pattern.test(origin));
+      if (isAllowed) {
+        return callback(null, true);
+      }
+      return callback(new Error('Cross-Origin Request Blocked: Origin not authorized by AEROLAB local security policy.'));
+    },
+    credentials: true
+  }));
+
   app.use(express.json({ limit: '50mb' }));
   app.use(requestLogger);
 
@@ -39,10 +65,19 @@ export function createServer() {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  // Graceful shutdown for standalone desktop app mode
+  // Graceful shutdown for standalone desktop app mode (loopback only)
   app.post('/api/system/shutdown', (req, res) => {
+    const ip = req.ip || req.socket.remoteAddress || '';
+    const isLoopback = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+    if (!isLoopback && process.env.NODE_ENV !== 'test') {
+      return res.status(403).json({ error: 'Shutdown command rejected: only loopback connections authorized.' });
+    }
+
     res.json({ ok: true, message: 'Shutting down AEROLAB...' });
     setTimeout(() => {
+      try {
+        closeDatabase();
+      } catch {}
       process.exit(0);
     }, 200);
   });

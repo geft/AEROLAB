@@ -4,6 +4,7 @@ import { getDatabase } from '../db/client.js';
 import { importDirectory, importRunContent } from '../ingestion/importer.js';
 import { convertFitToCsv, isFitBuffer } from '../ingestion/fit-parser.js';
 import { checkAndRunScheduledBackup } from './database.js';
+import { logger } from '../utils/logger.js';
 
 export const ingestRouter = Router();
 
@@ -15,7 +16,7 @@ ingestRouter.post('/scan', (req, res) => {
     const results = importDirectory(db, rawDir);
     if (results.some(r => r.status === 'imported')) {
       setTimeout(() => {
-        try { checkAndRunScheduledBackup(db); } catch (e) { console.error('[AutoBackup] Scan error:', e); }
+        try { checkAndRunScheduledBackup(db); } catch (e) { logger.error('AutoBackup', 'Scan error', e); }
       }, 500);
     }
     res.json({ results });
@@ -101,12 +102,12 @@ ingestRouter.post('/upload', (req, res) => {
     }
     if (result.status === 'imported') {
       setTimeout(() => {
-        try { checkAndRunScheduledBackup(db); } catch (e) { console.error('[AutoBackup] Upload error:', e); }
+        try { checkAndRunScheduledBackup(db); } catch (e) { logger.error('AutoBackup', 'Upload error', e); }
       }, 500);
     }
     res.json({ result });
   } catch (err: any) {
-    console.error(`[Ingest Error] Failed to import "${filename || 'unknown'}":`, err);
+    logger.error('Ingest', `Failed to import "${filename || 'unknown'}"`, err);
     res.status(500).json({ error: err.message || 'Server error during ingestion', filename });
   }
 });

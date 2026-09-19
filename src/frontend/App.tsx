@@ -1,18 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Navbar, TabType } from './components/Navbar';
 import { BrowseView, ActivitySummary } from './components/BrowseView';
-import { ProgressView } from './components/ProgressView';
-import { StatsView } from './components/StatsView';
-import { ProfileView } from './components/ProfileView';
-import { SettingsView } from './components/SettingsView';
-import { UploadModal } from './components/UploadModal';
-import { BackupModal } from './components/BackupModal';
-import { OnboardingPage } from './components/OnboardingPage';
 import { Footer } from './components/Footer';
-import { DevDiagnosticsDrawer } from './components/DevDiagnosticsDrawer';
 import { Terminal } from 'lucide-react';
 import { clientLogger } from './utils/clientLogger';
 import { useTranslation } from './i18n/LanguageContext';
+
+// Code-split secondary views, modals, and heavy drawers for instant first paint
+const ProgressView = lazy(() => import('./components/ProgressView').then(m => ({ default: m.ProgressView })));
+const StatsView = lazy(() => import('./components/StatsView').then(m => ({ default: m.StatsView })));
+const ProfileView = lazy(() => import('./components/ProfileView').then(m => ({ default: m.ProfileView })));
+const SettingsView = lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })));
+const UploadModal = lazy(() => import('./components/UploadModal').then(m => ({ default: m.UploadModal })));
+const BackupModal = lazy(() => import('./components/BackupModal').then(m => ({ default: m.BackupModal })));
+const OnboardingPage = lazy(() => import('./components/OnboardingPage').then(m => ({ default: m.OnboardingPage })));
+const DevDiagnosticsDrawer = lazy(() => import('./components/DevDiagnosticsDrawer').then(m => ({ default: m.DevDiagnosticsDrawer })));
 
 export const App: React.FC = () => {
   const { t } = useTranslation();
@@ -32,6 +34,16 @@ export const App: React.FC = () => {
     return 'dark';
   });
   const [isDevDrawerOpen, setIsDevDrawerOpen] = useState<boolean>(false);
+
+  // Floating Dev Mode button: default to false (disabled)
+  const [showDevFloatingBtn, setShowDevFloatingBtn] = useState<boolean>(() => {
+    return localStorage.getItem('aerolab_show_dev_btn') === 'true';
+  });
+
+  const handleToggleDevFloatingBtn = (enabled: boolean) => {
+    setShowDevFloatingBtn(enabled);
+    localStorage.setItem('aerolab_show_dev_btn', String(enabled));
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -53,40 +65,18 @@ export const App: React.FC = () => {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  const [showDevFloatingBtn, setShowDevFloatingBtn] = useState<boolean>(() => {
-    return localStorage.getItem('aerolab_show_dev_btn') === 'true';
-  });
-
-  const handleToggleDevFloatingBtn = (enabled: boolean) => {
-    setShowDevFloatingBtn(enabled);
-    localStorage.setItem('aerolab_show_dev_btn', enabled ? 'true' : 'false');
-  };
-
   const checkProfileConfigured = async () => {
     try {
       const res = await fetch('/api/profile');
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        console.warn(`[HTTP ${res.status}] Profile check non-200:`, errJson);
-        const cached = localStorage.getItem('aerolab_profile_configured');
-        if (cached === 'true') {
-          setIsConfigured(true);
-          return;
-        }
-      }
-      const data = await res.json();
-      const p = data?.profile;
-      const configured = Boolean(
-        data?.isConfigured === true &&
-        p?.is_configured !== 0 &&
-        p?.resting_hr &&
-        (p?.dob || p?.age)
-      );
-      setIsConfigured(configured);
-      if (configured) {
-        localStorage.setItem('aerolab_profile_configured', 'true');
+      if (res.ok) {
+        const data = await res.json();
+        const p = data?.profile;
+        const configured = data?.isConfigured === true && p?.is_configured !== 0 && !!p?.resting_hr && (!!p?.dob || !!p?.age);
+        setIsConfigured(configured);
+        localStorage.setItem('aerolab_profile_configured', String(configured));
       } else {
-        localStorage.removeItem('aerolab_profile_configured');
+        const cached = localStorage.getItem('aerolab_profile_configured');
+        setIsConfigured(cached === 'true');
       }
     } catch (err) {
       console.error('Failed to check profile configuration status:', err);
@@ -96,30 +86,23 @@ export const App: React.FC = () => {
   };
 
   const fetchActivities = async (preferredSelectedId?: string) => {
+    setLoading(true);
     try {
-      setLoading(true);
       const res = await fetch('/api/activities');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      if (data.activities) {
-        setActivities(data.activities);
-        if (preferredSelectedId) {
-          setSelectedActivityId(preferredSelectedId);
-        } else if (!selectedActivityId && data.activities.length > 0) {
-          setSelectedActivityId(data.activities[0].id);
-        }
+      const list = Array.isArray(data) ? data : (data?.activities || []);
+      setActivities(list);
+      if (preferredSelectedId) {
+        setSelectedActivityId(preferredSelectedId);
+      } else if (!selectedActivityId && list.length > 0) {
+        setSelectedActivityId(list[0].id);
       }
     } catch (err) {
       console.error('Failed to load activities:', err);
+      clientLogger.error('App', 'Failed to load activities', { error: String(err) });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleUploadSuccess = async (importedActivityId?: string) => {
-    await fetchActivities(importedActivityId);
-    if (importedActivityId) {
-      setSelectedActivityId(importedActivityId);
-      setActiveTab('browse');
     }
   };
 
@@ -127,15 +110,31 @@ export const App: React.FC = () => {
     checkProfileConfigured();
   }, []);
 
-  // Fetch activities only once the profile is confirmed configured
   useEffect(() => {
     if (isConfigured === true) {
       fetchActivities();
     }
   }, [isConfigured]);
 
-  const handleActivityUpdated = (updated: any) => {
-    setActivities(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a));
+  const handleUploadSuccess = async (importedActivityId?: string) => {
+    setIsUploadOpen(false);
+    await checkProfileConfigured();
+    await fetchActivities(importedActivityId);
+    if (importedActivityId) {
+      setSelectedActivityId(importedActivityId);
+      setActiveTab('browse');
+    }
+  };
+
+  const handleActivityUpdated = (updatedActivity: any) => {
+    setActivities(prev =>
+      prev.map(a => (a.id === updatedActivity.id ? { ...a, ...updatedActivity } : a))
+    );
+  };
+
+  const handleOnboardingComplete = () => {
+    setIsConfigured(true);
+    fetchActivities();
   };
 
   // Loading splash — prevents flicker before the profile check resolves
@@ -153,14 +152,12 @@ export const App: React.FC = () => {
     );
   }
 
-  // Onboarding gate — full page, nothing else rendered
+  // If first-time user and not configured, show fullscreen Onboarding flow
   if (isConfigured === false) {
     return (
-      <OnboardingPage
-        onCompleted={() => {
-          setIsConfigured(true);
-        }}
-      />
+      <Suspense fallback={<div className="loading-state" style={{ minHeight: '100vh' }} />}>
+        <OnboardingPage onCompleted={handleOnboardingComplete} />
+      </Suspense>
     );
   }
 
@@ -176,59 +173,75 @@ export const App: React.FC = () => {
       />
 
       <main className="main-content">
-        {activeTab === 'browse' && (
-          <BrowseView
-            activities={activities}
-            selectedActivityId={selectedActivityId}
-            onSelectActivity={setSelectedActivityId}
-            onOpenUpload={() => setIsUploadOpen(true)}
-            onActivityUpdated={handleActivityUpdated}
-            theme={theme}
-          />
-        )}
+        <Suspense fallback={<div className="overview-card loading-skeleton" style={{ minHeight: 400 }} />}>
+          {activeTab === 'browse' && (
+            <BrowseView
+              activities={activities}
+              selectedActivityId={selectedActivityId}
+              onSelectActivity={setSelectedActivityId}
+              onOpenUpload={() => setIsUploadOpen(true)}
+              onActivityUpdated={handleActivityUpdated}
+              theme={theme}
+            />
+          )}
 
-        {activeTab === 'progress' && <ProgressView />}
+          {activeTab === 'progress' && <ProgressView />}
 
-        {activeTab === 'stats' && <StatsView />}
+          {activeTab === 'stats' && <StatsView />}
 
-        {activeTab === 'profile' && (
-          <ProfileView
-            onOpenBackup={() => setIsBackupOpen(true)}
-            onNavigateToSettings={() => setActiveTab('settings')}
-          />
-        )}
+          {activeTab === 'profile' && (
+            <ProfileView
+              onOpenBackup={() => setIsBackupOpen(true)}
+              onNavigateToSettings={() => setActiveTab('settings')}
+            />
+          )}
 
-        {activeTab === 'settings' && (
-          <SettingsView
-            onRestoreComplete={() => {
-              checkProfileConfigured();
-              fetchActivities();
-            }}
-            theme={theme}
-            onToggleTheme={toggleTheme}
-            onOpenDevDiagnostics={() => setIsDevDrawerOpen(true)}
-            showDevFloatingBtn={showDevFloatingBtn}
-            onToggleDevFloatingBtn={handleToggleDevFloatingBtn}
-          />
-        )}
+          {activeTab === 'settings' && (
+            <SettingsView
+              onRestoreComplete={() => {
+                checkProfileConfigured();
+                fetchActivities();
+              }}
+              theme={theme}
+              onToggleTheme={toggleTheme}
+              onOpenDevDiagnostics={() => setIsDevDrawerOpen(true)}
+              showDevFloatingBtn={showDevFloatingBtn}
+              onToggleDevFloatingBtn={handleToggleDevFloatingBtn}
+            />
+          )}
+        </Suspense>
       </main>
 
       <Footer />
 
-      <UploadModal
-        isOpen={isUploadOpen}
-        onClose={() => setIsUploadOpen(false)}
-        onUploadSuccess={handleUploadSuccess}
-      />
+      <Suspense fallback={null}>
+        {isUploadOpen && (
+          <UploadModal
+            isOpen={isUploadOpen}
+            onClose={() => setIsUploadOpen(false)}
+            onUploadSuccess={handleUploadSuccess}
+          />
+        )}
 
-      <BackupModal
-        isOpen={isBackupOpen}
-        onClose={() => setIsBackupOpen(false)}
-        onRestoreComplete={() => {
-          checkProfileConfigured();
-          fetchActivities();
-        }}
-      />
+        {isBackupOpen && (
+          <BackupModal
+            isOpen={isBackupOpen}
+            onClose={() => setIsBackupOpen(false)}
+            onRestoreComplete={() => {
+              checkProfileConfigured();
+              fetchActivities();
+            }}
+          />
+        )}
+
+        {isDevDrawerOpen && (
+          <DevDiagnosticsDrawer
+            isOpen={isDevDrawerOpen}
+            onClose={() => setIsDevDrawerOpen(false)}
+            theme={theme}
+          />
+        )}
+      </Suspense>
 
       {showDevFloatingBtn && (
         <button
@@ -242,12 +255,6 @@ export const App: React.FC = () => {
           <span>{t.common.devMode}</span>
         </button>
       )}
-
-      <DevDiagnosticsDrawer
-        isOpen={isDevDrawerOpen}
-        onClose={() => setIsDevDrawerOpen(false)}
-        theme={theme}
-      />
     </div>
   );
 };

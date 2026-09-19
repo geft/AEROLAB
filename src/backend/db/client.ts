@@ -7,6 +7,7 @@ import { syncAllCoachSummaries } from '../physiology/coach-summary.js';
 import { syncAllActivitiesWeather } from '../physiology/weather.js';
 import { realignDatabase } from './realign.js';
 import { deduplicateRuns } from './deduplicate.js';
+import { logger } from '../utils/logger.js';
 
 const currentDir = typeof __dirname !== 'undefined'
   ? __dirname
@@ -335,14 +336,19 @@ export function getDatabase(dbPath?: string): Database.Database {
     syncAllActivitiesWeather(db).catch(() => {});
 
     // Automatic migration: Deduplicate runs imported across different formats (FIT vs CSV)
-    deduplicateRuns(db, (msg) => console.log(`[dedup] ${msg}`));
+    deduplicateRuns(db, (msg) => logger.info('DB', `[dedup] ${msg}`));
 
     // Automatic migration: Re-classify and re-detect intervals with updated physiological definitions
     // (also prunes stale threshold rows, re-syncs profile + coach summaries)
-    realignDatabase(db, { logger: (msg) => console.log(`[realign] ${msg}`) });
+    realignDatabase(db, { logger: (msg) => logger.info('DB', `[realign] ${msg}`) });
   } catch (err) {
     // Non-fatal
   }
+
+  // Periodic SQLite query planner & index optimization
+  try {
+    db.pragma('optimize');
+  } catch {}
 
   dbInstance = db;
   return db;

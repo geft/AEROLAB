@@ -61,6 +61,8 @@ activitiesRouter.get('/volume', (req, res) => {
     let z4Sec = 0;
     let z5Sec = 0;
 
+    const recStmt = db.prepare('SELECT elapsed_seconds, heart_rate FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC');
+
     for (const a of acts) {
       totalDistM += a.distance_meters || 0;
       totalDurSec += a.duration_seconds || 0;
@@ -70,7 +72,7 @@ activitiesRouter.get('/volume', (req, res) => {
         efCount++;
       }
 
-      const recs = db.prepare('SELECT elapsed_seconds, heart_rate FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC').all(a.id) as any[];
+      const recs = recStmt.all(a.id) as any[];
       for (let i = 1; i < recs.length; i++) {
         const dt = Math.max(0, Math.min(10, recs[i].elapsed_seconds - recs[i - 1].elapsed_seconds));
         const hr = recs[i].heart_rate;

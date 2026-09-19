@@ -3,6 +3,7 @@ import { getDatabase } from '../db/client.js';
 import { getDefaultZones } from '../physiology/zones.js';
 import { syncAllCoachSummaries } from '../physiology/coach-summary.js';
 import { getCurrentThresholds } from '../physiology/threshold-tracker.js';
+import { logger } from '../utils/logger.js';
 
 export const profileRouter = Router();
 
@@ -216,7 +217,7 @@ profileRouter.patch('/', (req, res) => {
       try {
         syncedActivitiesCount = syncAllCoachSummaries(db);
       } catch (syncErr: any) {
-        console.error('Non-fatal coach summary sync error during profile update:', syncErr.message);
+        logger.error('Profile', 'Non-fatal coach summary sync error during profile update', syncErr);
       }
     }
 
@@ -230,7 +231,7 @@ profileRouter.patch('/', (req, res) => {
       syncedActivitiesCount
     });
   } catch (err: any) {
-    console.error('PATCH /api/profile failed:', err);
+    logger.error('Profile', 'PATCH /api/profile failed', err);
     res.status(500).json({
       code: 'ERR_PROFILE_SAVE_FAILED',
       error: err.message || 'Database error while saving athlete profile',

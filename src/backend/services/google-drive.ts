@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { logger } from '../utils/logger.js';
 
 export interface GDriveFile {
   id: string;
@@ -71,7 +72,7 @@ export async function listGoogleDriveBackups(accessToken: string): Promise<GDriv
       webViewLink: f.webViewLink
     }));
   } catch (err: any) {
-    console.error('[Google Drive] Error listing backups:', err);
+    logger.error('GoogleDrive', 'Error listing backups', err);
     throw err;
   }
 }
@@ -124,7 +125,7 @@ export async function uploadBackupToGoogleDrive(
   try {
     await pruneGoogleDriveBackups(accessToken, folderId, 10);
   } catch (pruneErr) {
-    console.warn('[Google Drive] Non-fatal error during backup rotation:', pruneErr);
+    logger.warn('GoogleDrive', 'Non-fatal error during backup rotation', { error: String(pruneErr) });
   }
 
   return {

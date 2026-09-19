@@ -1,0 +1,321 @@
+import React from 'react';
+import { Calendar, X } from 'lucide-react';
+import { BrowseCalendarPicker } from './BrowseCalendarPicker';
+import { translateTag } from '../../i18n/tagTranslator';
+import { ActivitySummary } from '../BrowseView';
+
+const SIDEBAR_FILTER_TAGS = [
+  'All', 'Threshold', 'VO2 Max', 'Easy Base', 'Long Run', 'Race', 'Strides', 'Marathon Pace', 'Recovery'
+];
+
+function scoreToStars(score: number | null | undefined): number {
+  if (score == null) return 0;
+  if (score <= 3) return Math.min(3, Math.max(1, Math.round(score)));
+  if (score >= 85) return 3;
+  if (score >= 70) return 2;
+  return 1;
+}
+
+interface BrowseSidebarProps {
+  filteredActivities: ActivitySummary[];
+  groupedActivities: Array<{ ym: string; title: string; items: ActivitySummary[]; totalKm: number }>;
+  tagCounts: Record<string, number>;
+  selectedTagFilter: string;
+  setSelectedTagFilter: React.Dispatch<React.SetStateAction<string>>;
+  selectedActivityId: string | null;
+  onSelectActivity: (id: string) => void;
+  selectedDate: string | null;
+  setSelectedDate: (d: string | null) => void;
+  selectedMonth: string;
+  setSelectedMonth: (m: string) => void;
+  showCalendar: boolean;
+  setShowCalendar: React.Dispatch<React.SetStateAction<boolean>>;
+  calendarViewYm: string;
+  setCalendarViewYm: React.Dispatch<React.SetStateAction<string>>;
+  availableYears: string[];
+  activeDatesMap: Map<string, { count: number; runTypes: string[]; ids: string[] }>;
+  setMobileSubTab: (tab: 'list' | 'detail') => void;
+  setShowTagMenu: (show: boolean) => void;
+  onOpenUpload: () => void;
+  getDisplayTitle: (act: any, t?: any) => string;
+  formatPace: (secKm: number | null) => string;
+  language: 'en' | 'zh';
+  t: any;
+  activitiesCount: number;
+}
+
+export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
+  filteredActivities,
+  groupedActivities,
+  tagCounts,
+  selectedTagFilter,
+  setSelectedTagFilter,
+  selectedActivityId,
+  onSelectActivity,
+  selectedDate,
+  setSelectedDate,
+  selectedMonth,
+  setSelectedMonth,
+  showCalendar,
+  setShowCalendar,
+  calendarViewYm,
+  setCalendarViewYm,
+  availableYears,
+  activeDatesMap,
+  setMobileSubTab,
+  setShowTagMenu,
+  onOpenUpload,
+  getDisplayTitle,
+  formatPace,
+  language,
+  t,
+  activitiesCount
+}) => {
+  return (
+    <aside className="sidebar-panel">
+      <div className="sidebar-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', minWidth: 0 }}>
+          <span className="sidebar-title" style={{ whiteSpace: 'nowrap' }}>{t.browse.title}</span>
+          <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+            ({filteredActivities.length})
+          </span>
+        </div>
+
+        <button
+          type="button"
+          id="calendar-toggle-btn"
+          onClick={() => {
+            setShowCalendar(prev => !prev);
+            if (!showCalendar && activitiesCount > 0) {
+              const targetYm = selectedDate
+                ? selectedDate.substring(0, 7)
+                : selectedMonth !== 'all'
+                  ? selectedMonth
+                  : calendarViewYm;
+              setCalendarViewYm(targetYm);
+            }
+          }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+            background: showCalendar
+              ? 'var(--accent-cyan)'
+              : selectedDate || selectedMonth !== 'all'
+                ? 'rgba(6, 182, 212, 0.15)'
+                : 'rgba(255, 255, 255, 0.05)',
+            color: showCalendar
+              ? '#07090e'
+              : selectedDate || selectedMonth !== 'all'
+                ? '#38bdf8'
+                : 'var(--text-primary)',
+            border: showCalendar
+              ? '1px solid var(--accent-cyan)'
+              : selectedDate || selectedMonth !== 'all'
+                ? '1px solid rgba(6, 182, 212, 0.4)'
+                : '1px solid var(--border-subtle)',
+            borderRadius: 6,
+            padding: '0.3rem 0.55rem',
+            fontSize: '0.76rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            whiteSpace: 'nowrap',
+            flexShrink: 0
+          }}
+          title={showCalendar ? 'Close date calendar' : 'Filter sessions by date'}
+        >
+          <Calendar size={13} />
+          <span>{showCalendar ? (language === 'zh' ? '关闭' : 'Close') : (selectedDate ? new Date(`${selectedDate}T00:00:00`).toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric' }) : (language === 'zh' ? '日历' : 'Calendar'))}</span>
+        </button>
+      </div>
+
+      {/* Dedicated Active Date/Month Filter Bar */}
+      {(selectedDate || selectedMonth !== 'all') && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'rgba(6, 182, 212, 0.08)',
+            border: '1px solid rgba(6, 182, 212, 0.25)',
+            borderRadius: 6,
+            padding: '0.3rem 0.6rem',
+            fontSize: '0.74rem',
+            color: '#38bdf8'
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <Calendar size={12} style={{ flexShrink: 0 }} />
+            <strong>
+              {selectedDate
+                ? new Date(`${selectedDate}T00:00:00`).toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                : new Date(`${selectedMonth}-01`).toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US', { month: 'long', year: 'numeric' })}
+            </strong>
+            <span style={{ color: 'var(--text-muted)' }}>({filteredActivities.length})</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedDate(null);
+              setSelectedMonth('all');
+            }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.2rem',
+              fontSize: '0.72rem',
+              padding: '0.1rem 0.25rem',
+              borderRadius: 4,
+              flexShrink: 0
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = '#f43f5e')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+            title="Show all sessions"
+          >
+            <span>{t.common?.all || 'All'}</span>
+            <X size={11} />
+          </button>
+        </div>
+      )}
+
+      {/* Interactive Calendar Dropdown / Popover */}
+      {showCalendar && (
+        <BrowseCalendarPicker
+          calendarViewYm={calendarViewYm}
+          setCalendarViewYm={setCalendarViewYm}
+          availableYears={availableYears}
+          activeDatesMap={activeDatesMap}
+          selectedDate={selectedDate}
+          setSelectedDate={setSelectedDate}
+          selectedMonth={selectedMonth}
+          setSelectedMonth={setSelectedMonth}
+          onSelectActivity={onSelectActivity}
+          setMobileSubTab={setMobileSubTab}
+          language={language}
+          t={t}
+          activities={filteredActivities}
+        />
+      )}
+
+      {/* Tag Filters Bar */}
+      <div className="sidebar-filter-bar">
+        {SIDEBAR_FILTER_TAGS.map(tag => {
+          const count = tagCounts[tag] ?? 0;
+          const isZero = count === 0 && selectedTagFilter.toLowerCase() !== tag.toLowerCase();
+          return (
+            <button
+              key={tag}
+              className={`sidebar-filter-chip ${selectedTagFilter.toLowerCase() === tag.toLowerCase() ? 'active' : ''} ${isZero ? 'filter-zero-count' : ''}`}
+              onClick={() => setSelectedTagFilter(prev => {
+                if (tag.toLowerCase() === 'all') return 'all';
+                return prev.toLowerCase() === tag.toLowerCase() ? 'all' : tag;
+              })}
+            >
+              {translateTag(tag, t)} <span className="sidebar-filter-count">({count})</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="sessions-list">
+        {groupedActivities.map(group => (
+          <React.Fragment key={group.ym}>
+            {selectedMonth === 'all' && group.title && (
+              <div className="session-month-header">
+                <span>{group.title}</span>
+                <span className="session-month-badge">
+                  {group.items.length} {language === 'zh' ? t.browse.runsBadge : 'runs'} • {group.totalKm} km
+                </span>
+              </div>
+            )}
+            {group.items.map(a => {
+              const isSelected = a.id === selectedActivityId;
+              const d = new Date(a.start_time);
+              const dateStr = d.toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+              const distKm = (a.distance_meters / 1000).toFixed(2);
+              const paceStr = formatPace(a.avg_pace_sec_km);
+              const stars = scoreToStars(a.effectiveness_score);
+              const isRace = a.run_type === 'race' ||
+                (a.tags && (a.tags.includes('Race') || a.tags.includes('race'))) ||
+                /time trial|race/i.test(a.name || '');
+
+              let parsedTags: string[] = [];
+              try {
+                parsedTags = a.tags ? JSON.parse(a.tags) : [];
+              } catch {
+                parsedTags = [];
+              }
+
+              return (
+                <div
+                  key={a.id}
+                  className={`session-card ${isSelected ? 'selected' : ''}`}
+                  onClick={() => {
+                    setShowTagMenu(false);
+                    onSelectActivity(a.id);
+                    setMobileSubTab('detail');
+                  }}
+                >
+                  <div className="session-card-top">
+                    <span className="session-date">{dateStr}</span>
+                    <span className={`run-badge badge-${a.run_type || 'easy_base'}`}>
+                      {(t.runTypes as any)[a.run_type] || (a.run_type || 'Easy').replace('_', ' ')}
+                    </span>
+                  </div>
+                  {isRace && <div className="session-name">{getDisplayTitle(a, t)}</div>}
+                  <div className="session-stats">
+                    <span>{distKm} km</span>
+                    <span>•</span>
+                    <span>{paceStr}/km</span>
+                    <span>•</span>
+                    <span>{a.avg_heart_rate ?? '—'} bpm</span>
+                  </div>
+                  {parsedTags.length > 0 && (
+                    <div className="session-card-tags">
+                      {parsedTags.map(tag => (
+                        <span
+                          key={tag}
+                          className={`session-tag-chip ${tag.toLowerCase() === 'strides' ? 'tag-strides' : ''}`}
+                        >
+                          {translateTag(tag, t)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {stars > 0 && (() => {
+                    const tierLabel = stars === 3 ? 'gold' : stars === 2 ? 'silver' : 'bronze';
+                    return (
+                      <div className="session-card-footer">
+                        <span
+                          className={`execution-emblem emblem-${tierLabel}`}
+                          title={`Execution: ${stars} / 3 Stars${a.effectiveness_score ? ` (${a.effectiveness_score}/100)` : ''}`}
+                        >
+                          {'★'.repeat(stars)}{'☆'.repeat(3 - stars)}
+                        </span>
+                      </div>
+                    );
+                  })()}
+                </div>
+              );
+            })}
+          </React.Fragment>
+        ))}
+
+        {filteredActivities.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#64748b', fontSize: '0.85rem' }}>
+            {t.browse.noRunsMatchingFilter}
+          </div>
+        )}
+      </div>
+
+      <div className="dropzone-inline" onClick={onOpenUpload}>
+        {t.browse.dropOrImportCsv}
+      </div>
+    </aside>
+  );
+};

@@ -11,6 +11,7 @@ import {
   downloadBackupFromGoogleDrive,
   GDriveFile
 } from '../services/google-drive.js';
+import { logger } from '../utils/logger.js';
 
 export const databaseRouter = Router();
 
@@ -103,9 +104,38 @@ export function listBackups(directory: string): Array<{ filename: string; filePa
   }
 }
 
+export function isSafeBackupDirectory(dirPath: string): boolean {
+  if (!dirPath || typeof dirPath !== 'string') return false;
+  if (/[\0\x00-\x1f]/.test(dirPath)) return false;
+  if (dirPath.includes('..')) return false;
+
+  const normalized = path.normalize(dirPath);
+  if (!path.isAbsolute(normalized)) return false;
+
+  const lower = normalized.toLowerCase().replace(/\\/g, '/');
+  const forbiddenRoots = [
+    'c:/windows', 'c:/program files', 'c:/program files (x86)',
+    '/etc', '/bin', '/sbin', '/usr', '/var', '/system', '/library'
+  ];
+  if (forbiddenRoots.some(f => lower === f || lower.startsWith(f + '/'))) {
+    return false;
+  }
+
+  return true;
+}
+
 export function createDatabaseBackup(db: Database.Database, targetDirectory?: string, maxBackups: number = 10): { filePath: string; filename: string; sizeBytes: number; createdAt: string } {
   const settings = getBackupSettings(db);
-  const backupDir = targetDirectory || settings.backupDirectory || getDefaultBackupDir(db);
+  const rawDir = targetDirectory ? String(targetDirectory).trim() : '';
+  let backupDir: string;
+  if (rawDir) {
+    if (!isSafeBackupDirectory(rawDir)) {
+      throw new Error('Invalid or unauthorized backup directory path.');
+    }
+    backupDir = path.resolve(rawDir);
+  } else {
+    backupDir = settings.backupDirectory || getDefaultBackupDir(db);
+  }
 
   if (!fs.existsSync(backupDir)) {
     fs.mkdirSync(backupDir, { recursive: true });
@@ -219,7 +249,7 @@ export function restoreDatabaseFromFile(candidatePath: string): { success: boole
       safetyBackupPath = path.join(backupDir, `pre-restore-safety-${Date.now()}.db`);
       activeDb.prepare(`VACUUM INTO '${safetyBackupPath.replace(/\\/g, '/').replace(/'/g, "''")}'`).run();
     } catch (err) {
-      console.warn('[Restore] Safety snapshot skipped or failed:', err);
+      logger.warn('Database', 'Safety snapshot skipped or failed', { error: String(err) });
     }
   }
 
@@ -272,7 +302,7 @@ export async function checkAndRunScheduledBackup(db: Database.Database): Promise
           saveBackupSettings(db, { lastCloudBackupAt: new Date().toISOString() });
         }
       } catch (cloudErr) {
-        console.warn('[Scheduled Backup] Cloud sync failed:', cloudErr);
+        logger.warn('Database', 'Scheduled backup cloud sync failed', { error: String(cloudErr) });
       }
     }
 
@@ -367,6 +397,18 @@ databaseRouter.get('/download', (req: Request, res: Response) => {
     const normalized = tmpPath.replace(/\\/g, '/').replace(/'/g, "''");
     db.prepare(`VACUUM INTO '${normalized}'`).run();
 
+    // Sanitize sensitive OAuth cloud tokens from exported user download
+    try {
+      const exportDb = new Database(tmpPath);
+      const tableCheck = exportDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='google_tokens'").get();
+      if (tableCheck) {
+        exportDb.prepare("DELETE FROM google_tokens").run();
+      }
+      exportDb.close();
+    } catch (cleanErr) {
+      logger.warn('Database', 'Warning while clearing tokens from download', { error: String(cleanErr) });
+    }
+
     res.download(tmpPath, `runs-backup-${dateStr}.db`, (err) => {
       // Clean up the temporary snapshot file after download completes or errors
       try {
@@ -414,7 +456,7 @@ databaseRouter.post('/backup-gdrive', async (req: Request, res: Response) => {
       try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch {}
     }
   } catch (err: any) {
-    console.error('[Google Drive Backup Error]:', err);
+    logger.error('Database', 'Google Drive Backup Error', err);
     res.status(500).json({ error: err.message || 'Failed to backup to Google Drive' });
   }
 });
@@ -442,6 +484,11 @@ databaseRouter.post('/restore', (req: Request, res: Response) => {
     const rawData = content || base64;
     if (!rawData) {
       return res.status(400).json({ error: 'Missing database content. Please provide base64 database data.' });
+    }
+
+    // Protect against unbounded memory allocation (max ~100MB decoded)
+    if (typeof rawData !== 'string' || rawData.length > 150 * 1024 * 1024) {
+      return res.status(413).json({ error: 'Database payload exceeds maximum permitted size (100MB).' });
     }
 
     const cleanBase64 = rawData.includes(';base64,') ? rawData.split(';base64,')[1] : rawData;
