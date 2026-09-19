@@ -53,6 +53,15 @@ export const App: React.FC = () => {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
+  const [showDevFloatingBtn, setShowDevFloatingBtn] = useState<boolean>(() => {
+    return localStorage.getItem('aerolab_show_dev_btn') === 'true';
+  });
+
+  const handleToggleDevFloatingBtn = (enabled: boolean) => {
+    setShowDevFloatingBtn(enabled);
+    localStorage.setItem('aerolab_show_dev_btn', enabled ? 'true' : 'false');
+  };
+
   const checkProfileConfigured = async () => {
     try {
       const res = await fetch('/api/profile');
@@ -198,6 +207,8 @@ export const App: React.FC = () => {
             theme={theme}
             onToggleTheme={toggleTheme}
             onOpenDevDiagnostics={() => setIsDevDrawerOpen(true)}
+            showDevFloatingBtn={showDevFloatingBtn}
+            onToggleDevFloatingBtn={handleToggleDevFloatingBtn}
           />
         )}
       </main>
@@ -219,16 +230,18 @@ export const App: React.FC = () => {
         }}
       />
 
-      <button
-        type="button"
-        id="dev-mode-trigger-btn"
-        className="dev-floating-trigger"
-        onClick={() => setIsDevDrawerOpen(true)}
-        title="Open Dev Diagnostics (Ctrl+Shift+D)"
-      >
-        <Terminal size={13} />
-        <span>{t.common.devMode}</span>
-      </button>
+      {showDevFloatingBtn && (
+        <button
+          type="button"
+          id="dev-mode-trigger-btn"
+          className="dev-floating-trigger"
+          onClick={() => setIsDevDrawerOpen(true)}
+          title="Open Dev Diagnostics (Ctrl+Shift+D)"
+        >
+          <Terminal size={13} />
+          <span>{t.common.devMode}</span>
+        </button>
+      )}
 
       <DevDiagnosticsDrawer
         isOpen={isDevDrawerOpen}

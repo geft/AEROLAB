@@ -162,4 +162,44 @@ describe('SettingsView & Header Tab Navigation Tests', () => {
     fireEvent.click(moreThemeBtn!);
     expect(onToggleTheme).toHaveBeenCalled();
   });
+
+  it('renders and toggles floating dev mode button setting', () => {
+    const onToggleDevFloatingBtn = vi.fn();
+
+    const { rerender } = render(
+      <LanguageProvider>
+        <FontSizeProvider>
+          <SettingsView
+            theme="dark"
+            onToggleTheme={vi.fn()}
+            showDevFloatingBtn={false}
+            onToggleDevFloatingBtn={onToggleDevFloatingBtn}
+          />
+        </FontSizeProvider>
+      </LanguageProvider>
+    );
+
+    const toggleInput = document.getElementById('settings-toggle-dev-btn') as HTMLInputElement;
+    expect(toggleInput).toBeTruthy();
+    expect(toggleInput.checked).toBe(false);
+
+    fireEvent.click(toggleInput);
+    expect(onToggleDevFloatingBtn).toHaveBeenCalledWith(true);
+
+    // Re-render enabled
+    rerender(
+      <LanguageProvider>
+        <FontSizeProvider>
+          <SettingsView
+            theme="dark"
+            onToggleTheme={vi.fn()}
+            showDevFloatingBtn={true}
+            onToggleDevFloatingBtn={onToggleDevFloatingBtn}
+          />
+        </FontSizeProvider>
+      </LanguageProvider>
+    );
+
+    expect(toggleInput.checked).toBe(true);
+  });
 });

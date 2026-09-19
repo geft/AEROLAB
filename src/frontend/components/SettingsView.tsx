@@ -9,13 +9,17 @@ export interface SettingsViewProps {
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
   onOpenDevDiagnostics?: () => void;
+  showDevFloatingBtn?: boolean;
+  onToggleDevFloatingBtn?: (enabled: boolean) => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
   onRestoreComplete,
   theme,
   onToggleTheme,
-  onOpenDevDiagnostics
+  onOpenDevDiagnostics,
+  showDevFloatingBtn = false,
+  onToggleDevFloatingBtn
 }) => {
   const { t } = useTranslation();
   const { fontSize, setFontSize } = useFontSize();
@@ -189,42 +193,76 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </section>
 
       {/* Section 3: Developer Tools & Diagnostics */}
-      <section className="overview-card" style={{ padding: '1.5rem 1.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <Terminal size={22} style={{ color: '#8b5cf6' }} />
-          <div>
-            <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              Developer Diagnostics & System Health
-            </h3>
-            <p style={{ margin: '0.15rem 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-              Inspect live database counts, engine telemetry, and server logs. Shortcut: <kbd style={{ background: 'var(--bg-card)', padding: '1px 5px', borderRadius: 4, border: '1px solid var(--border-subtle)' }}>Ctrl+Shift+D</kbd>
-            </p>
+      <section className="overview-card" style={{ padding: '1.5rem 1.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <Terminal size={22} style={{ color: '#8b5cf6' }} />
+            <div>
+              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                Developer Diagnostics & System Health
+              </h3>
+              <p style={{ margin: '0.15rem 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                Inspect live database counts, engine telemetry, and server logs. Shortcut: <kbd style={{ background: 'var(--bg-card)', padding: '1px 5px', borderRadius: 4, border: '1px solid var(--border-subtle)' }}>Ctrl+Shift+D</kbd>
+              </p>
+            </div>
           </div>
+
+          {onOpenDevDiagnostics && (
+            <button
+              type="button"
+              id="settings-open-dev-btn"
+              onClick={onOpenDevDiagnostics}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                background: 'rgba(139, 92, 246, 0.12)',
+                color: '#a78bfa',
+                border: '1px solid rgba(139, 92, 246, 0.3)',
+                padding: '0.55rem 1rem',
+                borderRadius: 8,
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              <Terminal size={14} />
+              <span>Open Diagnostics Drawer</span>
+            </button>
+          )}
         </div>
 
-        {onOpenDevDiagnostics && (
-          <button
-            type="button"
-            id="settings-open-dev-btn"
-            onClick={onOpenDevDiagnostics}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              background: 'rgba(139, 92, 246, 0.12)',
-              color: '#a78bfa',
-              border: '1px solid rgba(139, 92, 246, 0.3)',
-              padding: '0.55rem 1rem',
-              borderRadius: 8,
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            <Terminal size={14} />
-            <span>Open Diagnostics Drawer</span>
-          </button>
-        )}
+        {/* Floating Button Toggle */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.75rem',
+          paddingTop: '1rem',
+          borderTop: '1px solid var(--border-subtle)'
+        }}>
+          <div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              {t.common.showDevButton}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
+              {t.common.showDevButtonDesc}
+            </div>
+          </div>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              id="settings-toggle-dev-btn"
+              checked={showDevFloatingBtn}
+              onChange={e => onToggleDevFloatingBtn?.(e.target.checked)}
+              style={{ accentColor: '#8b5cf6', width: 17, height: 17, cursor: 'pointer' }}
+            />
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: showDevFloatingBtn ? 'var(--accent-cyan)' : 'var(--text-muted)' }}>
+              {showDevFloatingBtn ? 'Enabled' : 'Disabled'}
+            </span>
+          </label>
+        </div>
       </section>
     </div>
   );

@@ -48,6 +48,8 @@ export const zh: Translations = {
     cards: '卡片视图',
     table: '表格视图',
     devMode: '开发者模式',
+    showDevButton: '显示开发者悬浮按钮',
+    showDevButtonDesc: '在屏幕右下角显示「开发者模式」快捷悬浮按钮。',
     fontSizeSmall: '紧凑 (75%)',
     fontSizeMedium: '默认 (100%)',
     fontSizeLarge: '大号 (125%)',

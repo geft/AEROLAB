@@ -48,6 +48,8 @@ export const en: Translations = {
     cards: 'Cards',
     table: 'Table',
     devMode: 'DEV MODE',
+    showDevButton: 'Show Floating Dev Mode Button',
+    showDevButtonDesc: 'Display the floating "DEV MODE" trigger button in the bottom right corner of the screen.',
     fontSizeSmall: 'Small (75%)',
     fontSizeMedium: 'Default (100%)',
     fontSizeLarge: 'Large (125%)',

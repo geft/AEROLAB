@@ -48,6 +48,8 @@ export interface Translations {
     cards: string;
     table: string;
     devMode: string;
+    showDevButton: string;
+    showDevButtonDesc: string;
     fontSizeSmall: string;
     fontSizeMedium: string;
     fontSizeLarge: string;
