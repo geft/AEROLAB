@@ -168,6 +168,150 @@ describe('Threshold Tracker Unit Tests', () => {
     expect(stored.notes).toContain('Cruising Block Km 4-10');
   });
 
+  it('rejects aerobic cruising candidate if splits are broken by non-contiguous gap', () => {
+    insertParentActivity('test-act-non-contiguous', '2026-09-09 19:20:00');
+
+    const insertSplit = db.prepare(`
+      INSERT INTO activity_splits (
+        activity_id, split_index, distance_meters, duration_seconds, avg_pace_sec_km, avg_heart_rate, elevation_change_m
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    // Splits 3, 4, 5, 6 (4 splits, 20 mins)
+    for (let k = 3; k <= 6; k++) {
+      insertSplit.run('test-act-non-contiguous', k, 1000, 360, 360, 146, 2);
+    }
+    // Split 7 is omitted or walking/steep hill (+170m)
+    insertSplit.run('test-act-non-contiguous', 7, 1000, 530, 530, 148, 173); // Steep hill: filtered out
+
+    // Split 8 (only 1 split, cannot bridge with 3-6)
+    insertSplit.run('test-act-non-contiguous', 8, 1000, 360, 360, 146, 2);
+
+    const wholeRunEconomy: EconomyMetrics = {
+      movingDurationSeconds: 2400,
+      movingDistanceMeters: 6000,
+      avgMovingHeartRate: 146,
+      avgMovingPaceSecKm: 400,
+      efficiencyFactor: 1.15,
+      metersPerBeat: 2.8,
+      firstHalfEf: 1.15,
+      secondHalfEf: 1.15,
+      aerobicDecouplingPct: 0.5
+    };
+
+    // If contiguity was broken, segment [3,4,5,6] only has 4 km (1440s), which can qualify on its own,
+    // but the window CANNOT bridge split 6 and split 8 together.
+    const estimate = evaluateThresholdUpdate(
+      db,
+      'test-act-non-contiguous',
+      '2026-09-09 19:20:00',
+      'easy_base',
+      { ...dummyMetadata, id: 'test-act-non-contiguous' },
+      dummyRecords,
+      wholeRunEconomy
+    );
+
+    // Contiguous segment [3, 4, 5, 6] is selected (Km 3-6)
+    expect(estimate.lt1Hr).toBe(146);
+    const stored = db.prepare('SELECT * FROM physiological_thresholds WHERE source_activity_id = ?').get('test-act-non-contiguous') as any;
+    expect(stored.notes).toContain('Cruising Block Km 3-6');
+    expect(stored.notes).not.toContain('Km 3-8'); // Must NOT bridge over split 7!
+  });
+
+  it('rejects candidate if pace drops > 50s/km below recent baseline', () => {
+    // Seed recent baseline at 355 s/km (5:55/km) on Sep 5
+    insertParentActivity('act-sep5', '2026-09-05 17:00:00');
+    db.prepare(`
+      INSERT INTO physiological_thresholds (
+        effective_date, source_activity_id, lt1_hr, lt1_pace_sec_km, confidence
+      ) VALUES ('2026-09-05 17:00:00', 'act-sep5', 152, 355, 0.92)
+    `).run();
+
+    insertParentActivity('test-act-slow-drop', '2026-09-09 19:20:00');
+
+    const insertSplit = db.prepare(`
+      INSERT INTO activity_splits (
+        activity_id, split_index, distance_meters, duration_seconds, avg_pace_sec_km, avg_heart_rate, elevation_change_m
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    // Abnormally slow splits: 426 s/km (7:06/km), which is +71s/km slower than 355 s/km baseline
+    for (let k = 3; k <= 8; k++) {
+      insertSplit.run('test-act-slow-drop', k, 1000, 426, 426, 146, 2);
+    }
+
+    const wholeRunEconomy: EconomyMetrics = {
+      movingDurationSeconds: 2556,
+      movingDistanceMeters: 6000,
+      avgMovingHeartRate: 146,
+      avgMovingPaceSecKm: 426,
+      efficiencyFactor: 1.15,
+      metersPerBeat: 2.8,
+      firstHalfEf: 1.15,
+      secondHalfEf: 1.15,
+      aerobicDecouplingPct: 0.1
+    };
+
+    const estimate = evaluateThresholdUpdate(
+      db,
+      'test-act-slow-drop',
+      '2026-09-09 19:20:00',
+      'easy_base',
+      { ...dummyMetadata, id: 'test-act-slow-drop' },
+      dummyRecords,
+      wholeRunEconomy
+    );
+
+    // Rejected because 426 s/km > 355 + 50
+    expect(estimate.lt1Hr).toBeNull();
+    expect(estimate.lt1PaceSecKm).toBeNull();
+  });
+
+  it('calibrates LT1 on Zone 2 steady long run (140-145 bpm) with low decoupling', () => {
+    insertParentActivity('test-act-z2-long', '2026-09-19 17:40:00');
+
+    const insertSplit = db.prepare(`
+      INSERT INTO activity_splits (
+        activity_id, split_index, distance_meters, duration_seconds, avg_pace_sec_km, avg_heart_rate, elevation_change_m
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    // Splits 4 to 15: 144 bpm, 403 s/km (6:43/km), steady aerobic base
+    for (let k = 4; k <= 15; k++) {
+      insertSplit.run('test-act-z2-long', k, 1000, 403, 403, 144, 1);
+    }
+
+    const wholeRunEconomy: EconomyMetrics = {
+      movingDurationSeconds: 4836,
+      movingDistanceMeters: 12000,
+      avgMovingHeartRate: 144,
+      avgMovingPaceSecKm: 403,
+      efficiencyFactor: 1.20,
+      metersPerBeat: 2.9,
+      firstHalfEf: 1.22,
+      secondHalfEf: 1.18,
+      aerobicDecouplingPct: 3.3
+    };
+
+    const estimate = evaluateThresholdUpdate(
+      db,
+      'test-act-z2-long',
+      '2026-09-19 17:40:00',
+      'long_run',
+      { ...dummyMetadata, id: 'test-act-z2-long' },
+      dummyRecords,
+      wholeRunEconomy
+    );
+
+    expect(estimate.lt1Hr).toBe(144);
+    expect(estimate.lt1PaceSecKm).toBe(403);
+
+    const stored = db.prepare('SELECT * FROM physiological_thresholds WHERE source_activity_id = ?').get('test-act-z2-long') as any;
+    expect(stored).toBeDefined();
+    expect(stored.lt1_hr).toBe(144);
+    expect(stored.notes).toContain('Cruising Block Km 4-15');
+  });
+
   it('does NOT calibrate LT1 when decoupling is high or duration is under 30 minutes', () => {
     // High decoupling
     const highDriftEconomy: EconomyMetrics = {

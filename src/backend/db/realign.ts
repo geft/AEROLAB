@@ -266,7 +266,7 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
     const prunable = db.prepare(`
       DELETE FROM physiological_thresholds
       WHERE (lt1_hr IS NOT NULL AND lt1_hr > 156)
-         OR (lt1_pace_sec_km IS NOT NULL AND lt1_pace_sec_km < 200)
+         OR (lt1_pace_sec_km IS NOT NULL AND (lt1_pace_sec_km < 200 OR lt1_pace_sec_km > 450))
          OR source_activity_id IS NULL
          OR source_activity_id NOT IN (SELECT id FROM activities)
          OR source_activity_id IN (

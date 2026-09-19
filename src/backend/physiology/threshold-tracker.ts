@@ -17,6 +17,7 @@ export interface SplitRow {
   duration_seconds: number;
   avg_pace_sec_km: number;
   avg_heart_rate: number;
+  elevation_change_m?: number;
 }
 
 export interface CruisingBlock {
@@ -32,75 +33,115 @@ export interface CruisingBlock {
 export function findAerobicCruisingBlock(
   splits: SplitRow[],
   maxLt1Hr: number,
-  stimulusFloorHr: number
+  stimulusFloorHr: number,
+  recentBaselinePace?: number | null
 ): CruisingBlock | null {
-  const validSplits = splits.filter(s =>
+  const isCandidateSplit = (s: SplitRow) =>
     s.distance_meters >= 700 &&
     s.avg_pace_sec_km >= 200 &&
-    s.avg_pace_sec_km <= 500 &&
-    s.avg_heart_rate > 100
-  );
+    s.avg_pace_sec_km <= 480 &&
+    s.avg_heart_rate > 100 &&
+    Math.abs(s.elevation_change_m ?? 0) < 30;
 
-  if (validSplits.length < 3) return null;
+  if (splits.length < 3) return null;
+
+  // Group into strictly contiguous segments to prevent non-consecutive split bridging
+  const contiguousSegments: SplitRow[][] = [];
+  let currentSegment: SplitRow[] = [];
+
+  for (let i = 0; i < splits.length; i++) {
+    const s = splits[i];
+    if (isCandidateSplit(s)) {
+      if (currentSegment.length === 0) {
+        currentSegment.push(s);
+      } else {
+        const prev = currentSegment[currentSegment.length - 1];
+        if (s.split_index === prev.split_index + 1) {
+          currentSegment.push(s);
+        } else {
+          if (currentSegment.length >= 3) {
+            contiguousSegments.push([...currentSegment]);
+          }
+          currentSegment = [s];
+        }
+      }
+    } else {
+      if (currentSegment.length >= 3) {
+        contiguousSegments.push([...currentSegment]);
+      }
+      currentSegment = [];
+    }
+  }
+  if (currentSegment.length >= 3) {
+    contiguousSegments.push(currentSegment);
+  }
 
   let bestBlock: CruisingBlock | null = null;
 
-  for (let len = 3; len <= validSplits.length; len++) {
-    for (let start = 0; start <= validSplits.length - len; start++) {
-      const window = validSplits.slice(start, start + len);
+  for (const seg of contiguousSegments) {
+    for (let len = 3; len <= seg.length; len++) {
+      for (let start = 0; start <= seg.length - len; start++) {
+        const window = seg.slice(start, start + len);
 
-      const totalDur = window.reduce((acc, s) => acc + s.duration_seconds, 0);
-      const totalDist = window.reduce((acc, s) => acc + s.distance_meters, 0);
+        const totalDur = window.reduce((acc, s) => acc + s.duration_seconds, 0);
+        const totalDist = window.reduce((acc, s) => acc + s.distance_meters, 0);
 
-      // Require minimum 20 minutes (1200 seconds) or >= 3.5 km of continuous steady aerobic running
-      if (totalDur < 1200 || totalDist < 3500) continue;
+        // Require minimum 20 minutes (1200 seconds) or >= 3.5 km of continuous steady aerobic running
+        if (totalDur < 1200 || totalDist < 3500) continue;
 
-      const avgHr = window.reduce((acc, s) => acc + s.avg_heart_rate * s.duration_seconds, 0) / totalDur;
-      const avgPace = (totalDur / totalDist) * 1000;
+        const avgHr = window.reduce((acc, s) => acc + s.avg_heart_rate * s.duration_seconds, 0) / totalDur;
+        const avgPace = (totalDur / totalDist) * 1000;
 
-      // Must be within aerobic ceiling (not in Zone 4 / LT2)
-      if (avgHr > maxLt1Hr) continue;
+        // Must be within aerobic ceiling (not in Zone 4 / LT2)
+        if (avgHr > maxLt1Hr) continue;
 
-      // Individual splits cannot spike into LT2
-      if (window.some(s => s.avg_heart_rate > maxLt1Hr + 3)) continue;
+        // Individual splits cannot spike into LT2
+        if (window.some(s => s.avg_heart_rate > maxLt1Hr + 3)) continue;
 
-      // Internal decoupling between first half and second half of window
-      const midPoint = Math.floor(window.length / 2);
-      const firstHalf = window.slice(0, midPoint);
-      const secondHalf = window.slice(midPoint);
+        // Internal decoupling between first half and second half of window
+        const midPoint = Math.floor(window.length / 2);
+        const firstHalf = window.slice(0, midPoint);
+        const secondHalf = window.slice(midPoint);
 
-      const firstDur = firstHalf.reduce((acc, s) => acc + s.duration_seconds, 0);
-      const firstDist = firstHalf.reduce((acc, s) => acc + s.distance_meters, 0);
-      const firstHr = firstHalf.reduce((acc, s) => acc + s.avg_heart_rate * s.duration_seconds, 0) / firstDur;
-      const firstSpeed = firstDist / firstDur;
-      const firstEf = (firstSpeed * 60) / firstHr;
+        const firstDur = firstHalf.reduce((acc, s) => acc + s.duration_seconds, 0);
+        const firstDist = firstHalf.reduce((acc, s) => acc + s.distance_meters, 0);
+        const firstHr = firstHalf.reduce((acc, s) => acc + s.avg_heart_rate * s.duration_seconds, 0) / firstDur;
+        const firstSpeed = firstDist / firstDur;
+        const firstEf = (firstSpeed * 60) / firstHr;
 
-      const secondDur = secondHalf.reduce((acc, s) => acc + s.duration_seconds, 0);
-      const secondDist = secondHalf.reduce((acc, s) => acc + s.distance_meters, 0);
-      const secondHr = secondHalf.reduce((acc, s) => acc + s.avg_heart_rate * s.duration_seconds, 0) / secondDur;
-      const secondSpeed = secondDist / secondDur;
-      const secondEf = (secondSpeed * 60) / secondHr;
+        const secondDur = secondHalf.reduce((acc, s) => acc + s.duration_seconds, 0);
+        const secondDist = secondHalf.reduce((acc, s) => acc + s.distance_meters, 0);
+        const secondHr = secondHalf.reduce((acc, s) => acc + s.avg_heart_rate * s.duration_seconds, 0) / secondDur;
+        const secondSpeed = secondDist / secondDur;
+        const secondEf = (secondSpeed * 60) / secondHr;
 
-      const decouplingPct = firstEf > 0 ? ((firstEf - secondEf) / firstEf) * 100 : 0;
+        const decouplingPct = firstEf > 0 ? ((firstEf - secondEf) / firstEf) * 100 : 0;
 
-      // Steady aerobic run: decoupling between -8.0% and 3.8%
-      if (decouplingPct > 3.8 || decouplingPct < -8.0) continue;
+        // Steady aerobic run: decoupling between -8.0% and 4.2%
+        if (decouplingPct > 4.2 || decouplingPct < -8.0) continue;
 
-      // Slower week protection: effort must reach the aerobic threshold stimulus band
-      if (avgHr < stimulusFloorHr) continue;
+        // Slower week protection: effort must reach the aerobic threshold stimulus band
+        if (avgHr < stimulusFloorHr) continue;
 
-      // Select the highest steady aerobic effort that tests the aerobic ceiling.
-      // If within 0.8 bpm, prefer the longer duration block.
-      if (!bestBlock || avgHr > bestBlock.avgHr + 0.8 || (Math.abs(avgHr - bestBlock.avgHr) <= 0.8 && totalDur > bestBlock.durationSec)) {
-        bestBlock = {
-          startSplit: window[0].split_index,
-          endSplit: window[window.length - 1].split_index,
-          durationSec: totalDur,
-          distMeters: totalDist,
-          avgHr,
-          avgPaceSecKm: avgPace,
-          decouplingPct
-        };
+        // Physiological sanity check against recent baseline:
+        // True aerobic threshold pace cannot suddenly collapse by > 50s/km in uninjured athletes
+        if (recentBaselinePace && avgPace > recentBaselinePace + 50) {
+          continue;
+        }
+
+        // Select the highest steady aerobic effort that tests the aerobic ceiling.
+        // If within 0.8 bpm, prefer the longer duration block.
+        if (!bestBlock || avgHr > bestBlock.avgHr + 0.8 || (Math.abs(avgHr - bestBlock.avgHr) <= 0.8 && totalDur > bestBlock.durationSec)) {
+          bestBlock = {
+            startSplit: window[0].split_index,
+            endSplit: window[window.length - 1].split_index,
+            durationSec: totalDur,
+            distMeters: totalDist,
+            avgHr,
+            avgPaceSecKm: avgPace,
+            decouplingPct
+          };
+        }
       }
     }
   }
@@ -150,15 +191,27 @@ export function evaluateThresholdUpdate(
 
   // 1. LT1 Candidate: Sustained Steady Aerobic Cruising Block with low decoupling
   // Slower week protection: effort must reach the aerobic threshold stimulus band.
-  // Light recovery or sub-LT1 jogs (e.g. 130-136 bpm) do not touch the aerobic ceiling and MUST NOT calibrate LT1.
+  // Light recovery or sub-LT1 jogs (e.g. 125-135 bpm) do not touch the aerobic ceiling and MUST NOT calibrate LT1.
   let cruisingNote: string | null = null;
-  const stimulusFloorHr = Math.max(145, (baselineLt1Hr ?? targetLt1) - 5);
+  const stimulusFloorHr = Math.max(142, (baselineLt1Hr ?? targetLt1) - 8);
+
+  // Retrieve recent baseline LT1 pace as an outlier protection anchor
+  let recentBaselineLt1Pace: number | null = null;
+  try {
+    const recentRow = db.prepare(`
+      SELECT lt1_pace_sec_km
+      FROM physiological_thresholds
+      WHERE lt1_pace_sec_km IS NOT NULL AND effective_date < ?
+      ORDER BY effective_date DESC LIMIT 1
+    `).get(runDate) as any;
+    if (recentRow?.lt1_pace_sec_km) recentBaselineLt1Pace = recentRow.lt1_pace_sec_km;
+  } catch {}
 
   if (runType === 'easy_base' || runType === 'long_run') {
     let splits: SplitRow[] = [];
     try {
       splits = db.prepare(`
-        SELECT split_index, distance_meters, duration_seconds, avg_pace_sec_km, avg_heart_rate
+        SELECT split_index, distance_meters, duration_seconds, avg_pace_sec_km, avg_heart_rate, elevation_change_m
         FROM activity_splits
         WHERE activity_id = ?
         ORDER BY split_index ASC
@@ -167,7 +220,7 @@ export function evaluateThresholdUpdate(
 
     lt1Confidence = 0.88;
     if (splits.length >= 3) {
-      const block = findAerobicCruisingBlock(splits, maxLt1Hr, stimulusFloorHr);
+      const block = findAerobicCruisingBlock(splits, maxLt1Hr, stimulusFloorHr, recentBaselineLt1Pace);
       if (block) {
         estimatedLt1Hr = Math.min(maxLt1Hr, Math.max(minLt1Hr, Math.round(block.avgHr)));
         estimatedLt1Pace = Math.round(block.avgPaceSecKm);
