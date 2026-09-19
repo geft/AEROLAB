@@ -297,6 +297,11 @@ databaseRouter.get('/status', (req: Request, res: Response) => {
     const backups = listBackups(settings.backupDirectory);
     const googleStatus = getGoogleAuthStatus(db);
 
+    const backupsWithMb = backups.map(b => ({
+      ...b,
+      sizeMb: Number((b.sizeBytes / (1024 * 1024)).toFixed(2))
+    }));
+
     res.json({
       dbPath,
       sizeBytes,
@@ -304,7 +309,8 @@ databaseRouter.get('/status', (req: Request, res: Response) => {
       activityCount,
       settings,
       googleStatus,
-      recentBackups: backups.slice(0, 5)
+      snapshots: backupsWithMb,
+      recentBackups: backupsWithMb.slice(0, 5)
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to retrieve database status' });

@@ -214,7 +214,35 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {moreMenuOpen && (
             <div className="nav-dropdown-menu nav-more-dropdown-menu" role="menu">
-              <div className="nav-dropdown-section-title">Appearance & Display</div>
+              <div className="nav-dropdown-section-title">{t.nav.langTitle || 'Language'}</div>
+              <button
+                type="button"
+                id="more-menu-lang-en"
+                className={`nav-dropdown-item ${language === 'en' ? 'active' : ''}`}
+                onClick={() => {
+                  setLanguage('en');
+                  setMoreMenuOpen(false);
+                }}
+              >
+                <Globe size={14} />
+                <span>{t.nav.langEnglish}</span>
+                {language === 'en' && <Check size={13} style={{ marginLeft: 'auto' }} />}
+              </button>
+              <button
+                type="button"
+                id="more-menu-lang-zh"
+                className={`nav-dropdown-item ${language === 'zh' ? 'active' : ''}`}
+                onClick={() => {
+                  setLanguage('zh');
+                  setMoreMenuOpen(false);
+                }}
+              >
+                <Globe size={14} />
+                <span>{t.nav.langChinese}</span>
+                {language === 'zh' && <Check size={13} style={{ marginLeft: 'auto' }} />}
+              </button>
+
+              <div className="nav-dropdown-section-title" style={{ marginTop: '0.35rem' }}>Appearance & Display</div>
               <button
                 type="button"
                 id="more-menu-theme-btn"
@@ -261,17 +289,20 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
 
               {onOpenBackup && (
-                <button
-                  type="button"
-                  className="nav-dropdown-item"
-                  onClick={() => {
-                    onOpenBackup();
-                    setMoreMenuOpen(false);
-                  }}
-                >
-                  <HardDrive size={15} />
-                  <span>{t.nav.backup}</span>
-                </button>
+                <>
+                  <div className="nav-dropdown-section-title" style={{ marginTop: '0.35rem' }}>Data & Backups</div>
+                  <button
+                    type="button"
+                    className="nav-dropdown-item"
+                    onClick={() => {
+                      onOpenBackup();
+                      setMoreMenuOpen(false);
+                    }}
+                  >
+                    <HardDrive size={15} />
+                    <span>{t.nav.backup}</span>
+                  </button>
+                </>
               )}
             </div>
           )}

@@ -476,6 +476,18 @@ export interface Translations {
     enableAutoBackup: string;
     selectFolder: string;
     backingUp: string;
+    localSnapshots: string;
+    retentionPolicy: string;
+    noSnapshots: string;
+    tableSnapshotName: string;
+    tableCreated: string;
+    tableSize: string;
+    tableAction: string;
+    rollback: string;
+    downloadAction: string;
+    saveSettings: string;
+    restoreConfirm: string;
+    restoreFromCloud: string;
   };
   onboarding: {
     brandTitle: string;

@@ -475,7 +475,19 @@ export const zh: Translations = {
     autoBackup: '自动定期备份',
     enableAutoBackup: '启用自动备份',
     selectFolder: '选择文件夹',
-    backingUp: '正在备份…'
+    backingUp: '正在备份…',
+    localSnapshots: '本地快照与回滚',
+    retentionPolicy: '保留最新 10 份循环快照',
+    noSnapshots: '未发现本地数据库快照。点击上方「立即备份到目录」即可生成。',
+    tableSnapshotName: '快照文件名',
+    tableCreated: '创建时间',
+    tableSize: '文件大小',
+    tableAction: '操作',
+    rollback: '回滚',
+    downloadAction: '下载',
+    saveSettings: '保存目录',
+    restoreConfirm: '确定要恢复数据库快照吗？这将替换当前的所有活动记录。',
+    restoreFromCloud: '查看云端备份'
   },
   onboarding: {
     brandTitle: 'AEROLAB',

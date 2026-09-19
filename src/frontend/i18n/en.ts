@@ -475,7 +475,19 @@ export const en: Translations = {
     autoBackup: 'Automatic Backups',
     enableAutoBackup: 'Enable Automatic Backups',
     selectFolder: 'Choose Folder',
-    backingUp: 'Backing up…'
+    backingUp: 'Backing up…',
+    localSnapshots: 'Local Snapshots & Rollback',
+    retentionPolicy: 'Keeps up to 10 rotating snapshots',
+    noSnapshots: 'No local database snapshots found. Click "Backup Now to Folder" above to create one.',
+    tableSnapshotName: 'Snapshot File',
+    tableCreated: 'Created At',
+    tableSize: 'Size',
+    tableAction: 'Action',
+    rollback: 'Rollback',
+    downloadAction: 'Download',
+    saveSettings: 'Save Folder',
+    restoreConfirm: 'Are you sure you want to restore? This will replace current database activities.',
+    restoreFromCloud: 'View Cloud Backups'
   },
   onboarding: {
     brandTitle: 'AEROLAB',

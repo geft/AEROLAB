@@ -691,8 +691,10 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
       <div style={{ background: 'var(--bg-surface)', padding: '1.25rem', borderRadius: 12, border: '1px solid var(--border-subtle)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
           <div>
-            <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>{t.backup.localSnapshots}</span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>({t.backup.retentionPolicy})</span>
+            <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>{t.backup.localSnapshots || 'Local Snapshots & Rollback'}</span>
+            {t.backup.retentionPolicy ? (
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>({t.backup.retentionPolicy})</span>
+            ) : null}
           </div>
           <button type="button" onClick={fetchDbStatus} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem' }}>
             <RefreshCw size={12} />
@@ -700,69 +702,93 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
           </button>
         </div>
 
-        {(!dbStatus?.snapshots || dbStatus.snapshots.length === 0) ? (
-          <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-            {t.backup.noSnapshots}
-          </div>
-        ) : (
-          <div style={{ maxHeight: isFullPage ? '400px' : '220px', overflowY: 'auto', border: '1px solid var(--border-subtle)', borderRadius: 8 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
-              <thead>
-                <tr style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-subtle)', textAlign: 'left' }}>
-                  <th style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)' }}>{t.backup.tableSnapshotName}</th>
-                  <th style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)' }}>{t.backup.tableCreated}</th>
-                  <th style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)' }}>{t.backup.tableSize}</th>
-                  <th style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)', textAlign: 'right' }}>{t.backup.tableAction}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dbStatus.snapshots.map((s: any) => (
-                  <tr key={s.filename} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                    <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-primary)', fontFamily: 'monospace' }}>{s.filename}</td>
-                    <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-secondary)' }}>{new Date(s.createdAt).toLocaleString()}</td>
-                    <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-secondary)' }}>{s.sizeMb} MB</td>
-                    <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>
-                      <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleRestoreFromSnapshot(s.filename)}
-                          disabled={isRestoring}
-                          style={{
-                            background: 'rgba(239, 68, 68, 0.12)',
-                            color: '#f87171',
-                            border: '1px solid rgba(239, 68, 68, 0.3)',
-                            borderRadius: 4,
-                            padding: '0.2rem 0.5rem',
-                            fontSize: '0.72rem',
-                            fontWeight: 600,
-                            cursor: isRestoring ? 'wait' : 'pointer'
-                          }}
-                        >
-                          {t.backup.rollback}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => window.open(`/api/database/download?filename=${encodeURIComponent(s.filename)}`, '_blank')}
-                          style={{
-                            background: 'var(--bg-card)',
-                            color: 'var(--text-secondary)',
-                            border: '1px solid var(--border-subtle)',
-                            borderRadius: 4,
-                            padding: '0.2rem 0.5rem',
-                            fontSize: '0.72rem',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          {t.backup.downloadAction}
-                        </button>
-                      </div>
-                    </td>
+        {(() => {
+          const snapshots = dbStatus?.snapshots || dbStatus?.recentBackups || [];
+          if (snapshots.length === 0) {
+            return (
+              <div style={{
+                padding: '2rem 1.5rem',
+                textAlign: 'center',
+                background: 'var(--bg-card)',
+                borderRadius: 8,
+                border: '1px dashed var(--border-subtle)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.6rem'
+              }}>
+                <HardDrive size={24} style={{ color: 'var(--text-muted)', opacity: 0.6 }} />
+                <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: 600 }}>
+                  {t.backup.noSnapshots || 'No local database snapshots found. Click "Backup Now to Folder" above to create one.'}
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div style={{ maxHeight: isFullPage ? '400px' : '220px', overflowY: 'auto', border: '1px solid var(--border-subtle)', borderRadius: 8 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-subtle)', textAlign: 'left' }}>
+                    <th style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)' }}>{t.backup.tableSnapshotName || 'Snapshot File'}</th>
+                    <th style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)' }}>{t.backup.tableCreated || 'Created At'}</th>
+                    <th style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)' }}>{t.backup.tableSize || 'Size'}</th>
+                    <th style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)', textAlign: 'right' }}>{t.backup.tableAction || 'Action'}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {snapshots.map((s: any) => {
+                    const sizeMb = s.sizeMb ?? (s.sizeBytes ? (s.sizeBytes / (1024 * 1024)).toFixed(2) : '0.00');
+                    return (
+                      <tr key={s.filename} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                        <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-primary)', fontFamily: 'monospace' }}>{s.filename}</td>
+                        <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-secondary)' }}>{new Date(s.createdAt).toLocaleString()}</td>
+                        <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-secondary)' }}>{sizeMb} MB</td>
+                        <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleRestoreFromSnapshot(s.filename)}
+                              disabled={isRestoring}
+                              style={{
+                                background: 'rgba(239, 68, 68, 0.12)',
+                                color: '#f87171',
+                                border: '1px solid rgba(239, 68, 68, 0.3)',
+                                borderRadius: 4,
+                                padding: '0.2rem 0.5rem',
+                                fontSize: '0.72rem',
+                                fontWeight: 600,
+                                cursor: isRestoring ? 'wait' : 'pointer'
+                              }}
+                            >
+                              {t.backup.rollback || 'Rollback'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => window.open(`/api/database/download?filename=${encodeURIComponent(s.filename)}`, '_blank')}
+                              style={{
+                                background: 'var(--bg-card)',
+                                color: 'var(--text-secondary)',
+                                border: '1px solid var(--border-subtle)',
+                                borderRadius: 4,
+                                padding: '0.2rem 0.5rem',
+                                fontSize: '0.72rem',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {t.backup.downloadAction || 'Download'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

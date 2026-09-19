@@ -468,21 +468,30 @@ body {
 }
 
 /* Split-screen & Medium Desktop Responsive Layout */
-@media (max-width: 1120px) {
+@media (max-width: 1360px) {
   .navbar {
-    padding: 0.75rem 1.25rem;
+    padding: 0.65rem 1rem;
     gap: 0.5rem;
+    flex-wrap: nowrap;
+  }
+  .nav-brand {
+    flex-shrink: 0;
   }
   .nav-tabs {
     padding: 0.2rem;
+    flex-shrink: 1;
+    min-width: 0;
+    gap: 0.15rem;
   }
   .nav-tab-btn {
-    padding: 0.4rem 0.75rem;
+    padding: 0.4rem 0.65rem;
     font-size: 0.8rem;
     gap: 0.35rem;
+    white-space: nowrap;
   }
   .nav-actions {
-    gap: 0.5rem;
+    flex-shrink: 0;
+    gap: 0.45rem;
   }
   /* Hide crowded desktop action buttons on split-screen */
   .nav-desktop-actions {
@@ -532,6 +541,15 @@ body {
     min-width: 36px;
     height: 36px;
     justify-content: center;
+  }
+}
+
+@media (max-width: 840px) {
+  .nav-tab-label {
+    display: none;
+  }
+  .nav-tab-btn {
+    padding: 0.45rem 0.6rem;
   }
 }
 
