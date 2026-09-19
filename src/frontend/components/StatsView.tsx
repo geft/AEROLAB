@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Target, Trophy, Flame, Activity, ShieldCheck, Zap, Calendar, TrendingUp, Clock, Mountain, HelpCircle, X, CheckCircle } from 'lucide-react';
 import { formatPace } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
+import { TrainingLoadCard } from './TrainingLoadCard.js';
+import { BestEffortsCard } from './BestEffortsCard.js';
 
 export const StatsView: React.FC = () => {
   const { t, language } = useTranslation();
@@ -271,6 +273,10 @@ export const StatsView: React.FC = () => {
           </>
         )}
       </section>
+
+      {/* Garmin-Equivalent Acute:Chronic Training Load & Optimal Tunnel */}
+      <TrainingLoadCard />
+
       {/* Current Physiological Benchmarks */}
       <section className="benchmarks-grid">
         <div className="benchmark-card">
@@ -441,6 +447,9 @@ export const StatsView: React.FC = () => {
           ))}
         </div>
       </section>
+
+      {/* Personal Bests & Best Efforts (1K, 1 Mile, 5K, 10K, Half Marathon) */}
+      <BestEffortsCard />
 
       {/* Polarized Training Distribution Guide */}
       <section className="goal-markers-grid">

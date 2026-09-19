@@ -169,6 +169,8 @@ export const zh: Translations = {
     avgPace: '平均配速',
     avgHeartRate: '平均心率',
     maxHeartRate: '最高心率',
+    trainingLoad: '训练负荷',
+    loadPts: '负荷',
     steadyIsolated: '稳态跑步数据（已过滤中断）',
     excludes: '已剔除',
     trafficStops: '交通红绿灯停顿',

@@ -169,6 +169,8 @@ export const en: Translations = {
     avgPace: 'Avg Pace',
     avgHeartRate: 'Avg Heart Rate',
     maxHeartRate: 'Max HR',
+    trainingLoad: 'Training Load',
+    loadPts: 'pts',
     steadyIsolated: 'Steady-State Running Isolated',
     excludes: 'Excludes',
     trafficStops: 'traffic stops',

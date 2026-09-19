@@ -3,6 +3,7 @@ import path from 'path';
 import { getDatabase } from '../db/client.js';
 import { importDirectory, importRunContent } from '../ingestion/importer.js';
 import { convertFitToCsv, isFitBuffer } from '../ingestion/fit-parser.js';
+import { extractZipEntries, isZipBuffer } from '../ingestion/zip-extractor.js';
 import { checkAndRunScheduledBackup } from './database.js';
 import { logger } from '../utils/logger.js';
 
@@ -25,7 +26,7 @@ ingestRouter.post('/scan', (req, res) => {
   }
 });
 
-// POST /api/ingest/upload - upload CSV or FIT content directly
+// POST /api/ingest/upload - upload CSV, FIT or Garmin ZIP content directly
 ingestRouter.post('/upload', (req, res) => {
   const { content, filename, force } = req.body;
   try {
@@ -34,9 +35,74 @@ ingestRouter.post('/upload', (req, res) => {
       return res.status(400).json({ error: 'Missing content field' });
     }
 
+    // Decode buffer if provided as base64 string
+    let rawBuffer: Buffer | null = null;
+    if (Buffer.isBuffer(content)) {
+      rawBuffer = content;
+    } else if (typeof content === 'string') {
+      const rawBase64 = content.includes(';base64,') ? content.split(';base64,')[1] : content;
+      try {
+        rawBuffer = Buffer.from(rawBase64, 'base64');
+      } catch {}
+    }
+
+    // 1. Check for ZIP archive (e.g. Garmin Connect "Export All Data")
+    const isZip = Boolean(
+      (filename && filename.toLowerCase().endsWith('.zip')) ||
+      (rawBuffer && isZipBuffer(rawBuffer))
+    );
+
+    if (isZip && rawBuffer) {
+      const entries = extractZipEntries(rawBuffer);
+      const zipResults: any[] = [];
+      let importedCount = 0;
+
+      for (const entry of entries) {
+        const lowerName = entry.filename.toLowerCase();
+        if (lowerName.endsWith('.fit')) {
+          try {
+            const fitResult = convertFitToCsv(entry.buffer, entry.filename);
+            if (fitResult.csv) {
+              const res = importRunContent(db, fitResult.csv, entry.filename, { force: Boolean(force) });
+              zipResults.push(res);
+              if (res.status === 'imported') importedCount++;
+            } else {
+              zipResults.push({ status: 'skipped_non_running', filename: entry.filename });
+            }
+          } catch (e: any) {
+            zipResults.push({ status: 'error', filename: entry.filename, error: e.message });
+          }
+        } else if (lowerName.endsWith('.csv')) {
+          try {
+            const res = importRunContent(db, entry.buffer.toString('utf8'), entry.filename, { force: Boolean(force) });
+            zipResults.push(res);
+            if (res.status === 'imported') importedCount++;
+          } catch (e: any) {
+            zipResults.push({ status: 'error', filename: entry.filename, error: e.message });
+          }
+        }
+      }
+
+      if (importedCount > 0) {
+        setTimeout(() => {
+          try { checkAndRunScheduledBackup(db); } catch (e) { logger.error('AutoBackup', 'Zip upload error', e); }
+        }, 500);
+      }
+
+      return res.json({
+        result: {
+          status: importedCount > 0 ? 'imported' : 'batch_completed',
+          totalInZip: entries.length,
+          processedCount: zipResults.length,
+          importedCount,
+          results: zipResults
+        }
+      });
+    }
+
     let csvContent = content;
     let isFit = Boolean(filename && filename.toLowerCase().endsWith('.fit'));
-    let fitBuffer: Buffer | null = null;
+    let fitBuffer: Buffer | null = rawBuffer && isFitBuffer(rawBuffer) ? rawBuffer : null;
 
     // Auto-detect algorithm based on buffer magic bytes (.FIT at offset 8)
     if (Buffer.isBuffer(content)) {

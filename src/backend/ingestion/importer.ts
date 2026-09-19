@@ -10,6 +10,7 @@ import { evaluateThresholdUpdate } from '../physiology/threshold-tracker.js';
 import { downsampleRecords } from './downsampler.js';
 import { syncActivityCoachSummary } from '../physiology/coach-summary.js';
 import { syncActivityWeather } from '../physiology/weather.js';
+import { calculateActivityTrainingLoad } from '../physiology/training-load.js';
 
 export interface ImportResult {
   status: 'imported' | 'skipped_duplicate' | 'skipped_non_running' | 'error';
@@ -174,7 +175,8 @@ export function importRunContent(
       aerobic_decoupling_pct, meters_per_beat, workout_lat, workout_lon,
       steady_pace_sec_km, steady_heart_rate, steady_cadence, steady_stance_time,
       pause_duration_seconds, walk_duration_seconds, walk_distance_meters,
-      tags
+      tags,
+      training_load, z1_seconds, z2_seconds, z3_seconds, z4_seconds, z5_seconds
     ) VALUES (
       ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?,
@@ -184,7 +186,8 @@ export function importRunContent(
       ?, ?, ?, ?,
       ?, ?, ?, ?,
       ?, ?, ?,
-      ?
+      ?,
+      ?, ?, ?, ?, ?, ?
     )
   `);
 
@@ -271,6 +274,20 @@ export function importRunContent(
 
   const pb = economy.pauseBreakdown;
 
+  const loadResult = calculateActivityTrainingLoad(
+    records,
+    {
+      maxHr: hrProfile.maxHr || 185,
+      restingHr: hrProfile.restingHr || 50,
+      lt1Hr: hrProfile.lt1Hr,
+      lt2Hr: hrProfile.lt2Hr
+    },
+    {
+      durationSeconds: metadata.totalDurationSeconds,
+      avgHeartRate: metadata.avgHeartRate
+    }
+  );
+
   const transaction = db.transaction(() => {
     insertActivity.run(
       metadata.id,
@@ -307,7 +324,13 @@ export function importRunContent(
       pb?.stopDurationSeconds ?? 0,
       pb?.walkDurationSeconds ?? 0,
       pb?.walkDistanceMeters ?? 0,
-      JSON.stringify(initialTags)
+      JSON.stringify(initialTags),
+      loadResult.trainingLoad,
+      loadResult.zones.z1Seconds,
+      loadResult.zones.z2Seconds,
+      loadResult.zones.z3Seconds,
+      loadResult.zones.z4Seconds,
+      loadResult.zones.z5Seconds
     );
 
 

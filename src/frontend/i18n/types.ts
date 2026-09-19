@@ -169,6 +169,8 @@ export interface Translations {
     avgPace: string;
     avgHeartRate: string;
     maxHeartRate: string;
+    trainingLoad: string;
+    loadPts: string;
     steadyIsolated: string;
     excludes: string;
     trafficStops: string;

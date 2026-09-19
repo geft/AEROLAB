@@ -490,5 +490,15 @@ describe('API Server Integration Tests', () => {
     expect(res.status).toBe(422);
     expect(res.body.error).toContain('CSV file contains no valid records');
   });
+
+  it('GET /api/activities/training-load returns training status, acute/chronic load and optimal tunnel', async () => {
+    const res = await request(app).get('/api/activities/training-load?days=30');
+    expect(res.status).toBe(200);
+    expect(res.body.trainingStatus).toBeDefined();
+    expect(res.body.trainingStatus.currentAcuteLoad).toBeGreaterThanOrEqual(0);
+    expect(res.body.trainingStatus.currentChronicLoad).toBeGreaterThanOrEqual(0);
+    expect(res.body.trainingStatus.optimalRange).toBeDefined();
+    expect(res.body.trainingStatus.timeline).toBeInstanceOf(Array);
+  });
 });
 

@@ -335,6 +335,15 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
           <span className="metric-chip-label">{t.browse.caloriesLabel}</span>
           <span className="metric-chip-value">{act.calories ?? '—'}<span className="metric-chip-unit">kcal</span></span>
         </div>
+        {act.training_load != null && (
+          <div className="metric-chip">
+            <span className="metric-chip-label">{t.browse.trainingLoad}</span>
+            <span className="metric-chip-value" style={{ color: '#ec4899' }}>
+              {Math.round(act.training_load)}
+              <span className="metric-chip-unit">{t.browse.loadPts}</span>
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Steady State & Pause/Walk Isolation Banner */}

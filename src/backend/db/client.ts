@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { extractSteadyStateMetrics, calculateEconomy } from '../physiology/economy.js';
 import { syncAllCoachSummaries } from '../physiology/coach-summary.js';
 import { syncAllActivitiesWeather } from '../physiology/weather.js';
+import { calculateActivityTrainingLoad } from '../physiology/training-load.js';
 import { realignDatabase } from './realign.js';
 import { deduplicateRuns } from './deduplicate.js';
 import { logger } from '../utils/logger.js';
@@ -71,6 +72,12 @@ export function getDatabase(dbPath?: string): Database.Database {
     if (!colNames.has('weather_condition')) db.exec("ALTER TABLE activities ADD COLUMN weather_condition TEXT");
     if (!colNames.has('weather_code')) db.exec("ALTER TABLE activities ADD COLUMN weather_code INTEGER");
     if (!colNames.has('weather_fetched_at')) db.exec("ALTER TABLE activities ADD COLUMN weather_fetched_at TEXT");
+    if (!colNames.has('training_load')) db.exec("ALTER TABLE activities ADD COLUMN training_load REAL");
+    if (!colNames.has('z1_seconds')) db.exec("ALTER TABLE activities ADD COLUMN z1_seconds INTEGER DEFAULT 0");
+    if (!colNames.has('z2_seconds')) db.exec("ALTER TABLE activities ADD COLUMN z2_seconds INTEGER DEFAULT 0");
+    if (!colNames.has('z3_seconds')) db.exec("ALTER TABLE activities ADD COLUMN z3_seconds INTEGER DEFAULT 0");
+    if (!colNames.has('z4_seconds')) db.exec("ALTER TABLE activities ADD COLUMN z4_seconds INTEGER DEFAULT 0");
+    if (!colNames.has('z5_seconds')) db.exec("ALTER TABLE activities ADD COLUMN z5_seconds INTEGER DEFAULT 0");
   } catch (err) {
     // Non-fatal if table not created yet
   }
@@ -334,6 +341,48 @@ export function getDatabase(dbPath?: string): Database.Database {
 
     // Automatically backfill microclimate weather for activities missing ambient weather data
     syncAllActivitiesWeather(db).catch(() => {});
+
+    // Automatically backfill training_load and zone duration seconds for existing activities
+    try {
+      const unbackfilledLoad = db.prepare('SELECT id, duration_seconds, avg_heart_rate FROM activities WHERE training_load IS NULL').all() as any[];
+      if (unbackfilledLoad.length > 0) {
+        const profile = db.prepare("SELECT * FROM athlete_profile WHERE id = 'primary'").get() as any;
+        const hrProfile = {
+          maxHr: profile?.max_hr || 185,
+          restingHr: profile?.resting_hr || 50,
+          lt1Hr: profile?.lt1_hr || 148,
+          lt2Hr: profile?.lt2_hr || 167,
+          gender: profile?.gender || 'male'
+        };
+        const updateLoadStmt = db.prepare(`
+          UPDATE activities SET
+            training_load = ?,
+            z1_seconds = ?,
+            z2_seconds = ?,
+            z3_seconds = ?,
+            z4_seconds = ?,
+            z5_seconds = ?
+          WHERE id = ?
+        `);
+        const recSelectStmt = db.prepare('SELECT elapsed_seconds, heart_rate FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC');
+        for (const act of unbackfilledLoad) {
+          const records = recSelectStmt.all(act.id) as any[];
+          const res = calculateActivityTrainingLoad(records, hrProfile, {
+            durationSeconds: act.duration_seconds,
+            avgHeartRate: act.avg_heart_rate
+          });
+          updateLoadStmt.run(
+            res.trainingLoad,
+            res.zones.z1Seconds,
+            res.zones.z2Seconds,
+            res.zones.z3Seconds,
+            res.zones.z4Seconds,
+            res.zones.z5Seconds,
+            act.id
+          );
+        }
+      }
+    } catch {}
 
     // Automatic migration: Deduplicate runs imported across different formats (FIT vs CSV)
     deduplicateRuns(db, (msg) => logger.info('DB', `[dedup] ${msg}`));

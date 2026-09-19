@@ -65,8 +65,11 @@ export const PeriodProgressView: React.FC = () => {
   const periods = (activePeriodType === 'month' ? data.months : data.years) || [];
 
   // Chart calculation metrics
-  const maxDistance = periods.length > 0 ? Math.max(...periods.map(p => p.totalDistanceKm), 10) : 10;
-  const efValues = periods.map(p => p.avgEfficiencyFactor).filter((ef): ef is number => ef !== null);
+  const validDistances = periods.map(p => (Number.isFinite(p.totalDistanceKm) ? p.totalDistanceKm : 0));
+  const maxDistance = validDistances.length > 0 ? Math.max(...validDistances, 10) : 10;
+  const efValues = periods
+    .map(p => p.avgEfficiencyFactor)
+    .filter((ef): ef is number => typeof ef === 'number' && Number.isFinite(ef));
   const minEf = efValues.length > 0 ? Math.min(...efValues, 1.0) : 1.0;
   const maxEf = efValues.length > 0 ? Math.max(...efValues, 1.3) : 1.3;
   const efSpan = Math.max(0.1, maxEf - minEf);
@@ -78,8 +81,8 @@ export const PeriodProgressView: React.FC = () => {
   const paddingBottom = 46;
   const chartWidth = Math.max(840, periods.length * colWidth + paddingLeft + paddingRight);
   const chartHeight = 236;
-  const innerWidth = chartWidth - paddingLeft - paddingRight;
-  const innerHeight = chartHeight - paddingTop - paddingBottom;
+  const innerWidth = Math.max(10, chartWidth - paddingLeft - paddingRight);
+  const innerHeight = Math.max(10, chartHeight - paddingTop - paddingBottom);
 
   const getX = (idx: number) => {
     if (periods.length <= 1) return paddingLeft + innerWidth / 2;
@@ -87,10 +90,12 @@ export const PeriodProgressView: React.FC = () => {
   };
 
   const getBarHeight = (distKm: number) => {
-    return (distKm / maxDistance) * innerHeight;
+    const val = Number.isFinite(distKm) ? distKm : 0;
+    return maxDistance > 0 ? (val / maxDistance) * innerHeight : 0;
   };
 
   const getY_EF = (ef: number) => {
+    if (!Number.isFinite(ef) || efSpan <= 0) return paddingTop + innerHeight;
     const norm = (ef - minEf) / efSpan;
     return paddingTop + innerHeight - norm * innerHeight;
   };
@@ -283,9 +288,10 @@ export const PeriodProgressView: React.FC = () => {
             {/* Volume Bars */}
             {periods.map((p, idx) => {
               const xCenter = getX(idx);
-              const barW = Math.min(38, Math.max(20, (innerWidth / periods.length) * 0.45));
-              const barH = getBarHeight(p.totalDistanceKm);
-              const barY = paddingTop + innerHeight - barH;
+              const barW = Math.min(38, Math.max(20, (innerWidth / (periods.length || 1)) * 0.45));
+              const rawH = getBarHeight(p.totalDistanceKm);
+              const barH = Number.isFinite(rawH) ? Math.max(4, rawH) : 4;
+              const barY = Number.isFinite(paddingTop + innerHeight - barH) ? paddingTop + innerHeight - barH : paddingTop + innerHeight - 4;
               const isHovered = hoveredIndex === idx;
 
               // Format top-of-bar distance (round >= 100km to avoid wide text overflow)

@@ -51,7 +51,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     const allFiles = Array.from(fileList);
     const validFiles = allFiles.filter(f => {
       const l = f.name.toLowerCase();
-      return l.endsWith('.csv') || l.endsWith('.fit');
+      return l.endsWith('.csv') || l.endsWith('.fit') || l.endsWith('.zip');
     });
 
     if (validFiles.length === 0) {
@@ -87,13 +87,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
       try {
         let content: string;
-        if (file.name.toLowerCase().endsWith('.fit')) {
+        if (file.name.toLowerCase().endsWith('.fit') || file.name.toLowerCase().endsWith('.zip')) {
           const buffer = await file.arrayBuffer();
           let binary = '';
           const bytes = new Uint8Array(buffer);
           const len = bytes.byteLength;
-          for (let b = 0; b < len; b++) {
-            binary += String.fromCharCode(bytes[b]);
+          const CHUNK = 0x8000;
+          for (let b = 0; b < len; b += CHUNK) {
+            binary += String.fromCharCode.apply(null, bytes.subarray(b, Math.min(b + CHUNK, len)) as any);
           }
           content = btoa(binary);
         } else {
@@ -113,7 +114,25 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
         const data = await res.json();
         if (res.ok && data.result) {
-          if (data.result.status === 'imported') {
+          if (Array.isArray(data.result.results)) {
+            // Unpack ZIP archive batch results
+            for (const r of data.result.results) {
+              if (r.status === 'imported') {
+                imported++;
+              } else if (r.status === 'skipped' || r.status === 'skipped_duplicate') {
+                skipped++;
+                skippedDetails.push({
+                  filename: r.filename || file.name,
+                  reason: r.message || 'Already imported'
+                });
+              } else if (r.status === 'skipped_non_running' || r.status === 'skipped_non_run') {
+                skippedNonRun++;
+              } else {
+                errors++;
+                errorDetails.push({ filename: r.filename || file.name, error: r.error || 'Import failed' });
+              }
+            }
+          } else if (data.result.status === 'imported') {
             imported++;
             if (validFiles.length === 1 && data.result.activityId) {
               singleActivityId = data.result.activityId;
@@ -140,14 +159,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
             errors++;
             errorDetails.push({
               filename: file.name,
-              error: data.result.message || 'Upload failed'
+              error: data.result.error || data.result.reason || 'Import failed'
             });
           }
         } else {
           errors++;
           errorDetails.push({
             filename: file.name,
-            error: data.error || 'Failed to process workout'
+            error: data.error || 'Server error'
           });
         }
       } catch (err: any) {
@@ -233,7 +252,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileSelect}
-                accept=".csv,.fit,.FIT"
+                accept=".csv,.fit,.FIT,.zip,.ZIP"
                 multiple
                 style={{ display: 'none' }}
               />

@@ -4,8 +4,33 @@ import { generateCoachSummary, syncActivityCoachSummary } from '../physiology/co
 import { extractSteadyStateMetrics } from '../physiology/economy.js';
 import { syncActivityWeather } from '../physiology/weather.js';
 import { calculateAgeFromDob } from './profile.js';
+import { calculateTrainingStatus } from '../physiology/training-load.js';
+import { getAthleteBestEfforts } from '../physiology/best-efforts.js';
 
 export const activitiesRouter = Router();
+
+// GET /api/activities/best-efforts - standard distance personal bests (1k, 1mi, 5k, 10k, HM)
+activitiesRouter.get('/best-efforts', (req, res) => {
+  try {
+    const db = getDatabase();
+    const records = getAthleteBestEfforts(db);
+    res.json(records);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to retrieve best efforts' });
+  }
+});
+
+// GET /api/activities/training-load - retrieve acute load, chronic load, optimal tunnel, and status
+activitiesRouter.get('/training-load', (req, res) => {
+  try {
+    const db = getDatabase();
+    const daysHistory = req.query.days ? parseInt(req.query.days as string, 10) : 30;
+    const trainingStatus = calculateTrainingStatus(db, Math.min(180, Math.max(7, daysHistory)));
+    res.json({ trainingStatus });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to calculate training status' });
+  }
+});
 
 // GET /api/activities/volume - aggregated effort and volume metrics
 activitiesRouter.get('/volume', (req, res) => {
@@ -22,7 +47,7 @@ activitiesRouter.get('/volume', (req, res) => {
     const lt1Hr = profile?.lt1_hr || Math.round(restingHr + (maxHr - restingHr) * 0.65);
     const lt2Hr = profile?.lt2_hr || Math.round(restingHr + (maxHr - restingHr) * 0.82);
 
-    let query = `SELECT id, start_time, distance_meters, duration_seconds, elevation_gain_m, efficiency_factor, run_type FROM activities WHERE 1=1`;
+    let query = `SELECT id, start_time, distance_meters, duration_seconds, elevation_gain_m, efficiency_factor, run_type, training_load, z1_seconds, z2_seconds, z3_seconds, z4_seconds, z5_seconds FROM activities WHERE 1=1`;
     const params: any[] = [];
 
     if (targetMonth) {
@@ -47,7 +72,7 @@ activitiesRouter.get('/volume', (req, res) => {
       const latestAct = db.prepare('SELECT start_time FROM activities ORDER BY start_time DESC LIMIT 1').get() as any;
       if (latestAct?.start_time) {
         const fallbackMonth = latestAct.start_time.substring(0, 7);
-        acts = db.prepare(`SELECT id, start_time, distance_meters, duration_seconds, elevation_gain_m, efficiency_factor, run_type FROM activities WHERE start_time LIKE ? ORDER BY start_time DESC`).all(`${fallbackMonth}%`) as any[];
+        acts = db.prepare(`SELECT id, start_time, distance_meters, duration_seconds, elevation_gain_m, efficiency_factor, run_type, training_load, z1_seconds, z2_seconds, z3_seconds, z4_seconds, z5_seconds FROM activities WHERE start_time LIKE ? ORDER BY start_time DESC`).all(`${fallbackMonth}%`) as any[];
       }
     }
 
@@ -72,15 +97,27 @@ activitiesRouter.get('/volume', (req, res) => {
         efCount++;
       }
 
-      const recs = recStmt.all(a.id) as any[];
-      for (let i = 1; i < recs.length; i++) {
-        const dt = Math.max(0, Math.min(10, recs[i].elapsed_seconds - recs[i - 1].elapsed_seconds));
-        const hr = recs[i].heart_rate;
-        if (!hr) continue;
-        if (hr < lt1Hr) z1z2Sec += dt;
-        else if (hr < lt2Hr) z3Sec += dt;
-        else if (hr < maxHr * 0.92) z4Sec += dt;
-        else z5Sec += dt;
+      // Fast path: precalculated zone durations from activities table
+      const hasPrecomputedZones =
+        typeof a.z2_seconds === 'number' &&
+        (a.z1_seconds > 0 || a.z2_seconds > 0 || a.z3_seconds > 0 || a.z4_seconds > 0 || a.z5_seconds > 0);
+
+      if (hasPrecomputedZones) {
+        z1z2Sec += (a.z1_seconds || 0) + (a.z2_seconds || 0);
+        z3Sec += (a.z3_seconds || 0);
+        z4Sec += (a.z4_seconds || 0);
+        z5Sec += (a.z5_seconds || 0);
+      } else {
+        const recs = recStmt.all(a.id) as any[];
+        for (let i = 1; i < recs.length; i++) {
+          const dt = Math.max(0, Math.min(10, recs[i].elapsed_seconds - recs[i - 1].elapsed_seconds));
+          const hr = recs[i].heart_rate;
+          if (!hr) continue;
+          if (hr < lt1Hr) z1z2Sec += dt;
+          else if (hr < lt2Hr) z3Sec += dt;
+          else if (hr < maxHr * 0.92) z4Sec += dt;
+          else z5Sec += dt;
+        }
       }
     }
 
