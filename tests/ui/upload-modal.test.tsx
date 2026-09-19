@@ -264,4 +264,39 @@ describe('UploadModal Multi-File UI Component Tests', () => {
       expect(onUploadSuccess).toHaveBeenCalledWith(undefined);
     });
   });
+
+  it('accepts and processes .zip archive uploads', async () => {
+    const onUploadSuccess = vi.fn();
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        result: {
+          status: 'imported',
+          results: [
+            { status: 'imported', filename: 'run1.fit' },
+            { status: 'imported', filename: 'run2.fit' },
+            { status: 'imported', filename: 'run3.fit' }
+          ]
+        }
+      })
+    } as any);
+
+    render(
+      <UploadModal
+        isOpen={true}
+        onClose={vi.fn()}
+        onUploadSuccess={onUploadSuccess}
+      />
+    );
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const zipFile = new File(['mock-zip-content'], 'garmin_export.zip', { type: 'application/zip' });
+    fireEvent.change(input, { target: { files: [zipFile] } });
+
+    await waitFor(() => {
+      expect(screen.getByText('3')).toBeTruthy();
+      expect(screen.getByText('Imported')).toBeTruthy();
+      expect(screen.getByText(/Batch Ingestion Completed Successfully/i)).toBeTruthy();
+    });
+  });
 });

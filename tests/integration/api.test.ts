@@ -500,5 +500,19 @@ describe('API Server Integration Tests', () => {
     expect(res.body.trainingStatus.optimalRange).toBeDefined();
     expect(res.body.trainingStatus.timeline).toBeInstanceOf(Array);
   });
+
+  it('GET /api/activities/best-efforts returns all-time and current year standard distance records', async () => {
+    const res = await request(app).get('/api/activities/best-efforts');
+    expect(res.status).toBe(200);
+    expect(res.body.allTime).toBeInstanceOf(Array);
+    expect(res.body.currentYear).toBeInstanceOf(Array);
+    if (res.body.allTime.length > 0) {
+      const record = res.body.allTime[0];
+      expect(record.targetId).toBeDefined();
+      expect(record.distanceMeters).toBeGreaterThan(0);
+      expect(record.timeSeconds).toBeGreaterThan(0);
+      expect(record.paceSecKm).toBeGreaterThan(0);
+    }
+  });
 });
 

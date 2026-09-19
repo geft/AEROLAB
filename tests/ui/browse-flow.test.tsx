@@ -25,7 +25,8 @@ describe('BrowseView User Flow & Navigation Tests', () => {
       efficiency_factor: 1.25,
       aerobic_decoupling_pct: 2.1,
       meters_per_beat: 3.1,
-      tags: JSON.stringify(['Easy Base', 'Recovery'])
+      tags: JSON.stringify(['Easy Base', 'Recovery']),
+      training_load: 68
     }
   ];
 
@@ -527,6 +528,24 @@ describe('BrowseView User Flow & Navigation Tests', () => {
 
     // Calendar view jumps back to 2025
     expect(screen.getAllByText(/September 2025/i).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('renders Training Load chip in activity detail header when training_load is present', async () => {
+    render(
+      <BrowseView
+        activities={mockActivities}
+        selectedActivityId="act-101"
+        onSelectActivity={vi.fn()}
+        onOpenUpload={vi.fn()}
+        theme="dark"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Training Load')).toBeDefined();
+      expect(screen.getByText('68')).toBeDefined();
+      expect(screen.getByText('pts')).toBeDefined();
+    });
   });
 });
 

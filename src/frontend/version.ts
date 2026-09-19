@@ -11,10 +11,10 @@ export interface BuildInfo {
 
 export const BUILD_INFO: BuildInfo = {
   "version": "1.0.13",
-  "gitCommit": "e652f00",
+  "gitCommit": "262f213",
   "gitBranch": "main",
   "buildDate": "2026-09-19",
-  "buildTimestamp": "2026-09-19T13:30:31.431Z",
+  "buildTimestamp": "2026-09-19T13:34:20.680Z",
   "buildNumber": "local",
   "isRelease": false
 };
