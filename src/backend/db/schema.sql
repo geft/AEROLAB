@@ -178,6 +178,7 @@ CREATE TABLE IF NOT EXISTS activity_coach_summaries (
   headline TEXT NOT NULL,
   effectiveness_score INTEGER NOT NULL,
   key_insights_json TEXT NOT NULL,
+  insight_tones_json TEXT,
   recommendation TEXT NOT NULL,
   steady_pace_sec_km REAL,
   steady_heart_rate INTEGER,
@@ -185,6 +186,7 @@ CREATE TABLE IF NOT EXISTS activity_coach_summaries (
   steady_stance_time REAL,
   pause_breakdown_json TEXT,
   score_breakdown_json TEXT,
+  analysis_json TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE

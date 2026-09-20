@@ -107,7 +107,10 @@ for (const entry of entries) {
   if (parentLeaf) {
     let indexed = dynamicNamespaceCache.get(parentLeaf);
     if (indexed === undefined) {
-      indexed = new RegExp(`\\.${parentLeaf}(?:\\s+as\\s+[\\w<>\\[\\],. ]+)?\\s*\\)?\\s*\\[`).test(code);
+      // The optional cast may include union types, e.g.
+      // `(t.runTypes as Record<string, string | undefined>)[key]`, so the
+      // character class must accept `|` and `?` as well as generics.
+      indexed = new RegExp(`\\.${parentLeaf}(?:\\s+as\\s+[\\w<>\\[\\],. ?|]+)?\\s*\\)?\\s*\\[`).test(code);
       dynamicNamespaceCache.set(parentLeaf, indexed);
     }
     if (indexed) continue;

@@ -131,6 +131,23 @@ export interface Translations {
     nextStep: string;
     clear: string;
     runsBadge: string;
+    /**
+     * Session-card suffix that orders several runs logged on the same day,
+     * e.g. `Run 1 of 2`. Tokens: `{index}`, `{total}`.
+     */
+    runOfDay: string;
+    /** Calendar-day tooltip for a day with recorded sessions, e.g. `2 runs`. */
+    dayRuns: PluralForms;
+    /** Calendar-day tooltip for a day without recorded activity. */
+    dayNoActivity: string;
+    /** Time-of-day buckets shown beside a run's clock time in the detail header. */
+    timeOfDayMorning: string;
+    timeOfDayMidday: string;
+    timeOfDayEvening: string;
+    timeOfDayNight: string;
+    /** Execution emblem tooltip. Tokens: `{stars}` (and `{score}` when scored). */
+    executionStarsTitle: string;
+    executionStarsScoredTitle: string;
     scoreBreakdownTitle: string;
     scoreFinalExecution: string;
     scoreGradingTiers: string;
@@ -140,6 +157,23 @@ export interface Translations {
     scoreSilverDesc: string;
     scoreBronzeTier: string;
     scoreBronzeDesc: string;
+    /** Weighted-rubric transparency labels. */
+    coachFocusLever: string;
+    coachFocusTag: string;
+    coachBaselineTitle: string;
+    coachContextAcwr: string;
+    coachContextEconomy: string;
+    coachContextHrAtPace: string;
+    coachContextDecoupling: string;
+    coachContextLongest: string;
+    coachScoreCoverage: string;
+    /** Title above the coach-debrief tone legend strip. */
+    coachInsightMix: string;
+    /** Tone legend for coach-debrief insights: strength, watch-out, fix, context. */
+    coachToneGood: string;
+    coachToneWatch: string;
+    coachToneFix: string;
+    coachToneInfo: string;
     distance: string;
     movingTime: string;
     avgPace: string;
@@ -249,6 +283,7 @@ export interface Translations {
     tableCalibrations: string;
     liveCalibrations: string;
     liveCalibrationsDesc: string;
+    thresholdEstimateNote: string;
     syncWithProfile: string;
     confidence: string;
     raceBenchmark: string;
@@ -412,7 +447,6 @@ export interface Translations {
     zone5Title: string;
     zone5Name: string;
     zone5Desc: string;
-    openSettingsAndBackups: string;
     iDontKnowMaxHr: string;
     readOnlyBaseline: string;
     thresholdHeartRate: string;
@@ -473,6 +507,7 @@ export interface Translations {
     settingsSaved: string;
     enableAutoBackup: string;
     selectFolder: string;
+    folderSelectionFailed: string;
     backingUp: string;
     localSnapshots: string;
     retentionPolicy: string;

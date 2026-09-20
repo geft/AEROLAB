@@ -556,12 +556,17 @@ export function evaluateThresholdUpdate(
       if (rolling.lt1Hr) {
         updates.push('lt1_hr = ?');
         params.push(rolling.lt1Hr);
+        // Preserve an explicitly configured working range when present. The
+        // range is intentionally steadier than the rolling point estimate.
+        const range = db.prepare("SELECT lt1_min_hr, lt1_max_hr FROM athlete_profile WHERE id = 'primary'").get() as { lt1_min_hr?: number | null; lt1_max_hr?: number | null } | undefined;
+        const minHr = range?.lt1_min_hr ?? rolling.lt1Hr - 1;
+        const maxHr = range?.lt1_max_hr ?? rolling.lt1Hr + 1;
         updates.push('z3_start_hr = ?');
-        params.push(rolling.lt1Hr + 1);
+        params.push(maxHr + 1);
         updates.push('lt1_min_hr = ?');
-        params.push(rolling.lt1Hr - 1);
+        params.push(minHr);
         updates.push('lt1_max_hr = ?');
-        params.push(rolling.lt1Hr + 1);
+        params.push(maxHr);
       }
       if (rolling.lt2Hr) {
         updates.push('lt2_hr = ?');
@@ -717,6 +722,7 @@ export function getCurrentThresholds(db: Database.Database): {
 } {
   try {
     const profile = getAthleteHeartRateProfile(db);
+    const profileRange = db.prepare("SELECT lt1_min_hr, lt1_max_hr FROM athlete_profile WHERE id = 'primary'").get() as { lt1_min_hr?: number | null; lt1_max_hr?: number | null } | undefined;
     const rolling = computeRollingThresholds(db);
     const { lt1Hr, lt2Hr } = resolveHeartRateProfile({ ...profile,
       lt1Hr: rolling.lt1Hr ?? profile.lt1Hr, lt2Hr: rolling.lt2Hr ?? profile.lt2Hr });
@@ -727,11 +733,15 @@ export function getCurrentThresholds(db: Database.Database): {
       : 0.5;
 
     const latestDate = rolling.lastLt2Date || rolling.lastLt1Date || null;
+    const storedRange = profileRange?.lt1_min_hr != null && profileRange?.lt1_max_hr != null
+      && profileRange.lt1_min_hr <= profileRange.lt1_max_hr
+      ? [profileRange.lt1_min_hr, profileRange.lt1_max_hr] as [number, number]
+      : [lt1Hr - 1, lt1Hr + 1] as [number, number];
 
     return {
       lt1Hr,
       lt2Hr,
-      lt1Range: [lt1Hr - 1, lt1Hr + 1],
+      lt1Range: storedRange,
       lt1PaceSecKm: rolling.lt1PaceSecKm,
       lt2PaceSecKm: rolling.lt2PaceSecKm,
       baselineEconomyEf: getLatestBaselineEconomyEf(db),
@@ -754,4 +764,3 @@ export function getCurrentThresholds(db: Database.Database): {
     };
   }
 }
-

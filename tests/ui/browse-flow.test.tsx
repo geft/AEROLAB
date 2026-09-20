@@ -409,7 +409,7 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     expect(screen.getAllByText(/September 2026/i).length).toBeGreaterThanOrEqual(1);
 
     // Click on day 12 (act-101 date)
-    const day12Btn = screen.getByTitle(/2026-09-12: 1 run\(s\)/i);
+    const day12Btn = screen.getByTitle(/2026-09-12: 1 run$/i);
     expect(day12Btn).toBeTruthy();
     act(() => {
       fireEvent.click(day12Btn);
@@ -486,6 +486,59 @@ describe('BrowseView User Flow & Navigation Tests', () => {
 
     // Calendar view jumps back to 2025
     expect(screen.getAllByText(/September 2025/i).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('disambiguates several runs logged on the same calendar day', () => {
+    // Regression: a morning base run plus an evening threshold session on
+    // 2026-09-10 used to render two identical "Sep 10, 2026" cards with no way
+    // to tell which session was which.
+    const sameDayRuns = [
+      {
+        ...mockActivities[0],
+        id: 'act-double-evening',
+        start_time: '2026-09-10 19:25:42',
+        run_type: 'threshold_lt2',
+        distance_meters: 14690,
+        avg_pace_sec_km: 391,
+        avg_heart_rate: 150,
+        tags: JSON.stringify(['Threshold']),
+        effectiveness_score: 95
+      },
+      {
+        ...mockActivities[0],
+        id: 'act-double-morning',
+        start_time: '2026-09-10 07:00:00',
+        run_type: 'easy_base',
+        distance_meters: 11880,
+        avg_pace_sec_km: 303,
+        avg_heart_rate: 138,
+        tags: JSON.stringify(['Easy Base']),
+        effectiveness_score: 98
+      }
+    ];
+
+    render(
+      <BrowseView
+        activities={sameDayRuns}
+        selectedActivityId="act-double-morning"
+        onSelectActivity={vi.fn()}
+        onOpenUpload={vi.fn()}
+        theme="dark"
+      />
+    );
+
+    // Both cards still carry the shared calendar day ...
+    expect(screen.getAllByText(/^Sep 10, 2026/, { selector: '.session-date' })).toHaveLength(2);
+
+    // ... and each one now shows its own start time.
+    const morningCard = screen.getByText('07:00').closest('.session-card');
+    const eveningCard = screen.getByText('19:25').closest('.session-card');
+    expect(morningCard).toBeTruthy();
+    expect(eveningCard).toBeTruthy();
+
+    // The earliest run of the day is #1, so the day order is readable.
+    expect(morningCard?.textContent).toContain('Run 1 of 2');
+    expect(eveningCard?.textContent).toContain('Run 2 of 2');
   });
 
   it('renders Training Load chip in activity detail header when training_load is present', async () => {

@@ -76,7 +76,34 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
   t,
   activitiesCount
 }) => {
-  const { formatDate } = useTranslation();
+  const { formatDate, format } = useTranslation();
+
+  // A calendar day can hold more than one run (a morning base run plus an
+  // evening threshold session). The date label alone cannot tell those apart,
+  // so order them explicitly within the day: run 1 is the earliest one.
+  const sameDayRunInfo = React.useMemo(() => {
+    const byDay = new Map<string, ActivitySummary[]>();
+    groupedActivities.forEach(group => {
+      group.items.forEach(a => {
+        const day = a.start_time?.substring(0, 10);
+        if (!day) return;
+        const list = byDay.get(day);
+        if (list) list.push(a);
+        else byDay.set(day, [a]);
+      });
+    });
+
+    const info = new Map<string, { index: number; total: number }>();
+    byDay.forEach(list => {
+      if (list.length < 2) return;
+      list
+        .slice()
+        .sort((x, y) => (x.start_time || '').localeCompare(y.start_time || ''))
+        .forEach((a, i) => info.set(a.id, { index: i + 1, total: list.length }));
+    });
+    return info;
+  }, [groupedActivities]);
+
   return (
     <aside className="sidebar-panel">
       <div className="sidebar-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', width: '100%' }}>
@@ -243,9 +270,22 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
               const isSelected = a.id === selectedActivityId;
               const d = new Date(a.start_time);
               const dateStr = formatDate(d, { month: 'short', day: 'numeric', year: 'numeric' });
+              // Clock time (24-hour, locale-aware) is what separates two runs
+              // logged on the same calendar day.
+              const timeStr = formatDate(d, { hour: '2-digit', minute: '2-digit', hour12: false });
+              const dayInfo = sameDayRunInfo.get(a.id);
+              const runOfDayLabel = dayInfo
+                ? format(t.browse.runOfDay, { index: dayInfo.index, total: dayInfo.total })
+                : null;
               const distKm = (a.distance_meters / 1000).toFixed(2);
               const paceStr = formatPace(a.avg_pace_sec_km);
               const stars = scoreToStars(a.effectiveness_score);
+              const tierLabel = stars === 3 ? 'gold' : stars === 2 ? 'silver' : 'bronze';
+              const executionTitle = stars > 0
+                ? (a.effectiveness_score
+                    ? format(t.browse.executionStarsScoredTitle, { stars, score: a.effectiveness_score })
+                    : format(t.browse.executionStarsTitle, { stars }))
+                : '';
               const isRace = a.run_type === 'race' ||
                 (a.tags && (a.tags.includes('Race') || a.tags.includes('race'))) ||
                 /time trial|race/i.test(a.name || '');
@@ -268,7 +308,10 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
                   }}
                 >
                   <div className="session-card-top">
-                    <span className="session-date">{dateStr}</span>
+                    <span className="session-date">
+                      {dateStr}{' '}
+                      <span className="session-time">{timeStr}</span>
+                    </span>
                     <span className={`run-badge badge-${a.run_type || 'easy_base'}`}>
                       {(t.runTypes as Record<string, string | undefined>)[a.run_type ?? ''] || (a.run_type || 'Easy').replace('_', ' ')}
                     </span>
@@ -293,19 +336,21 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
                       ))}
                     </div>
                   )}
-                  {stars > 0 && (() => {
-                    const tierLabel = stars === 3 ? 'gold' : stars === 2 ? 'silver' : 'bronze';
-                    return (
-                      <div className="session-card-footer">
+                  {(stars > 0 || runOfDayLabel) && (
+                    <div className="session-card-footer">
+                      {runOfDayLabel && (
+                        <span className="session-run-of-day" title={runOfDayLabel}>{runOfDayLabel}</span>
+                      )}
+                      {stars > 0 && (
                         <span
                           className={`execution-emblem emblem-${tierLabel}`}
-                          title={`Execution: ${stars} / 3 Stars${a.effectiveness_score ? ` (${a.effectiveness_score}/100)` : ''}`}
+                          title={executionTitle}
                         >
                           {'★'.repeat(stars)}{'☆'.repeat(3 - stars)}
                         </span>
-                      </div>
-                    );
-                  })()}
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

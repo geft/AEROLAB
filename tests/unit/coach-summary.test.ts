@@ -18,14 +18,41 @@ describe('AI Coach Summary Unit Tests', () => {
       elevationGainM: 10
     });
 
-    // Baseline 85 + 8 (drift < 3) + 4 (cadence 178) = 97
-    expect(summary.effectivenessScore).toBe(97);
+    // An easy run is graded on intensity control plus the integrity gate:
+    // 27 °C, steady HR 135 vs a 143 bpm LT1 ceiling => full intensity marks.
+    expect(summary.effectivenessScore).toBe(98);
     expect(summary.headline).toBe('Near-Perfect Aerobic Base Execution');
-    expect(summary.keyInsights).toHaveLength(3); // decoupling, cadence, GCT
+    expect(summary.rubricFamily).toBe('aerobic');
+    expect(summary.rubricCoveragePct).toBe(85); // intensity only (no pause telemetry)
+    expect(summary.scoreBreakdown.map(f => f.category)).toEqual(['Aerobic Intensity']);
+    expect(summary.keyInsights).toHaveLength(4); // decoupling, cadence, GCT, rubric coverage
     expect(summary.keyInsights[0]).toContain('Superb cardiovascular stability');
     expect(summary.keyInsights[1]).toContain('Cadence was right in the sweet spot (178 spm)');
     expect(summary.keyInsights[2]).toContain('Swift ground reaction: 245 ms stance time');
+    expect(summary.keyInsights[3]).toContain('Rubric Coverage: 85%');
     expect(summary.recommendation).toContain('absorbing current volume smoothly');
+  });
+
+  it('widens the cardiac-drift target for heat and duration instead of grading against 1.5%', () => {
+    const cool = generateCoachSummary({
+      runType: 'long_run', distanceKm: 14, durationMin: 80, avgPaceSecKm: 345, avgHr: 140,
+      maxHr: 152, cadence: 176, decouplingPct: 4.4, efficiencyFactor: 1.2, avgTemp: 16,
+      groundContactTime: 248, elevationGainM: 20
+    });
+    const hotLong = generateCoachSummary({
+      runType: 'long_run', distanceKm: 21, durationMin: 130, avgPaceSecKm: 371, avgHr: 144,
+      maxHr: 158, cadence: 176, decouplingPct: 4.4, efficiencyFactor: 1.2, avgTemp: 31,
+      groundContactTime: 248, elevationGainM: 20
+    });
+
+    // Drift is no longer a scoring failure on an easy run: intensity is. Both of
+    // these runs keep the ceiling, so what changes is only the reported target.
+    const coolInsight = cool.keyInsights.find(i => i.startsWith('Solid aerobic discipline') || i.startsWith('Noticeable cardiac drift'));
+    const hotInsight = hotLong.keyInsights.find(i => i.startsWith('Superb cardiovascular stability'));
+    expect(coolInsight).toBeDefined();
+    expect(coolInsight).toContain('1.74%'); // no heat allowance at 16 °C
+    expect(hotInsight).toBeDefined();
+    expect(hotInsight).toContain('4.44% target'); // 31 °C over 130 min
   });
 
   it('detects accidental tempo / grey-zone drift on easy runs', () => {
@@ -44,13 +71,17 @@ describe('AI Coach Summary Unit Tests', () => {
       elevationGainM: 8
     });
 
-    // Score: 85 - 8 (drift > 5) - 15 (accidental tempo) = 62, capped at 69 (Bronze, 1 star)
-    expect(summary.effectivenessScore).toBe(62);
+    // An easy run only fails on intensity: 11 of 85 points lost for sitting
+    // above a 143 bpm LT1 ceiling, then capped at Bronze by the tempo rule.
+    expect(summary.effectivenessScore).toBe(40);
     expect(summary.stars).toBe(1);
     expect(summary.scoreBreakdown).toBeDefined();
-    const pacingFactor = summary.scoreBreakdown.find(f => f.category === 'Pacing Discipline');
-    expect(pacingFactor).toBeDefined();
-    expect(pacingFactor?.points).toBe(-15);
+    const intensityFactor = summary.scoreBreakdown.find(f => f.category === 'Aerobic Intensity');
+    expect(intensityFactor).toBeDefined();
+    expect(intensityFactor?.maxPoints).toBe(85);
+    expect(intensityFactor?.points).toBeLessThan(85 * 0.7);
+    expect(intensityFactor?.isFocus).toBe(true);
+    expect(summary.focusAdvice).toContain('Biggest Lever');
     expect(summary.headline).toBe('Unintentional Tempo / Drifted Aerobic Run');
     const pacingAlert = summary.keyInsights.find(i => i.startsWith('Pacing Alert'));
     expect(pacingAlert).toBeDefined();
@@ -83,7 +114,7 @@ describe('AI Coach Summary Unit Tests', () => {
     expect(elevationInsight).toContain('+28m ascent');
   });
 
-  it('applies cadence warning and clamps score within [55, 98]', () => {
+  it('applies cadence warning and clamps the weighted score within [40, 98]', () => {
     // Very poor run: heavy drift, slow cadence, accidental tempo
     const lowSummary = generateCoachSummary({
       runType: 'easy_base',
@@ -92,15 +123,15 @@ describe('AI Coach Summary Unit Tests', () => {
       avgPaceSecKm: 420,
       avgHr: 155,
       maxHr: 172,
-      cadence: 158, // < 165: -3
-      decouplingPct: 14.5, // > 5: -8
+      cadence: 158, // below the turnover sweet spot
+      decouplingPct: 14.5, // far beyond the 8% zero-drift-credit line
       efficiencyFactor: 0.9,
       avgTemp: 26,
       groundContactTime: 310
     });
 
-    // 85 - 8 - 3 - 15 = 59 (Bronze, 1 star)
-    expect(lowSummary.effectivenessScore).toBe(59);
+    // Every measurable aerobic factor scores zero => clamped to the 40-point floor (Bronze)
+    expect(lowSummary.effectivenessScore).toBe(40);
     expect(lowSummary.stars).toBe(1);
     const cadenceInsight = lowSummary.keyInsights.find(i => i.includes('Increasing turnover'));
     expect(cadenceInsight).toBeDefined();
@@ -119,8 +150,10 @@ describe('AI Coach Summary Unit Tests', () => {
       avgTemp: 24,
       groundContactTime: 230
     });
-    // Score would be 85 + 8 + 4 = 97 <= 98
-    expect(highSummary.effectivenessScore).toBeLessThanOrEqual(98);
+    // A perfect rubric reading is still capped at 98
+    expect(highSummary.effectivenessScore).toBe(98);
+    expect(highSummary.scoreBreakdown.every(f => f.points === f.maxPoints)).toBe(true);
+    expect(highSummary.focusAdvice).toBeNull();
   });
 
   it('customizes headline and advice for threshold and VO2 interval workouts', () => {
@@ -251,7 +284,7 @@ describe('AI Coach Summary Unit Tests', () => {
     expect(stimulusInsight).toBeDefined();
     expect(stimulusInsight).toContain('193 bpm');
 
-    const recoveryInsight = summary.keyInsights.find(i => i.includes('Rapid Cardiovascular Recovery'));
+    const recoveryInsight = summary.keyInsights.find(i => i.startsWith('Recovery Intent:') || i.startsWith('Recovery Rate:'));
     expect(recoveryInsight).toBeDefined();
 
     // No decoupling penalty insight

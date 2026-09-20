@@ -144,7 +144,56 @@ export interface ScoreFactor {
   label: string;
   description?: string;
   points: number;
+  /** Weight of this factor in the run-type rubric (100 points in total). */
+  maxPoints?: number;
+  /** True for the factor that lost the most points (the biggest lever). */
+  isFocus?: boolean;
 }
+
+/** Personal-baseline comparison against the athlete's own recent history. */
+export interface CoachContext {
+  windowDays: number;
+  comparableRuns: number;
+  baselineEf: number | null;
+  efDeltaPct: number | null;
+  baselineEfSamples: number;
+  baselineHrAtPace: number | null;
+  hrAtPaceDeltaBpm: number | null;
+  hrAtPaceSamples: number;
+  currentPaceSecKm: number | null;
+  decouplingRank: number | null;
+  decouplingSamples: number;
+  decouplingBestPct: number | null;
+  longestDistanceKm: number | null;
+  isLongestRun: boolean;
+  acute7DayLoad: number | null;
+  chronicWeeklyLoad: number | null;
+  acwr: number | null;
+}
+
+/** Walk-break classification: why the athlete walked, not just how much. */
+export interface WalkAudit {
+  blockCount: number;
+  walkSec: number;
+  movingSec: number;
+  deliberateWalkSec: number;
+  preventiveWalkSec: number;
+  correctiveWalkSec: number;
+  hardWalkSec: number;
+  capacityWalkSec: number;
+  plannedPattern: boolean;
+  avgPreventiveEntryHr: number | null;
+  avgCorrectiveEntryHr: number | null;
+  avgCapacityEntryHr: number | null;
+  maxEntryHr: number | null;
+  intrusiveWalkSec: number;
+}
+
+/**
+ * How one coach insight should be read: a strength, context, something to watch
+ * or something to fix. Decided by the coach engine alongside the sentence.
+ */
+export type CoachInsightTone = 'positive' | 'neutral' | 'caution' | 'negative';
 
 /** The algorithmic coach debrief attached to an activity. */
 export interface CoachSummary {
@@ -154,7 +203,21 @@ export interface CoachSummary {
   stars?: number;
   scoreBreakdown?: ScoreFactor[];
   keyInsights?: string[];
+  /**
+   * One tone per entry of `keyInsights`, index-for-index. Missing on rows
+   * written before tones existed, in which case the list renders uncoloured.
+   */
+  insightTones?: CoachInsightTone[];
   recommendation?: string;
+  /** The single factor that lost the most points, phrased as the next action. */
+  focusAdvice?: string | null;
+  /** How much of the 100-point rubric was measurable (0-100). */
+  rubricCoveragePct?: number | null;
+  /** Which weighted rubric was applied: aerobic, quality or race. */
+  rubricFamily?: string | null;
+  /** Walk-break classification (why the athlete walked). */
+  walkAudit?: WalkAudit | null;
+  context?: CoachContext | null;
   updatedAt?: string;
   steadyPaceSecKm?: number | null;
   steadyHeartRate?: number | null;
@@ -207,6 +270,7 @@ export interface CalibrationHistoryItem {
 export interface ThresholdsResponse {
   currentThresholds?: {
     lt1Hr: number | null;
+    lt1Range?: [number, number] | null;
     lt2Hr: number | null;
     lt1PaceSecKm?: number | null;
     lt2PaceSecKm?: number | null;

@@ -129,9 +129,9 @@ describe('ProgressView UI Tests', () => {
     render(<ProgressView />);
 
     await waitFor(() => {
-      expect(screen.getByText('Aerobic Threshold (LT1) Pace')).toBeDefined();
+      expect(screen.getAllByText('Estimated LT1 Pace').length).toBeGreaterThan(0);
     });
-    expect(screen.getAllByText('Lactate Threshold (LT2) Pace').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Estimated LT2 Pace').length).toBeGreaterThan(0);
     expect(screen.getByText('Estimated VO2 Max / VDOT')).toBeDefined();
     expect(screen.getByText('Running Economy Index')).toBeDefined();
   });
@@ -283,11 +283,11 @@ describe('ProgressView UI Tests', () => {
     });
   });
 
-  it('toggles between Milestone Cards and Data Table in Historical Threshold Calibrations', async () => {
+  it('toggles between Milestone Cards and Data Table in Historical Threshold Estimates', async () => {
     render(<ProgressView />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Historical Threshold Calibrations/i)).toBeDefined();
+      expect(screen.getByText(/Historical Threshold Estimates/i)).toBeDefined();
     });
 
     // Default is Cards
@@ -300,7 +300,7 @@ describe('ProgressView UI Tests', () => {
     await waitFor(() => {
       expect(screen.getByRole('table')).toBeDefined();
       expect(screen.getByText('Run Source')).toBeDefined();
-      expect(screen.getByText('LT1 (Aerobic) Pace')).toBeDefined();
+      expect(screen.getByRole('columnheader', { name: 'Estimated LT1 Pace' })).toBeDefined();
     });
 
     // Switch back to Cards via title
@@ -357,7 +357,7 @@ describe('ProgressView UI Tests', () => {
     render(<ProgressView />);
 
     await waitFor(() => {
-      expect(screen.getByText('Physiological Threshold Trends (LT1 & LT2)')).toBeDefined();
+      expect(screen.getByText('Estimated Threshold Trends (LT1 & LT2)')).toBeDefined();
     });
 
     // Check Pace Trend and Heart Rate Trend toggle buttons

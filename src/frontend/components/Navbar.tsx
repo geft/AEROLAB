@@ -62,6 +62,16 @@ export const Navbar: React.FC<NavbarProps> = ({
         <span>AEROLAB</span>
       </a>
 
+      <span className="mobile-nav-title">
+        {{
+          browse: t.nav.browse,
+          progress: t.nav.progress,
+          stats: t.nav.stats,
+          profile: t.nav.profile,
+          settings: t.nav.settings
+        }[activeTab]}
+      </span>
+
       <nav className="nav-tabs" aria-label="Main Navigation">
         <button
           id="tab-browse-btn"

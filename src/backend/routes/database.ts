@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -164,6 +165,22 @@ export function listBackups(directory: string): Array<{ filename: string; filePa
   }
 }
 
+/** Remove older rolling snapshots so retention also applies to files created under an older policy. */
+export function pruneBackups(directory: string, maxBackups: number = 5): Array<{ filename: string; filePath: string; sizeBytes: number; createdAt: string }> {
+  const backups = listBackups(directory);
+  if (backups.length <= maxBackups) return backups;
+
+  for (const old of backups.slice(maxBackups)) {
+    try {
+      fs.unlinkSync(old.filePath);
+    } catch {
+      // Best effort: a locked or concurrently removed file should not break status reporting.
+    }
+  }
+
+  return listBackups(directory);
+}
+
 export function isSafeBackupDirectory(dirPath: string): boolean {
   if (!dirPath || typeof dirPath !== 'string') return false;
   if ([...dirPath].some(ch => ch.charCodeAt(0) < 0x20)) return false;
@@ -184,7 +201,78 @@ export function isSafeBackupDirectory(dirPath: string): boolean {
   return true;
 }
 
-export function createDatabaseBackup(db: Database.Database, targetDirectory?: string, maxBackups: number = 10): { filePath: string; filename: string; sizeBytes: number; createdAt: string } {
+function runFolderPicker(command: string, args: string[]): Promise<string | null> {
+  return new Promise(resolve => {
+    let picker;
+    try {
+      picker = spawn(command, args, {
+        stdio: ['ignore', 'pipe', 'ignore'],
+        windowsHide: false
+      });
+    } catch {
+      resolve(null);
+      return;
+    }
+    let output = '';
+    picker.stdout?.setEncoding('utf8');
+    picker.stdout?.on('data', chunk => { output += chunk; });
+    picker.once('error', () => resolve(null));
+    picker.once('close', code => resolve(code === 0 ? output.trim() || null : null));
+  });
+}
+
+/** Open the host OS folder chooser and return the selected absolute path. */
+export function selectBackupFolder(): Promise<string | null> {
+  if (process.platform === 'win32') {
+    const script = [
+      "Add-Type -AssemblyName System.Windows.Forms",
+      "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog",
+      "$dialog.Description = 'Choose AEROLAB backup folder'",
+      "$dialog.ShowNewFolderButton = $true",
+      "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Write($dialog.SelectedPath) }"
+    ].join('; ');
+    return runFolderPicker('powershell.exe', ['-NoProfile', '-STA', '-Command', script]);
+  }
+
+  if (process.platform === 'darwin') {
+    return runFolderPicker('osascript', ['-e', 'POSIX path of (choose folder with prompt "Choose AEROLAB backup folder")']);
+  }
+
+  return runFolderPicker('zenity', ['--file-selection', '--directory', '--title=Choose AEROLAB backup folder'])
+    .then(folder => folder || runFolderPicker('kdialog', ['--getexistingdirectory', '', '--title', 'Choose AEROLAB backup folder']));
+}
+
+export async function handleSelectFolder(
+  _req: Request,
+  res: Response,
+  picker: () => Promise<string | null> = selectBackupFolder
+): Promise<void> {
+  try {
+    const folder = await picker();
+    if (!folder) {
+      res.json({ folder: null, cancelled: true });
+      return;
+    }
+
+    const normalized = path.resolve(folder);
+    let isDirectory = false;
+    try {
+      isDirectory = fs.existsSync(normalized) && fs.statSync(normalized).isDirectory();
+    } catch {
+      isDirectory = false;
+    }
+    if (!isSafeBackupDirectory(normalized) || !isDirectory) {
+      res.status(400).json({ error: 'Selected folder is invalid or unavailable.' });
+      return;
+    }
+
+    res.json({ folder: normalized });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to select backup folder' });
+  }
+}
+
+export function createDatabaseBackup(db: Database.Database, targetDirectory?: string, maxBackups: number = 5): { filePath: string; filename: string; sizeBytes: number; createdAt: string } {
   const settings = getBackupSettings(db);
   const rawDir = targetDirectory ? String(targetDirectory).trim() : '';
   let backupDir: string;
@@ -227,18 +315,8 @@ export function createDatabaseBackup(db: Database.Database, targetDirectory?: st
   // Save last backup timestamp
   saveBackupSettings(db, { lastBackupAt: createdAt });
 
-  // Rotate old backups in this directory (keep newest N)
-  try {
-    const existing = listBackups(backupDir);
-    if (existing.length > maxBackups) {
-      const toDelete = existing.slice(maxBackups);
-      for (const old of toDelete) {
-        try {
-          fs.unlinkSync(old.filePath);
-        } catch { /* best-effort cleanup: safe to ignore */ }
-      }
-    }
-  } catch { /* best-effort cleanup: safe to ignore */ }
+  // Rotate old backups in this directory (keep newest N).
+  pruneBackups(backupDir, maxBackups);
 
   return {
     filePath,
@@ -393,7 +471,8 @@ databaseRouter.get('/status', (req: Request, res: Response) => {
 
     const activityCount = (db.prepare('SELECT count(*) as c FROM activities').get() as any)?.c || 0;
     const settings = getBackupSettings(db);
-    const backups = listBackups(settings.backupDirectory);
+    // Prune legacy files as well as files created by the current policy.
+    const backups = pruneBackups(settings.backupDirectory, 5);
 
     const backupsWithMb = backups.map(b => ({
       ...b,
@@ -451,6 +530,11 @@ databaseRouter.post('/settings', (req: Request, res: Response) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to update backup settings' });
   }
+});
+
+// POST /api/database/select-folder
+databaseRouter.post('/select-folder', (req: Request, res: Response) => {
+  void handleSelectFolder(req, res);
 });
 
 // GET /api/database/download

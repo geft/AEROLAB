@@ -112,9 +112,18 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
     setIsBackingUp(true);
     setBackupStatusMessage(null);
     try {
-      const res = await fetch('/api/database/backup', { method: 'POST' });
+      const selectedDirectory = backupDirectory.trim();
+      const res = await fetch('/api/database/backup', {
+        method: 'POST',
+        ...(selectedDirectory
+          ? {
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ targetDirectory: selectedDirectory })
+            }
+          : {})
+      });
       const data = await res.json();
-      if (res.ok && data.success) {
+      if (res.ok && data.status === 'ok') {
         setBackupStatusMessage({ type: 'success', text: t.backup.backupSuccess });
         fetchDbStatus();
       } else {
@@ -149,8 +158,12 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
       const data = await res.json();
       if (res.ok && data.folder) {
         setBackupDirectory(data.folder);
+      } else if (!res.ok) {
+        setBackupStatusMessage({ type: 'error', text: data.error || t.backup.folderSelectionFailed });
       }
-    } catch { /* intentionally ignored: non-fatal */ }
+    } catch {
+      setBackupStatusMessage({ type: 'error', text: t.backup.folderSelectionFailed });
+    }
   };
 
   return (
@@ -384,8 +397,8 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
       </div>
 
       {/* Snapshot History Table */}
-      <div style={{ background: 'var(--bg-surface)', padding: '1.25rem', borderRadius: 12, border: '1px solid var(--border-subtle)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+      <div className="backup-snapshot-section" style={{ background: 'var(--bg-surface)', padding: '1.25rem', borderRadius: 12, border: '1px solid var(--border-subtle)' }}>
+        <div className="backup-snapshot-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
           <div>
             <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>{t.backup.localSnapshots || 'Local Snapshots & Rollback'}</span>
             {t.backup.retentionPolicy ? (
@@ -423,8 +436,8 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
           }
 
           return (
-            <div style={{ maxHeight: isFullPage ? '400px' : '220px', overflowY: 'auto', border: '1px solid var(--border-subtle)', borderRadius: 8 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+            <div className="backup-snapshot-table-wrap" style={{ maxHeight: isFullPage ? '400px' : '220px', overflowY: 'auto', border: '1px solid var(--border-subtle)', borderRadius: 8 }}>
+              <table className="backup-snapshot-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                 <thead>
                   <tr style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-subtle)', textAlign: 'left' }}>
                     <th style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)' }}>{t.backup.tableSnapshotName || 'Snapshot File'}</th>

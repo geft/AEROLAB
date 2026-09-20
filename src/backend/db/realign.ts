@@ -309,7 +309,7 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
       if (prof && getAthleteHeartRateProfile(db).hasBaseline) {
         if (current.lt1Hr !== prof.lt1_hr || current.lt2Hr !== prof.lt2_hr) {
           db.prepare('UPDATE athlete_profile SET lt1_hr = ?, lt2_hr = ?, lt1_min_hr = ?, lt1_max_hr = ?, z3_start_hr = ?, z4_start_hr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-            .run(current.lt1Hr, current.lt2Hr, current.lt1Hr - 1, current.lt1Hr + 1, current.lt1Hr + 1, current.lt2Hr, 'primary');
+            .run(current.lt1Hr, current.lt2Hr, current.lt1Range[0], current.lt1Range[1], current.lt1Range[1], current.lt2Hr, 'primary');
           log(`  profile synced: LT1 ${prof.lt1_hr}->${current.lt1Hr}, LT2 ${prof.lt2_hr}->${current.lt2Hr}`);
         }
         stats.profileLt1Hr = current.lt1Hr;

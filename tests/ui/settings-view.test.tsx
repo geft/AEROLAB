@@ -98,7 +98,47 @@ describe('SettingsView & Header Tab Navigation Tests', () => {
     expect(onToggleTheme).toHaveBeenCalled();
   });
 
-  it('navigates from ProfileView backup card to Settings tab', async () => {
+  it('recognizes a successful local backup response', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockImplementation((url: any) => {
+      if (typeof url === 'string' && url.includes('/api/database/status')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            settings: { autoBackupEnabled: true, backupDirectory: 'C:\\backup' },
+            snapshots: []
+          })
+        } as any);
+      }
+      if (typeof url === 'string' && url.includes('/api/database/backup')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ status: 'ok', backup: { filename: 'runs-backup-test.db' } })
+        } as any);
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as any);
+    });
+
+    render(
+      <LanguageProvider>
+        <FontSizeProvider>
+          <SettingsView theme="dark" onToggleTheme={vi.fn()} />
+        </FontSizeProvider>
+      </LanguageProvider>
+    );
+
+    const backupButton = await screen.findByRole('button', { name: /Backup Now to Folder/i });
+    fireEvent.click(backupButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Database backup created successfully/i)).toBeTruthy();
+    });
+    expect(fetchMock).toHaveBeenCalledWith('/api/database/backup', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ targetDirectory: 'C:\\backup' })
+    }));
+  });
+
+  it('keeps the ProfileView free of the duplicate backup shortcut', async () => {
     vi.spyOn(global, 'fetch').mockImplementation(() => {
       return Promise.resolve({
         ok: true,
@@ -109,21 +149,16 @@ describe('SettingsView & Header Tab Navigation Tests', () => {
       } as any);
     });
 
-    const onNavigateToSettings = vi.fn();
-
     render(
       <LanguageProvider>
-        <ProfileView onNavigateToSettings={onNavigateToSettings} />
+        <ProfileView />
       </LanguageProvider>
     );
 
     await waitFor(() => {
-      const openSettingsBtn = document.getElementById('profile-open-backup-btn');
-      expect(openSettingsBtn).toBeTruthy();
-      expect(openSettingsBtn?.textContent).toContain('Settings');
-      fireEvent.click(openSettingsBtn!);
-      expect(onNavigateToSettings).toHaveBeenCalled();
+      expect(screen.getByText(/Workout-Based Threshold Estimates/i)).toBeTruthy();
     });
+    expect(document.getElementById('profile-open-backup-btn')).toBeNull();
   });
 
   it('renders split-screen consolidated more menu trigger and opens actions menu', () => {

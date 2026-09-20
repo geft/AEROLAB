@@ -483,7 +483,8 @@ activitiesRouter.get('/:id', async (req, res) => {
       lt1Hr,
       lt2Hr,
       maxHeartRate,
-      restingHr
+      restingHr,
+      records
     });
 
     res.json({
@@ -594,6 +595,12 @@ activitiesRouter.get('/:id/coach-summary', (req, res) => {
     if (!coachRow) {
       return res.status(404).json({ error: 'Coach summary not found' });
     }
+    let analysis: any = null;
+    try {
+      analysis = coachRow.analysis_json ? JSON.parse(coachRow.analysis_json) : null;
+    } catch {
+      analysis = null;
+    }
     res.json({
       coachSummary: {
         headline: coachRow.headline,
@@ -602,7 +609,13 @@ activitiesRouter.get('/:id/coach-summary', (req, res) => {
         stars: coachRow.effectiveness_score >= 85 ? 3 : coachRow.effectiveness_score >= 70 ? 2 : 1,
         scoreBreakdown: coachRow.score_breakdown_json ? JSON.parse(coachRow.score_breakdown_json) : [],
         keyInsights: JSON.parse(coachRow.key_insights_json || '[]'),
+        insightTones: coachRow.insight_tones_json ? JSON.parse(coachRow.insight_tones_json) : [],
         recommendation: coachRow.recommendation,
+        focusAdvice: analysis?.focusAdvice ?? null,
+        rubricCoveragePct: analysis?.rubricCoveragePct ?? null,
+        rubricFamily: analysis?.rubricFamily ?? null,
+        walkAudit: analysis?.walkAudit ?? null,
+        context: analysis?.context ?? null,
         updatedAt: coachRow.updated_at,
         steadyPaceSecKm: coachRow.steady_pace_sec_km,
         steadyHeartRate: coachRow.steady_heart_rate,

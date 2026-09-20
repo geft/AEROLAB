@@ -360,10 +360,10 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
   const getTimeOfDay = (dateStr: string) => {
     const d = new Date(dateStr);
     const hour = d.getHours();
-    if (hour >= 5 && hour < 11) return 'Morning';
-    if (hour >= 11 && hour < 16) return 'Midday';
-    if (hour >= 16 && hour < 19) return 'Evening';
-    return 'Night';
+    if (hour >= 5 && hour < 11) return t.browse.timeOfDayMorning;
+    if (hour >= 11 && hour < 16) return t.browse.timeOfDayMidday;
+    if (hour >= 16 && hour < 19) return t.browse.timeOfDayEvening;
+    return t.browse.timeOfDayNight;
   };
 
   return (
@@ -583,7 +583,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
             />
 
             {/* Sub-Tabs Selector for Main Panel */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem', flexWrap: 'wrap' }}>
+            <div className="detail-subtabs" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem', flexWrap: 'wrap' }}>
               <button
                 id="subtab-telemetry-btn"
                 className={`filter-pill-btn ${activeSubTab === 'telemetry' ? 'active' : ''}`}

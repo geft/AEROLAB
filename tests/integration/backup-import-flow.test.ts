@@ -95,7 +95,7 @@ describe('Comprehensive Backup & Ingestion / Import Integration Tests', () => {
         .send({ autoBackupEnabled: true, backupIntervalDays: 7, backupDirectory: backupDir });
     });
 
-    it('creates a local snapshot and enforces the 10-backup rotation retention policy', async () => {
+    it('creates a local snapshot and enforces the 5-backup rotation retention policy', async () => {
       const rotateDir = path.join(testDir, 'rotation-test');
       fs.mkdirSync(rotateDir, { recursive: true });
 
@@ -110,9 +110,9 @@ describe('Comprehensive Backup & Ingestion / Import Integration Tests', () => {
       }
 
       const backups = listBackups(rotateDir);
-      // Maximum 10 backups retained
-      expect(backups.length).toBeLessThanOrEqual(10);
-      expect(backups.length).toBe(10);
+      // Maximum 5 backups retained
+      expect(backups.length).toBeLessThanOrEqual(5);
+      expect(backups.length).toBe(5);
       // Every file should be a valid SQLite database
       for (const b of backups) {
         expect(fs.existsSync(b.filePath)).toBe(true);

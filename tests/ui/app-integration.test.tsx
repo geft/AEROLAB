@@ -183,8 +183,8 @@ describe('AEROLAB App Full Integration Tests', () => {
     fireEvent.click(progressTab!);
 
     await waitFor(() => {
-      expect(screen.getByText(/aerobic threshold \(lt1\) pace/i)).toBeTruthy();
-      expect(screen.getByText(/lactate threshold \(lt2\) pace/i)).toBeTruthy();
+      expect(screen.getByText(/Estimated LT1 Pace/i)).toBeTruthy();
+      expect(screen.getByText(/Estimated LT2 Pace/i)).toBeTruthy();
     });
 
     // Switch to Stats View
@@ -207,7 +207,7 @@ describe('AEROLAB App Full Integration Tests', () => {
 
     await waitFor(() => {
       expect(screen.getByDisplayValue('55')).toBeTruthy();
-      expect(screen.getByText(/Inferred Physiological Thresholds/i)).toBeTruthy();
+      expect(screen.getByText(/Workout-Based Threshold Estimates/i)).toBeTruthy();
     });
 
     // Switch back to Browse View

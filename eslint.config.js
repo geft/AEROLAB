@@ -74,12 +74,12 @@ const localRules = {
 
 /** Units, symbols and brand tokens that are legitimately language-neutral. */
 const NEUTRAL_TEXT = [
-  '^[\\s\\d.,:%+\\-–—/()·•×★☆°²³]+$',
+  '^[\\s\\d.,:%+\\-–—/()·•×★☆◆◇°²³]+$',
   '^(km|m|mi|kg|cm|mm|ms|sec|min|hrs?|bpm|spm|rpm|w|kj|kcal|ef|lt1|lt2|vo2|vdot|acwr|hrr|hr|pb|pr|gps|csv|fit|gpx|tcx|sqlite|ok|id)$',
   '^(AEROLAB|EF|VO2|LT1|LT2|ACWR|HRR|GPS|CSV|FIT|PRs?|GPX|TCX)$',
   '^(en|zh|en-US|zh-CN)$',
   '^[A-Z]$',
-  '^(—|·|•|★|☆|✓|×|→|←)$'
+  '^(—|·|•|★|☆|✓|×|→|←|◆|◇)$'
 ];
 
 export default tseslint.config(

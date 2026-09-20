@@ -18,6 +18,7 @@ interface CanvasRunChartProps {
 
 export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, focusCoreSegment, theme = 'dark' }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [layoutTick, setLayoutTick] = useState(0);
   const [hoverData, setHoverData] = useState<{
     index: number;
     timeSec: number;
@@ -36,6 +37,15 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, focusCo
     const endTrimSec = Math.max(startTrimSec + 60, records[records.length - 1].elapsed_seconds - 300);
     return records.filter(r => r.elapsed_seconds >= startTrimSec && r.elapsed_seconds <= endTrimSec);
   }, [records, focusCoreSegment]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const wrapper = canvas?.parentElement;
+    if (!wrapper || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => setLayoutTick(tick => tick + 1));
+    observer.observe(wrapper);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -183,7 +193,7 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, focusCo
     }
     ctx.stroke();
 
-  }, [displayRecords, theme]);
+  }, [displayRecords, theme, layoutTick]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLElement>) => {
     const canvas = canvasRef.current;

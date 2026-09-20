@@ -248,6 +248,7 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
         headline TEXT NOT NULL,
         effectiveness_score INTEGER NOT NULL,
         key_insights_json TEXT NOT NULL,
+        insight_tones_json TEXT,
         recommendation TEXT NOT NULL,
         steady_pace_sec_km REAL,
         steady_heart_rate INTEGER,
@@ -266,6 +267,16 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
     const coachColNames = new Set(coachCols.map(c => c.name));
     if (!coachColNames.has('score_breakdown_json')) {
       db.exec("ALTER TABLE activity_coach_summaries ADD COLUMN score_breakdown_json TEXT");
+    }
+    // Persisted personal-baseline analysis (context, focus lever, rubric coverage)
+    if (!coachColNames.has('analysis_json')) {
+      db.exec("ALTER TABLE activity_coach_summaries ADD COLUMN analysis_json TEXT");
+    }
+    // Per-insight verdicts ('positive' | 'caution' | 'negative' | 'neutral') that
+    // let the debrief list be colour-coded at a glance. Older rows stay NULL and
+    // are upgraded the next time their summary is synced.
+    if (!coachColNames.has('insight_tones_json')) {
+      db.exec("ALTER TABLE activity_coach_summaries ADD COLUMN insight_tones_json TEXT");
     }
 
     // Backfill any existing activities not yet in activity_coach_summaries

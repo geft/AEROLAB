@@ -2,13 +2,12 @@ import { getAthleteHeartRateProfile } from './athlete-profile.js';
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { PauseBreakdown, extractSteadyStateMetrics } from './economy.js';
 import { ZoneDistribution } from './zones.js';
+import { RubricFactor, gradeRun, driftTargetFor, describeSet, intervalDrop, intervalDuration, intervalHr, intervalMaxHr, selectRaceSplits, formatPaceText } from './coach-rubric.js';
+import { CoachContext, buildContextInsights, loadCoachHistoryContext } from './coach-history.js';
+import { createInsightLog, type CoachInsightTone } from './coach-insight.js';
 
-export interface ScoreFactor {
-  category: string;
-  points: number;
-  label: string;
-  description?: string;
-}
+/** One graded line of the weighted execution rubric. */
+export type ScoreFactor = RubricFactor;
 
 export interface CoachSummary {
   headline: string;
@@ -16,8 +15,25 @@ export interface CoachSummary {
   rating5: number; // 1.0 - 5.0 rating scale
   stars: number; // 1 - 5 stars
   keyInsights: string[];
+  /**
+   * How each insight in `keyInsights` should be read, index-for-index:
+   * 'positive' (strength), 'caution' (watch it), 'negative' (fix it) or
+   * 'neutral' (context). Stored beside the sentences so the list can be
+   * colour-coded without the client guessing from the wording.
+   */
+  insightTones: CoachInsightTone[];
   recommendation: string;
   scoreBreakdown: ScoreFactor[];
+  // The single factor that lost the most points, phrased as the next action.
+  focusAdvice?: string | null;
+  /** How much of the 100-point rubric was measurable for this session. */
+  rubricCoveragePct?: number;
+  /** Which weighted rubric was applied: aerobic, quality or race. */
+  rubricFamily?: string;
+  /** Walk-break classification when per-second telemetry was available. */
+  walkAudit?: any | null;
+  /** Personal-baseline comparison against the athlete's own recent history. */
+  context?: CoachContext | null;
   updatedAt?: string;
   steadyPaceSecKm?: number | null;
   steadyHeartRate?: number | null;
@@ -60,6 +76,10 @@ export function generateCoachSummary(params: {
   // Interval reps telemetry (for quality threshold / VO2 sessions)
   intervals?: any[] | null;
   splits?: any[] | null;
+  /** Per-second telemetry: lets the rubric judge *why* walk breaks happened. */
+  records?: any[] | null;
+  /** Personal-baseline comparison built from the athlete's own prior runs. */
+  history?: CoachContext | null;
 }): CoachSummary {
   const {
     runType,
@@ -85,27 +105,11 @@ export function generateCoachSummary(params: {
   const hrProfile = resolveHeartRateProfile({ maxHr: params.maxHeartRate, restingHr: params.restingHr, lt1Hr: params.lt1Hr, lt2Hr: params.lt2Hr });
   const { lt1Hr: lt1 } = hrProfile;
 
-  const insights: string[] = [];
-  const scoreBreakdown: ScoreFactor[] = [];
-  let score = 85; // Baseline good session
+  const insights = createInsightLog();
 
   // Failed workout alert
   if (params.isFailedWorkout) {
-    score = 60;
-    scoreBreakdown.push({
-      category: 'Workout Completion',
-      points: 60,
-      label: 'Aborted / Incomplete Quality Workout',
-      description: 'Target interval volume was cut short or pace collapsed prematurely'
-    });
-    insights.push('⚠️ Incomplete / Aborted Quality Effort: Target interval volume was cut short or pace collapsed. Re-evaluate fatigue levels before your next hard effort.');
-  } else {
-    scoreBreakdown.push({
-      category: 'Base Execution',
-      points: 85,
-      label: 'Standard Quality Baseline',
-      description: 'Starting evaluation baseline before physiological adjustments'
-    });
+    insights.add('negative', '⚠️ Incomplete / Aborted Quality Effort: Target interval volume was cut short or pace collapsed. Re-evaluate fatigue levels before your next hard effort.');
   }
 
   // 1. Explicit Traffic & Walk Break Isolation Insight
@@ -128,41 +132,25 @@ export function generateCoachSummary(params: {
     const paceSec = Math.round(effectivePaceSecKm % 60);
     const cleanPaceStr = `${paceMin}:${String(paceSec).padStart(2, '0')}/km`;
 
-    insights.push(
+    insights.add(
+      'neutral',
       `Traffic & Walk Break Isolation: Removed ${parts.join(' and ')} from steady-state analysis. Your true running pace averaged ${cleanPaceStr} at ${effectiveHr} bpm (${effectiveCadence} spm), preventing pause distortion.`
     );
   }
 
   // Aerobic decoupling / Cardiac Drift insight (applies ONLY to steady continuous aerobic runs)
   const isSteadyAerobic = runType === 'easy_base' || runType === 'long_run' || runType === 'recovery' || runType === 'accidental_tempo';
+  const driftTarget = driftTargetFor(avgTemp ?? null, params.durationMin ?? null);
   if (isSteadyAerobic && decouplingPct !== null) {
-    if (decouplingPct < 3.0) {
-      score += 8;
-      scoreBreakdown.push({
-        category: 'Aerobic Decoupling',
-        points: 8,
-        label: 'Superb Cardiovascular Stability',
-        description: `${decouplingPct.toFixed(1)}% cardiac drift (<3% gold standard)`
-      });
-      insights.push(`Superb cardiovascular stability with only ${decouplingPct.toFixed(1)}% drift. Your aerobic capillary base is working efficiently with zero late-run cardiac fatigue.`);
-    } else if (decouplingPct < 5.0) {
-      score += 4;
-      scoreBreakdown.push({
-        category: 'Aerobic Decoupling',
-        points: 4,
-        label: 'Solid Sub-LT1 Aerobic Base',
-        description: `${decouplingPct.toFixed(1)}% cardiac drift (<5% ceiling)`
-      });
-      insights.push(`Solid aerobic discipline. Decoupling was ${decouplingPct.toFixed(1)}%, well within the sub-LT1 gold standard threshold (<5%).`);
+    const conditionNote = driftTarget.conditionsAdjusted
+      ? `${avgTemp ? ` ${avgTemp}°C` : ' these conditions'} over ${Math.round(params.durationMin)} min`
+      : '';
+    if (decouplingPct <= driftTarget.fullAtPct) {
+      insights.add('positive', `Superb cardiovascular stability with only ${decouplingPct.toFixed(1)}% drift, at or inside the ${driftTarget.fullAtPct}% target that${conditionNote || ' these conditions'} predict. Your aerobic capillary base is working efficiently with zero late-run cardiac fatigue.`);
+    } else if (decouplingPct < driftTarget.fullAtPct + 3.0) {
+      insights.add('positive', `Solid aerobic discipline. Decoupling was ${decouplingPct.toFixed(1)}%, just above the ${driftTarget.fullAtPct}% working target for${conditionNote || ' these conditions'} but well within the sub-LT1 gold standard threshold (<5%).`);
     } else {
-      score -= 8;
-      scoreBreakdown.push({
-        category: 'Aerobic Decoupling',
-        points: -8,
-        label: 'Elevated Cardiac Drift / Thermal Strain',
-        description: `${decouplingPct.toFixed(1)}% drift (exceeds 5% sub-LT1 threshold)`
-      });
-      insights.push(`Noticeable cardiac drift detected (${decouplingPct.toFixed(1)}%). Likely due to thermal strain${avgTemp ? ` (${avgTemp}°C)` : ''}, dehydration, or pacing slightly ahead of current aerobic capacity.`);
+      insights.add('caution', `Noticeable cardiac drift detected (${decouplingPct.toFixed(1)}% against a ${driftTarget.fullAtPct}% target for${conditionNote || ' these conditions'}). Likely due to thermal strain${avgTemp ? ` (${avgTemp}°C)` : ''}, dehydration, or pacing slightly ahead of current aerobic capacity.`);
     }
   }
 
@@ -181,36 +169,18 @@ export function generateCoachSummary(params: {
         const cv = meanDur > 0 ? stdDev / meanDur : 0;
 
         if (cv <= 0.08) {
-          score += 8;
-          scoreBreakdown.push({
-            category: 'Interval Execution',
-            points: 8,
-            label: 'Laser Rep Consistency',
-            description: `Executed ${workReps.length} reps with ${(cv * 100).toFixed(1)}% duration variance (±${Math.round(stdDev)}s)`
-          });
-          insights.push(
+          insights.add(
+            'positive',
             `Exceptional Rep Consistency: Executed ${workReps.length} work reps with laser precision (${(cv * 100).toFixed(1)}% duration variance, ±${Math.round(stdDev)}s spread). Zero early overshoot or late-rep collapse.`
           );
         } else if (cv <= 0.15) {
-          score += 4;
-          scoreBreakdown.push({
-            category: 'Interval Execution',
-            points: 4,
-            label: 'Disciplined Interval Structure',
-            description: `${workReps.length} reps held within ${(cv * 100).toFixed(1)}% duration variance`
-          });
-          insights.push(
+          insights.add(
+            'positive',
             `Disciplined Interval Structure: Held ${workReps.length} work reps consistently (${(cv * 100).toFixed(1)}% duration variance).`
           );
         } else if (cv > 0.25) {
-          score -= 6;
-          scoreBreakdown.push({
-            category: 'Interval Execution',
-            points: -6,
-            label: 'High Rep Variance Across Set',
-            description: `High duration variance (${(cv * 100).toFixed(1)}%) across ${workReps.length} reps`
-          });
-          insights.push(
+          insights.add(
+            'caution',
             `Rep Variance Warning: High duration variance across reps (${(cv * 100).toFixed(1)}%). Focus on even rep durations to keep the stimulus consistent across the entire set.`
           );
         }
@@ -222,34 +192,79 @@ export function generateCoachSummary(params: {
       if (runType === 'intervals_vo2' && maxWorkHr > 0) {
         const pctMax = (maxWorkHr / maxProfileHr) * 100;
         if (pctMax >= 88) {
-          score += 6;
-          scoreBreakdown.push({
-            category: 'Cardiovascular Stimulus',
-            points: 6,
-            label: 'Target VO2 Stimulus Achieved',
-            description: `Peaked at ${maxWorkHr} bpm (${pctMax.toFixed(0)}% HRmax)`
-          });
-          insights.push(
+          insights.add(
+            'positive',
             `Target VO2 Stimulus Achieved: Heart rate peaked at ${maxWorkHr} bpm (${pctMax.toFixed(0)}% HRmax), successfully stimulating maximal oxygen uptake and cardiac stroke volume adaptations.`
           );
         }
       }
 
-      // Autonomic Recovery Drops during rest periods
-      const recoveries = params.intervals.filter((i: any) => (i.type === 'recovery' || i.type === 'rest') && ((i.hr_drop ?? i.hrDrop) > 0));
+      // Work intensity: name the session's anchor and flag drift into another zone.
+      {
+        const shape = describeSet(params.intervals);
+        const hrs = workReps.map(intervalHr).filter((h: number) => h > 0);
+        const peakHr = Math.max(0, ...workReps.map(intervalMaxHr));
+        const anchorHr = shape?.shortReps && peakHr > 0
+          ? peakHr
+          : (hrs.length > 0 ? Math.round(hrs.reduce((a: number, b: number) => a + b, 0) / hrs.length) : 0);
+        const overshoot = anchorHr - hrProfile.lt2Hr;
+        if (anchorHr > 0 && runType !== 'intervals_vo2' && overshoot >= 12) {
+          insights.add(
+            'negative',
+            `Session Drift: work reps ${shape?.shortReps ? 'peaked at' : 'averaged'} ${anchorHr} bpm against your ${hrProfile.lt2Hr} bpm LT2 anchor — ${overshoot} bpm above it, so this ran as a VO2 session rather than threshold. That is a different stimulus, not a better one: either log it as intervals_vo2 or ease the pace so the reps stay on the threshold anchor.`
+          );
+        } else if (anchorHr > 0 && runType !== 'intervals_vo2' && overshoot <= -18) {
+          insights.add(
+            'caution',
+            `Session Drift: work reps averaged ${anchorHr} bpm, ${Math.abs(overshoot)} bpm below your ${hrProfile.lt2Hr} bpm LT2 anchor, so the threshold stimulus was not reached. Nudge the pace up or shorten the recoveries.`
+          );
+        }
+      }
+
+      // Set profile: state the structure being judged, so the grade is readable
+      // whether it was 3 x 15 min or 12 x 1 min.
+      const shape = describeSet(params.intervals);
+      if (shape) {
+        const fmtDuration = (sec: number) => (sec >= 60 ? `${Math.floor(sec / 60)}m ${String(sec % 60).padStart(2, '0')}s` : `${sec}s`);
+        const recoveryNote = shape.recoverySec != null ? ` with ${fmtDuration(shape.recoverySec)} recoveries` : '';
+        insights.add(
+          'neutral',
+          `Set Profile: ${shape.repCount} x ${fmtDuration(shape.medianRepSec)} work${recoveryNote} — ${fmtDuration(shape.totalWorkSec)} of total work time, graded against the tolerances that set length allows.`
+        );
+      }
+
+      // Recovery structure: reported, never scored — shortening recoveries is a
+      // deliberate way to keep heart rate near threshold and extend time in zone.
+      // Only breaks *between* work reps count, and only plausible ones: a
+      // 20-minute "recovery" row is a warm-up segment, and a trailing one is the
+      // cool-down.
+      const allIntervals = params.intervals;
+      const recoveries = allIntervals.filter((i: any, idx: number) =>
+        (i.type === 'recovery' || i.type === 'rest')
+        && intervalDrop(i) > 0
+        && intervalDuration(i) >= 30
+        && intervalDuration(i) <= 600
+        && allIntervals.slice(idx + 1).some((later: any) => later.type === 'work')
+      );
       if (recoveries.length > 0) {
-        const drops = recoveries.map((r: any) => r.hr_drop ?? r.hrDrop ?? 0);
+        const drops = recoveries.map((r: any) => intervalDrop(r));
         const avgDrop = Math.round(drops.reduce((a: number, b: number) => a + b, 0) / drops.length);
-        if (avgDrop >= 35) {
-          score += 5;
-          scoreBreakdown.push({
-            category: 'Autonomic Recovery',
-            points: 5,
-            label: 'Rapid Cardiovascular Recovery Drop',
-            description: `Averaged -${avgDrop} bpm recovery drop between work intervals`
-          });
-          insights.push(
-            `Rapid Cardiovascular Recovery: Heart rate dropped by an average of ${avgDrop} bpm between work intervals, demonstrating excellent parasympathetic reactivation and high aerobic fitness.`
+        const avgRecoverySec = Math.round(recoveries.reduce((a: number, r: any) => a + intervalDuration(r), 0) / recoveries.length);
+        const bpmPerMin = Math.round(avgDrop / (avgRecoverySec / 60));
+        if (avgRecoverySec <= 120) {
+          insights.add(
+            'neutral',
+            `Recovery Intent: ${recoveries.length} recoveries averaged ${avgRecoverySec}s, dropping heart rate ${avgDrop} bpm (${bpmPerMin} bpm/min). Short recoveries deliberately keep heart rate near threshold so more of the set counts as time-in-zone, so the drop size is not graded here — whether the reps held pace and heart rate is.`
+          );
+        } else if (bpmPerMin < 8) {
+          insights.add(
+            'caution',
+            `Recovery Rate: ${recoveries.length} recoveries averaged ${avgRecoverySec}s with a ${avgDrop} bpm drop (${bpmPerMin} bpm/min), which is slow even for recoveries of that length. Worth checking fuelling and whether the work reps are exceeding the intended intensity.`
+          );
+        } else {
+          insights.add(
+            'positive',
+            `Recovery Rate: ${recoveries.length} recoveries averaged ${avgRecoverySec}s with a ${avgDrop} bpm drop (${bpmPerMin} bpm/min), a healthy decay for that recovery length.`
           );
         }
       }
@@ -260,28 +275,7 @@ export function generateCoachSummary(params: {
   // Race / Time Trial Execution: Pacing Discipline & Split Consistency
   // ---------------------------------------------------------------------------
   if (runType === 'race' && params.splits && params.splits.length >= 2) {
-    const workRep = (params.intervals || []).find((i: any) => i.type === 'work');
-    let raceSplits: any[] = [];
-
-    if (workRep) {
-      const wStart = workRep.startSeconds ?? workRep.start_seconds ?? 0;
-      const wDur = workRep.durationSeconds ?? workRep.duration_seconds ?? 0;
-      let cumSec = 0;
-      raceSplits = params.splits.filter((s: any) => {
-        const splitDur = s.duration_seconds || s.durationSeconds || 0;
-        const splitStart = cumSec;
-        cumSec += splitDur;
-              return splitStart >= wStart - 30 && splitStart < wStart + wDur - 60;
-      });
-    }
-
-    if (raceSplits.length < 2) {
-      // Fallback: active running splits
-      raceSplits = params.splits.filter((s: any) => {
-        const p = s.avg_pace_sec_km || s.avgPaceSecKm || 0;
-        return p > 120 && p < 720;
-      });
-    }
+    const raceSplits = selectRaceSplits(params.splits, params.intervals);
 
     if (raceSplits.length >= 2) {
       const paces = raceSplits.map((s: any) => s.avg_pace_sec_km || s.avgPaceSecKm);
@@ -293,88 +287,44 @@ export function generateCoachSummary(params: {
       const stdDev = Math.sqrt(variance);
       const cv = avgPace > 0 ? stdDev / avgPace : 0;
 
-      const fmt = (p: number) => {
-        const m = Math.floor(p / 60);
-        const s = Math.round(p % 60);
-        return `${m}:${String(s).padStart(2, '0')}/km`;
-      };
+      const fmt = formatPaceText;
 
       const earlySurgeSec = secondPace - firstPace;
       const isEarlySurge = earlySurgeSec >= 12;
 
       if (isEarlySurge) {
-        score -= 10;
-        scoreBreakdown.push({
-          category: 'Race Pacing Execution',
-          points: -10,
-          label: 'Aggressive Early Surge / Positive Split',
-          description: `Km 1 opened at ${fmt(firstPace)}, followed by a ${Math.round(earlySurgeSec)}s/km drop (${fmt(secondPace)})`
-        });
-        insights.push(
+        insights.add(
+          'negative',
           `Race Pacing Alert: Opened too fast in the first kilometer (${fmt(firstPace)} vs ${fmt(secondPace)} in Km 2, a +${Math.round(earlySurgeSec)}s/km drop). An over-aggressive opening km spikes blood lactate early and forces premature deceleration.`
         );
       } else if (cv <= 0.03) {
-        score += 6;
-        scoreBreakdown.push({
-          category: 'Race Pacing Execution',
-          points: 6,
-          label: 'Laser Race Pacing Discipline',
-          description: `Held race pace within ${(cv * 100).toFixed(1)}% split variance (±${Math.round(stdDev)}s)`
-        });
-        insights.push(
+        insights.add(
+          'positive',
           `Masterful Race Pacing: Maintained exceptional pacing consistency across race splits (${(cv * 100).toFixed(1)}% variance, ±${Math.round(stdDev)}s spread).`
         );
       }
 
       if (cv > 0.05 && !isEarlySurge) {
-        score -= 6;
-        scoreBreakdown.push({
-          category: 'Race Pacing Execution',
-          points: -6,
-          label: 'Volatile Split Pacing',
-          description: `Pace varied by ${(cv * 100).toFixed(1)}% (±${Math.round(stdDev)}s spread)`
-        });
-        insights.push(
+        insights.add(
+          'caution',
           `Erratic Race Pacing: Split paces fluctuated significantly (±${Math.round(stdDev)}s variance). Target an even or slight negative split to maximize endurance efficiency.`
         );
-      } else if (cv > 0.05 && isEarlySurge) {
-        score -= 4;
-        scoreBreakdown.push({
-          category: 'Race Pacing Execution',
-          points: -4,
-          label: 'Split Pacing Fluctuation',
-          description: `Pace fluctuated across splits (±${Math.round(stdDev)}s spread)`
-        });
       }
     }
   }
 
   // Cadence insight (evaluated on true steady-state running)
   if (effectiveCadence >= 172 && effectiveCadence <= 186) {
-    score += 4;
-    scoreBreakdown.push({
-      category: 'Running Turnover',
-      points: 4,
-      label: 'Optimal Cadence Sweet Spot',
-      description: `Steady running cadence averaged ${effectiveCadence} spm`
-    });
-    insights.push(`Cadence was right in the sweet spot (${effectiveCadence} spm), minimizing vertical braking forces and maximizing elastic recoil.`);
+    insights.add('positive', `Cadence was right in the sweet spot (${effectiveCadence} spm), minimizing vertical braking forces and maximizing elastic recoil.`);
   } else if (effectiveCadence > 186) {
-    insights.push(`High turnover (${effectiveCadence} spm) maintained during steady running, promoting quick foot turnover.`);
+    insights.add('positive', `High turnover (${effectiveCadence} spm) maintained during steady running, promoting quick foot turnover.`);
   } else if (effectiveCadence > 0 && effectiveCadence < 165) {
-    score -= 3;
-    scoreBreakdown.push({
-      category: 'Running Turnover',
-      points: -3,
-      label: 'Sub-Optimal Cadence Turnover',
-      description: `Steady running averaged ${effectiveCadence} spm (<165 spm)`
-    });
-    insights.push(`Steady running cadence averaged ${effectiveCadence} spm. Increasing turnover toward 170-180 spm will decrease ground contact time and reduce joint impact.`);
+    insights.add('caution', `Steady running cadence averaged ${effectiveCadence} spm. Increasing turnover toward 170-180 spm will decrease ground contact time and reduce joint impact.`);
   }
 
   // Running dynamics insight
   if (effectiveGct && effectiveGct < 260) {
-    insights.push(`Swift ground reaction: ${Math.round(effectiveGct)} ms stance time demonstrates crisp ground clearance and leg spring stiffness.`);
+    insights.add('positive', `Swift ground reaction: ${Math.round(effectiveGct)} ms stance time demonstrates crisp ground clearance and leg spring stiffness.`);
   }
 
   // Heat & Environment
@@ -383,18 +333,18 @@ export function generateCoachSummary(params: {
     const humidStr = params.weatherHumidityPct ? ` with ${params.weatherHumidityPct}% humidity` : '';
     const feelsLikeStr = params.weatherApparentTempC ? ` (feels like ${params.weatherApparentTempC}°C)` : '';
     const watchStr = avgTemp ? ` [Garmin watch sensor: ${avgTemp}°C]` : '';
-    insights.push(`Microclimate Weather: ${params.weatherTempC}°C ambient${condStr}${humidStr}${feelsLikeStr}${watchStr}. ${
+    insights.add('neutral', `Microclimate Weather: ${params.weatherTempC}°C ambient${condStr}${humidStr}${feelsLikeStr}${watchStr}. ${
       params.weatherHumidityPct && params.weatherHumidityPct >= 80
         ? 'High tropical humidity restricts evaporative cooling and directly explains elevated cardiac drift.'
         : 'Microclimate weather verified from local meteorological reanalysis.'
     }`);
   } else if (avgTemp && avgTemp >= 30) {
-    insights.push(`Executed in hot conditions (${avgTemp}°C). In high heat, heart rate naturally drifts 4-8 bpm higher; effective aerobic pacing was maintained despite the thermal burden.`);
+    insights.add('neutral', `Executed in hot conditions (${avgTemp}°C). In high heat, heart rate naturally drifts 4-8 bpm higher; effective aerobic pacing was maintained despite the thermal burden.`);
   }
 
   // Elevation ramp walk check
   if (params.elevationGainM && params.elevationGainM >= 15) {
-    insights.push(`Elevation & Ramps: Gained +${Math.round(params.elevationGainM)}m ascent. Uphill grade segments and ramp walks were isolated to keep your flat-ground running economy unskewed.`);
+    insights.add('neutral', `Elevation & Ramps: Gained +${Math.round(params.elevationGainM)}m ascent. Uphill grade segments and ramp walks were isolated to keep your flat-ground running economy unskewed.`);
   }
 
   // Pacing discipline check for easy runs (detect accidental tempo using steady running HR & personalized LT1)
@@ -404,30 +354,127 @@ export function generateCoachSummary(params: {
     && (effectiveHr >= lt1 || (decouplingPct !== null && decouplingPct >= 6.5));
 
   if (isAccidentalTempo) {
-    score -= 15;
-    scoreBreakdown.push({
-      category: 'Pacing Discipline',
-      points: -15,
-      label: 'Unintentional Tempo Pacing Alert',
-      description: `Broke Zone 2 ceiling (${effectiveHr} bpm steady HR vs LT1 cap of ${lt1} bpm), compromising aerobic recovery`
-    });
-    insights.push(`Pacing Alert: Heart rate drifted notably higher than pure Zone 2 (${effectiveHr} bpm avg). This functioned as an unintentional 'grey-zone' tempo effort rather than a low-stress aerobic recovery session.`);
+    insights.add('negative', `Pacing Alert: Heart rate drifted notably higher than pure Zone 2 (${effectiveHr} bpm avg). This functioned as an unintentional 'grey-zone' tempo effort rather than a low-stress aerobic recovery session.`);
   }
 
-  // Clamped score & 3-tier rating calculation (Bronze / Silver / Gold)
-  let finalScore = Math.max(40, Math.min(98, score));
-  // Pacing violations (accidental tempo) are capped at Bronze tier (max 69 / 100)
-  if (isAccidentalTempo) {
-    finalScore = Math.min(finalScore, 69);
-  }
-  // Aborted / failed workouts are also capped at Bronze tier
-  if (params.isFailedWorkout) {
-    finalScore = Math.min(finalScore, 69);
-  }
+  // ---------------------------------------------------------------------------
+  // Weighted execution rubric (replaces the old flat 85-point baseline)
+  // ---------------------------------------------------------------------------
+  const rubric = gradeRun({
+    runType,
+    isFailedWorkout: !!params.isFailedWorkout,
+    steadyHr: effectiveHr || null,
+    avgHr,
+    steadyCadence: effectiveCadence || null,
+    steadyStanceTime: effectiveGct || null,
+    decouplingPct,
+    isAccidentalTempo,
+    lt1Hr: lt1,
+    lt2Hr: hrProfile.lt2Hr,
+    maxHeartRate: hrProfile.maxHr,
+    activityMaxHr: params.maxHr || null,
+    ambientTempC: avgTemp ?? null,
+    durationMin: params.durationMin ?? null,
+    pauseBreakdown,
+    records: params.records ?? null,
+    intervals: params.intervals,
+    splits: params.splits
+  });
 
+  const finalScore = rubric.score;
   // 3-tier star system: 1 = Bronze (<70), 2 = Silver (70-84), 3 = Gold (>=85)
   const stars = finalScore >= 85 ? 3 : finalScore >= 70 ? 2 : 1;
   const rating5 = Number(((finalScore / 20)).toFixed(1));
+
+  // Walk breaks are coaching information, not a moral judgement: explain what
+  // they were for, and only flag the ones that actually cost the session.
+  const walkAudit = rubric.walkAudit;
+  if (walkAudit && walkAudit.blockCount > 0) {
+    const walkPct = ((walkAudit.walkSec / walkAudit.movingSec) * 100).toFixed(1);
+    const deliberateSec = walkAudit.deliberateWalkSec + walkAudit.preventiveWalkSec;
+    if (walkAudit.recoveryWalkSec >= 20) {
+      insights.add(
+        'neutral',
+        `Interval-Break Walking: ${walkAudit.recoveryWalkSec}s of walking across ${walkAudit.recoveryBlockCount} breaks fell inside your prescribed recovery windows. That is the session design, so it is not scored as lost work.`
+      );
+    }
+    if (walkAudit.artifactBlockCount >= 2) {
+      insights.add(
+        'neutral',
+        `Turnaround Dips: ${walkAudit.artifactBlockCount} brief cadence dips (up to ${walkAudit.artifactWalkSec}s total, barely any ground covered) were ignored as loop turnarounds rather than counted as walk breaks.`
+      );
+    }
+    if (deliberateSec >= 30 && walkAudit.intrusiveWalkSec === 0 && walkAudit.capacityWalkSec === 0 && walkAudit.recoveryWalkSec === 0) {
+      const entryHr = walkAudit.avgPreventiveEntryHr;
+      const peakNote = walkAudit.maxEntryHr ? `, peaking at ${walkAudit.maxEntryHr} bpm` : '';
+      insights.add(
+        'positive',
+        `Walk-Break Strategy: ${walkAudit.blockCount} walk breaks (${walkPct}% of moving time${entryHr ? `, average entry ${entryHr} bpm` : ''}) held heart rate under your ${lt1} bpm LT1 ceiling${peakNote}. That is ceiling discipline, not lost training time.`
+      );
+    }
+    if (walkAudit.intrusiveWalkSec >= 20) {
+      insights.add(
+        'negative',
+        `Work-Rep Interruption: ${walkAudit.intrusiveWalkSec}s of walking began inside work reps at an average of ${walkAudit.avgCorrectiveEntryHr ?? '—'} bpm (at or above LT1). Walking was the right call at that heart rate, so fix it upstream by easing the opening rep or choosing a route where reps are not interrupted.`
+      );
+    }
+    if (walkAudit.capacityWalkSec >= 30) {
+      insights.add(
+        'negative',
+        `Unplanned Walking: ${walkAudit.capacityWalkSec}s of mid-run walking started at about ${walkAudit.avgCapacityEntryHr ?? '—'} bpm — already below your aerobic band and not on a gradient. Worth checking fuelling, sleep and load, or simply whether the route forces stops.`
+      );
+    }
+  }
+
+  // Pacing stability is measured on the kilometres actually run, so city
+  // navigation (lights, junctions, turns) is reported rather than charged.
+  const pacing = rubric.pacing;
+  if (pacing && pacing.source === 'records' && pacing.sampleCount >= 5 && pacing.affectedCount >= 1) {
+    const trendNote = Math.abs(pacing.trendSecPerKm) >= 2
+      ? `, ${pacing.trendSecPerKm > 0 ? 'with a steady ' + pacing.trendSecPerKm.toFixed(1) + 's/km slowdown through the run' : 'progressively ' + Math.abs(pacing.trendSecPerKm).toFixed(1) + 's/km faster through the run'}`
+      : '';
+    // A fading second half is worth flagging; a negative split is worth noting.
+    const trendTone: CoachInsightTone = Math.abs(pacing.trendSecPerKm) < 2
+      ? 'neutral'
+      : (pacing.trendSecPerKm > 0 ? 'caution' : 'positive');
+    insights.add(
+      trendTone,
+      `Pacing Discipline: your running pace held within ±${Math.round(pacing.stdDevSec)}s per kilometre across ${pacing.sampleCount} running km${trendNote}. The ${pacing.affectedCount} km that contained stops, junctions or walk breaks were measured on running time only, so navigating the city did not count against you.`
+    );
+  }
+
+  // Aerobic intensity: the one thing an easy run is graded on.
+  const intensity = rubric.intensity;
+  if (intensity && rubric.family === 'aerobic') {
+    const above = intensity.aboveCeilingPct;
+    const zone2 = intensity.highZ2Pct;
+    const band = `${intensity.lt1Hr - 7}-${intensity.lt1Hr}`;
+    if (above <= 5 && zone2 <= 25) {
+      insights.add(
+        'positive',
+        `Aerobic Intensity Discipline: only ${above.toFixed(1)}% of your running time sat above the ${intensity.lt1Hr} bpm LT1 ceiling (${intensity.firstHalfAboveCeilingPct.toFixed(1)}% of it in the first half), so this stayed an aerobic session throughout. That control — not pace — is what an easy day is for.`
+      );
+    } else if (above <= 5) {
+      insights.add(
+        'caution',
+        `Zone 2 Ceiling Held, High-Zone-2 Creep: you never crossed the ${intensity.lt1Hr} bpm LT1 ceiling, but ${zone2.toFixed(1)}% of your running time sat in the top of Zone 2 (${band} bpm), rising to ${intensity.highZ2SecondHalfPct.toFixed(0)}% in the second half. It is still aerobic, and in ${Math.round(params.avgTemp ?? 0)}°C much of the late creep is heat rather than pace, but sitting just under the ceiling costs recovery — ease the opening kilometres so the whole run sits nearer ${intensity.lt1Hr - 10} bpm.`
+      );
+    } else if (above <= 20) {
+      insights.add(
+        'caution',
+        `Grey-Zone Creep: ${above.toFixed(1)}% of running time was above your ${intensity.lt1Hr} bpm LT1 ceiling (${intensity.firstHalfAboveCeilingPct.toFixed(1)}% of it in the first half). Small doses cost little, but the easy-day benefit comes from staying under it.`
+      );
+    } else {
+      insights.add(
+        'negative',
+        `Over-Intensity: ${above.toFixed(1)}% of your running time sat above the ${intensity.lt1Hr} bpm LT1 ceiling, with ${intensity.firstHalfAboveCeilingPct.toFixed(1)}% of it in the first half. That is a tempo effort wearing an easy-day label, so it costs recovery without adding aerobic volume.`
+      );
+    }
+  }
+
+  // Personal baseline: only meaningful when the athlete has comparable history.
+  const contextInsights = buildContextInsights(params.history);
+  insights.addAll(contextInsights);
 
   let headline = 'Strong Aerobic Adaptation Session';
   let recommendation = 'Prioritize light hydration and low-impact movement before your next hard effort.';
@@ -454,11 +501,16 @@ export function generateCoachSummary(params: {
       ? 'Your aerobic system is absorbing current volume smoothly. Ready for a progressive tempo or threshold stimulus.'
       : 'Maintain easy efforts at this heart rate cap to reinforce mitochondrial density.';
   } else if (runType === 'threshold_lt2') {
-    headline = 'High-Quality Lactate Clearance Stimulus';
+    headline = finalScore >= 75 ? 'High-Quality Lactate Clearance Stimulus' : 'Threshold Stimulus with Compromised Execution';
     recommendation = 'Allow 48 hours of recovery or easy aerobic jogging before your next quality interval day.';
   } else if (runType === 'intervals_vo2') {
     headline = finalScore >= 90 ? 'Masterful VO2 Max Interval Execution' : 'Sharp High-Velocity Neuromuscular Stimulus';
     recommendation = 'Focus on leg recovery and adequate protein intake to rebuild fast-twitch muscle fibers.';
+  }
+
+  // Unmeasured rubric factors are reported so a thin telemetry day is visible.
+  if (rubric.coveragePct < 100) {
+    insights.add('neutral', `Rubric Coverage: ${rubric.coveragePct}% of the grading rubric was measurable for this session, so the execution score is based only on the signals recorded.`);
   }
 
   return {
@@ -466,9 +518,14 @@ export function generateCoachSummary(params: {
     effectivenessScore: finalScore,
     rating5,
     stars,
-    keyInsights: insights,
+    keyInsights: insights.texts,
+    insightTones: insights.tones,
     recommendation,
-    scoreBreakdown
+    focusAdvice: rubric.focusAdvice,
+    rubricCoveragePct: rubric.coveragePct,
+    rubricFamily: rubric.family,
+    context: params.history ?? null,
+    scoreBreakdown: rubric.factors
   };
 }
 
@@ -490,6 +547,15 @@ export function syncActivityCoachSummary(
   const splits = db.prepare('SELECT * FROM activity_splits WHERE activity_id = ? ORDER BY split_index ASC').all(activityId) as any[];
 
   const { maxHr: maxHeartRate, restingHr, lt1Hr, lt2Hr } = getAthleteHeartRateProfile(db);
+
+  // Personal baseline comparison against the athlete's own prior comparable runs.
+  // Steady-state values win over the raw columns so the pace-specific comparison
+  // lines up with the metrics the rubric grades.
+  const history = loadCoachHistoryContext(db, {
+    ...activity,
+    steady_pace_sec_km: pauseBreakdown.steadyPaceSecKm ?? activity.steady_pace_sec_km ?? null,
+    steady_heart_rate: pauseBreakdown.steadyHeartRate ?? activity.steady_heart_rate ?? null
+  });
 
   const coachSummary = generateCoachSummary({
     runType: overrides?.runType || activity.run_type || 'easy_base',
@@ -520,20 +586,32 @@ export function syncActivityCoachSummary(
     isFailedWorkout: overrides?.isFailedWorkout ?? new RegExp('failed|aborted|dnf|bailed', 'i').test(activity.name || ''),
     intervals: overrides?.intervals || intervals,
     splits: overrides?.splits || splits,
+    records,
+    history,
     ...overrides
   });
+
+  const analysis = {
+    context: coachSummary.context ?? null,
+    focusAdvice: coachSummary.focusAdvice ?? null,
+    rubricCoveragePct: coachSummary.rubricCoveragePct ?? null,
+    rubricFamily: coachSummary.rubricFamily ?? null,
+    walkAudit: coachSummary.walkAudit ?? null
+  };
 
   try {
     db.prepare(`
       INSERT INTO activity_coach_summaries (
-        activity_id, headline, effectiveness_score, key_insights_json,
+        activity_id, headline, effectiveness_score, key_insights_json, insight_tones_json,
         recommendation, steady_pace_sec_km, steady_heart_rate,
-        steady_cadence, steady_stance_time, pause_breakdown_json, score_breakdown_json, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        steady_cadence, steady_stance_time, pause_breakdown_json, score_breakdown_json,
+        analysis_json, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(activity_id) DO UPDATE SET
         headline = excluded.headline,
         effectiveness_score = excluded.effectiveness_score,
         key_insights_json = excluded.key_insights_json,
+        insight_tones_json = excluded.insight_tones_json,
         recommendation = excluded.recommendation,
         steady_pace_sec_km = excluded.steady_pace_sec_km,
         steady_heart_rate = excluded.steady_heart_rate,
@@ -541,33 +619,49 @@ export function syncActivityCoachSummary(
         steady_stance_time = excluded.steady_stance_time,
         pause_breakdown_json = excluded.pause_breakdown_json,
         score_breakdown_json = excluded.score_breakdown_json,
+        analysis_json = excluded.analysis_json,
         updated_at = CURRENT_TIMESTAMP
     `).run(
       activityId,
       coachSummary.headline,
       coachSummary.effectivenessScore,
       JSON.stringify(coachSummary.keyInsights),
+      JSON.stringify(coachSummary.insightTones || []),
       coachSummary.recommendation,
       pauseBreakdown.steadyPaceSecKm,
       pauseBreakdown.steadyHeartRate,
       pauseBreakdown.steadyCadence,
       pauseBreakdown.steadyStanceTimeMs,
       JSON.stringify(pauseBreakdown),
-      JSON.stringify(coachSummary.scoreBreakdown)
+      JSON.stringify(coachSummary.scoreBreakdown),
+      JSON.stringify(analysis)
     );
 
     const row = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get(activityId) as any;
     if (row) {
       const scoreVal = row.effectiveness_score;
       const starsVal = scoreVal >= 85 ? 3 : scoreVal >= 70 ? 2 : 1;
+      let parsedAnalysis: any = null;
+      try {
+        parsedAnalysis = row.analysis_json ? JSON.parse(row.analysis_json) : null;
+      } catch {
+        parsedAnalysis = null;
+      }
       return {
         headline: row.headline,
         effectivenessScore: scoreVal,
         rating5: Number((scoreVal / 20).toFixed(1)),
         stars: starsVal,
         keyInsights: JSON.parse(row.key_insights_json || '[]'),
+        // Rows written before tones existed have no column value yet; the UI
+        // falls back to an uncoloured list until the row is re-synced.
+        insightTones: row.insight_tones_json ? JSON.parse(row.insight_tones_json) : [],
         recommendation: row.recommendation,
         scoreBreakdown: row.score_breakdown_json ? JSON.parse(row.score_breakdown_json) : coachSummary.scoreBreakdown,
+        focusAdvice: parsedAnalysis?.focusAdvice ?? coachSummary.focusAdvice ?? null,
+        rubricCoveragePct: parsedAnalysis?.rubricCoveragePct ?? coachSummary.rubricCoveragePct,
+        rubricFamily: parsedAnalysis?.rubricFamily ?? coachSummary.rubricFamily,
+        context: parsedAnalysis?.context ?? coachSummary.context ?? null,
         updatedAt: row.updated_at,
         steadyPaceSecKm: row.steady_pace_sec_km,
         steadyHeartRate: row.steady_heart_rate,

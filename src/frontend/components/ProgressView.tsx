@@ -100,6 +100,8 @@ export const ProgressView: React.FC = () => {
   }
 
   const pred5k = data.predictions?.find((p: ThresholdsResponse['predictions'][number]) => p.distanceName === '5K');
+  const lt1Range = data.currentThresholds?.lt1Range;
+  const lt1Display = lt1Range ? `${lt1Range[0]}–${lt1Range[1]}` : String(data.currentThresholds?.lt1Hr ?? '—');
 
   return (
     <div className="progress-grid">
@@ -116,7 +118,7 @@ export const ProgressView: React.FC = () => {
             </span>
           </div>
           <div className="threshold-marker-badge">
-            <ShieldCheck size={12} /> {t.progress.zone2Ceiling}: {data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? data.latest.lt1?.lt1_hr ?? '—'} bpm
+            <ShieldCheck size={12} /> {t.progress.zone2Ceiling}: {lt1Display} bpm
           </div>
         </div>
 
@@ -190,11 +192,14 @@ export const ProgressView: React.FC = () => {
           <ShieldCheck size={20} color="#10b981" />
           <div>
             <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              {t.progress.liveCalibrations}: LT1 @ {data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? '—'} bpm • LT2 @ {data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? '—'} bpm
+              {t.progress.liveCalibrations}: LT1 @ {lt1Display} bpm • LT2 @ {data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? '—'} bpm
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
               {t.progress.liveCalibrationsDesc}
             </div>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.4rem 0 0', maxWidth: '65ch' }}>
+              {t.progress.thresholdEstimateNote}
+            </p>
           </div>
         </div>
         <div className="profile-sync-badge">

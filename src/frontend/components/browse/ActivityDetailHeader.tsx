@@ -6,6 +6,7 @@ import type { Translations } from '../../i18n/types.js';
 import { Edit2, Tag, Plus, X, Check, ShieldCheck } from 'lucide-react';
 import { ActivityWeatherCard } from './ActivityWeatherCard';
 import { translateTag } from '../../i18n/tagTranslator';
+import { useTranslation } from '../../i18n/LanguageContext';
 
 const COMMON_TAG_PRESETS = [
   'Easy Base', 'Long Run', 'Recovery', 'Threshold', 'VO2 Max',
@@ -43,6 +44,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState<boolean>(false);
   const [customTitle, setCustomTitle] = useState<string>('');
+  const { formatDate } = useTranslation();
 
   // Parse current tags safely
   let currentTags: string[] = [];
@@ -149,9 +151,9 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
           )}
 
           <div className="run-meta-row" style={{ flexWrap: 'wrap', gap: '0.75rem' }}>
-            <span>{new Date(act.start_time).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+            <span>{formatDate(act.start_time, { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}</span>
             <span>•</span>
-            <span>{new Date(act.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} ({getTimeOfDay(act.start_time)})</span>
+            <span>{formatDate(act.start_time, { hour: '2-digit', minute: '2-digit', hour12: false })} ({getTimeOfDay(act.start_time)})</span>
           </div>
 
           {/* Dynamic Multi-Tags Row */}

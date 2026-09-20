@@ -63,7 +63,7 @@ describe('ProfileView UI Tests', () => {
     render(<ProfileView />);
 
     await waitFor(() => {
-      expect(screen.getByText('Inferred Physiological Thresholds')).toBeTruthy();
+      expect(screen.getByText('Workout-Based Threshold Estimates')).toBeTruthy();
       expect(screen.getByDisplayValue('1989-04-15')).toBeTruthy();
       expect(screen.getByDisplayValue('55')).toBeTruthy();
       expect(screen.getByDisplayValue('203')).toBeTruthy();

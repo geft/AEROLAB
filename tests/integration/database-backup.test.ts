@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from 'supertest';
 import fs from 'fs';
 import path from 'path';
@@ -6,7 +6,7 @@ import os from 'os';
 import Database from 'better-sqlite3';
 import { createServer } from '../../src/backend/server.js';
 import { getDatabase } from '../../src/backend/db/client.js';
-import { createDatabaseBackup, checkAndRunScheduledBackup, listBackups } from '../../src/backend/routes/database.js';
+import { createDatabaseBackup, checkAndRunScheduledBackup, handleSelectFolder, listBackups, pruneBackups } from '../../src/backend/routes/database.js';
 
 describe('Database Backup & Cloud Sync Integration Tests', () => {
   let app: any;
@@ -114,6 +114,36 @@ describe('Database Backup & Cloud Sync Integration Tests', () => {
 
     const backups = listBackups(rotateDir);
     expect(backups.length).toBeLessThanOrEqual(3);
+  });
+
+  it('handles folder selection for valid, cancelled, and invalid choices', async () => {
+    const json = vi.fn();
+    const status = vi.fn(() => ({ json }));
+    const response = { json, status } as any;
+
+    await handleSelectFolder({} as any, response, async () => backupDir);
+    expect(json).toHaveBeenCalledWith({ folder: path.resolve(backupDir) });
+
+    json.mockClear();
+    await handleSelectFolder({} as any, response, async () => null);
+    expect(json).toHaveBeenCalledWith({ folder: null, cancelled: true });
+
+    status.mockClear();
+    await handleSelectFolder({} as any, response, async () => path.join(testDir, 'missing-folder'));
+    expect(status).toHaveBeenCalledWith(400);
+  });
+
+  it('prunes snapshots created under an older retention policy', () => {
+    const db = getDatabase();
+    const legacyDir = path.join(testDir, 'legacy-rotation-test');
+    fs.mkdirSync(legacyDir, { recursive: true });
+
+    for (let i = 0; i < 7; i++) {
+      createDatabaseBackup(db, legacyDir, 10);
+    }
+
+    expect(listBackups(legacyDir)).toHaveLength(7);
+    expect(pruneBackups(legacyDir, 5)).toHaveLength(5);
   });
 
   it('GET /api/database/download streams a database snapshot as attachment', async () => {

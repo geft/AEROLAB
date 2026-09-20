@@ -335,6 +335,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
       ) : (
         <div className="svg-chart-wrapper" style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           <svg
+            className="threshold-trends-svg"
             viewBox={`0 0 ${width} ${height}`}
             style={{ width: '100%', minWidth: 650, height: 'auto', maxHeight: 300, display: 'block' }}
           >

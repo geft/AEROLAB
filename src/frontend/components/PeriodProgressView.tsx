@@ -276,6 +276,7 @@ export const PeriodProgressView: React.FC = () => {
 
         <div className="svg-chart-wrapper" style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           <svg
+            className="period-progress-svg"
             viewBox={`0 0 ${chartWidth} ${chartHeight}`}
             style={{ width: '100%', minWidth: `${Math.min(chartWidth, Math.max(760, periods.length * 60))}px`, height: 'auto', maxHeight: 280, display: 'block' }}
           >
@@ -305,6 +306,7 @@ export const PeriodProgressView: React.FC = () => {
                     strokeDasharray="3 3"
                   />
                   <text
+                    className="period-chart-axis-label"
                     x={paddingLeft - 8}
                     y={y + 4}
                     fill="var(--text-muted)"
@@ -322,6 +324,7 @@ export const PeriodProgressView: React.FC = () => {
               const y = getY_EF(ef);
               return (
                 <text
+                  className="period-chart-axis-label"
                   key={i}
                   x={chartWidth - paddingRight + 8}
                   y={y + 4}
@@ -408,6 +411,7 @@ export const PeriodProgressView: React.FC = () => {
 
                   {/* X-Axis Period Label (Clean 3-letter month or season title) */}
                   <text
+                    className="period-chart-axis-label"
                     x={xCenter}
                     y={paddingTop + innerHeight + 16}
                     fill={isHovered ? 'var(--text-primary)' : 'var(--text-secondary)'}

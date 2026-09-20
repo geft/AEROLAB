@@ -7,7 +7,7 @@ A local-first, high-performance running analytics platform and dashboard designe
 - **Pace-Dependent Economy Curves**: Real-world efficiency curves comparing easy base vs. threshold workouts
 - **Automatic Interval & Stride Detection**: Isolates structured work reps, recoveries, and explosive strides (15–40s bursts), recording Peak Pace, Peak Cadence, Min Ground Contact Time (GCT), and Heart Rate Recovery (HRR) drop
 - **Transparent Physiological Execution Score (3-Tier: Bronze / Silver / Gold)**: Granular 100-point scoring engine with itemized point breakdowns for aerobic stability, cadence discipline, decoupling drift, and pacing adherence
-- **Intelligent Physiological Debrief**: Algorithmic coaching summary that flags "accidental tempos" (grey-zone cardiac drift), identifies failed or aborted workouts, detects uphill ramp walks, and provides actionable recovery recommendations
+- **Intelligent Physiological Debrief**: Algorithmic coaching summary graded by a **run-type weighted rubric**. Easy runs are graded on **one failure mode — going too hard**: sustained time above the personal LT1 ceiling (measured from per-second telemetry with 60 s smoothing) plus sustained time in the top of Zone 2, with a late-session breach excused **only when the run was both long and hot** (a 1 h breach or a 2 h breach in cool weather still counts). Cardiac drift, city pacing variance, walk breaks and turnover are reported as observations rather than penalties. Quality sessions keep grading **structure, cardiovascular stimulus, intensity control, form/efficiency (turnover and ground contact) and set fatigue** — the last compares the final work rep against the first, with drift tolerances that scale with the set's work time and short-rep sets judged on pace alone (heart-rate lag, not decay). Deliberately short recoveries (which hold heart rate near threshold to extend time-in-zone) are reported rather than penalised, and short reps are anchored on their peak heart rate because an average cannot reach the target in under two minutes. **The anchor always comes from the session's intent**: a threshold session whose heart rate drifts upward is flagged as *Drifted Into VO2 Territory* and loses intensity points rather than being re-graded against a VO2 target, and one that never reaches its anchor is flagged as under-stimulus. Races keep their pacing, finish-strength and turnover rubric. Includes **personal-baseline comparisons** against your own recent history, **walk-break classification** that credits walk breaks used to hold heart rate under the LT1 ceiling or to climb, and a **"biggest lever"** fix for the factor that cost the most points
 - **Automated Local Backup Rotation**: Scheduled weekly SQLite snapshots with a rolling 10-backup retention policy, plus manual snapshot download and drop-in restore
 - **Full Bilingual Localization (English & 简体中文)**: Key-based dictionaries with `Intl`-driven date and plural formatting (never inline language conditionals), covering the interface, AI coach advice, activity tags, and physiological guides with an instant navbar dropdown switcher
 - **Customizable Typography & Font Scaling**: Smooth 25% font-scaling increments (75%, 100%, 125%, 150%, 175%, 200%)
@@ -146,7 +146,7 @@ npm install
 ```
 
 ### 2. Verify Your Change
-Type-check, lint, and run the full suite (54 test files, 365 automated tests, 100% passing) spanning physiology unit tests, binary/CSV ingestion, API integration, and React UI user flows:
+Type-check, lint, and run the full suite (58 test files, 420 automated tests, 100% passing) spanning physiology unit tests, binary/CSV ingestion, API integration, and React UI user flows:
 ```bash
 npx tsc --noEmit      # 0 errors
 npm run lint          # ESLint: hardcoded labels, hardcoded run stats, empty catches
@@ -229,7 +229,7 @@ AEROLAB operates on a **single embedded SQLite WAL database file** (`data/runs.d
   1. **Telemetry & Chart**: Interactive canvas scrub chart plotting Pace (cyan), Heart Rate (amber), and Elevation fill, plus key physiological chips and a compact 1km splits preview.
   2. **KM Splits**: Interactive Kilometer Split Visualizer with proportional horizontal bars, pacing dynamics insights (Fastest/Slowest Split, Pace Spread, and Negative/Positive split strategy classifier), with on-the-fly metric switching across **Pace**, **Heart Rate**, **Efficiency Factor**, and **Elevation**.
   3. **Strides & Intervals**: Dedicated breakdown of detected strides and interval work reps with Rep #, Type, Duration, Distance, Avg & Peak Pace, Avg & Peak Cadence, Min Ground Contact Time, and Recovery HR Drop.
-  4. **AI Coach Debrief**: Intelligent physiological debrief with a clickable **Score Breakdown Modal**, grading rubric, and itemized point factors.
+  4. **AI Coach Debrief**: Easy runs are scored on intensity control alone (time above your LT1 ceiling and in the top of Zone 2, with a late breach excused only for long, hot sessions), plus a categorical session-integrity gate; quality sessions score structure, stimulus, intensity control, form/efficiency and set fatigue (deliberately short recoveries are reported, not penalised); races score pacing, finish strength and turnover. The debrief shows each factor's earned points against its weight, rubric coverage, a "biggest lever" fix, and personal-baseline comparisons against your own recent runs.
 
 ### 2. Progress View
 - **Physiological Threshold Trends (LT1 & LT2)**: Interactive timeline chart visualizing the progression of your Aerobic Base (LT1) and Lactate Threshold (LT2) over time, with instant toggles between **Pace Trend (min/km)** and **Heart Rate Trend (bpm)**, time-range filtering (`All Time`, `6 Months`, `3 Months`), interactive hover tooltips, and active baseline reference lines.
@@ -260,7 +260,7 @@ AEROLAB operates on a **single embedded SQLite WAL database file** (`data/runs.d
 | `activity_splits` | 1km splits (distance, duration, split pace, split HR, split EF, elevation delta). |
 | `activity_intervals` | Detected interval reps, strides, and recovery blocks with peak dynamics and recovery drops. |
 | `activity_records` | Compacted time-series telemetry (elapsed seconds, HR, cadence, speed, distance, elevation, temperature). High-frequency GPS stripped. |
-| `activity_coach_summaries` | AI Coach debrief: headline, recommendation, effectiveness score (0–100), stars (1–3), rating5, key insights JSON, and itemized `score_breakdown_json`. |
+| `activity_coach_summaries` | AI Coach debrief: headline, recommendation, execution score (0–100) from a run-type weighted rubric, stars (1–3), rating5, key insights JSON, itemized `score_breakdown_json` (points vs. weight per factor) and `analysis_json` (personal-baseline context, biggest lever, rubric coverage). |
 | `physiological_thresholds` | Historical calibration points for LT1, LT2, and 30-day baseline Running Economy. |
 | `athlete_profile` | Athlete configuration: max HR, resting HR, LT1/LT2 baselines, and demographic calibration. |
 | `database_settings` | Configuration for automated local backup cadence and retention policies. |

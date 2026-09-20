@@ -126,12 +126,27 @@ describe('API Server Integration Tests', () => {
     expect(row.effectiveness_score).toBeGreaterThan(70);
     expect(row.key_insights_json).toBeDefined();
 
+    // The weighted rubric and its coverage are persisted for the client
+    const breakdown = JSON.parse(row.score_breakdown_json);
+    expect(Array.isArray(breakdown)).toBe(true);
+    expect(breakdown.every((f: any) => typeof f.maxPoints === 'number')).toBe(true);
+    const analysis = JSON.parse(row.analysis_json);
+    expect(analysis.rubricFamily).toBe('aerobic');
+    expect(analysis.rubricCoveragePct).toBe(100);
+
     // Verify GET /api/activities/:id/coach-summary endpoint
     const res = await request(app).get('/api/activities/bench-easy-60/coach-summary');
     expect(res.status).toBe(200);
     expect(res.body.coachSummary.headline).toBe('Near-Perfect Aerobic Base Execution');
     expect(res.body.coachSummary.steadyHeartRate).toBeGreaterThan(0);
     expect(res.body.coachSummary.keyInsights.length).toBeGreaterThan(0);
+    expect(res.body.coachSummary.rubricFamily).toBe('aerobic');
+    expect(res.body.coachSummary.rubricCoveragePct).toBe(100);
+
+    // Insight verdicts round-trip with the sentences they belong to
+    expect(JSON.parse(row.insight_tones_json)).toHaveLength(res.body.coachSummary.keyInsights.length);
+    expect(res.body.coachSummary.insightTones).toEqual(JSON.parse(row.insight_tones_json));
+    expect(res.body.coachSummary.insightTones).toContain('positive');
   });
 
   it('continuously updates activity_coach_summaries when activity run_type is modified', async () => {
@@ -144,11 +159,14 @@ describe('API Server Integration Tests', () => {
 
     expect(patchRes.status).toBe(200);
     expect(patchRes.body.coachSummary).toBeDefined();
-    expect(patchRes.body.coachSummary.headline).toBe('High-Quality Lactate Clearance Stimulus');
+    // A steady aerobic run re-labelled as threshold scores poorly on the quality
+    // rubric (no rep structure, no LT2 stimulus), and the headline says so.
+    expect(patchRes.body.coachSummary.headline).toBe('Threshold Stimulus with Compromised Execution');
+    expect(patchRes.body.coachSummary.rubricFamily).toBe('quality');
 
     // Confirm the row in activity_coach_summaries was updated
     const row = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get('bench-easy-60') as any;
-    expect(row.headline).toBe('High-Quality Lactate Clearance Stimulus');
+    expect(row.headline).toBe('Threshold Stimulus with Compromised Execution');
     expect(row.recommendation).toContain('48 hours of recovery');
 
     // Revert back to easy_base

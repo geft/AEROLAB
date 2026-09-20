@@ -3,7 +3,7 @@ import { errorMessage } from '../utils/errors.js';
 import type { ApiError, ThresholdsResponse } from '../types/api.js';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Heart, Zap, Save, CheckCircle, AlertCircle,
-  Activity, Flame, Calendar, HardDrive, FolderSync
+  Activity, Flame, Calendar
 } from 'lucide-react';
 import { formatPace, calculateAgeFromDob } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
@@ -21,7 +21,7 @@ interface ProfileViewProps {
   onNavigateToSettings?: () => void;
 }
 
-export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNavigateToSettings }) => {
+export const ProfileView: React.FC<ProfileViewProps> = () => {
   const { t, format } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -178,6 +178,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
   const lt2Pace = currentThresholds?.lt2PaceSecKm
     ? formatPace(currentThresholds.lt2PaceSecKm)
     : (currentThresholds?.lt1PaceSecKm ? `${formatPace(Math.round(currentThresholds.lt1PaceSecKm * 0.86))} (Est.)` : '--');
+  const lt1HrDisplay = currentThresholds?.lt1Range
+    ? `${currentThresholds.lt1Range[0]}–${currentThresholds.lt1Range[1]}`
+    : String(currentThresholds?.lt1Hr ?? '—');
 
   return (
     <div className="profile-view-container">
@@ -229,20 +232,20 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
           <div className="threshold-ref-box lt1">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span className="threshold-ref-label">{t.stats.aerobicTurnpoint}</span>
-              <span className="threshold-tag-pill lt1">LT1 BASE</span>
+              <span className="threshold-tag-pill lt1">{t.progress.filterLt1}</span>
             </div>
             <div className="threshold-ref-val">
               {lt1Pace}
             </div>
             <span className="threshold-ref-sub">
-              {t.progress.zone2Ceiling}: ~{currentThresholds?.lt1Hr ?? '—'} bpm
+              {t.progress.zone2Ceiling}: ~{lt1HrDisplay} bpm
             </span>
           </div>
 
           <div className="threshold-ref-box lt2">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span className="threshold-ref-label">{t.stats.anaerobicThreshold}</span>
-              <span className="threshold-tag-pill lt2">LT2 THRESHOLD</span>
+              <span className="threshold-tag-pill lt2">{t.progress.filterLt2}</span>
             </div>
             <div className="threshold-ref-val">
               {lt2Pace}
@@ -263,6 +266,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
             <span className="threshold-ref-sub">{t.browse.metersPerBeat}</span>
           </div>
         </div>
+        <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0.75rem 0 0' }}>
+          {t.progress.thresholdEstimateNote}
+        </p>
       </section>
 
       {/* Main Profile Form */}
@@ -526,47 +532,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
         </div>
       </section>
 
-      {/* Database Backup & Cloud Sync Quick Access -> Navigate to Settings */}
-      {(onNavigateToSettings || onOpenBackup) && (
-        <section className="overview-card" style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <HardDrive size={22} style={{ color: 'var(--accent-cyan)' }} />
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                {t.backup.cardTitle}
-              </h3>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                {t.backup.cardSubtitle}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            id="profile-open-backup-btn"
-            onClick={() => {
-              if (onNavigateToSettings) onNavigateToSettings();
-              else if (onOpenBackup) onOpenBackup();
-            }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              background: 'rgba(6, 182, 212, 0.12)',
-              color: 'var(--accent-cyan)',
-              border: '1px solid rgba(6, 182, 212, 0.3)',
-              padding: '0.55rem 1.15rem',
-              borderRadius: 8,
-              fontSize: '0.825rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <FolderSync size={15} />
-            <span>{t.profile.openSettingsAndBackups}</span>
-          </button>
-        </section>
-      )}
     </div>
   );
 };

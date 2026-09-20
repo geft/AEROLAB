@@ -33,7 +33,7 @@ export const BrowseCalendarPicker: React.FC<BrowseCalendarPickerProps> = ({
   t,
   activities = []
 }) => {
-  const { formatDate } = useTranslation();
+  const { formatDate, plural } = useTranslation();
   const [viewYearStr, viewMonthStr] = calendarViewYm.split('-');
   const viewYear = parseInt(viewYearStr, 10);
   const viewMonth = parseInt(viewMonthStr, 10) - 1; // 0-indexed
@@ -280,7 +280,9 @@ export const BrowseCalendarPicker: React.FC<BrowseCalendarPickerProps> = ({
                 transition: 'all 0.12s ease',
                 opacity: hasSession ? 1 : 0.4
               }}
-              title={hasSession ? `${fullDateStr}: ${sessionEntry?.count} run(s)` : `${fullDateStr}: No activity`}
+              title={hasSession
+                ? `${fullDateStr}: ${plural(sessionEntry?.count ?? 0, t.browse.dayRuns)}`
+                : `${fullDateStr}: ${t.browse.dayNoActivity}`}
             >
               <span>{dayNum}</span>
               {hasSession && !isSelected && (
