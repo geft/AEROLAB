@@ -4,7 +4,6 @@ import {
   Plus,
   RefreshCw,
   AlertTriangle,
-  FileText,
   Zap,
   Compass
 } from 'lucide-react';
@@ -141,10 +140,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
   });
   const [selectedTagFilter, setSelectedTagFilter] = useState<string>('all');
   const [focusCoreSegment, setFocusCoreSegment] = useState<boolean>(false);
-  const [activeSubTab, setActiveSubTab] = useState<'telemetry' | 'splits' | 'strides' | 'notes'>('telemetry');
-  const [runnerNotes, setRunnerNotes] = useState<string>('');
-  const [isSavingNotes, setIsSavingNotes] = useState<boolean>(false);
-  const [notesSaveStatus, setNotesSaveStatus] = useState<string | null>(null);
+  const [activeSubTab, setActiveSubTab] = useState<'telemetry' | 'splits' | 'strides' | 'coach'>('telemetry');
   const [mobileSubTab, setMobileSubTab] = useState<'list' | 'detail'>('list');
   const [showTagMenu, setShowTagMenu] = useState<boolean>(false);
   const tagMenuRef = useRef<HTMLDivElement>(null);
@@ -336,7 +332,6 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
       })
       .then(data => {
         setDetailData(data);
-        setRunnerNotes(data.activity?.notes || '');
         if (!data.intervals || data.intervals.length === 0) {
           setActiveSubTab(prev => (prev === 'strides' ? 'telemetry' : prev));
         }
@@ -380,34 +375,6 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
       setActiveSubTab(prev => (prev === 'strides' ? 'telemetry' : prev));
     }
   }, [intervalsTabVisible]);
-
-  useEffect(() => {
-    if (act) {
-      setRunnerNotes(act.notes || '');
-    }
-  }, [act?.id, act?.notes]);
-
-  const handleSaveNotes = async () => {
-    if (!act) return;
-    setIsSavingNotes(true);
-    setNotesSaveStatus(null);
-    try {
-      const res = await fetch(`/api/activities/${act.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes: runnerNotes })
-      });
-      if (res.ok) {
-        setDetailData(prev => prev ? { ...prev, activity: { ...prev.activity, notes: runnerNotes } } : prev);
-        setNotesSaveStatus('Saved!');
-        setTimeout(() => setNotesSaveStatus(null), 2000);
-      }
-    } catch (err) {
-      console.error('Failed to save notes:', err);
-    } finally {
-      setIsSavingNotes(false);
-    }
-  };
 
   const formatPace = (secKm: number | null) => formatPaceUtil(secKm, false);
 
@@ -670,9 +637,9 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                 </button>
               )}
               <button
-                id="subtab-notes-btn"
-                className={`filter-pill-btn ${activeSubTab === 'notes' ? 'active' : ''}`}
-                onClick={() => setActiveSubTab('notes')}
+                id="subtab-coach-btn"
+                className={`filter-pill-btn ${activeSubTab === 'coach' ? 'active' : ''}`}
+                onClick={() => setActiveSubTab('coach')}
               >
                 {t.browse.tabCoach}
               </button>
@@ -771,8 +738,8 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               />
             )}
 
-            {/* SUBTAB 3: Notes & AI Coach */}
-            {activeSubTab === 'notes' && (
+            {/* SUBTAB 3: AI Coach Debrief */}
+            {activeSubTab === 'coach' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 {detailData.coachSummary && (
                   <CoachScoreCard
@@ -782,71 +749,6 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                   />
                 )}
 
-                {/* Extended Notes Field */}
-                <section className="data-table-card">
-                  <div className="sidebar-header">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <FileText size={16} color="#06b6d4" />
-                      <span className="sidebar-title">{t.browse.runnerNotesTitle}</span>
-                    </div>
-                    {notesSaveStatus && (
-                      <span style={{ color: '#10b981', fontSize: '0.8rem', fontWeight: 600 }}>{notesSaveStatus}</span>
-                    )}
-                  </div>
-
-                  <textarea
-                    rows={4}
-                    value={runnerNotes}
-                    onChange={e => setRunnerNotes(e.target.value)}
-                    placeholder={t.browse.notesPlaceholder}
-                    style={{
-                      width: '100%',
-                      background: 'var(--bg-surface)',
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: 8,
-                      padding: '0.75rem',
-                      color: 'var(--text-primary)',
-                      fontSize: '0.85rem',
-                      fontFamily: 'var(--font-body)',
-                      resize: 'vertical'
-                    }}
-                  />
-
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                    <button
-                      onClick={() => { setRunnerNotes(''); }}
-                      disabled={!runnerNotes}
-                      style={{
-                        background: 'transparent',
-                        color: runnerNotes ? 'var(--text-muted)' : 'var(--border-subtle)',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: 6,
-                        padding: '0.45rem 1rem',
-                        fontWeight: 600,
-                        fontSize: '0.85rem',
-                        cursor: runnerNotes ? 'pointer' : 'default'
-                      }}
-                    >
-                      {t.browse.clear}
-                    </button>
-                    <button
-                      onClick={handleSaveNotes}
-                      disabled={isSavingNotes}
-                      style={{
-                        background: '#06b6d4',
-                        color: '#07090e',
-                        border: 'none',
-                        borderRadius: 6,
-                        padding: '0.45rem 1.25rem',
-                        fontWeight: 600,
-                        fontSize: '0.85rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {isSavingNotes ? '...' : t.browse.saveNotes}
-                    </button>
-                  </div>
-                </section>
               </div>
             )}
           </>

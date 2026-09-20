@@ -517,10 +517,7 @@ export function syncActivityCoachSummary(
     weatherHumidityPct: activity.weather_humidity_pct ?? null,
     weatherApparentTempC: activity.weather_apparent_temp_c ?? null,
     weatherCondition: activity.weather_condition ?? null,
-    isFailedWorkout: overrides?.isFailedWorkout ?? (
-      (activity.name && (activity.name.toLowerCase().includes('failed') || activity.name.toLowerCase().includes('aborted') || activity.name.toLowerCase().includes('dnf') || activity.name.toLowerCase().includes('bailed'))) ||
-      (activity.notes && (activity.notes.toLowerCase().includes('failed') || activity.notes.toLowerCase().includes('aborted') || activity.notes.toLowerCase().includes('dnf') || activity.notes.toLowerCase().includes('bailed')))
-    ),
+    isFailedWorkout: overrides?.isFailedWorkout ?? new RegExp('failed|aborted|dnf|bailed', 'i').test(activity.name || ''),
     intervals: overrides?.intervals || intervals,
     splits: overrides?.splits || splits,
     ...overrides

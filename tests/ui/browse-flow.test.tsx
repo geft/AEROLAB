@@ -142,7 +142,7 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     expect(screen.getByText('1.25')).toBeTruthy();
   });
 
-  it('navigates through subtabs: Strides & Intervals, then Notes & AI Coach', async () => {
+  it('navigates through subtabs: Strides & Intervals, then AI Coach', async () => {
     render(
       <BrowseView
         activities={mockActivities}
@@ -166,9 +166,9 @@ describe('BrowseView User Flow & Navigation Tests', () => {
       expect(screen.getByText('195')).toBeTruthy(); // Cadence of interval
     });
 
-    // Switch to Notes & AI Coach subtab
-    const notesTabBtn = screen.getByRole('button', { name: /notes & ai coach/i });
-    fireEvent.click(notesTabBtn);
+    // Switch to the AI Coach subtab
+    const coachTabBtn = screen.getByRole('button', { name: /ai coach/i });
+    fireEvent.click(coachTabBtn);
 
     await waitFor(() => {
       expect(screen.getByText('Near-Perfect Aerobic Base Execution')).toBeTruthy();
@@ -176,7 +176,6 @@ describe('BrowseView User Flow & Navigation Tests', () => {
       expect(screen.getByText('95/100')).toBeTruthy();
       expect(screen.getByText(/superb cardiovascular stability with only 2\.1% drift/i)).toBeTruthy();
       expect(screen.getByText(/ready for progressive tempo/i)).toBeTruthy();
-      expect(screen.getByText('Runner Notes & Observations')).toBeTruthy();
     });
   });
 
@@ -247,47 +246,6 @@ describe('BrowseView User Flow & Navigation Tests', () => {
         expect.objectContaining({
           method: 'PATCH',
           body: JSON.stringify({ tags: ['Easy Base', 'Recovery', 'Strides'] })
-        })
-      );
-    });
-  });
-
-  it('saves updated runner notes', async () => {
-    render(
-      <BrowseView
-        activities={mockActivities}
-        selectedActivityId="act-101"
-        onSelectActivity={vi.fn()}
-        onOpenUpload={vi.fn()}
-        theme="dark"
-      />
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText('Easy Aerobic Base')).toBeTruthy();
-    });
-
-    // Switch to Notes subtab
-    const notesTabBtn = screen.getByRole('button', { name: /notes & ai coach/i });
-    fireEvent.click(notesTabBtn);
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText(/log how you felt/i)).toBeTruthy();
-    });
-
-    const notesTextarea = screen.getByPlaceholderText(/log how you felt/i);
-    fireEvent.change(notesTextarea, { target: { value: 'RPE 3/10. Hydrated with electrolytes.' } });
-
-
-    const saveNotesBtn = screen.getByRole('button', { name: /save notes/i });
-    fireEvent.click(saveNotesBtn);
-
-    await waitFor(() => {
-      expect(globalThis.fetch).toHaveBeenCalledWith(
-        '/api/activities/act-101',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: JSON.stringify({ notes: 'RPE 3/10. Hydrated with electrolytes.' })
         })
       );
     });

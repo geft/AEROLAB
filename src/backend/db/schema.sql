@@ -46,7 +46,6 @@ CREATE TABLE IF NOT EXISTS activities (
   weather_code INTEGER,
   weather_fetched_at TEXT,
   tags TEXT DEFAULT '[]',
-  notes TEXT,
   training_load REAL,
   z1_seconds INTEGER DEFAULT 0,
   z2_seconds INTEGER DEFAULT 0,

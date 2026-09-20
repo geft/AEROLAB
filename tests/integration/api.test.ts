@@ -48,24 +48,21 @@ describe('API Server Integration Tests', () => {
     expect(res.body.records.length).toBeGreaterThan(0);
   });
 
-  it('PATCH /api/activities/:id updates custom title, runner notes, and tags', async () => {
+  it('PATCH /api/activities/:id updates custom title and tags', async () => {
     const patchRes = await request(app)
       .patch('/api/activities/bench-easy-60')
       .send({
         name: 'Morning Aerobic Base + PCN Strides',
-        notes: 'Felt very smooth, high humidity around 80%. Elastic bounce maintained.',
         tags: ['Easy Base', 'Strides', 'Recovery']
       });
 
     expect(patchRes.status).toBe(200);
     expect(patchRes.body.activity.name).toBe('Morning Aerobic Base + PCN Strides');
-    expect(patchRes.body.activity.notes).toContain('Elastic bounce maintained');
     expect(JSON.parse(patchRes.body.activity.tags)).toEqual(['Easy Base', 'Strides', 'Recovery']);
 
     // Confirm persisted via GET
     const getRes = await request(app).get('/api/activities/bench-easy-60');
     expect(getRes.body.activity.name).toBe('Morning Aerobic Base + PCN Strides');
-    expect(getRes.body.activity.notes).toContain('Elastic bounce maintained');
   });
 
   it('PATCH /api/activities/:id rejects unknown/new custom tags with 400', async () => {

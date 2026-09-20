@@ -527,7 +527,7 @@ activitiesRouter.patch('/:id', (req, res) => {
   try {
     const db = getDatabase();
     const { id } = req.params;
-    const { run_type, notes, name, tags } = req.body;
+    const { run_type, name, tags } = req.body;
 
     const updates: string[] = [];
     const params: any[] = [];
@@ -535,10 +535,6 @@ activitiesRouter.patch('/:id', (req, res) => {
     if (run_type) {
       updates.push('run_type = ?');
       params.push(run_type);
-    }
-    if (notes !== undefined) {
-      updates.push('notes = ?');
-      params.push(notes);
     }
     if (name) {
       updates.push('name = ?');

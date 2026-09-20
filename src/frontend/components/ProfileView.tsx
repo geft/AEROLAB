@@ -111,7 +111,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
       z4: [lt2, z4Upper],
       z5: [z4Upper + 1, max]
     };
-  }, [restingHr, effectiveMaxHr, currentThresholds]);
+  }, [restingHr, effectiveMaxHr, currentThresholds, dob]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();

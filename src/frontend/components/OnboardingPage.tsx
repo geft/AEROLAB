@@ -8,7 +8,6 @@ import {
   UploadCloud,
   FileUp,
   CheckCircle2,
-  RefreshCw,
   Sparkles
 } from 'lucide-react';
 import { calculateAgeFromDob } from '../utils/formatters.js';

@@ -24,6 +24,10 @@ interface ThresholdData {
 
 export const ProgressView: React.FC = () => {
   const { t, format, language } = useTranslation();
+
+  // Date.now() must not be called during render (react-hooks/purity), so capture a
+  // stable "now" once per mount for the time-range fallback.
+  const [mountedAt] = React.useState(() => Date.now());
   const [data, setData] = useState<ThresholdData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [historyViewMode, setHistoryViewMode] = useState<'cards' | 'table'>('cards');
@@ -72,7 +76,7 @@ export const ProgressView: React.FC = () => {
 
     const latestTime = uniqueHistory.length > 0
       ? new Date(uniqueHistory[0].effective_date.replace(' ', 'T')).getTime()
-      : Date.now();
+      : mountedAt;
     const cutoffDays = historyRange === '3m' ? 92 : historyRange === '6m' ? 184 : 365;
     const cutoffMs = latestTime - cutoffDays * 24 * 3600 * 1000;
 

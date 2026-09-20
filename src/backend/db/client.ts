@@ -95,6 +95,10 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
     if (!colNames.has('z3_seconds')) db.exec("ALTER TABLE activities ADD COLUMN z3_seconds INTEGER DEFAULT 0");
     if (!colNames.has('z4_seconds')) db.exec("ALTER TABLE activities ADD COLUMN z4_seconds INTEGER DEFAULT 0");
     if (!colNames.has('z5_seconds')) db.exec("ALTER TABLE activities ADD COLUMN z5_seconds INTEGER DEFAULT 0");
+
+    // Notes were removed as a feature, so drop the column rather than leave a
+    // write-only field that nothing displays.
+    if (colNames.has('notes')) db.exec('ALTER TABLE activities DROP COLUMN notes');
   } catch (err) {
     // Non-fatal if table not created yet
   }

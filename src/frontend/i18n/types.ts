@@ -130,7 +130,6 @@ export interface Translations {
     coachTag: string;
     nextStep: string;
     clear: string;
-    notesPlaceholder: string;
     runsBadge: string;
     scoreBreakdownTitle: string;
     scoreFinalExecution: string;
@@ -141,8 +140,6 @@ export interface Translations {
     scoreSilverDesc: string;
     scoreBronzeTier: string;
     scoreBronzeDesc: string;
-    runnerNotesTitle: string;
-    saveNotes: string;
     distance: string;
     movingTime: string;
     avgPace: string;

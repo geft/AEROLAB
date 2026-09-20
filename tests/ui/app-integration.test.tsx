@@ -445,7 +445,7 @@ describe('AEROLAB App Full Integration Tests', () => {
     });
 
     // Switch to notes subtab and verify notes and coach summary
-    const notesSubTabBtn = screen.getByRole('button', { name: /notes/i });
+    const notesSubTabBtn = screen.getByRole('button', { name: /ai coach/i });
     fireEvent.click(notesSubTabBtn);
     await waitFor(() => {
       expect(screen.getByText('Superb Threshold Session')).toBeTruthy();

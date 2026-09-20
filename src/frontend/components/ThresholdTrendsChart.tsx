@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Clock, Heart, TrendingUp } from 'lucide-react';
 import { formatPace, formatDate } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
@@ -37,6 +37,10 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
   currentThresholds
 }) => {
   const { t, language } = useTranslation();
+
+  // Date.now() must not be called during render (react-hooks/purity), so capture a
+  // stable "now" once per mount for the time-range fallback.
+  const [mountedAt] = useState(() => Date.now());
   const [metric, setMetric] = useState<'pace' | 'hr'>('pace');
   const [timeRange, setTimeRange] = useState<'3m' | '6m' | '12m' | 'all'>('6m');
   const [showIndividualRuns, setShowIndividualRuns] = useState(false);
@@ -89,7 +93,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
     if (timeRange === 'all') return trendHistory;
     const latestTime = sortedHistory.length > 0
       ? new Date(sortedHistory[sortedHistory.length - 1].effective_date.replace(' ', 'T')).getTime()
-      : Date.now();
+      : mountedAt;
     const cutoffDays = timeRange === '3m' ? 92 : timeRange === '6m' ? 184 : 365;
     const cutoffMs = latestTime - cutoffDays * 24 * 3600 * 1000;
     return trendHistory.filter(h => {
@@ -130,11 +134,11 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
     return { minTime: t0 - span * 0.04, maxTime: t1 + span * 0.04 };
   }, [filteredHistory]);
 
-  const getX = (dateStr: string) => {
+  const getX = useCallback((dateStr: string) => {
     const t = new Date(dateStr.replace(' ', 'T')).getTime();
     const ratio = Math.max(0, Math.min(1, (t - minTime) / (maxTime - minTime || 1)));
     return padLeft + ratio * innerW;
-  };
+  }, [minTime, maxTime]);
 
   // Y-Scale calculations
   const { minYVal, maxYVal, yTicks } = useMemo(() => {
@@ -191,7 +195,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
     }
   }, [metric, lt1Points, lt2Points, currentThresholds]);
 
-  const getY = (val: number) => {
+  const getY = useCallback((val: number) => {
     if (metric === 'pace') {
       // Faster pace (lower value) is higher up (towards padTop)
       const ratio = (val - minYVal) / (maxYVal - minYVal || 1);
@@ -201,35 +205,35 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
       const ratio = (val - minYVal) / (maxYVal - minYVal || 1);
       return padTop + (1 - ratio) * innerH;
     }
-  };
+  }, [metric, minYVal, maxYVal]);
 
   // Build SVG Paths
-  const buildPath = (pts: CalibrationHistoryItem[], valGetter: (p: CalibrationHistoryItem) => number) => {
+  const buildPath = useCallback((pts: CalibrationHistoryItem[], valGetter: (p: CalibrationHistoryItem) => number) => {
     if (pts.length === 0) return '';
     const coords = pts.map(p => ({ x: getX(p.effective_date), y: getY(valGetter(p)) }));
     return coords.reduce((acc, pt, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`, '');
-  };
+  }, [getX, getY]);
 
   const lt1Path = useMemo(() => {
     return buildPath(lt1Points, p => (metric === 'pace' ? p.lt1_pace_sec_km! : p.lt1_hr!));
-  }, [lt1Points, metric, minYVal, maxYVal, minTime, maxTime]);
+  }, [buildPath, lt1Points, metric]);
 
   const lt2Path = useMemo(() => {
     return buildPath(lt2Points, p => (metric === 'pace' ? p.lt2_pace_sec_km! : p.lt2_hr!));
-  }, [lt2Points, metric, minYVal, maxYVal, minTime, maxTime]);
+  }, [buildPath, lt2Points, metric]);
 
   // Baseline Reference Line Y values
   const activeLt2Y = useMemo(() => {
     if (!currentThresholds) return null;
     const val = metric === 'pace' ? currentThresholds.lt2PaceSecKm : currentThresholds.lt2Hr;
     return val ? getY(val) : null;
-  }, [currentThresholds, metric, minYVal, maxYVal]);
+  }, [currentThresholds, metric, getY]);
 
   const activeLt1Y = useMemo(() => {
     if (!currentThresholds) return null;
     const val = metric === 'pace' ? currentThresholds.lt1PaceSecKm : currentThresholds.lt1Hr;
     return val ? getY(val) : null;
-  }, [currentThresholds, metric, minYVal, maxYVal]);
+  }, [currentThresholds, metric, getY]);
 
   const hasData = lt1Points.length > 0 || lt2Points.length > 0;
 

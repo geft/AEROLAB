@@ -21,7 +21,7 @@ describe('Audit security and data integrity regressions', () => {
     directory = fs.mkdtempSync(path.join(os.tmpdir(), 'aerolab-regression-'));
     activePath = path.join(directory, 'active.db');
     process.env.DATABASE_PATH = activePath;
-    client.getDatabase(activePath).prepare("INSERT INTO activities (id, start_time, notes) VALUES ('original', '2026-01-01', 'keep me')").run();
+    client.getDatabase(activePath).prepare("INSERT INTO activities (id, start_time) VALUES ('original', '2026-01-01')").run();
     app = createServer();
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network disabled in regression tests')));
   });
@@ -44,8 +44,8 @@ describe('Audit security and data integrity regressions', () => {
   }
 
   function expectOriginal() {
-    expect(client.getDatabase().prepare('SELECT id, notes FROM activities').all())
-      .toEqual([{ id: 'original', notes: 'keep me' }]);
+    expect(client.getDatabase().prepare('SELECT id FROM activities').all())
+      .toEqual([{ id: 'original' }]);
   }
 
   it('binds the real listener only to IPv4 loopback', async () => {
@@ -103,7 +103,7 @@ describe('Audit security and data integrity regressions', () => {
       .toEqual({ id: 'replacement', z1_seconds: 0 });
     const safety = new Database(result.safetyBackupPath!, { readonly: true });
     try {
-      expect(safety.prepare('SELECT id, notes FROM activities').all()).toEqual([{ id: 'original', notes: 'keep me' }]);
+      expect(safety.prepare('SELECT id FROM activities').all()).toEqual([{ id: 'original' }]);
     } finally {
       safety.close();
     }
