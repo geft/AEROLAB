@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Terminal, Database, Activity, AlertTriangle, RefreshCw, X, ShieldAlert, Cpu, Trash2, ExternalLink } from 'lucide-react';
+import { Terminal, Database, Activity, AlertTriangle, RefreshCw, X, ShieldAlert, Cpu, Trash2 } from 'lucide-react';
 import { clientLogger, ClientLogEntry } from '../utils/clientLogger';
 import { useTranslation } from '../i18n/LanguageContext';
 
@@ -45,7 +45,7 @@ interface ServerDiagnostics {
 export const DevDiagnosticsDrawer: React.FC<DevDiagnosticsDrawerProps> = ({
   isOpen,
   onClose,
-  theme = 'dark'
+  theme: _theme = 'dark'
 }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'logs' | 'server' | 'sandbox'>('logs');

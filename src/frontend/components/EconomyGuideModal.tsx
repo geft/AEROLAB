@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, BookOpen, Target, TrendingUp, CheckCircle } from 'lucide-react';
+import { X, BookOpen, Target, CheckCircle } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
 
 interface EconomyGuideModalProps {

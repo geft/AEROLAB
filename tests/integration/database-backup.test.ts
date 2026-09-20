@@ -50,7 +50,7 @@ describe('Database Backup & Cloud Sync Integration Tests', () => {
       if (fs.existsSync(testDir)) {
         fs.rmSync(testDir, { recursive: true, force: true });
       }
-    } catch {}
+    } catch { /* best-effort cleanup: safe to ignore */ }
   });
 
   it('GET /api/database/status returns database metadata and initial settings', async () => {

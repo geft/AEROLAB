@@ -90,7 +90,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         // Reset and purge accidental Chinese selection back to English
         localStorage.removeItem('aerolab_lang');
       }
-    } catch {}
+    } catch { /* best-effort cleanup: safe to ignore */ }
     return 'en';
   });
 
@@ -98,7 +98,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setLanguageState(lang);
     try {
       localStorage.setItem('aerolab_lang', lang);
-    } catch {}
+    } catch { /* best-effort cleanup: safe to ignore */ }
   };
 
   const toggleLanguage = () => {

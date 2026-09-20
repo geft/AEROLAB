@@ -120,8 +120,6 @@ export function classifyRun(
       .sort((a, b) => a - b);
     const medianWorkSec = sortedWork[Math.floor(sortedWork.length / 2)];
     const avgWorkDurationSec = totalWorkDurationSec / workIntervals.length;
-    const avgWorkHr =
-      workIntervals.reduce((s, i) => s + i.avgHeartRate, 0) / workIntervals.length;
     const maxWorkHr = Math.max(...workIntervals.map(i => i.maxHeartRate));
 
     const prescription = inferWorkoutPrescription(detectedIntervals);

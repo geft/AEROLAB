@@ -35,7 +35,7 @@ export const FontSizeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (stored === 'xxlarge' || stored === 'max') {
         return 'xlarge';
       }
-    } catch {}
+    } catch { /* intentionally ignored: non-fatal */ }
     return 'medium';
   });
 
@@ -45,7 +45,7 @@ export const FontSizeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setFontSizeState(validSize);
     try {
       localStorage.setItem('aerolab_font_size', validSize);
-    } catch {}
+    } catch { /* intentionally ignored: non-fatal */ }
     if (typeof document !== 'undefined') {
       document.documentElement.setAttribute('data-font-size', validSize);
     }

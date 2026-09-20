@@ -4,7 +4,6 @@ import { getDatabase } from '../db/client.js';
 import { calculateRacePredictions } from '../physiology/predictions.js';
 import { getCurrentThresholds } from '../physiology/threshold-tracker.js';
 import { getDefaultZones } from '../physiology/zones.js';
-import { getObservedPeakHeartRate, calculateAgeFromDob } from './profile.js';
 
 export const thresholdsRouter = Router();
 

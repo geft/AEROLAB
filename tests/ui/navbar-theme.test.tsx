@@ -2,7 +2,7 @@
 import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-import { Navbar, TabType } from '../../src/frontend/components/Navbar.js';
+import { Navbar } from '../../src/frontend/components/Navbar.js';
 import { LanguageProvider } from '../../src/frontend/i18n/LanguageContext.js';
 import { FontSizeProvider } from '../../src/frontend/context/FontSizeContext.js';
 

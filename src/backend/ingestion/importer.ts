@@ -2,7 +2,7 @@ import { getAthleteHeartRateProfile } from '../physiology/athlete-profile.js';
 import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
-import { parseRunCSV, ParsedCSV } from './csv-parser';
+import { parseRunCSV } from './csv-parser';
 import { convertFitToCsv, isFitBuffer } from './fit-parser.js';
 import { calculateEconomy, calculateKmSplits } from '../physiology/economy.js';
 import { detectIntervals } from './interval-detector.js';

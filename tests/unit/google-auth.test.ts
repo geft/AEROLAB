@@ -7,6 +7,8 @@ import {
   getGoogleAuthUrl,
   getGoogleAuthStatus,
   disconnectGoogle,
+  generateCodeVerifier,
+  codeChallengeS256,
   DEFAULT_GOOGLE_CLIENT_ID
 } from '../../src/backend/auth/google-auth.js';
 
@@ -85,5 +87,48 @@ describe('Google OAuth & Auth Helper Unit Tests', () => {
     expect(config.clientSecret).toBeNull();
     const status = getGoogleAuthStatus(db);
     expect(status.isConfigured).toBe(true);
+  });
+});
+
+describe('Google OAuth PKCE (RFC 7636)', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = new Database(':memory:');
+    saveGoogleCredentials(db, 'test-client-id', '');
+  });
+
+  it('derives the RFC 7636 Appendix B S256 challenge from the sample verifier', () => {
+    // Test vector from RFC 7636 Appendix B.
+    const verifier = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
+    expect(codeChallengeS256(verifier)).toBe('E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
+  });
+
+  it('generates high-entropy verifiers using only unreserved characters', () => {
+    const verifier = generateCodeVerifier();
+    // 32 random bytes base64url-encoded -> 43 characters, within the 43-128 range.
+    expect(verifier).toHaveLength(43);
+    expect(verifier).toMatch(/^[A-Za-z0-9\-._~]+$/);
+
+    const second = generateCodeVerifier();
+    expect(second).not.toBe(verifier);
+  });
+
+  it('advertises the S256 challenge on the consent URL', () => {
+    const verifier = generateCodeVerifier();
+    const challenge = codeChallengeS256(verifier);
+    const { url } = getGoogleAuthUrl(db, 'http://localhost:3001', 'state-123', challenge);
+
+    const params = new URL(url).searchParams;
+    expect(params.get('code_challenge')).toBe(challenge);
+    expect(params.get('code_challenge_method')).toBe('S256');
+    expect(params.get('state')).toBe('state-123');
+  });
+
+  it('omits PKCE parameters when no challenge is supplied (backwards compatible)', () => {
+    const { url } = getGoogleAuthUrl(db, 'http://localhost:3001', 'state-456');
+    const params = new URL(url).searchParams;
+    expect(params.get('code_challenge')).toBeNull();
+    expect(params.get('code_challenge_method')).toBeNull();
   });
 });

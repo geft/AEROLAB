@@ -5,7 +5,6 @@ import { getDatabase } from '../db/client.js';
 import { generateCoachSummary, syncActivityCoachSummary } from '../physiology/coach-summary.js';
 import { extractSteadyStateMetrics } from '../physiology/economy.js';
 import { syncActivityWeather } from '../physiology/weather.js';
-import { calculateAgeFromDob } from './profile.js';
 import { calculateTrainingStatus } from '../physiology/training-load.js';
 import { getAthleteBestEfforts } from '../physiology/best-efforts.js';
 
@@ -42,7 +41,6 @@ activitiesRouter.get('/volume', (req, res) => {
     const targetMonth = req.query.month as string | undefined; // e.g. '2026-09'
     const targetYear = req.query.year as string | undefined; // e.g. '2026'
 
-    const profile = db.prepare("SELECT * FROM athlete_profile WHERE id = 'primary'").get() as any;
     const { maxHr, restingHr, lt1Hr, lt2Hr } = getAthleteHeartRateProfile(db);
     const boundaries = getDefaultZones(maxHr, lt1Hr, lt2Hr, restingHr);
 
@@ -176,7 +174,6 @@ activitiesRouter.get('/volume', (req, res) => {
 activitiesRouter.get('/progress-history', (req, res) => {
   try {
     const db = getDatabase();
-    const profile = db.prepare("SELECT * FROM athlete_profile WHERE id = 'primary'").get() as any;
     const { lt1Hr } = getAthleteHeartRateProfile(db);
     const runTypeFilter = (req.query.run_type as string) || 'all'; // 'all' | 'easy' | 'threshold'
 
@@ -462,7 +459,6 @@ activitiesRouter.get('/:id', async (req, res) => {
     const pauseBreakdown = extractSteadyStateMetrics(records);
 
     // Retrieve athlete profile for calibrated thresholds (defaulting to runner profile)
-    const profile = db.prepare('SELECT * FROM athlete_profile WHERE id = ?').get('primary') as any;
     const { maxHr: maxHeartRate, restingHr, lt1Hr, lt2Hr } = getAthleteHeartRateProfile(db);
 
     // Generate, persist, and retrieve from activity_coach_summaries table

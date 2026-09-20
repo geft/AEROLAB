@@ -54,7 +54,7 @@ class ClientLogger {
     for (const listener of this.listeners) {
       try {
         listener();
-      } catch {}
+      } catch { /* intentionally ignored: non-fatal */ }
     }
   }
 

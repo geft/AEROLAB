@@ -9,8 +9,7 @@ import {
   FileUp,
   CheckCircle2,
   RefreshCw,
-  Sparkles,
-  ExternalLink
+  Sparkles
 } from 'lucide-react';
 import { calculateAgeFromDob } from '../utils/formatters.js';
 import { useLanguage } from '../i18n/LanguageContext.js';
@@ -102,7 +101,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
         const data = await res.json();
         setGdriveBackups(data.backups || []);
       }
-    } catch {}
+    } catch { /* intentionally ignored: non-fatal */ }
     finally {
       setLoadingGdrive(false);
     }
@@ -181,7 +180,6 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
             throw new Error(errData.error || t.backup.restoreFailed);
           }
 
-          const data = await res.json();
           setRestoreSuccess(t.onboarding.restoreSuccessToast);
           localStorage.setItem('aerolab_profile_configured', 'true');
           setTimeout(() => {
@@ -239,7 +237,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
       }
       const data = await res.json();
       if (data.url) {
-        const popup = window.open(data.url, 'google_oauth_popup', 'width=540,height=650');
+        window.open(data.url, 'google_oauth_popup', 'width=540,height=650');
         const handleMessage = (e: MessageEvent) => {
           if (e.data?.type === 'AEROLAB_GOOGLE_AUTH_SUCCESS') {
             window.removeEventListener('message', handleMessage);
@@ -264,7 +262,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
     for (const file of Array.from(files)) {
       try {
         const reader = new FileReader();
-        await new Promise<void>((resolve, reject) => {
+        await new Promise<void>((resolve, _reject) => {
           reader.onload = async () => {
             try {
               const base64 = (reader.result as string).split(',')[1] || (reader.result as string);
@@ -290,7 +288,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
           reader.onerror = () => resolve();
           reader.readAsDataURL(file);
         });
-      } catch {}
+      } catch { /* intentionally ignored: non-fatal */ }
     }
 
     setIsImporting(false);

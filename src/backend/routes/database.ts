@@ -9,8 +9,7 @@ import { getValidAccessToken, getGoogleAuthStatus } from '../auth/google-auth.js
 import {
   uploadBackupToGoogleDrive,
   listGoogleDriveBackups,
-  downloadBackupFromGoogleDrive,
-  GDriveFile
+  downloadBackupFromGoogleDrive
 } from '../services/google-drive.js';
 import { logger } from '../utils/logger.js';
 
@@ -31,7 +30,7 @@ export interface BackupSettings {
   lastCloudBackupAt?: string | null;
 }
 
-export function getDefaultBackupDir(db: Database.Database): string {
+export function getDefaultBackupDir(_db: Database.Database): string {
   const dbPath = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'data', 'runs.db');
   if (dbPath === ':memory:') {
     return path.join(os.tmpdir(), 'aerolab-backups');
@@ -57,7 +56,7 @@ export function getBackupSettings(db: Database.Database): BackupSettings {
         };
       }
     }
-  } catch {}
+  } catch { /* intentionally ignored: non-fatal */ }
 
   return {
     autoBackupEnabled: true,
@@ -84,7 +83,7 @@ export function saveBackupSettings(db: Database.Database, newSettings: Partial<B
     }
     prefs.backup = updated;
     db.prepare("UPDATE athlete_profile SET preferences_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 'primary'").run(JSON.stringify(prefs));
-  } catch {}
+  } catch { /* malformed input: caller falls back to a default */ }
 
   return updated;
 }
@@ -113,7 +112,7 @@ export function listBackups(directory: string): Array<{ filename: string; filePa
 
 export function isSafeBackupDirectory(dirPath: string): boolean {
   if (!dirPath || typeof dirPath !== 'string') return false;
-  if (/[\0\x00-\x1f]/.test(dirPath)) return false;
+  if ([...dirPath].some(ch => ch.charCodeAt(0) < 0x20)) return false;
   if (dirPath.includes('..')) return false;
 
   const normalized = path.normalize(dirPath);
@@ -161,7 +160,7 @@ export function createDatabaseBackup(db: Database.Database, targetDirectory?: st
   if (fs.existsSync(filePath)) {
     try {
       fs.unlinkSync(filePath);
-    } catch {}
+    } catch { /* best-effort cleanup: safe to ignore */ }
   }
 
   // Online, transactional SQLite snapshot without interrupting active readers/writers
@@ -182,10 +181,10 @@ export function createDatabaseBackup(db: Database.Database, targetDirectory?: st
       for (const old of toDelete) {
         try {
           fs.unlinkSync(old.filePath);
-        } catch {}
+        } catch { /* best-effort cleanup: safe to ignore */ }
       }
     }
-  } catch {}
+  } catch { /* best-effort cleanup: safe to ignore */ }
 
   return {
     filePath,
@@ -238,7 +237,7 @@ export function validateDatabaseSnapshot(filePath: string): { valid: boolean; ac
     return { valid: false, activityCount: 0, error: err.message || 'Corrupt database file' };
   } finally {
     if (testDb) {
-      try { testDb.close(); } catch {}
+      try { testDb.close(); } catch { /* best-effort cleanup: safe to ignore */ }
     }
   }
 }
@@ -284,7 +283,7 @@ export function restoreDatabaseFromFile(candidatePath: string): { success: boole
     const newDb = getDatabase(activeDbPath);
     const newCount = (newDb.prepare('SELECT count(*) as c FROM activities').get() as any).c;
     // Keep the safety snapshot; the old main file is no longer needed.
-    try { fs.unlinkSync(rollbackPath); } catch {}
+    try { fs.unlinkSync(rollbackPath); } catch { /* best-effort cleanup: safe to ignore */ }
     return { success: true, activityCount: newCount, safetyBackupPath };
   } catch (err: any) {
     if (movedOriginal) {
@@ -300,7 +299,7 @@ export function restoreDatabaseFromFile(candidatePath: string): { success: boole
     return { success: false, activityCount: 0, safetyBackupPath, error: err.message || 'Restore failed' };
   } finally {
     for (const suffix of ['', '-wal', '-shm']) {
-      try { if (fs.existsSync(stagePath + suffix)) fs.unlinkSync(stagePath + suffix); } catch {}
+      try { if (fs.existsSync(stagePath + suffix)) fs.unlinkSync(stagePath + suffix); } catch { /* best-effort cleanup: safe to ignore */ }
     }
   }
 }
@@ -423,7 +422,7 @@ databaseRouter.get('/download', (req: Request, res: Response) => {
     const dateStr = new Date().toISOString().slice(0, 10);
     const tmpPath = path.join(tmpDir, `runs-snapshot-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.db`);
     if (fs.existsSync(tmpPath)) {
-      try { fs.unlinkSync(tmpPath); } catch {}
+      try { fs.unlinkSync(tmpPath); } catch { /* best-effort cleanup: safe to ignore */ }
     }
 
     // Create a safe snapshot
@@ -445,17 +444,17 @@ databaseRouter.get('/download', (req: Request, res: Response) => {
         exportDb.close();
       }
     } catch (cleanErr) {
-      try { fs.unlinkSync(tmpPath); } catch {}
+      try { fs.unlinkSync(tmpPath); } catch { /* best-effort cleanup: safe to ignore */ }
       throw cleanErr;
     }
 
-    res.download(tmpPath, `runs-backup-${dateStr}.db`, (err) => {
+    res.download(tmpPath, `runs-backup-${dateStr}.db`, (_err) => {
       // Clean up the temporary snapshot file after download completes or errors
       try {
         if (fs.existsSync(tmpPath)) {
           fs.unlinkSync(tmpPath);
         }
-      } catch {}
+      } catch { /* best-effort cleanup: safe to ignore */ }
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to download database snapshot' });
@@ -478,7 +477,7 @@ databaseRouter.post('/backup-gdrive', async (req: Request, res: Response) => {
     const tmpPath = path.join(tmpDir, filename);
 
     if (fs.existsSync(tmpPath)) {
-      try { fs.unlinkSync(tmpPath); } catch {}
+      try { fs.unlinkSync(tmpPath); } catch { /* best-effort cleanup: safe to ignore */ }
     }
 
     const normalized = tmpPath.replace(/\\/g, '/').replace(/'/g, "''");
@@ -493,7 +492,7 @@ databaseRouter.post('/backup-gdrive', async (req: Request, res: Response) => {
         file: gdriveFile
       });
     } finally {
-      try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch {}
+      try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch { /* best-effort cleanup: safe to ignore */ }
     }
   } catch (err: any) {
     logger.error('Database', 'Google Drive Backup Error', err);
@@ -550,7 +549,7 @@ databaseRouter.post('/restore', (req: Request, res: Response) => {
         safetyBackupPath: result.safetyBackupPath
       });
     } finally {
-      try { if (fs.existsSync(tmpCandidatePath)) fs.unlinkSync(tmpCandidatePath); } catch {}
+      try { if (fs.existsSync(tmpCandidatePath)) fs.unlinkSync(tmpCandidatePath); } catch { /* best-effort cleanup: safe to ignore */ }
     }
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to restore database' });
@@ -588,7 +587,7 @@ databaseRouter.post('/restore-gdrive', async (req: Request, res: Response) => {
         safetyBackupPath: result.safetyBackupPath
       });
     } finally {
-      try { if (fs.existsSync(tmpCandidatePath)) fs.unlinkSync(tmpCandidatePath); } catch {}
+      try { if (fs.existsSync(tmpCandidatePath)) fs.unlinkSync(tmpCandidatePath); } catch { /* best-effort cleanup: safe to ignore */ }
     }
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to restore from Google Drive' });

@@ -13,10 +13,10 @@ export function getObservedPeakHeartRate(db: Database.Database, age?: number | n
 
 export function getAthleteHeartRateProfile(db: Database.Database, useThresholds = true) {
   let profile: any;
-  try { profile = db.prepare("SELECT * FROM athlete_profile WHERE id = 'primary'").get(); } catch {}
+  try { profile = db.prepare("SELECT * FROM athlete_profile WHERE id = 'primary'").get(); } catch { /* optional query: schema may predate this table */ }
   const age = ageFromDob(profile?.dob, Number(profile?.age) || 0);
   let observed: ReturnType<typeof getObservedPeakHeartRate> = null;
-  try { observed = getObservedPeakHeartRate(db, age); } catch {}
+  try { observed = getObservedPeakHeartRate(db, age); } catch { /* optional query: schema may predate this table */ }
   // An explicitly entered maximum remains authoritative. Automatic mode uses
   // the athlete's own observed peak, or their age-based estimate.
   const maxHr = profile?.is_max_hr_estimated || !profile?.max_hr

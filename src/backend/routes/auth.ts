@@ -2,17 +2,18 @@ import { Router, Request, Response } from 'express';
 import { randomBytes } from 'crypto';
 import { getDatabase } from '../db/client.js';
 import {
-  getGoogleConfig,
   saveGoogleCredentials,
   getGoogleAuthUrl,
   exchangeCodeForTokens,
   getGoogleAuthStatus,
-  disconnectGoogle
+  disconnectGoogle,
+  generateCodeVerifier,
+  codeChallengeS256
 } from '../auth/google-auth.js';
 
 export const authRouter = Router();
 
-const pendingLogins = new Map<string, { browserToken: string; origin: string; openerOrigin: string; expiresAt: number }>();
+const pendingLogins = new Map<string, { browserToken: string; origin: string; openerOrigin: string; expiresAt: number; codeVerifier: string }>();
 const stateCookie = 'aerolab_oauth_state';
 const cookieOptions = { httpOnly: true, sameSite: 'lax' as const, path: '/api/auth/google' };
 const loginLifetimeMs = 10 * 60 * 1000;
@@ -41,17 +42,19 @@ authRouter.get('/google/url', (req: Request, res: Response) => {
     }
     const state = randomBytes(32).toString('hex');
     const browserToken = randomBytes(32).toString('hex');
+    // PKCE: the verifier is kept server-side only; the challenge goes to Google.
+    const codeVerifier = generateCodeVerifier();
     // In development the opener is served by Vite, while Google's callback uses the API port.
     const openerOrigin = new URL(req.get('origin') || req.get('referer') || origin).origin;
     const opener = new URL(openerOrigin);
     if (opener.protocol !== 'http:' || !['localhost', '127.0.0.1', '[::1]'].includes(opener.hostname)) {
       return res.status(400).json({ error: 'OAuth sign-in must start from a local HTTP origin.' });
     }
-    const result = getGoogleAuthUrl(db, origin, state);
+    const result = getGoogleAuthUrl(db, origin, state, codeChallengeS256(codeVerifier));
     if (result.error) {
       return res.status(400).json({ error: result.error });
     }
-    pendingLogins.set(state, { browserToken, origin, openerOrigin, expiresAt: Date.now() + loginLifetimeMs });
+    pendingLogins.set(state, { browserToken, origin, openerOrigin, expiresAt: Date.now() + loginLifetimeMs, codeVerifier });
     res.cookie(stateCookie, browserToken, { ...cookieOptions, maxAge: loginLifetimeMs });
     res.setHeader('Cache-Control', 'no-store');
     res.json({ url: result.url });
@@ -92,7 +95,7 @@ authRouter.get('/google/callback', async (req: Request, res: Response) => {
 
   try {
     const db = getDatabase();
-    const result = await exchangeCodeForTokens(db, code, login.origin);
+    const result = await exchangeCodeForTokens(db, code, login.origin, login.codeVerifier);
 
     if (!result.success) {
       return res.status(400).send(`

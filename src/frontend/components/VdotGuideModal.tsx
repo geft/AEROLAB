@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Award, Target, Activity, Zap, CheckCircle } from 'lucide-react';
+import { X, Award, Zap, CheckCircle } from 'lucide-react';
 import { formatPace } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 

@@ -1,7 +1,6 @@
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-  User, Heart, Zap, Save, CheckCircle, AlertCircle, Info, ShieldCheck,
+import { Heart, Zap, Save, CheckCircle, AlertCircle,
   Activity, Flame, Calendar, HardDrive, FolderSync
 } from 'lucide-react';
 import { formatPace, calculateAgeFromDob } from '../utils/formatters.js';
@@ -13,15 +12,6 @@ interface ObservedPeakData {
   activityName: string;
   activityDate: string;
   runType: string;
-}
-
-interface ProfileData {
-  dob?: string;
-  gender?: string;
-  age?: number;
-  resting_hr?: number;
-  max_hr?: number;
-  is_max_hr_estimated?: number | boolean;
 }
 
 interface ProfileViewProps {
@@ -128,7 +118,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
     try {
       const parsedRhr = Number(restingHr);
       if (!restingHr || isNaN(parsedRhr) || parsedRhr < 30 || parsedRhr > 120) {
-        setStatusMessage({ type: 'error', text: 'Resting heart rate must be a valid number between 30 and 120 bpm.' });
+        setStatusMessage({ type: 'error', text: t.profile.restingHrRangeError });
         return;
       }
 
@@ -341,7 +331,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
                 className="form-input"
                 value={restingHr}
                 onChange={e => setRestingHr(Number(e.target.value))}
-                placeholder="e.g. 55 bpm"
+                placeholder={t.profile.restingHrPlaceholder}
                 min="35"
                 max="100"
               />
@@ -433,7 +423,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
                 className="form-input"
                 value={manualMaxHr}
                 onChange={e => setManualMaxHr(Number(e.target.value))}
-                placeholder="e.g. 185 bpm"
+                placeholder={t.profile.maxHrPlaceholder}
                 min="140"
                 max="230"
               />

@@ -8,7 +8,6 @@ import { createServer } from '../../src/backend/server.js';
 import { getDatabase, closeDatabase } from '../../src/backend/db/client.js';
 import {
   checkAndRunScheduledBackup,
-  createDatabaseBackup,
   listBackups,
   validateDatabaseSnapshot,
   saveBackupSettings
@@ -57,7 +56,7 @@ describe('Comprehensive Backup & Ingestion / Import Integration Tests', () => {
       if (fs.existsSync(testDir)) {
         fs.rmSync(testDir, { recursive: true, force: true });
       }
-    } catch {}
+    } catch { /* best-effort cleanup: safe to ignore */ }
   });
 
   describe('1. Backup Status, Settings & Rotation', () => {

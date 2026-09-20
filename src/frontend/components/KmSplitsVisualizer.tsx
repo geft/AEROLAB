@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Gauge, Heart, Zap, Mountain, TrendingUp, TrendingDown, Award, Clock, ArrowRight, Activity, Minus } from 'lucide-react';
+import { Gauge, Heart, Zap, Mountain, TrendingUp, TrendingDown, Award, Clock, Activity, Minus } from 'lucide-react';
 import { formatPace, formatDuration, formatEfficiency } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 
@@ -37,7 +37,7 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
   lt2Hr,
   compact = false
 }) => {
-  const { t } = useTranslation();
+  const { t, format } = useTranslation();
   const [selectedMetric, setSelectedMetric] = useState<SplitMetric>('pace');
 
   // Filter out invalid splits
@@ -284,7 +284,7 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
 
               const diff = Math.round(hr - stats.avgHr);
               deltaFromAvg = {
-                val: diff === 0 ? '0 bpm' : diff > 0 ? `+${diff} bpm` : `${diff} bpm`,
+                val: format(t.splits.hrDelta, { delta: diff === 0 ? '0' : diff > 0 ? `+${diff}` : `${diff}` }),
                 isBetter: diff <= 0,
                 isNeutral: Math.abs(diff) <= 1
               };

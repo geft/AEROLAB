@@ -156,7 +156,7 @@ export async function pruneGoogleDriveBackups(accessToken: string, folderId: str
           method: 'DELETE',
           headers: { Authorization: `Bearer ${accessToken}` }
         });
-      } catch {}
+      } catch { /* intentionally ignored: non-fatal */ }
     }
   }
 }

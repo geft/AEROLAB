@@ -31,7 +31,7 @@ export const App: React.FC = () => {
   const [isBackupOpen, setIsBackupOpen] = useState<boolean>(false);
   // null = still loading, false = needs onboarding, true = ready
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [, setLoading] = useState<boolean>(true);
 
   // Theme state: persisted in localStorage, defaults to dark
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {

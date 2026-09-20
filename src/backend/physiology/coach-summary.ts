@@ -1,6 +1,6 @@
 import { getAthleteHeartRateProfile } from './athlete-profile.js';
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
-import { EconomyMetrics, PauseBreakdown, extractSteadyStateMetrics } from './economy.js';
+import { PauseBreakdown, extractSteadyStateMetrics } from './economy.js';
 import { ZoneDistribution } from './zones.js';
 
 export interface ScoreFactor {
@@ -63,13 +63,10 @@ export function generateCoachSummary(params: {
 }): CoachSummary {
   const {
     runType,
-    distanceKm,
-    durationMin,
     avgPaceSecKm,
     avgHr,
     cadence,
     decouplingPct,
-    efficiencyFactor,
     avgTemp,
     groundContactTime,
     steadyPaceSecKm,
@@ -86,7 +83,7 @@ export function generateCoachSummary(params: {
   const effectiveGct = steadyStanceTime || groundContactTime;
 
   const hrProfile = resolveHeartRateProfile({ maxHr: params.maxHeartRate, restingHr: params.restingHr, lt1Hr: params.lt1Hr, lt2Hr: params.lt2Hr });
-  const { lt1Hr: lt1, lt2Hr: lt2 } = hrProfile;
+  const { lt1Hr: lt1 } = hrProfile;
 
   const insights: string[] = [];
   const scoreBreakdown: ScoreFactor[] = [];
@@ -274,8 +271,7 @@ export function generateCoachSummary(params: {
         const splitDur = s.duration_seconds || s.durationSeconds || 0;
         const splitStart = cumSec;
         cumSec += splitDur;
-        const splitEnd = cumSec;
-        return splitStart >= wStart - 30 && splitStart < wStart + wDur - 60;
+              return splitStart >= wStart - 30 && splitStart < wStart + wDur - 60;
       });
     }
 

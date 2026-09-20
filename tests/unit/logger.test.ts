@@ -60,11 +60,11 @@ describe('Structured Logger Unit Tests', () => {
   });
 
   it('requestLogger middleware measures duration and logs on response finish', () => {
-    const listeners: Record<string, Function> = {};
+    const listeners: Record<string, (...args: unknown[]) => void> = {};
     const req: any = { originalUrl: '/api/activities', method: 'GET', ip: '127.0.0.1', headers: {} };
     const res: any = {
       statusCode: 200,
-      on: (event: string, cb: Function) => {
+      on: (event: string, cb: (...args: unknown[]) => void) => {
         listeners[event] = cb;
       }
     };

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Activity, Compass, Zap, ShieldCheck, Calendar, List, LayoutGrid, Award } from 'lucide-react';
-import { getDisplayTitle } from './BrowseView';
+import { TrendingUp, Activity, Zap, ShieldCheck, Calendar, List, LayoutGrid, Award } from 'lucide-react';
 import { PeriodProgressView } from './PeriodProgressView';
 import { ThresholdTrendsChart } from './ThresholdTrendsChart';
 import { EconomyGuideModal } from './EconomyGuideModal';

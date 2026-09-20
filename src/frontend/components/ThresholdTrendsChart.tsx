@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Activity, Zap, ShieldCheck, Calendar, Clock, Heart, ArrowUpRight, TrendingUp } from 'lucide-react';
+import { Clock, Heart, TrendingUp } from 'lucide-react';
 import { formatPace, formatDate } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { translateActivityName, translateCalibrationNote } from '../i18n/coachTranslator.js';

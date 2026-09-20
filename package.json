@@ -54,6 +54,7 @@
     "eslint": "^9.39.5",
     "eslint-plugin-i18next": "^6.1.5",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-unused-imports": "^4.4.1",
     "globals": "^17.12.0",
     "jsdom": "^29.1.1",
     "supertest": "^7.0.0",

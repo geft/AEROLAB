@@ -380,4 +380,4 @@ The diagnostics drawer, the floating dev-mode button, and the whole `/api/dev/*`
 ### Verification
 `npx tsc --noEmit`, `npm run lint`, `npm test`, and `npm run i18n:unused` must all pass before a commit. Use the `gh` CLI for GitHub work (`gh run list`, `gh workflow run release.yml`).
 
-The ESLint config surfaces the pre-existing backlog as **warnings** (currently ~490) so lint stays a useful, non-blocking signal while it is burned down; genuinely broken code is an error.
+The ESLint config surfaces the remaining pre-existing backlog as **warnings** (currently ~240: hardcoded UI strings, untyped `any` payloads, and React effect patterns) so lint stays a useful, non-blocking signal while it is burned down. Genuinely broken code — including an unannotated empty `catch` — is an **error** and fails the lint.

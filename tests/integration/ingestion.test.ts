@@ -287,7 +287,7 @@ timestamp,heart_rate,cadence,speed,distance,ground_contact_time
       fs.unlinkSync(cyclingFitPath);
       fs.unlinkSync(txtPath);
       fs.rmdirSync(tmpDir);
-    } catch {}
+    } catch { /* best-effort cleanup: safe to ignore */ }
   });
 
   it('assigns tags for Marathon Pace, Tempo, Strides, and Failed Workouts', () => {

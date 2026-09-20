@@ -75,7 +75,6 @@ export const StatsView: React.FC = () => {
   const lt1 = data.latest?.lt1;
   const lt2 = data.latest?.lt2;
   const lt1Hr = data.currentThresholds?.lt1Hr ?? lt1?.lt1_hr ?? '—';
-  const lt2Hr = data.currentThresholds?.lt2Hr ?? lt2?.lt2_hr ?? '—';
 
   const getLocalizedPeriodLabel = (label: string | undefined): string => {
     if (!label) return t.stats.volumeTitle;

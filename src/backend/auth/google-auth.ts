@@ -1,4 +1,26 @@
 import Database from 'better-sqlite3';
+import { createHash, randomBytes } from 'crypto';
+
+/**
+ * PKCE helpers (RFC 7636).
+ *
+ * The OAuth loopback redirect (http://localhost:PORT/...) can be observed by any
+ * process on the machine, so an authorization code could in principle be
+ * intercepted and exchanged by another local program. PKCE binds the code to a
+ * one-time `code_verifier` that never leaves this process: the server only
+ * accepts the exchange when the verifier hashes to the `code_challenge` that was
+ * sent with the original request.
+ */
+
+/** A high-entropy code verifier (base64url of 32 random bytes, 43 chars). */
+export function generateCodeVerifier(): string {
+  return randomBytes(32).toString('base64url');
+}
+
+/** S256 challenge = BASE64URL(SHA256(ASCII(code_verifier))). */
+export function codeChallengeS256(verifier: string): string {
+  return createHash('sha256').update(verifier).digest('base64url');
+}
 
 export interface GoogleCredentials {
   clientId?: string;
@@ -83,7 +105,12 @@ export function getRedirectUri(customOrigin?: string): string {
   return `${base.replace(/\/$/, '')}/api/auth/google/callback`;
 }
 
-export function getGoogleAuthUrl(db: Database.Database, origin?: string, state?: string): { url: string; error?: string } {
+export function getGoogleAuthUrl(
+  db: Database.Database,
+  origin?: string,
+  state?: string,
+  codeChallenge?: string
+): { url: string; error?: string } {
   const { clientId } = getGoogleConfig(db);
   if (!clientId) {
     return { url: '', error: 'Google Client ID is not configured. Please enter your Google OAuth Client ID first.' };
@@ -107,13 +134,21 @@ export function getGoogleAuthUrl(db: Database.Database, origin?: string, state?:
     state: state || 'aerolab_auth'
   });
 
+  // Only advertise PKCE when the caller supplied a challenge, so existing
+  // callers keep working unchanged.
+  if (codeChallenge) {
+    params.set('code_challenge', codeChallenge);
+    params.set('code_challenge_method', 'S256');
+  }
+
   return { url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}` };
 }
 
 export async function exchangeCodeForTokens(
   db: Database.Database,
   code: string,
-  origin?: string
+  origin?: string,
+  codeVerifier?: string
 ): Promise<{ success: boolean; email?: string; name?: string; picture?: string; error?: string }> {
   ensureGoogleAuthTable(db);
   const { clientId, clientSecret } = getGoogleConfig(db);
@@ -130,6 +165,9 @@ export async function exchangeCodeForTokens(
       redirect_uri: redirectUri,
       grant_type: 'authorization_code'
     };
+    if (codeVerifier) {
+      params.code_verifier = codeVerifier;
+    }
     if (clientSecret) {
       params.client_secret = clientSecret;
     }
@@ -166,7 +204,7 @@ export async function exchangeCodeForTokens(
         name = userData.name || null;
         picture = userData.picture || null;
       }
-    } catch {}
+    } catch { /* intentionally ignored: non-fatal */ }
 
     const existing = db.prepare("SELECT id, refresh_token FROM google_auth WHERE id = 'primary'").get() as any;
     const finalRefreshToken = refreshToken || existing?.refresh_token || null;

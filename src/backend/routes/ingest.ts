@@ -43,7 +43,7 @@ ingestRouter.post('/upload', (req, res) => {
       const rawBase64 = content.includes(';base64,') ? content.split(';base64,')[1] : content;
       try {
         rawBuffer = Buffer.from(rawBase64, 'base64');
-      } catch {}
+      } catch { /* malformed input: caller falls back to a default */ }
     }
 
     // 1. Check for ZIP archive (e.g. Garmin Connect "Export All Data")
@@ -113,7 +113,7 @@ ingestRouter.post('/upload', (req, res) => {
       if (isFit) {
         try {
           fitBuffer = Buffer.from(rawBase64, 'base64');
-        } catch {}
+        } catch { /* malformed input: caller falls back to a default */ }
       } else {
         // Probe if string is base64-encoded FIT binary or base64-encoded CSV
         try {
@@ -130,7 +130,7 @@ ingestRouter.post('/upload', (req, res) => {
               }
             }
           }
-        } catch {}
+        } catch { /* malformed input: caller falls back to a default */ }
       }
     }
 

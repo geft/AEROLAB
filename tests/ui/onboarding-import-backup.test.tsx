@@ -3,7 +3,6 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { OnboardingPage } from '../../src/frontend/components/OnboardingPage.js';
-import { ProfileView } from '../../src/frontend/components/ProfileView.js';
 import { BackupModal } from '../../src/frontend/components/BackupModal.js';
 import { LanguageProvider } from '../../src/frontend/i18n/LanguageContext.js';
 
@@ -15,7 +14,7 @@ describe('Onboarding & Profile Backup / Import UI Component Tests', () => {
 
   beforeEach(() => {
     // Mock fetch for profile and backup status endpoints
-    global.fetch = vi.fn().mockImplementation((url: string, opts?: any) => {
+    global.fetch = vi.fn().mockImplementation((url: string, _opts?: any) => {
       const urlStr = String(url);
 
       if (urlStr.includes('/api/profile')) {

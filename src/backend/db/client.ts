@@ -25,7 +25,7 @@ export function getDatabase(dbPath?: string): Database.Database {
   if (dbInstance) {
     try {
       dbInstance.close();
-    } catch {}
+    } catch { /* best-effort cleanup: safe to ignore */ }
     dbInstance = null;
   }
 
@@ -311,7 +311,11 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
           );
         }
       }
-    } catch {}
+    } catch (err: any) {
+      // Backfilling training load is best-effort, but a silent failure used to
+      // leave stale load/zone data with no trace. Log it instead.
+      logger.warn('DB', 'Training-load/zone backfill skipped', { error: err?.message || String(err) });
+    }
 
     // Automatic migration: Deduplicate runs imported across different formats (FIT vs CSV)
     deduplicateRuns(db, (msg) => logger.info('DB', `[dedup] ${msg}`));
@@ -319,14 +323,18 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
     // Automatic migration: Re-classify and re-detect intervals with updated physiological definitions
     // (also prunes stale threshold rows, re-syncs profile + coach summaries)
     realignDatabase(db, { logger: (msg) => logger.info('DB', `[realign] ${msg}`) });
-  } catch (err) {
-    // Non-fatal
+  } catch (err: any) {
+    // Migrations are non-fatal so a bad row cannot block startup, but the failure
+    // must be visible — this previously swallowed errors silently (see audit).
+    logger.error('DB', 'Startup migration pass failed; database may be stale', err);
   }
 
   // Periodic SQLite query planner & index optimization
   try {
     db.pragma('optimize');
-  } catch {}
+  } catch (err: any) {
+    logger.debug('DB', 'SQLite optimize() skipped', { error: err?.message || String(err) });
+  }
 
   if (validateSchema) {
     if (!schemaPath) throw new Error('Database schema file is unavailable');

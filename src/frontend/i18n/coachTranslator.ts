@@ -84,7 +84,7 @@ export function translateCoachInsight(insight: string, lang: string): string {
   // 2. Aerobic Decoupling: Superb cardiovascular stability
   if (insight.includes('Superb cardiovascular stability with only')) {
     return insight.replace(
-      /Superb cardiovascular stability with only ([\d\.]+)% drift\. Your aerobic capillary base is working efficiently with zero late-run cardiac fatigue\./,
+      /Superb cardiovascular stability with only ([\d.]+)% drift\. Your aerobic capillary base is working efficiently with zero late-run cardiac fatigue\./,
       '心血管稳定性极佳，漂移仅 $1%。毛细血管有氧基础高效运作，后程无心血管疲劳。'
     );
   }
@@ -92,7 +92,7 @@ export function translateCoachInsight(insight: string, lang: string): string {
   // 3. Aerobic Decoupling: Solid aerobic discipline
   if (insight.includes('Solid aerobic discipline. Decoupling was')) {
     return insight.replace(
-      /Solid aerobic discipline\. Decoupling was ([\d\.]+)(?:%)?, well within the sub-LT1 gold standard threshold \(<5%\)\./,
+      /Solid aerobic discipline\. Decoupling was ([\d.]+)(?:%)?, well within the sub-LT1 gold standard threshold \(<5%\)\./,
       '扎实的有氧自律性。有氧脱耦仅为 $1%，完全处于LT1以下的黄金标准门槛（<5%）。'
     );
   }
@@ -181,7 +181,7 @@ export function translateCoachInsight(insight: string, lang: string): string {
   // 13. Interval reps: Laser precision
   if (insight.includes('Exceptional Rep Consistency:')) {
     return insight.replace(
-      /Exceptional Rep Consistency: Executed (\d+) work reps with laser precision \(([\d\.]+)% duration variance, ±(\d+)s spread\)\. Zero early overshoot or late-rep collapse\./,
+      /Exceptional Rep Consistency: Executed (\d+) work reps with laser precision \(([\d.]+)% duration variance, ±(\d+)s spread\)\. Zero early overshoot or late-rep collapse\./,
       '单趟间歇一致性极高：执行了 $1 个间歇片段，用时方差仅 $2%（离散幅度 ±$3 秒）。没有前期盲目冲速或后期体力崩溃。'
     );
   }
@@ -189,7 +189,7 @@ export function translateCoachInsight(insight: string, lang: string): string {
   // 14. Interval reps: Disciplined Interval Structure
   if (insight.includes('Disciplined Interval Structure:')) {
     return insight.replace(
-      /Disciplined Interval Structure: Held (\d+) work reps consistently \(([\d\.]+)% duration variance\)\./,
+      /Disciplined Interval Structure: Held (\d+) work reps consistently \(([\d.]+)% duration variance\)\./,
       '严谨的间歇结构：稳定完成了 $1 个间歇片段（用时方差 $2%）。'
     );
   }
@@ -197,7 +197,7 @@ export function translateCoachInsight(insight: string, lang: string): string {
   // 15. Interval reps: Rep Variance Warning
   if (insight.includes('Rep Variance Warning:')) {
     return insight.replace(
-      /Rep Variance Warning: High duration variance across reps \(([\d\.]+)%\)\. Focus on even rep durations to keep the stimulus consistent across the entire set\./,
+      /Rep Variance Warning: High duration variance across reps \(([\d.]+)%\)\. Focus on even rep durations to keep the stimulus consistent across the entire set\./,
       '间歇波动预警：单趟用时波动较大（方差 $1%）。建议专注于更平稳的单趟节奏，以确保整组刺激的一致性。'
     );
   }
@@ -205,7 +205,7 @@ export function translateCoachInsight(insight: string, lang: string): string {
   // 16. Target VO2 Stimulus Achieved
   if (insight.includes('Target VO2 Stimulus Achieved:')) {
     return insight.replace(
-      /Target VO2 Stimulus Achieved: Heart rate peaked at (\d+) bpm \(([\d\.]+)% HRmax\), successfully stimulating maximal oxygen uptake and cardiac stroke volume adaptations\./,
+      /Target VO2 Stimulus Achieved: Heart rate peaked at (\d+) bpm \(([\d.]+)% HRmax\), successfully stimulating maximal oxygen uptake and cardiac stroke volume adaptations\./,
       '达成目标VO2刺激：心率峰值达到 $1 bpm（占最大心率 $2%），成功激发了最大摄氧量与心脏搏出量的有氧适应。'
     );
   }

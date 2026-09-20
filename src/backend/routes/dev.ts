@@ -22,31 +22,31 @@ devRouter.get('/diagnostics', (req: Request, res: Response) => {
     try {
       const actRow = db.prepare('SELECT COUNT(*) as count FROM activities').get() as any;
       activityCount = actRow?.count ?? 0;
-    } catch {}
+    } catch { /* optional query: schema may predate this table */ }
 
     try {
       const intRow = db.prepare('SELECT COUNT(*) as count FROM activity_intervals').get() as any;
       intervalCount = intRow?.count ?? 0;
-    } catch {}
+    } catch { /* optional query: schema may predate this table */ }
 
     try {
       const splitRow = db.prepare('SELECT COUNT(*) as count FROM activity_splits').get() as any;
       splitCount = splitRow?.count ?? 0;
-    } catch {}
+    } catch { /* optional query: schema may predate this table */ }
 
     try {
       const recRow = db.prepare('SELECT COUNT(*) as count FROM activity_records').get() as any;
       recordCount = recRow?.count ?? 0;
-    } catch {}
+    } catch { /* optional query: schema may predate this table */ }
 
     try {
       profileData = db.prepare('SELECT * FROM athlete_profile WHERE id = ?').get('primary') as any;
-    } catch {}
+    } catch { /* optional query: schema may predate this table */ }
 
     try {
       latestLt1 = db.prepare('SELECT * FROM physiological_thresholds WHERE lt1_hr IS NOT NULL ORDER BY effective_date DESC LIMIT 1').get() as any;
       latestLt2 = db.prepare('SELECT * FROM physiological_thresholds WHERE lt2_hr IS NOT NULL ORDER BY effective_date DESC LIMIT 1').get() as any;
-    } catch {}
+    } catch { /* optional query: schema may predate this table */ }
 
     // Database file stats
     const dbPath = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'data', 'runs.db');
@@ -55,7 +55,7 @@ devRouter.get('/diagnostics', (req: Request, res: Response) => {
       try {
         const stat = fs.statSync(dbPath);
         dbSizeBytes = stat.size;
-      } catch {}
+      } catch { /* best-effort cleanup: safe to ignore */ }
     }
 
     const mem = process.memoryUsage();

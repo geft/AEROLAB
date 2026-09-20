@@ -163,7 +163,6 @@ export function detectIntervals(
     const cad = r.cadence ?? 0;
     const spd = r.speedMps ?? 0;
     const hr = r.heartRate ?? 0;
-    const st = r.stanceTime ?? 0;
 
     // 1. High velocity / fast turnover burst (stride candidate, handles optical sensor latency at start)
     if (spd >= strideSpeedThreshold || cad >= strideCadThreshold || (cad >= baseCad + 10 && spd >= baseSpeed * 1.15)) {
@@ -218,7 +217,7 @@ export function detectIntervals(
       const blockRecs = records.slice(b.startIndex, b.endIndex + 1);
       const maxSpd = Math.max(...blockRecs.map(r => r?.speedMps ?? 0));
       const maxCad = Math.max(...blockRecs.map(r => r?.cadence ?? 0));
-      const minStance = Math.min(...blockRecs.map(r => (r?.stanceTime && r.stanceTime > 100) ? r.stanceTime : 9999));
+      const _minStance = Math.min(...blockRecs.map(r => (r?.stanceTime && r.stanceTime > 100) ? r.stanceTime : 9999));
       const startDist = blockRecs[0]?.distanceMeters ?? 0;
       const endDist = blockRecs[blockRecs.length - 1]?.distanceMeters ?? startDist;
       const distM = Math.max(0, endDist - startDist);

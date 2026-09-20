@@ -94,7 +94,7 @@ export function createServer() {
     setTimeout(() => {
       try {
         closeDatabase();
-      } catch {}
+      } catch { /* intentionally ignored: non-fatal */ }
       process.exit(0);
     }, 200);
   });

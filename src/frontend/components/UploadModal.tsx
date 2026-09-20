@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, CheckCircle, AlertCircle, X, Check, Files } from 'lucide-react';
+import { UploadCloud, CheckCircle, AlertCircle, X, Files } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
 
 interface UploadModalProps {
@@ -32,7 +32,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [overwrite, setOverwrite] = useState(false);
-  const [lastUploadedFiles, setLastUploadedFiles] = useState<File[]>([]);
+  const [, setLastUploadedFiles] = useState<File[]>([]);
   const [lastSingleActivityId, setLastSingleActivityId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 

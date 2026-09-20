@@ -241,7 +241,7 @@ export function evaluateThresholdUpdate(
         WHERE activity_id = ?
         ORDER BY split_index ASC
       `).all(activityId) as SplitRow[];
-    } catch {}
+    } catch { /* optional query: schema may predate this table */ }
 
     lt1Confidence = 0.88;
     if (splits.length >= 3) {
@@ -295,7 +295,7 @@ export function evaluateThresholdUpdate(
   try {
     const lt2Row = db.prepare('SELECT lt2_pace_sec_km FROM physiological_thresholds WHERE lt2_pace_sec_km IS NOT NULL AND julianday(effective_date) < julianday(?) ORDER BY julianday(effective_date) DESC LIMIT 1').get(runDate) as any;
     if (lt2Row?.lt2_pace_sec_km) knownLt2Pace = lt2Row.lt2_pace_sec_km;
-  } catch {}
+  } catch { /* optional query: schema may predate this table */ }
 
   if (estimatedLt1Pace !== null) {
     if (estimatedLt1Pace < 120 || (knownLt2Pace !== null && estimatedLt1Pace <= knownLt2Pace)) {
@@ -317,7 +317,7 @@ export function evaluateThresholdUpdate(
       workInvs = db.prepare(
         "SELECT interval_index, start_seconds, duration_seconds, distance_meters, avg_heart_rate, avg_pace_sec_km FROM activity_intervals WHERE activity_id = ? AND type = 'work' ORDER BY interval_index ASC"
       ).all(activityId) as any[];
-    } catch {}
+    } catch { /* optional query: schema may predate this table */ }
 
     // Screen effort against the independent athlete baseline, not the previous
     // inferred HR: otherwise one high-HR session raises the admission bar for
@@ -339,7 +339,7 @@ export function evaluateThresholdUpdate(
           interRepRecs = db.prepare(
             "SELECT duration_seconds, hr_drop FROM activity_intervals WHERE activity_id = ? AND type = 'recovery' AND interval_index > ? AND interval_index < ? ORDER BY interval_index ASC"
           ).all(activityId, firstIdx, lastIdx) as any[];
-        } catch {}
+        } catch { /* optional query: schema may predate this table */ }
       }
 
       const avgRestDur = interRepRecs.length > 0
@@ -369,7 +369,7 @@ export function evaluateThresholdUpdate(
           repRecs = db.prepare(
             "SELECT elapsed_seconds, speed_mps, heart_rate FROM activity_records WHERE activity_id = ? AND elapsed_seconds >= ? AND elapsed_seconds <= ? ORDER BY elapsed_seconds ASC"
           ).all(activityId, inv.start_seconds, inv.start_seconds + durToTake) as any[];
-        } catch {}
+        } catch { /* optional query: schema may predate this table */ }
 
         if (repRecs.length >= 30) {
           // 1. Pace: strip initial acceleration ramp if starting from walk/stop (< 2.2 m/s)
@@ -580,7 +580,7 @@ export function evaluateThresholdUpdate(
   } else {
     try {
       db.prepare('DELETE FROM physiological_thresholds WHERE source_activity_id = ?').run(activityId);
-    } catch {}
+    } catch { /* optional query: schema may predate this table */ }
   }
 
   return {
@@ -629,7 +629,7 @@ export function computeRollingThresholds(
         LIMIT 3
       `).all(refDateStr) as any[];
     }
-  } catch {}
+  } catch { /* optional query: schema may predate this table */ }
 
   // 2. Fetch recent LT2 calibrations (up to 5 in last 45 days, or last 3 if none in 45 days)
   let lt2Rows: any[] = [];
@@ -654,7 +654,7 @@ export function computeRollingThresholds(
         LIMIT 3
       `).all(refDateStr) as any[];
     }
-  } catch {}
+  } catch { /* optional query: schema may predate this table */ }
 
   const rolledLt1 = rollingThreshold(lt1Rows, refDateStr);
   const rolledLt2 = rollingThreshold(lt2Rows, refDateStr);

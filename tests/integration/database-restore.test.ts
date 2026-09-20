@@ -3,10 +3,8 @@ import request from 'supertest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import Database from 'better-sqlite3';
 import { createServer } from '../../src/backend/server.js';
 import { getDatabase, closeDatabase } from '../../src/backend/db/client.js';
-import { createDatabaseBackup } from '../../src/backend/routes/database.js';
 
 describe('Database Restore & Auth Integration Tests', () => {
   let app: any;
@@ -46,7 +44,7 @@ describe('Database Restore & Auth Integration Tests', () => {
       if (fs.existsSync(testDir)) {
         fs.rmSync(testDir, { recursive: true, force: true });
       }
-    } catch {}
+    } catch { /* best-effort cleanup: safe to ignore */ }
   });
 
   it('rejects invalid or non-database content in POST /api/database/restore', async () => {

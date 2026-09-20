@@ -46,7 +46,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
           setGoogleStatus(data.googleStatus);
         }
       }
-    } catch {}
+    } catch { /* intentionally ignored: non-fatal */ }
   };
 
   const fetchGoogleStatus = async () => {
@@ -56,7 +56,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
         const data = await res.json();
         setGoogleStatus(data.status);
       }
-    } catch {}
+    } catch { /* intentionally ignored: non-fatal */ }
   };
 
   useEffect(() => {
@@ -103,7 +103,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
         setGdriveBackups([]);
         setShowGdriveRestoreList(false);
       }
-    } catch {}
+    } catch { /* intentionally ignored: non-fatal */ }
   };
 
   const handleSyncToGoogleDrive = async () => {
@@ -133,7 +133,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
         setGdriveBackups(data.files || []);
         setShowGdriveRestoreList(true);
       }
-    } catch {}
+    } catch { /* intentionally ignored: non-fatal */ }
   };
 
   const handleRestoreFromGoogleDrive = async (fileId: string) => {
@@ -256,7 +256,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
       if (res.ok && data.folder) {
         setBackupDirectory(data.folder);
       }
-    } catch {}
+    } catch { /* intentionally ignored: non-fatal */ }
   };
 
   return (

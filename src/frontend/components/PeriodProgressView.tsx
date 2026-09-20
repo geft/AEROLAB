@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, TrendingUp, Award, Activity, ShieldCheck, Zap, LayoutGrid, List, ArrowUpRight, History } from 'lucide-react';
+import { Calendar, TrendingUp, Award, LayoutGrid, List, History } from 'lucide-react';
 import { formatPace } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 
@@ -506,7 +506,7 @@ export const PeriodProgressView: React.FC = () => {
       {/* Detail Breakdown: Cards or Table */}
       {viewMode === 'cards' ? (
         <div className="period-cards-grid">
-          {visiblePeriods.map((p, idx) => {
+          {visiblePeriods.map((p, _idx) => {
             const hasCalibrations = (p.calibrations?.length ?? 0) > 0;
             const isLatest = p.period === latestGlobalPeriod;
 

@@ -40,7 +40,7 @@ describe('DevDiagnosticsDrawer UI Component Tests', () => {
     clientLogger.info('TEST_INIT', 'Client logger initialized');
     clientLogger.error('TEST_ALERT', 'Simulated failure event', new Error('Component crashed'));
 
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: any, opts?: any) => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: any, _opts?: any) => {
       const urlStr = String(url);
       if (urlStr.includes('/api/dev/diagnostics')) {
         return {

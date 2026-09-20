@@ -128,7 +128,7 @@ function race5k(): BenchmarkRun {
   let t = 0;
   t = ramp(rows, t, 120, 140, 175, 180, 4.2);
   t = hold(rows, t, 960, 175, 180, 4.2);
-  t = ramp(rows, t, 120, 175, 150, 160, 2.5);
+  ramp(rows, t, 120, 175, 150, 160, 2.5);
   return build(rows, 'bench-race-5k', 'Benchmark Parkrun 5K', '2026-09-15 07:00:00',
     'race', ['Race'], 'All-out benchmark identified by title');
 }

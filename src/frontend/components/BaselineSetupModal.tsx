@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { HeartPulse, Calendar, Activity, Zap, CheckCircle2, ShieldCheck, Flame } from 'lucide-react';
+import { HeartPulse, ShieldCheck } from 'lucide-react';
 import { calculateAgeFromDob } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 

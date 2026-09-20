@@ -66,7 +66,7 @@ describe('Mobile Responsiveness & View Switcher UI Tests', () => {
 
   beforeEach(() => {
     localStorage.clear();
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: any) => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url: any) => {
       return {
         ok: true,
         json: async () => mockDetailData

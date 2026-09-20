@@ -41,7 +41,7 @@ describe('Security Hardening Integration Tests', () => {
       if (fs.existsSync(testDir)) {
         fs.rmSync(testDir, { recursive: true, force: true });
       }
-    } catch {}
+    } catch { /* best-effort cleanup: safe to ignore */ }
   });
 
   describe('1. Standard Security HTTP Headers', () => {

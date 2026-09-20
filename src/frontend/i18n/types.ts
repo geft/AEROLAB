@@ -179,6 +179,8 @@ export interface Translations {
   };
   splits: {
     title: string;
+    /** Template with a `{delta}` token, e.g. `+5 bpm`. */
+    hrDelta: string;
     split: string;
     pace: string;
     heartRate: string;
@@ -427,6 +429,9 @@ export interface Translations {
     tanakaFormulaNote: string;
     /** Template with `{resting}` and `{max}` tokens. */
     zonesHeaderSummary: string;
+    restingHrRangeError: string;
+    restingHrPlaceholder: string;
+    maxHrPlaceholder: string;
   };
   upload: {
     title: string;

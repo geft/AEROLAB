@@ -142,6 +142,7 @@ export const en: Translations = {
   },
   splits: {
     title: 'Kilometer Splits',
+    hrDelta: '{delta} bpm',
     split: 'Split',
     pace: 'Pace',
     heartRate: 'Heart Rate',
@@ -375,7 +376,10 @@ export const en: Translations = {
     tanakaMaxShort: 'Tanaka max: ~{hr} bpm',
     observedPeakNote: 'Peak of {hr} bpm observed during {activity} ({date}).',
     tanakaFormulaNote: 'Tanaka formula: 208 - (0.7 × {age}) = {hr} bpm until hard interval runs are logged.',
-    zonesHeaderSummary: 'Resting HR: {resting} bpm • Max HR: {max} bpm'
+    zonesHeaderSummary: 'Resting HR: {resting} bpm • Max HR: {max} bpm',
+    restingHrRangeError: 'Resting heart rate must be a valid number between 30 and 120 bpm.',
+    restingHrPlaceholder: 'e.g. 55 bpm',
+    maxHrPlaceholder: 'e.g. 185 bpm'
   },
   upload: {
     title: 'Import Garmin Runs (FIT or CSV)',

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sun, Moon, Type, ShieldCheck, HardDrive } from 'lucide-react';
+import { Sun, Moon, Type, HardDrive } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { useFontSize, FontSize, FONT_PERCENTAGES } from '../context/FontSizeContext.js';
 import { BackupManagementPanel } from './BackupManagementPanel.js';

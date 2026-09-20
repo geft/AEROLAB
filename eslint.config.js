@@ -2,6 +2,7 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import reactHooks from 'eslint-plugin-react-hooks';
 import i18next from 'eslint-plugin-i18next';
+import unusedImports from 'eslint-plugin-unused-imports';
 
 /**
  * Local rule: flag hardcoded run statistics / metric copy in components.
@@ -12,6 +13,18 @@ import i18next from 'eslint-plugin-i18next';
  * cannot silently drift from the backend.
  */
 const METRIC_TEXT = /(\d+(?:\.\d+)?\s*%)|(\d+\s*(?:bpm|spm|km|mi|kg|min|sec)\b)|(\d+:\d{2})/i;
+
+/** CSS values legitimately contain percentages and units — they are not run stats. */
+const CSS_LIKE = /[();]|(?:rgba?|gradient|minmax|calc|translate|rotate|scale|var|url)\s*\(|\b(?:px|fr|rem|em|vh|vw|auto|important)\b/i;
+
+/**
+ * Treat something as a hardcoded statistic only when it carries a metric pattern
+ * *and* real words, so `"100%"` in a style object is ignored while
+ * `"82% Low / 18% High"` is flagged.
+ */
+function looksLikeStat(text) {
+  return METRIC_TEXT.test(text) && /[a-z]{2,}/i.test(text) && !CSS_LIKE.test(text);
+}
 
 const localRules = {
   rules: {
@@ -26,15 +39,24 @@ const localRules = {
         }
       },
       create(context) {
-        const sourceCode = context.sourceCode ?? context.getSourceCode();
+        // Track whether we are inside a JSX `style={{...}}` attribute, where
+        // percentages and units are layout values rather than user-facing copy.
+        let styleDepth = 0;
 
         function check(node, raw) {
+          if (styleDepth > 0) return;
           const text = String(raw).trim();
-          if (!text || !METRIC_TEXT.test(text)) return;
+          if (!text || !looksLikeStat(text)) return;
           context.report({ node, messageId: 'hardcodedMetric', data: { text: text.slice(0, 60) } });
         }
 
         return {
+          JSXAttribute(node) {
+            if (node.name && node.name.name === 'style') styleDepth++;
+          },
+          'JSXAttribute:exit'(node) {
+            if (node.name && node.name.name === 'style') styleDepth--;
+          },
           JSXText(node) {
             check(node, node.value);
           },
@@ -83,16 +105,22 @@ export default tseslint.config(
   // stays a useful, non-blocking signal. Burn the backlog down over time, then
   // promote these rules back to 'error'.
   {
+    plugins: { 'unused-imports': unusedImports },
     rules: {
       '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-unused-vars': [
+      // The dedicated plugin is auto-fixable (`npm run lint:fix` strips dead
+      // imports), so use it instead of the non-fixable core rule for imports.
+      '@typescript-eslint/no-unused-vars': 'off',
+      'unused-imports/no-unused-imports': 'warn',
+      'unused-imports/no-unused-vars': [
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }
       ],
       '@typescript-eslint/no-unsafe-function-type': 'warn',
       '@typescript-eslint/no-require-imports': 'warn',
       // Empty catch blocks hide real failures (audit finding: silent migrations).
-      'no-empty': 'warn',
+      // Intentional ignores must be annotated with a comment inside the block.
+      'no-empty': 'error',
       'no-useless-escape': 'warn',
       'no-control-regex': 'warn',
       'no-constant-condition': 'warn',
@@ -121,6 +149,9 @@ export default tseslint.config(
   // dictionaries so both English and Chinese stay in sync.
   {
     files: ['src/frontend/components/**/*.tsx', 'src/frontend/App.tsx'],
+    // The diagnostics drawer is developer tooling that never ships, so it is
+    // intentionally English-only and exempt from the localization rule.
+    ignores: ['src/frontend/components/DevDiagnosticsDrawer.tsx'],
     plugins: { i18next },
     rules: {
       'i18next/no-literal-string': [
@@ -149,6 +180,15 @@ export default tseslint.config(
     files: ['src/frontend/i18n/**/*.ts'],
     rules: {
       'i18next/no-literal-string': 'off',
+      'aerolab/no-hardcoded-metric-text': 'off'
+    }
+  },
+
+  // Formatters build unit strings such as "5:20/km" by design, and version.ts is
+  // build metadata — neither is hardcoded run statistics.
+  {
+    files: ['src/frontend/utils/**/*.ts', 'src/frontend/version.ts'],
+    rules: {
       'aerolab/no-hardcoded-metric-text': 'off'
     }
   },

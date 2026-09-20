@@ -605,7 +605,7 @@ describe('Threshold Tracker Unit Tests', () => {
       insertRecoveryInterval('test-act-short-rest', 2, 90, 33);
       insertWorkInterval('test-act-short-rest', 3, 990, 900, 3272, 180, 275);
 
-      const estimateA = evaluateThresholdUpdate(
+      const _estimateA = evaluateThresholdUpdate(
         db,
         'test-act-short-rest',
         '2026-09-17 19:00:00',
@@ -631,7 +631,7 @@ describe('Threshold Tracker Unit Tests', () => {
       insertRecoveryInterval('test-act-long-rest', 2, 160, 54);
       insertWorkInterval('test-act-long-rest', 3, 760, 600, 2140, 172, 280);
 
-      const estimateB = evaluateThresholdUpdate(
+      const _estimateB = evaluateThresholdUpdate(
         db,
         'test-act-long-rest',
         '2026-09-10 19:00:00',

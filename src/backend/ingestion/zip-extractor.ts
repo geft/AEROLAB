@@ -23,7 +23,6 @@ export function extractZipEntries(zipBuffer: Buffer): ExtractedZipEntry[] {
 
     const compressionMethod = zipBuffer.readUInt16LE(offset + 8);
     const compressedSize = zipBuffer.readUInt32LE(offset + 18);
-    const uncompressedSize = zipBuffer.readUInt32LE(offset + 22);
     const fileNameLen = zipBuffer.readUInt16LE(offset + 26);
     const extraFieldLen = zipBuffer.readUInt16LE(offset + 28);
 

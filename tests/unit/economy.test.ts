@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateEconomy, calculateKmSplits } from '../../src/backend/physiology/economy';
+import { calculateEconomy } from '../../src/backend/physiology/economy';
 import { ActivityRecord } from '../../src/backend/ingestion/csv-parser';
 
 describe('Running Economy Physiology', () => {

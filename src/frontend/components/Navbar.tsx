@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Compass, TrendingUp, BarChart2, User, Settings, UploadCloud, Sun, Moon, Globe, Type, ChevronDown, Check, Minus, Plus, HardDrive, MoreHorizontal, Terminal } from 'lucide-react';
+import { Compass, TrendingUp, BarChart2, User, Settings, UploadCloud, Sun, Moon, Globe, Type, ChevronDown, Check, Minus, Plus, MoreHorizontal } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES } from '../i18n/types.js';
-import { useFontSize, FontSize, FONT_SIZES, FONT_PERCENTAGES } from '../context/FontSizeContext.js';
+import { useFontSize, FONT_PERCENTAGES } from '../context/FontSizeContext.js';
 
 export type TabType = 'browse' | 'progress' | 'stats' | 'profile' | 'settings';
 
@@ -19,12 +19,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   onTabChange,
   onOpenUpload,
-  onOpenBackup,
   theme,
   onToggleTheme
 }) => {
   const { language, setLanguage, t } = useTranslation();
-  const { fontSize, setFontSize, increaseFontSize, decreaseFontSize } = useFontSize();
+  const { fontSize, increaseFontSize, decreaseFontSize } = useFontSize();
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 

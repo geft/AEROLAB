@@ -7,8 +7,9 @@ Canonical rule file for AI agents working in this repository.
 
 ```bash
 npx tsc --noEmit     # must be 0 errors
-npm run lint         # must be clean
-npm test             # 54 files / 365 tests, all green
+npm run lint         # must be 0 errors (warnings are a tracked backlog)
+npm test             # 54 files / 368 tests, all green
+npm run i18n:unused  # must report every dictionary key as referenced
 ```
 
 ## i18n and user-facing strings

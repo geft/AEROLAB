@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { App } from '../../src/frontend/App.js';
 
 describe('AEROLAB App Full Integration Tests', () => {
@@ -316,7 +316,7 @@ describe('AEROLAB App Full Integration Tests', () => {
 
     let activitiesList = [...mockActivities];
 
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: any, options: any) => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: any, _options: any) => {
       const urlStr = String(url);
       if (urlStr.includes('/api/thresholds')) {
         return {

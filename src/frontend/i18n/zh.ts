@@ -142,6 +142,7 @@ export const zh: Translations = {
   },
   splits: {
     title: '公里分段明细',
+    hrDelta: '{delta} bpm',
     split: '公里分段',
     pace: '分段配速',
     heartRate: '平均心率',
@@ -381,7 +382,10 @@ export const zh: Translations = {
     tanakaMaxShort: 'Tanaka预估: ~{hr} bpm',
     observedPeakNote: '在 {activity} ({date}) 中观测到峰值 {hr} bpm。',
     tanakaFormulaNote: 'Tanaka公式：208 - (0.7 × {age}) = {hr} bpm，待记录高强度间歇训练后自动更新。',
-    zonesHeaderSummary: '静息心率: {resting} bpm • 最大心率: {max} bpm'
+    zonesHeaderSummary: '静息心率: {resting} bpm • 最大心率: {max} bpm',
+    restingHrRangeError: '静息心率必须是 30 到 120 bpm 之间的有效数值。',
+    restingHrPlaceholder: '例如 55 bpm',
+    maxHrPlaceholder: '例如 185 bpm'
   },
   upload: {
     title: '导入 Garmin 跑步记录 (FIT 或 CSV)',
