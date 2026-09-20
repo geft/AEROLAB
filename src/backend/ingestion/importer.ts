@@ -1,3 +1,4 @@
+import { getAthleteHeartRateProfile } from '../physiology/athlete-profile.js';
 import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
@@ -102,18 +103,6 @@ export function importRunContent(
     };
   }
 
-  // If force re-importing, purge old rows for this activity first
-  if (existing && options.force) {
-    const targetId = existing.id;
-    db.prepare('DELETE FROM activity_splits WHERE activity_id = ?').run(targetId);
-    db.prepare('DELETE FROM activity_intervals WHERE activity_id = ?').run(targetId);
-    db.prepare('DELETE FROM activity_records WHERE activity_id = ?').run(targetId);
-    db.prepare('DELETE FROM physiological_thresholds WHERE source_activity_id = ?').run(targetId);
-    db.prepare('DELETE FROM activity_coach_summaries WHERE activity_id = ?').run(targetId);
-    db.prepare('DELETE FROM activities WHERE id = ?').run(targetId);
-  }
-
-
   // 2. Compute Physiology & Intervals
   const economy = calculateEconomy(records);
   const splits = calculateKmSplits(records, 1000);
@@ -123,13 +112,7 @@ export function importRunContent(
     nameLower.includes(' tt') ||
     nameLower.includes('race') ||
     nameLower.includes('parkrun');
-  let hrProfile = { maxHr: null as number | null, restingHr: null as number | null, lt1Hr: null as number | null, lt2Hr: null as number | null };
-  try {
-    const prof = db.prepare('SELECT max_hr, resting_hr, lt1_hr, lt2_hr FROM athlete_profile WHERE id = ?').get('primary') as any;
-    if (prof) {
-      hrProfile = { maxHr: prof.max_hr ?? null, restingHr: prof.resting_hr ?? null, lt1Hr: prof.lt1_hr ?? null, lt2Hr: prof.lt2_hr ?? null };
-    }
-  } catch { /* profile table may not exist yet in fresh test DBs */ }
+  const hrProfile = getAthleteHeartRateProfile(db);
 
   const intervalOpts = {
     isRace,
@@ -250,8 +233,8 @@ export function importRunContent(
   else if (classification.runType === 'race') initialTags.push('Race');
 
   // Marathon Pace check: long run containing sustained upper-Z3 blocks (profile-relative)
-  const mpLt1 = hrProfile.lt1Hr ?? (hrProfile.maxHr ? Math.round(hrProfile.maxHr * 0.73) : 148);
-  const mpLt2 = hrProfile.lt2Hr ?? (hrProfile.maxHr ? Math.round(hrProfile.maxHr * 0.85) : 167);
+  const mpLt1 = hrProfile.lt1Hr;
+  const mpLt2 = hrProfile.lt2Hr;
   const hasMpBlocks =
     classification.runType === 'long_run' &&
     (intervals.some(i => i.type === 'work' && i.durationSeconds >= 600 && i.avgHeartRate >= mpLt1 - 2 && i.avgHeartRate <= mpLt2) ||
@@ -277,10 +260,11 @@ export function importRunContent(
   const loadResult = calculateActivityTrainingLoad(
     records,
     {
-      maxHr: hrProfile.maxHr || 185,
-      restingHr: hrProfile.restingHr || 50,
+      maxHr: hrProfile.maxHr,
+      restingHr: hrProfile.restingHr,
       lt1Hr: hrProfile.lt1Hr,
-      lt2Hr: hrProfile.lt2Hr
+      lt2Hr: hrProfile.lt2Hr,
+      gender: hrProfile.gender
     },
     {
       durationSeconds: metadata.totalDurationSeconds,
@@ -289,6 +273,16 @@ export function importRunContent(
   );
 
   const transaction = db.transaction(() => {
+    // If force re-importing, purge old rows for this activity first
+    if (existing && options.force) {
+      const targetId = existing.id;
+      db.prepare('DELETE FROM activity_splits WHERE activity_id = ?').run(targetId);
+      db.prepare('DELETE FROM activity_intervals WHERE activity_id = ?').run(targetId);
+      db.prepare('DELETE FROM activity_records WHERE activity_id = ?').run(targetId);
+      db.prepare('DELETE FROM physiological_thresholds WHERE source_activity_id = ?').run(targetId);
+      db.prepare('DELETE FROM activity_coach_summaries WHERE activity_id = ?').run(targetId);
+      db.prepare('DELETE FROM activities WHERE id = ?').run(targetId);
+    }
     insertActivity.run(
       metadata.id,
       filename,

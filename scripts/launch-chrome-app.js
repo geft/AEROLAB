@@ -158,7 +158,10 @@ async function main() {
     env: {
       ...process.env,
       PORT: String(port),
-      DATABASE_PATH: dbPath
+      DATABASE_PATH: dbPath,
+      // Mark the packaged desktop engine as a production build so developer
+      // routes (/api/dev/*) are never mounted in a shipped installer.
+      NODE_ENV: 'production'
     },
     stdio: 'inherit'
   });

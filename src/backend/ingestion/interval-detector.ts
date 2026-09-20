@@ -1,3 +1,4 @@
+import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { ActivityRecord } from './csv-parser';
 
 export interface DetectedInterval {
@@ -125,8 +126,7 @@ export function detectIntervals(
   const p80Hr = hrs.length > 0 ? hrs[Math.floor(hrs.length * 0.80)] : 0;
   const p20Hr = hrs.length > 0 ? hrs[Math.floor(hrs.length * 0.20)] : 0;
 
-  const athleteLt1 = options.lt1Hr || (options.maxHr ? Math.round(options.maxHr * 0.73) : 148);
-  const athleteLt2 = options.lt2Hr || (options.maxHr ? Math.round(options.maxHr * 0.85) : 167);
+  const { lt1Hr: athleteLt1, lt2Hr: athleteLt2 } = resolveHeartRateProfile(options);
 
   // Running cadence vs walking/rest (running jog >= 128 spm, walking recovery < 128 spm)
   const isRunningCadence = (c: number) => c >= 128;
@@ -396,7 +396,7 @@ export function detectIntervals(
       if (b.type === 'work') {
         const blockRecs = records.slice(b.startIndex, b.endIndex + 1);
         const avgHr = blockRecs.reduce((sum, r) => sum + (r.heartRate ?? 0), 0) / blockRecs.length;
-        const pruneCeiling = options.lt1Hr ? options.lt1Hr + 2 : (maxRepHr > 130 ? maxRepHr * 0.86 : (options.maxHr ? Math.round(options.maxHr * 0.73) : 140));
+        const pruneCeiling = athleteLt1 + 2;
         if (maxRepHr > 130 && avgHr < pruneCeiling) {
           pruned.push({ type: 'recovery', startIndex: b.startIndex, endIndex: b.endIndex });
           continue;

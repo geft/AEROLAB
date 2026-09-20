@@ -2,23 +2,26 @@
  * AEROLAB Personal Bests / Best Efforts Tracker
  *
  * Scans activities and second-by-second distance telemetry to extract
- * peak continuous efforts for standard benchmarks: 1k, 1 mile, 5k, 10k, Half Marathon.
+ * peak continuous efforts for standard benchmarks: 1k, 5k, 10k, Half Marathon, Marathon.
+ *
+ * Every target is always reported through `targets` so the UI can render an
+ * empty placeholder tile for distances the athlete has not covered yet.
  */
 
 import Database from 'better-sqlite3';
 
 export interface BestEffortTarget {
-  id: '1k' | '1mi' | '5k' | '10k' | 'hm';
+  id: '1k' | '5k' | '10k' | 'hm' | 'mar';
   label: string;
   distanceMeters: number;
 }
 
 export const BEST_EFFORT_TARGETS: BestEffortTarget[] = [
   { id: '1k', label: '1 km', distanceMeters: 1000 },
-  { id: '1mi', label: '1 Mile', distanceMeters: 1609.34 },
   { id: '5k', label: '5 km', distanceMeters: 5000 },
   { id: '10k', label: '10 km', distanceMeters: 10000 },
-  { id: 'hm', label: 'Half Marathon', distanceMeters: 21097.5 }
+  { id: 'hm', label: 'Half Marathon', distanceMeters: 21097.5 },
+  { id: 'mar', label: 'Marathon', distanceMeters: 42195 }
 ];
 
 export interface BestEffortRecord {
@@ -72,13 +75,17 @@ export function findFastestSegment(
   return Number.isFinite(minTime) && minTime > 0 ? Math.round(minTime) : null;
 }
 
+export interface BestEffortsReport {
+  allTime: BestEffortRecord[];
+  currentYear: BestEffortRecord[];
+  /** Ordered list of every tracked benchmark distance (records may be missing). */
+  targets: BestEffortTarget[];
+}
+
 /**
  * Retrieves all-time and current calendar year personal bests from database.
  */
-export function getAthleteBestEfforts(db: Database.Database): {
-  allTime: BestEffortRecord[];
-  currentYear: BestEffortRecord[];
-} {
+export function getAthleteBestEfforts(db: Database.Database): BestEffortsReport {
   const currentYearStr = new Date().getFullYear().toString();
 
   // Find candidate activities that are long enough for standard distances
@@ -152,6 +159,7 @@ export function getAthleteBestEfforts(db: Database.Database): {
 
   return {
     allTime: BEST_EFFORT_TARGETS.map(t => allTimeBests.get(t.id)).filter((r): r is BestEffortRecord => Boolean(r)),
-    currentYear: BEST_EFFORT_TARGETS.map(t => currentYearBests.get(t.id)).filter((r): r is BestEffortRecord => Boolean(r))
+    currentYear: BEST_EFFORT_TARGETS.map(t => currentYearBests.get(t.id)).filter((r): r is BestEffortRecord => Boolean(r)),
+    targets: BEST_EFFORT_TARGETS.map(t => ({ ...t }))
   };
 }

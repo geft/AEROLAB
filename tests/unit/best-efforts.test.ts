@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import Database from 'better-sqlite3';
-import { findFastestSegment, getAthleteBestEfforts } from '../../src/backend/physiology/best-efforts.js';
+import { findFastestSegment, getAthleteBestEfforts, BEST_EFFORT_TARGETS } from '../../src/backend/physiology/best-efforts.js';
 
 describe('Best Efforts Tracker Unit Tests', () => {
   it('finds fastest segment from continuous records', () => {
@@ -75,6 +75,51 @@ describe('Best Efforts Tracker Unit Tests', () => {
     const pb5k = efforts.allTime.find(e => e.targetId === '5k');
     expect(pb5k).toBeDefined();
     expect(pb5k?.timeSeconds).toBe(1260);
+
+    db.close();
+  });
+
+  it('tracks 1 km, 5 km, 10 km, Half Marathon and Marathon (no 1 Mile)', () => {
+    const ids = BEST_EFFORT_TARGETS.map(t => t.id);
+    expect(ids).toEqual(['1k', '5k', '10k', 'hm', 'mar']);
+    expect(ids).not.toContain('1mi');
+    expect(BEST_EFFORT_TARGETS.some(t => t.label === '1 Mile')).toBe(false);
+
+    const marathon = BEST_EFFORT_TARGETS.find(t => t.id === 'mar');
+    expect(marathon?.label).toBe('Marathon');
+    expect(marathon?.distanceMeters).toBe(42195);
+  });
+
+  it('always reports every target so un-raced distances can render as empty tiles', () => {
+    const db = new Database(':memory:');
+    db.exec(`
+      CREATE TABLE activities (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        start_time TEXT,
+        distance_meters REAL,
+        duration_seconds REAL
+      );
+      CREATE TABLE activity_records (
+        id INTEGER PRIMARY KEY,
+        activity_id TEXT,
+        elapsed_seconds REAL,
+        distance_m REAL
+      );
+    `);
+
+    // Only a 5k effort exists — Marathon has no record yet
+    db.prepare(`
+      INSERT INTO activities (id, name, start_time, distance_meters, duration_seconds)
+      VALUES ('act-5k', 'Parkrun', '2026-09-10T08:00:00Z', 5000, 1260)
+    `).run();
+
+    const efforts = getAthleteBestEfforts(db);
+
+    expect(efforts.targets.map(t => t.id)).toEqual(['1k', '5k', '10k', 'hm', 'mar']);
+    expect(efforts.allTime.map(t => t.targetId)).toContain('5k');
+    expect(efforts.allTime.some(t => t.targetId === 'mar')).toBe(false);
+    expect(efforts.targets.find(t => t.id === 'mar')?.distanceMeters).toBe(42195);
 
     db.close();
   });

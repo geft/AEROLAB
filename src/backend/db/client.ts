@@ -1,3 +1,4 @@
+import { getAthleteHeartRateProfile } from '../physiology/athlete-profile.js';
 import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
@@ -29,6 +30,12 @@ export function getDatabase(dbPath?: string): Database.Database {
   }
 
   const targetPath = dbPath || process.env.DATABASE_PATH || path.resolve(process.cwd(), 'data', 'runs.db');
+  dbInstance = openDatabase(targetPath);
+  return dbInstance;
+}
+
+// Open an independent connection so restore validation never closes the live database.
+export function openDatabase(targetPath: string, validateSchema = false): Database.Database {
 
   if (targetPath !== ':memory:') {
     const dir = path.dirname(targetPath);
@@ -38,6 +45,16 @@ export function getDatabase(dbPath?: string): Database.Database {
   }
 
   const db = new Database(targetPath);
+  try {
+    initializeDatabase(db, validateSchema);
+    return db;
+  } catch (error) {
+    db.close();
+    throw error;
+  }
+}
+
+function initializeDatabase(db: Database.Database, validateSchema: boolean): void {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
 
@@ -200,103 +217,22 @@ export function getDatabase(dbPath?: string): Database.Database {
     // Non-fatal
   }
 
-  // Ensure athlete_profile table exists and is seeded with runner baseline profile
-  try {
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS athlete_profile (
-        id TEXT PRIMARY KEY DEFAULT 'primary',
-        age INTEGER DEFAULT 37,
-        dob TEXT DEFAULT '1989-04-15',
-        height_cm REAL DEFAULT 165,
-        weight_kg REAL DEFAULT 55,
-        resting_hr INTEGER DEFAULT 55,
-        max_hr INTEGER DEFAULT 203,
-        lt1_hr INTEGER DEFAULT 148,
-        lt2_hr INTEGER DEFAULT 167,
-        lt1_min_hr INTEGER DEFAULT 147,
-        lt1_max_hr INTEGER DEFAULT 149,
-        z3_start_hr INTEGER DEFAULT 149,
-        z4_start_hr INTEGER DEFAULT 167,
-        hr_metric TEXT DEFAULT 'HRR',
-        vo2_max REAL DEFAULT 58,
-        goal_marathon TEXT DEFAULT 'Sub-4 hour at BYD Marathon 2026 (Stretch Goal: 3:40)',
-        upcoming_benchmark TEXT DEFAULT '10k Garmin run (October 25)',
-        pb_5k TEXT DEFAULT 'Sub 23:00 (April 2026 Time Trial, improved from 31:00)',
-        pb_hm TEXT DEFAULT '2:06:00 (Suzhou, 2010)',
-        shoe_threshold TEXT DEFAULT 'Li-Ning Feidian 5c',
-        shoe_easy TEXT DEFAULT 'Anta Z2',
-        shoe_retired TEXT DEFAULT 'Red Hare 8 Pro',
-        location TEXT DEFAULT 'Toa Payoh, Singapore',
-        favorite_route TEXT DEFAULT 'City -> Ramp -> PCN -> Ramp -> City',
-        schedule_json TEXT,
-        preferences_json TEXT,
-        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    // Ensure columns exist on older databases
-    const profileCols = db.prepare("PRAGMA table_info(athlete_profile)").all() as Array<{ name: string }>;
-    const profileColNames = new Set(profileCols.map(c => c.name));
-    if (!profileColNames.has('lt1_hr')) db.exec("ALTER TABLE athlete_profile ADD COLUMN lt1_hr INTEGER DEFAULT 148");
-    if (!profileColNames.has('lt2_hr')) db.exec("ALTER TABLE athlete_profile ADD COLUMN lt2_hr INTEGER DEFAULT 167");
-    if (!profileColNames.has('lt1_min_hr')) db.exec("ALTER TABLE athlete_profile ADD COLUMN lt1_min_hr INTEGER DEFAULT 147");
-    if (!profileColNames.has('lt1_max_hr')) db.exec("ALTER TABLE athlete_profile ADD COLUMN lt1_max_hr INTEGER DEFAULT 149");
-    if (!profileColNames.has('name')) db.exec("ALTER TABLE athlete_profile ADD COLUMN name TEXT DEFAULT 'GJ'");
-    if (!profileColNames.has('gender')) db.exec("ALTER TABLE athlete_profile ADD COLUMN gender TEXT DEFAULT 'Male'");
-    if (!profileColNames.has('is_max_hr_estimated')) db.exec("ALTER TABLE athlete_profile ADD COLUMN is_max_hr_estimated INTEGER DEFAULT 0");
-
-    const existingProfile = db.prepare('SELECT id, z3_start_hr FROM athlete_profile WHERE id = ?').get('primary') as any;
-    if (!existingProfile) {
-      const schedule = {
-        monday: '2x15 Pogo Jumps + 90m easy + 2x Strides',
-        tuesday: '45m Recovery + Strength Training (24kg KB Bulgarian Split Squat, RDL, Calf/Tibialis)',
-        wednesday: '75m Easy',
-        thursday: '20m Warm-Up + 3x15min Z4 (90s rest) + 20m Cool-Down',
-        friday: '60m Easy',
-        saturday: '2hr Long Run: 20m Easy + 3x20m MP (1m break)',
-        sunday: 'Rest'
-      };
-      const preferences = {
-        filterGallowayBreaks: true,
-        filterRampWalks: true,
-        filterTrafficStops: true,
-        ignoreRawGarminPace: true,
-        primaryTime: '7:00 PM'
-      };
-      db.prepare(`
-        INSERT INTO athlete_profile (
-          id, age, dob, height_cm, weight_kg, resting_hr, max_hr,
-          lt1_hr, lt2_hr, lt1_min_hr, lt1_max_hr,
-          z3_start_hr, z4_start_hr, hr_metric, vo2_max,
-          goal_marathon, upcoming_benchmark, pb_5k, pb_hm,
-          shoe_threshold, shoe_easy, shoe_retired, location,
-          favorite_route, schedule_json, preferences_json
-        ) VALUES (
-          'primary', 37, '1989-04-15', 165, 55, 55, 203,
-          148, 167, 147, 149,
-          149, 167, 'HRR', 58,
-          'Sub-4 hour at BYD Marathon 2026 (Stretch Goal: 3:40)',
-          '10k Garmin run (October 25)',
-          'Sub 23:00 (April 2026 Time Trial, improved from 31:00)',
-          '2:06:00 (Suzhou, 2010)',
-          'Li-Ning Feidian 5c', 'Anta Z2', 'Red Hare 8 Pro', 'Toa Payoh, Singapore',
-          'City -> Ramp -> PCN -> Ramp -> City',
-          ?, ?
-        )
-      `).run(JSON.stringify(schedule), JSON.stringify(preferences));
-    } else {
-      // Ensure zone boundary columns follow the athlete's configured thresholds without clobbering custom values
-      db.prepare(`
-        UPDATE athlete_profile SET
-          lt1_min_hr = COALESCE(lt1_min_hr, lt1_hr - 1),
-          lt1_max_hr = COALESCE(lt1_max_hr, lt1_hr + 1),
-          z3_start_hr = COALESCE(z3_start_hr, lt1_hr + 1),
-          z4_start_hr = COALESCE(z4_start_hr, lt2_hr)
-        WHERE id = 'primary'
-      `).run();
-    }
-  } catch (err) {
-    // Non-fatal if table cannot be created or already exists
+  // A fresh profile contains no personal measurements or training history.
+  const profileColumns = db.prepare('PRAGMA table_info(athlete_profile)').all() as Array<{ name: string }>;
+  const profileColumnNames = new Set(profileColumns.map(c => c.name));
+  for (const column of ['lt1_hr', 'lt2_hr', 'lt1_min_hr', 'lt1_max_hr']) {
+    if (!profileColumnNames.has(column)) db.exec(`ALTER TABLE athlete_profile ADD COLUMN ${column} INTEGER`);
+  }
+  if (!profileColumnNames.has('name')) db.exec("ALTER TABLE athlete_profile ADD COLUMN name TEXT DEFAULT 'Runner'");
+  if (!profileColumnNames.has('gender')) db.exec("ALTER TABLE athlete_profile ADD COLUMN gender TEXT DEFAULT 'Prefer not to say'");
+  if (!db.prepare("SELECT id FROM athlete_profile WHERE id = 'primary'").get()) {
+    // Explicit nulls also override personal DEFAULT clauses in older schemas.
+    db.prepare(`INSERT INTO athlete_profile (id, age, dob, height_cm, weight_kg, resting_hr, max_hr,
+      lt1_hr, lt2_hr, lt1_min_hr, lt1_max_hr, z3_start_hr, z4_start_hr, vo2_max,
+      goal_marathon, upcoming_benchmark, pb_5k, pb_hm, shoe_threshold, shoe_easy, shoe_retired,
+      location, favorite_route, schedule_json, preferences_json, is_max_hr_estimated)
+      VALUES ('primary', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+        NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '{}', 1)`).run();
   }
 
   // Ensure activity_coach_summaries table exists and auto-backfill on initialization
@@ -340,20 +276,13 @@ export function getDatabase(dbPath?: string): Database.Database {
     }
 
     // Automatically backfill microclimate weather for activities missing ambient weather data
-    syncAllActivitiesWeather(db).catch(() => {});
+    if (!validateSchema) syncAllActivitiesWeather(db).catch(() => {});
 
     // Automatically backfill training_load and zone duration seconds for existing activities
     try {
       const unbackfilledLoad = db.prepare('SELECT id, duration_seconds, avg_heart_rate FROM activities WHERE training_load IS NULL').all() as any[];
       if (unbackfilledLoad.length > 0) {
-        const profile = db.prepare("SELECT * FROM athlete_profile WHERE id = 'primary'").get() as any;
-        const hrProfile = {
-          maxHr: profile?.max_hr || 185,
-          restingHr: profile?.resting_hr || 50,
-          lt1Hr: profile?.lt1_hr || 148,
-          lt2Hr: profile?.lt2_hr || 167,
-          gender: profile?.gender || 'male'
-        };
+        const hrProfile = getAthleteHeartRateProfile(db);
         const updateLoadStmt = db.prepare(`
           UPDATE activities SET
             training_load = ?,
@@ -399,8 +328,22 @@ export function getDatabase(dbPath?: string): Database.Database {
     db.pragma('optimize');
   } catch {}
 
-  dbInstance = db;
-  return db;
+  if (validateSchema) {
+    if (!schemaPath) throw new Error('Database schema file is unavailable');
+    const reference = new Database(':memory:');
+    try {
+      reference.exec(fs.readFileSync(schemaPath, 'utf8'));
+      const tables = reference.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
+      for (const { name } of tables) {
+        const columns = reference.prepare('SELECT name FROM pragma_table_info(?)').all(name) as Array<{ name: string }>;
+        const actual = new Set((db.prepare('SELECT name FROM pragma_table_info(?)').all(name) as Array<{ name: string }>).map(c => c.name));
+        if (columns.some(c => !actual.has(c.name))) throw new Error(`Incompatible database schema: ${name}`);
+      }
+      if ((db.pragma('foreign_key_check') as unknown[]).length) throw new Error('Database contains invalid foreign key references');
+    } finally {
+      reference.close();
+    }
+  }
 }
 
 export function closeDatabase(): void {

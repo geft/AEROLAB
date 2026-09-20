@@ -1,3 +1,4 @@
+import { getAthleteHeartRateProfile } from '../physiology/athlete-profile.js';
 import { Router } from 'express';
 import { getDatabase } from '../db/client.js';
 import { calculateRacePredictions } from '../physiology/predictions.js';
@@ -25,17 +26,8 @@ thresholdsRouter.get('/', (req, res) => {
     `).all();
 
     const currentThresholds = getCurrentThresholds(db);
-    const profile = db.prepare('SELECT max_hr, resting_hr, is_max_hr_estimated, dob, age FROM athlete_profile WHERE id = ?').get('primary') as any;
-    const dynamicAge = profile?.dob ? calculateAgeFromDob(profile.dob, profile?.age || 35) : (profile?.age || 35);
-    const tanakaMaxHr = Math.round(208 - 0.7 * dynamicAge);
-    const observedPeak = getObservedPeakHeartRate(db);
-    const effectiveMaxHr = Math.max(Number(profile?.max_hr) || tanakaMaxHr, observedPeak?.peakHr || 0);
-    const zones = getDefaultZones(
-      effectiveMaxHr,
-      currentThresholds.lt1Hr,
-      currentThresholds.lt2Hr,
-      Number(profile?.resting_hr) || 50
-    );
+    const hrProfile = getAthleteHeartRateProfile(db);
+    const zones = getDefaultZones(hrProfile.maxHr, currentThresholds.lt1Hr, currentThresholds.lt2Hr, hrProfile.restingHr);
 
     // Latest LT1 & LT2
     const latestLt1Row = db.prepare(`
@@ -66,7 +58,7 @@ thresholdsRouter.get('/', (req, res) => {
       lt1_hr: currentThresholds.lt1Hr,
       lt1_pace_sec_km: currentThresholds.lt1PaceSecKm,
       effective_date: currentThresholds.lastCalibratedDate || 'Baseline',
-      baseline_economy_ef: 1.14,
+      baseline_economy_ef: null,
       is_estimated: !currentThresholds.lt1PaceSecKm
     };
 
@@ -148,7 +140,7 @@ thresholdsRouter.get('/', (req, res) => {
     const predictionsResult = calculateRacePredictions(
       latestLt2?.lt2_pace_sec_km ?? null,
       latestLt1?.lt1_pace_sec_km ?? null,
-      avgRecent?.avg_pace ?? 330,
+      avgRecent?.avg_pace ?? null,
       benchmark5kPace
     );
 

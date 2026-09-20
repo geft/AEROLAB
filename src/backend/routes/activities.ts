@@ -1,3 +1,5 @@
+import { getAthleteHeartRateProfile } from '../physiology/athlete-profile.js';
+import { getDefaultZones } from '../physiology/zones.js';
 import { Router } from 'express';
 import { getDatabase } from '../db/client.js';
 import { generateCoachSummary, syncActivityCoachSummary } from '../physiology/coach-summary.js';
@@ -9,7 +11,7 @@ import { getAthleteBestEfforts } from '../physiology/best-efforts.js';
 
 export const activitiesRouter = Router();
 
-// GET /api/activities/best-efforts - standard distance personal bests (1k, 1mi, 5k, 10k, HM)
+// GET /api/activities/best-efforts - standard distance personal bests (1k, 5k, 10k, HM, Marathon)
 activitiesRouter.get('/best-efforts', (req, res) => {
   try {
     const db = getDatabase();
@@ -41,11 +43,8 @@ activitiesRouter.get('/volume', (req, res) => {
     const targetYear = req.query.year as string | undefined; // e.g. '2026'
 
     const profile = db.prepare("SELECT * FROM athlete_profile WHERE id = 'primary'").get() as any;
-    const dynamicAge = profile?.dob ? calculateAgeFromDob(profile.dob, profile?.age || 35) : (profile?.age || 35);
-    const maxHr = profile?.max_hr || Math.round(208 - 0.7 * dynamicAge);
-    const restingHr = profile?.resting_hr || 50;
-    const lt1Hr = profile?.lt1_hr || Math.round(restingHr + (maxHr - restingHr) * 0.65);
-    const lt2Hr = profile?.lt2_hr || Math.round(restingHr + (maxHr - restingHr) * 0.82);
+    const { maxHr, restingHr, lt1Hr, lt2Hr } = getAthleteHeartRateProfile(db);
+    const boundaries = getDefaultZones(maxHr, lt1Hr, lt2Hr, restingHr);
 
     let query = `SELECT id, start_time, distance_meters, duration_seconds, elevation_gain_m, efficiency_factor, run_type, training_load, z1_seconds, z2_seconds, z3_seconds, z4_seconds, z5_seconds FROM activities WHERE 1=1`;
     const params: any[] = [];
@@ -113,9 +112,9 @@ activitiesRouter.get('/volume', (req, res) => {
           const dt = Math.max(0, Math.min(10, recs[i].elapsed_seconds - recs[i - 1].elapsed_seconds));
           const hr = recs[i].heart_rate;
           if (!hr) continue;
-          if (hr < lt1Hr) z1z2Sec += dt;
-          else if (hr < lt2Hr) z3Sec += dt;
-          else if (hr < maxHr * 0.92) z4Sec += dt;
+          if (hr <= boundaries.z2[1]) z1z2Sec += dt;
+          else if (hr <= boundaries.z3[1]) z3Sec += dt;
+          else if (hr <= boundaries.z4[1]) z4Sec += dt;
           else z5Sec += dt;
         }
       }
@@ -178,7 +177,7 @@ activitiesRouter.get('/progress-history', (req, res) => {
   try {
     const db = getDatabase();
     const profile = db.prepare("SELECT * FROM athlete_profile WHERE id = 'primary'").get() as any;
-    const lt1Hr = profile?.lt1_hr || 153;
+    const { lt1Hr } = getAthleteHeartRateProfile(db);
     const runTypeFilter = (req.query.run_type as string) || 'all'; // 'all' | 'easy' | 'threshold'
 
     let actQuery = `
@@ -464,21 +463,17 @@ activitiesRouter.get('/:id', async (req, res) => {
 
     // Retrieve athlete profile for calibrated thresholds (defaulting to runner profile)
     const profile = db.prepare('SELECT * FROM athlete_profile WHERE id = ?').get('primary') as any;
-    const dynamicAge = profile?.dob ? calculateAgeFromDob(profile.dob, profile?.age || 35) : (profile?.age || 35);
-    const maxHeartRate = profile?.max_hr || Math.round(208 - 0.7 * dynamicAge);
-    const restingHr = profile?.resting_hr || 50;
-    const lt1Hr = profile?.lt1_hr || (profile?.z3_start_hr ? profile.z3_start_hr - 1 : Math.round(restingHr + (maxHeartRate - restingHr) * 0.65));
-    const lt2Hr = profile?.lt2_hr || profile?.z4_start_hr || Math.round(restingHr + (maxHeartRate - restingHr) * 0.82);
+    const { maxHr: maxHeartRate, restingHr, lt1Hr, lt2Hr } = getAthleteHeartRateProfile(db);
 
     // Generate, persist, and retrieve from activity_coach_summaries table
     const coachSummary = syncActivityCoachSummary(db, id) || generateCoachSummary({
       runType: (activity as any).run_type || 'easy_base',
       distanceKm: ((activity as any).distance_meters || 0) / 1000,
       durationMin: ((activity as any).duration_seconds || 0) / 60,
-      avgPaceSecKm: (activity as any).avg_pace_sec_km || 330,
-      avgHr: (activity as any).avg_heart_rate || 140,
-      maxHr: (activity as any).max_heart_rate || 160,
-      cadence: (activity as any).avg_cadence || 170,
+      avgPaceSecKm: (activity as any).avg_pace_sec_km || 0,
+      avgHr: (activity as any).avg_heart_rate || 0,
+      maxHr: (activity as any).max_heart_rate || 0,
+      cadence: (activity as any).avg_cadence || 0,
       decouplingPct: (activity as any).aerobic_decoupling_pct ?? null,
       efficiencyFactor: (activity as any).efficiency_factor ?? null,
       avgTemp: (activity as any).avg_temperature ?? null,
@@ -510,6 +505,7 @@ activitiesRouter.get('/:id', async (req, res) => {
       intervals,
       records,
       coachSummary,
+      heartRateThresholds: { lt1Hr, lt2Hr },
       pauseBreakdown
     });
   } catch (err: any) {

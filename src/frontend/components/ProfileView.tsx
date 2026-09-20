@@ -1,3 +1,4 @@
+import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   User, Heart, Zap, Save, CheckCircle, AlertCircle, Info, ShieldCheck,
@@ -29,7 +30,7 @@ interface ProfileViewProps {
 }
 
 export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNavigateToSettings }) => {
-  const { t, language } = useTranslation();
+  const { t, format } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -44,7 +45,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
   // Loaded metadata
   const [currentThresholds, setCurrentThresholds] = useState<any>(null);
   const [observedPeakHr, setObservedPeakHr] = useState<ObservedPeakData | null>(null);
-  const [tanakaMaxHr, setTanakaMaxHr] = useState(185);
+  const [tanakaMaxHr, setTanakaMaxHr] = useState<number | null>(null);
 
   useEffect(() => {
     fetchProfile();
@@ -104,10 +105,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
 
   // Live Karvonen HRR Zone derivation for visual preview
   const liveZones = useMemo(() => {
-    const rhr = Number(restingHr) || 50;
-    const max = effectiveMaxHr;
-    const lt1 = currentThresholds?.lt1Hr || Math.round(rhr + (max - rhr) * 0.65);
-    const lt2 = currentThresholds?.lt2Hr || Math.round(rhr + (max - rhr) * 0.82);
+    const resolved = resolveHeartRateProfile({ maxHr: effectiveMaxHr, restingHr: Number(restingHr), dob });
+    const rhr = resolved.restingHr;
+    const max = resolved.maxHr;
+    const lt1 = (currentThresholds?.source === 'calibrated' ? currentThresholds.lt1Hr : null) || Math.round(rhr + (max - rhr) * 0.65);
+    const lt2 = (currentThresholds?.source === 'calibrated' ? currentThresholds.lt2Hr : null) || Math.round(rhr + (max - rhr) * 0.82);
 
     const z1Upper = Math.min(lt1 - 14, Math.round(rhr + (max - rhr) * 0.54));
     const z4Upper = Math.round(rhr + (max - rhr) * 0.90);
@@ -227,7 +229,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
             <h2 className="profile-card-title">{t.profile.thresholdsCardTitle}</h2>
           </div>
           <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-            {language === 'zh' ? '根据跑步记录自动推算 • 非手动编辑' : 'Calibrated from running workouts • Read-only baseline'}
+            {t.profile.readOnlyBaseline}
           </span>
         </div>
 
@@ -241,7 +243,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
               {lt1Pace}
             </div>
             <span className="threshold-ref-sub">
-              {t.progress.zone2Ceiling}: ~{currentThresholds?.lt1Hr || 145} bpm
+              {t.progress.zone2Ceiling}: ~{currentThresholds?.lt1Hr ?? '—'} bpm
             </span>
           </div>
 
@@ -254,7 +256,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
               {lt2Pace}
             </div>
             <span className="threshold-ref-sub">
-              {language === 'zh' ? '乳酸阈值心率' : 'Threshold Heart Rate'}: ~{currentThresholds?.lt2Hr || 165} bpm
+              {t.profile.thresholdHeartRate}: ~{currentThresholds?.lt2Hr ?? '—'} bpm
             </span>
           </div>
 
@@ -264,7 +266,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
               <span className="threshold-tag-pill economy">EFFICIENCY</span>
             </div>
             <div className="threshold-ref-val">
-              {currentThresholds?.baselineEconomyEf ? Number(currentThresholds.baselineEconomyEf).toFixed(2) : '1.14'}
+              {currentThresholds?.baselineEconomyEf ? Number(currentThresholds.baselineEconomyEf).toFixed(2) : '—'}
             </div>
             <span className="threshold-ref-sub">{t.browse.metersPerBeat}</span>
           </div>
@@ -307,10 +309,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
                 userSelect: 'none'
               }}>
                 <span style={{ fontWeight: 700, color: '#38bdf8' }}>
-                  {dob ? `${computedAge} ${language === 'zh' ? '岁' : 'yrs'}` : '—'}
+                  {dob ? `${computedAge} ${t.profile.yearsUnit}` : '—'}
                 </span>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  {language === 'zh' ? `Tanaka预估: ~${liveTanaka} bpm` : `Tanaka max: ~${liveTanaka} bpm`}
+                  {format(t.profile.tanakaMaxShort, { hr: liveTanaka ?? '—' })}
                 </span>
               </div>
               <span className="form-hint">{t.profile.age}</span>
@@ -414,12 +416,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
               </div>
               <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
                 {observedPeakHr
-                  ? (language === 'zh'
-                      ? `在 ${observedPeakHr.activityName} (${observedPeakHr.activityDate}) 中观测到峰值 ${observedPeakHr.peakHr} bpm。`
-                      : `Peak of ${observedPeakHr.peakHr} bpm observed during ${observedPeakHr.activityName} (${observedPeakHr.activityDate}).`)
-                  : (language === 'zh'
-                      ? `Tanaka公式：208 - (0.7 × ${computedAge}) = ${liveTanaka} bpm，待记录高强度间歇训练后自动更新。`
-                      : `Tanaka formula: 208 - (0.7 × ${computedAge}) = ${liveTanaka} bpm until hard interval runs are logged.`)}
+                  ? format(t.profile.observedPeakNote, {
+                      hr: observedPeakHr.peakHr,
+                      activity: observedPeakHr.activityName,
+                      date: observedPeakHr.activityDate
+                    })
+                  : format(t.profile.tanakaFormulaNote, { age: computedAge ?? '—', hr: liveTanaka ?? '—' })}
               </p>
             </div>
           ) : (
@@ -465,9 +467,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
             <h2 className="profile-card-title">{t.profile.trainingZonesPreview}</h2>
           </div>
           <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-            {language === 'zh'
-              ? `静息心率: ${restingHr} bpm • 最大心率: ${effectiveMaxHr} bpm`
-              : `Resting HR: ${restingHr} bpm • Max HR: ${effectiveMaxHr} bpm`}
+            {format(t.profile.zonesHeaderSummary, { resting: restingHr ?? '—', max: effectiveMaxHr ?? '—' })}
           </span>
         </div>
 

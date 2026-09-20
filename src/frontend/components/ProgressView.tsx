@@ -24,13 +24,15 @@ interface ThresholdData {
 }
 
 export const ProgressView: React.FC = () => {
-  const { t, language } = useTranslation();
+  const { t, format, language } = useTranslation();
   const [data, setData] = useState<ThresholdData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [historyViewMode, setHistoryViewMode] = useState<'cards' | 'table'>('cards');
   const [calFilter, setCalFilter] = useState<'all' | 'lt1' | 'lt2' | 'race'>('all');
   const [isEconomyGuideOpen, setIsEconomyGuideOpen] = useState<boolean>(false);
   const [isVdotGuideOpen, setIsVdotGuideOpen] = useState<boolean>(false);
+  const [historyRange, setHistoryRange] = useState<'3m' | '6m' | '12m' | 'all'>('6m');
+  const [visibleHistoryCount, setVisibleHistoryCount] = useState<number>(10);
 
   useEffect(() => {
     fetch('/api/thresholds')
@@ -58,7 +60,7 @@ export const ProgressView: React.FC = () => {
   }, [data?.history]);
 
   const filteredHistory = React.useMemo(() => {
-    return uniqueHistory.filter(h => {
+    const typeFiltered = uniqueHistory.filter(h => {
       const isLt2 = !!h.lt2_pace_sec_km;
       const isRace = h.notes?.toLowerCase().includes('race') || h.activity_name?.toLowerCase().includes('time trial');
       if (calFilter === 'lt1') return !isLt2 && !isRace;
@@ -66,7 +68,24 @@ export const ProgressView: React.FC = () => {
       if (calFilter === 'race') return isRace;
       return true;
     });
-  }, [uniqueHistory, calFilter]);
+
+    if (historyRange === 'all') return typeFiltered;
+
+    const latestTime = uniqueHistory.length > 0
+      ? new Date(uniqueHistory[0].effective_date.replace(' ', 'T')).getTime()
+      : Date.now();
+    const cutoffDays = historyRange === '3m' ? 92 : historyRange === '6m' ? 184 : 365;
+    const cutoffMs = latestTime - cutoffDays * 24 * 3600 * 1000;
+
+    return typeFiltered.filter(h => {
+      const t = new Date(h.effective_date.replace(' ', 'T')).getTime();
+      return t >= cutoffMs;
+    });
+  }, [uniqueHistory, calFilter, historyRange]);
+
+  const paginatedHistory = React.useMemo(() => {
+    return filteredHistory.slice(0, visibleHistoryCount);
+  }, [filteredHistory, visibleHistoryCount]);
 
   if (loading || !data) {
     return (
@@ -76,72 +95,88 @@ export const ProgressView: React.FC = () => {
     );
   }
 
+  const pred5k = data.predictions?.find((p: any) => p.distanceName === '5K');
+
   return (
     <div className="progress-grid">
       {/* Overview Cards */}
       <div className="benchmarks-grid">
         <div className="benchmark-card">
-          <span className="benchmark-label">{t.progress.lt1Title}</span>
-          <div className="benchmark-value" style={{ color: '#10b981' }}>
-            {data.latest.lt1?.lt1_pace_sec_km ? formatPace(data.latest.lt1.lt1_pace_sec_km) : '5:10/km (Est.)'}
+          <div className="benchmark-card-main">
+            <span className="benchmark-label">{t.progress.lt1Title}</span>
+            <div className="benchmark-value" style={{ color: '#10b981' }}>
+              {data.latest.lt1?.lt1_pace_sec_km ? formatPace(data.latest.lt1.lt1_pace_sec_km) : '5:10/km (Est.)'}
+            </div>
+            <span className="benchmark-sub">
+              {t.progress.lt1Sub}
+            </span>
           </div>
-          <span className="benchmark-sub">
-            {t.progress.lt1Sub} ({data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? data.latest.lt1?.lt1_hr ?? 145} bpm)
-          </span>
           <div className="threshold-marker-badge">
-            <ShieldCheck size={12} /> {t.progress.zone2Ceiling}: {data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? data.latest.lt1?.lt1_hr ?? 145} bpm
+            <ShieldCheck size={12} /> {t.progress.zone2Ceiling}: {data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? data.latest.lt1?.lt1_hr ?? '—'} bpm
           </div>
         </div>
 
         <div className="benchmark-card">
-          <span className="benchmark-label">{t.progress.lt2Title}</span>
-          <div className="benchmark-value" style={{ color: '#f59e0b' }}>
-            {data.latest.lt2?.lt2_pace_sec_km ? `${formatPace(data.latest.lt2.lt2_pace_sec_km)}${(data.latest.lt2 as any)?.is_estimated ? ' (Est.)' : ''}` : '--'}
+          <div className="benchmark-card-main">
+            <span className="benchmark-label">{t.progress.lt2Title}</span>
+            <div className="benchmark-value" style={{ color: '#f59e0b' }}>
+              {data.latest.lt2?.lt2_pace_sec_km ? `${formatPace(data.latest.lt2.lt2_pace_sec_km)}${(data.latest.lt2 as any)?.is_estimated ? ' (Est.)' : ''}` : '--'}
+            </div>
+            <span className="benchmark-sub">
+              {t.progress.lt2Sub}
+            </span>
           </div>
-          <span className="benchmark-sub">
-            {t.progress.lt2Sub} (~{data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? data.latest.lt2?.lt2_hr ?? 167} bpm)
-          </span>
           <div className="threshold-marker-badge amber">
-            <Zap size={12} /> {t.stats.anaerobicThreshold}: {data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? data.latest.lt2?.lt2_hr ?? 167} bpm
+            <Zap size={12} /> {t.progress.zone4Threshold}: ~{data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? data.latest.lt2?.lt2_hr ?? '—'} bpm
           </div>
         </div>
 
         <div className="benchmark-card" style={{ position: 'relative' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span className="benchmark-label">{t.progress.vdotTrend}</span>
-            <button
-              type="button"
-              onClick={() => setIsVdotGuideOpen(true)}
-              className="info-circle-btn"
-              title="What is VDOT & VO2 Max? View equivalent race paces"
-              aria-label="What is VDOT & VO2 Max?"
-            >
-              ?
-            </button>
+          <div className="benchmark-card-main">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span className="benchmark-label">{t.progress.vdotTrend}</span>
+              <button
+                type="button"
+                onClick={() => setIsVdotGuideOpen(true)}
+                className="info-circle-btn"
+                title="What is VDOT & VO2 Max? View equivalent race paces"
+                aria-label="What is VDOT & VO2 Max?"
+              >
+                ?
+              </button>
+            </div>
+            <div className="benchmark-value" style={{ color: '#8b5cf6' }}>
+              {data.latest.vo2Max ?? '—'} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>ml/kg/min</span>
+            </div>
+            <span className="benchmark-sub">{t.progress.vdotSub}</span>
           </div>
-          <div className="benchmark-value" style={{ color: '#8b5cf6' }}>
-            {data.latest.vo2Max ?? 58} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>ml/kg/min</span>
+          <div className="threshold-marker-badge purple">
+            <TrendingUp size={12} /> {pred5k?.timeFormatted ? `${t.progress.predicted5k}: ~${pred5k.timeFormatted}` : t.progress.vdotRacingIndex}
           </div>
-          <span className="benchmark-sub">{t.stats.predictedPace}</span>
         </div>
 
         <div className="benchmark-card" style={{ position: 'relative' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span className="benchmark-label">{t.progress.economyIndex}</span>
-            <button
-              type="button"
-              onClick={() => setIsEconomyGuideOpen(true)}
-              className="info-circle-btn"
-              title="What is Running Economy? View benchmark tiers"
-              aria-label="What is Running Economy?"
-            >
-              ?
-            </button>
+          <div className="benchmark-card-main">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span className="benchmark-label">{t.progress.economyIndex}</span>
+              <button
+                type="button"
+                onClick={() => setIsEconomyGuideOpen(true)}
+                className="info-circle-btn"
+                title="What is Running Economy? View benchmark tiers"
+                aria-label="What is Running Economy?"
+              >
+                ?
+              </button>
+            </div>
+            <div className="benchmark-value" style={{ color: '#06b6d4' }}>
+              {data.latest.lt1?.baseline_economy_ef ? Number(data.latest.lt1.baseline_economy_ef).toFixed(2) : '—'}
+            </div>
+            <span className="benchmark-sub">{t.browse.metersPerBeat}</span>
           </div>
-          <div className="benchmark-value" style={{ color: '#06b6d4' }}>
-            {data.latest.lt1?.baseline_economy_ef ? Number(data.latest.lt1.baseline_economy_ef).toFixed(2) : '1.15'}
+          <div className="threshold-marker-badge cyan">
+            <Activity size={12} /> {t.progress.cardioEfficiency}
           </div>
-          <span className="benchmark-sub">{t.browse.metersPerBeat}</span>
         </div>
       </div>
 
@@ -151,7 +186,7 @@ export const ProgressView: React.FC = () => {
           <ShieldCheck size={20} color="#10b981" />
           <div>
             <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              {t.progress.liveCalibrations}: LT1 @ {data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? 145} bpm • LT2 @ {data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? 167} bpm
+              {t.progress.liveCalibrations}: LT1 @ {data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? '—'} bpm • LT2 @ {data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? '—'} bpm
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
               {t.progress.liveCalibrationsDesc}
@@ -189,6 +224,38 @@ export const ProgressView: React.FC = () => {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+            {/* Time Range Filter Pills */}
+            <div className="filter-pills" style={{ display: 'flex', background: 'var(--bg-card-subtle, rgba(255,255,255,0.05))', borderRadius: 8, padding: 2 }}>
+              <button
+                className={`filter-pill-btn ${historyRange === '3m' ? 'active' : ''}`}
+                onClick={() => { setHistoryRange('3m'); setVisibleHistoryCount(10); }}
+                style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem', borderRadius: 6 }}
+              >
+                {t.progress.range3m || '3M'}
+              </button>
+              <button
+                className={`filter-pill-btn ${historyRange === '6m' ? 'active' : ''}`}
+                onClick={() => { setHistoryRange('6m'); setVisibleHistoryCount(15); }}
+                style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem', borderRadius: 6 }}
+              >
+                {t.progress.range6m || '6M'}
+              </button>
+              <button
+                className={`filter-pill-btn ${historyRange === '12m' ? 'active' : ''}`}
+                onClick={() => { setHistoryRange('12m'); setVisibleHistoryCount(20); }}
+                style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem', borderRadius: 6 }}
+              >
+                12M
+              </button>
+              <button
+                className={`filter-pill-btn ${historyRange === 'all' ? 'active' : ''}`}
+                onClick={() => setHistoryRange('all')}
+                style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem', borderRadius: 6 }}
+              >
+                {t.progress.rangeAll || 'All'}
+              </button>
+            </div>
+
             {/* Type Filter Pills */}
             <div className="calibration-filter-pills">
               <button
@@ -242,7 +309,7 @@ export const ProgressView: React.FC = () => {
         <div className="calibration-scroll-container">
           {historyViewMode === 'cards' ? (
             <div className="calibration-timeline">
-              {filteredHistory.map((h, idx) => {
+              {paginatedHistory.map((h, idx) => {
                 const isLt2 = !!h.lt2_pace_sec_km;
                 const isRace = h.notes?.toLowerCase().includes('race') || h.activity_name?.toLowerCase().includes('time trial');
                 const cardClass = isRace ? 'race-card' : (isLt2 ? 'lt2-card' : 'lt1-card');
@@ -258,7 +325,7 @@ export const ProgressView: React.FC = () => {
                       </span>
                       <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>•</span>
                       <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                        {translateActivityName(h.activity_name || (language === 'zh' ? '校准跑步' : 'Calibration Run'), language)} {distKm ? `(${distKm} km)` : ''}
+                        {translateActivityName(h.activity_name || t.progressExtras.calibrationRun, language)} {distKm ? `(${distKm} km)` : ''}
                       </span>
                     </div>
 
@@ -284,7 +351,7 @@ export const ProgressView: React.FC = () => {
                         <div className="calibration-metric-item">
                           <span className="calibration-metric-label">{t.progress.thresholdHrLabel}</span>
                           <span className="calibration-metric-val" style={{ color: '#f59e0b' }}>
-                            ~{h.lt2_hr || 167} <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>bpm</span>
+                            ~{h.lt2_hr ?? '—'} <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>bpm</span>
                           </span>
                         </div>
                       </>
@@ -322,7 +389,7 @@ export const ProgressView: React.FC = () => {
               );
             })}
 
-            {uniqueHistory.length === 0 && (
+            {filteredHistory.length === 0 && (
               <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b', fontSize: '0.85rem' }}>
                 {t.progress.noThresholdsYet}
               </div>
@@ -344,10 +411,10 @@ export const ProgressView: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredHistory.map((h, i) => (
+                {paginatedHistory.map((h, i) => (
                   <tr key={h.id || i}>
                     <td><b>{formatDate(h.effective_date)}</b></td>
-                    <td>{translateActivityName(h.activity_name || (language === 'zh' ? '平稳校准跑' : 'Steady calibration run'), language)}</td>
+                    <td>{translateActivityName(h.activity_name || t.progressExtras.steadyCalibrationRun, language)}</td>
                     <td style={{ color: '#10b981', fontWeight: 600 }}>{formatPace(h.lt1_pace_sec_km)}</td>
                     <td>{h.lt1_hr ? `${h.lt1_hr} bpm` : '—'}</td>
                     <td style={{ color: '#f59e0b', fontWeight: 600 }}>{formatPace(h.lt2_pace_sec_km)}</td>
@@ -368,21 +435,43 @@ export const ProgressView: React.FC = () => {
             </table>
           </div>
         )}
+
+        {/* Milestone Pagination Footer */}
+        {filteredHistory.length > paginatedHistory.length && (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.75rem', marginTop: '1.25rem', paddingBottom: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="primary-btn"
+              style={{ fontSize: '0.82rem', padding: '0.45rem 1rem' }}
+              onClick={() => setVisibleHistoryCount(prev => Math.min(filteredHistory.length, prev + 10))}
+            >
+              {format(t.progressExtras.loadMoreCalibrations, { shown: paginatedHistory.length, total: filteredHistory.length })}
+            </button>
+            <button
+              type="button"
+              className="outline-btn"
+              style={{ fontSize: '0.82rem', padding: '0.45rem 0.85rem' }}
+              onClick={() => setVisibleHistoryCount(filteredHistory.length)}
+            >
+              {format(t.progressExtras.showAllFiltered, { count: filteredHistory.length })}
+            </button>
+          </div>
+        )}
         </div>
       </section>
 
       <EconomyGuideModal
         isOpen={isEconomyGuideOpen}
         onClose={() => setIsEconomyGuideOpen(false)}
-        currentEf={data.latest.lt1?.baseline_economy_ef ?? 1.15}
-        lt1Hr={data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? data.latest.lt1?.lt1_hr ?? 150}
-        lt2Hr={data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? data.latest.lt2?.lt2_hr ?? 165}
+        currentEf={data.latest.lt1?.baseline_economy_ef ?? null}
+        lt1Hr={data.zones?.z2?.[1] ?? data.currentThresholds?.lt1Hr ?? data.latest.lt1?.lt1_hr ?? null}
+        lt2Hr={data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? data.latest.lt2?.lt2_hr ?? null}
       />
 
       <VdotGuideModal
         isOpen={isVdotGuideOpen}
         onClose={() => setIsVdotGuideOpen(false)}
-        currentVdot={data.latest.vo2Max ?? 58}
+        currentVdot={data.latest.vo2Max ?? null}
       />
     </div>
   );

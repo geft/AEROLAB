@@ -2,6 +2,7 @@ import React from 'react';
 import { Calendar, X } from 'lucide-react';
 import { BrowseCalendarPicker } from './BrowseCalendarPicker';
 import { translateTag } from '../../i18n/tagTranslator';
+import { useTranslation } from '../../i18n/LanguageContext';
 import { ActivitySummary } from '../BrowseView';
 
 const SIDEBAR_FILTER_TAGS = [
@@ -71,6 +72,7 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
   t,
   activitiesCount
 }) => {
+  const { formatDate } = useTranslation();
   return (
     <aside className="sidebar-panel">
       <div className="sidebar-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', width: '100%' }}>
@@ -126,7 +128,7 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
           title={showCalendar ? 'Close date calendar' : 'Filter sessions by date'}
         >
           <Calendar size={13} />
-          <span>{showCalendar ? (language === 'zh' ? '关闭' : 'Close') : (selectedDate ? new Date(`${selectedDate}T00:00:00`).toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric' }) : (language === 'zh' ? '日历' : 'Calendar'))}</span>
+          <span>{showCalendar ? t.browse.close : (selectedDate ? formatDate(`${selectedDate}T00:00:00`, { month: 'short', day: 'numeric' }) : t.browse.calendar)}</span>
         </button>
       </div>
 
@@ -149,8 +151,8 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
             <Calendar size={12} style={{ flexShrink: 0 }} />
             <strong>
               {selectedDate
-                ? new Date(`${selectedDate}T00:00:00`).toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                : new Date(`${selectedMonth}-01`).toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US', { month: 'long', year: 'numeric' })}
+                ? formatDate(`${selectedDate}T00:00:00`, { month: 'short', day: 'numeric', year: 'numeric' })
+                : formatDate(`${selectedMonth}-01`, { month: 'long', year: 'numeric' })}
             </strong>
             <span style={{ color: 'var(--text-muted)' }}>({filteredActivities.length})</span>
           </span>
@@ -229,14 +231,14 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
               <div className="session-month-header">
                 <span>{group.title}</span>
                 <span className="session-month-badge">
-                  {group.items.length} {language === 'zh' ? t.browse.runsBadge : 'runs'} • {group.totalKm} km
+                  {group.items.length} {t.browse.runsBadge} • {group.totalKm} km
                 </span>
               </div>
             )}
             {group.items.map(a => {
               const isSelected = a.id === selectedActivityId;
               const d = new Date(a.start_time);
-              const dateStr = d.toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+              const dateStr = formatDate(d, { month: 'short', day: 'numeric', year: 'numeric' });
               const distKm = (a.distance_meters / 1000).toFixed(2);
               const paceStr = formatPace(a.avg_pace_sec_km);
               const stars = scoreToStars(a.effectiveness_score);

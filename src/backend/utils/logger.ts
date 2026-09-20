@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { isDevToolsEnabled } from './dev-mode.js';
 
 export type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 
@@ -181,6 +182,7 @@ export function globalErrorHandler(
     code: errorCode,
     details: err.details || null,
     timestamp: new Date().toISOString(),
-    stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined
+    // Stack traces are developer-only. Release builds never echo internals to clients.
+    stack: isDevToolsEnabled() ? err.stack : undefined
   });
 }

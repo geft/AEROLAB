@@ -24,15 +24,18 @@ export interface PhysiologicalStatus {
 export function calculateRacePredictions(
   lt2PaceSecKm: number | null,
   lt1PaceSecKm: number | null,
-  fallbackPaceSecKm: number = 330, // default 5:30/km
+  fallbackPaceSecKm: number | null = null,
   benchmark5kPaceSecKm?: number | null
-): { predictions: RacePrediction[]; vo2Max: number } {
+): { predictions: RacePrediction[]; vo2Max: number | null } {
+  if (!lt2PaceSecKm && !lt1PaceSecKm && !fallbackPaceSecKm && !benchmark5kPaceSecKm) {
+    return { predictions: [], vo2Max: null };
+  }
   // If benchmark 5K pace is provided (e.g. 273 s/km / 22:48 5K Time Trial),
   // calibrate threshold pace (~5.5% slower than 5K pace)
   const benchmarkThreshold = benchmark5kPaceSecKm ? Math.round(benchmark5kPaceSecKm * 1.055) : null;
 
   // Effective threshold pace: prioritize proven LT2 or benchmark over conservative aerobic base fallback
-  let thresholdPace = lt2PaceSecKm || benchmarkThreshold || (lt1PaceSecKm ? lt1PaceSecKm * 0.88 : fallbackPaceSecKm * 0.9);
+  let thresholdPace = lt2PaceSecKm || benchmarkThreshold || (lt1PaceSecKm ? lt1PaceSecKm * 0.88 : (fallbackPaceSecKm || 0) * 0.9);
   if (benchmarkThreshold && thresholdPace > benchmarkThreshold) {
     thresholdPace = benchmarkThreshold;
   }

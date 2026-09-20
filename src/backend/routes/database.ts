@@ -2,8 +2,9 @@ import { Router, Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { randomUUID } from 'crypto';
 import Database from 'better-sqlite3';
-import { getDatabase, closeDatabase } from '../db/client.js';
+import { getDatabase, closeDatabase, openDatabase } from '../db/client.js';
 import { getValidAccessToken, getGoogleAuthStatus } from '../auth/google-auth.js';
 import {
   uploadBackupToGoogleDrive,
@@ -14,6 +15,12 @@ import {
 import { logger } from '../utils/logger.js';
 
 export const databaseRouter = Router();
+
+// A restore payload is base64-encoded, so the encoded string is roughly 1.37x
+// the decoded database size. The scoped JSON parser in server.ts accepts up to
+// 160 MB for this route, guaranteeing this guard (150 MB encoded) always runs
+// and returns its specific message instead of a generic body-parser 413.
+const MAX_ENCODED_RESTORE_BYTES = 150 * 1024 * 1024;
 
 export interface BackupSettings {
   autoBackupEnabled: boolean;
@@ -220,6 +227,11 @@ export function validateDatabaseSnapshot(filePath: string): { valid: boolean; ac
       return { valid: false, activityCount: 0, error: 'Database does not contain required "activities" table' };
     }
 
+    const columns = new Set((testDb.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>).map(c => c.name));
+    if (!['id', 'start_time', 'run_type', 'distance_meters', 'duration_seconds'].every(c => columns.has(c))) {
+      return { valid: false, activityCount: 0, error: 'Incompatible activities schema' };
+    }
+
     const count = (testDb.prepare('SELECT count(*) as c FROM activities').get() as any)?.c || 0;
     return { valid: true, activityCount: count };
   } catch (err: any) {
@@ -239,42 +251,58 @@ export function restoreDatabaseFromFile(candidatePath: string): { success: boole
 
   const activeDbPath = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'data', 'runs.db');
 
+  if (activeDbPath === ':memory:') {
+    return { success: false, activityCount: 0, error: 'Restore requires a file-backed database' };
+  }
+
+  const targetDir = path.dirname(activeDbPath);
+  fs.mkdirSync(targetDir, { recursive: true });
+  const stagePath = path.join(targetDir, `.restore-stage-${randomUUID()}.db`);
+  const rollbackPath = path.join(targetDir, `.restore-rollback-${randomUUID()}.db`);
   let safetyBackupPath: string | undefined;
-  // Create safety snapshot before overwriting
-  if (activeDbPath !== ':memory:' && fs.existsSync(activeDbPath)) {
-    try {
-      const activeDb = getDatabase();
-      const backupDir = getDefaultBackupDir(activeDb);
-      if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
-      safetyBackupPath = path.join(backupDir, `pre-restore-safety-${Date.now()}.db`);
-      activeDb.prepare(`VACUUM INTO '${safetyBackupPath.replace(/\\/g, '/').replace(/'/g, "''")}'`).run();
-    } catch (err) {
-      logger.warn('Database', 'Safety snapshot skipped or failed', { error: String(err) });
+  let movedOriginal = false;
+  let installedCandidate = false;
+  try {
+    fs.copyFileSync(candidatePath, stagePath);
+    const stagedDb = openDatabase(stagePath, true);
+    stagedDb.close(); // Checkpoint the staged WAL before moving its main file.
+
+    const activeDb = getDatabase();
+    const backupDir = getDefaultBackupDir(activeDb);
+    fs.mkdirSync(backupDir, { recursive: true });
+    safetyBackupPath = path.join(backupDir, `pre-restore-safety-${randomUUID()}.db`);
+    // A failed safety backup must abort the restore before changing the active database.
+    activeDb.prepare(`VACUUM INTO '${safetyBackupPath.replace(/\\/g, '/').replace(/'/g, "''")}'`).run();
+    const checkpoint = activeDb.pragma('wal_checkpoint(TRUNCATE)') as Array<{ busy: number }>;
+    if (checkpoint.some(row => row.busy !== 0)) throw new Error('Database is busy; close other connections before restoring');
+    closeDatabase();
+
+    fs.renameSync(activeDbPath, rollbackPath);
+    movedOriginal = true;
+    fs.renameSync(stagePath, activeDbPath);
+    installedCandidate = true;
+    const newDb = getDatabase(activeDbPath);
+    const newCount = (newDb.prepare('SELECT count(*) as c FROM activities').get() as any).c;
+    // Keep the safety snapshot; the old main file is no longer needed.
+    try { fs.unlinkSync(rollbackPath); } catch {}
+    return { success: true, activityCount: newCount, safetyBackupPath };
+  } catch (err: any) {
+    if (movedOriginal) {
+      closeDatabase();
+      if (installedCandidate) {
+        for (const suffix of ['', '-wal', '-shm']) {
+          if (fs.existsSync(activeDbPath + suffix)) fs.unlinkSync(activeDbPath + suffix);
+        }
+      }
+      fs.renameSync(rollbackPath, activeDbPath);
+      getDatabase(activeDbPath);
+    }
+    return { success: false, activityCount: 0, safetyBackupPath, error: err.message || 'Restore failed' };
+  } finally {
+    for (const suffix of ['', '-wal', '-shm']) {
+      try { if (fs.existsSync(stagePath + suffix)) fs.unlinkSync(stagePath + suffix); } catch {}
     }
   }
-
-  // Close active database
-  closeDatabase();
-
-  if (activeDbPath !== ':memory:') {
-    const targetDir = path.dirname(activeDbPath);
-    if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
-    fs.copyFileSync(candidatePath, activeDbPath);
-
-    // Remove old WAL and SHM files to ensure clean initialization
-    try { if (fs.existsSync(`${activeDbPath}-wal`)) fs.unlinkSync(`${activeDbPath}-wal`); } catch {}
-    try { if (fs.existsSync(`${activeDbPath}-shm`)) fs.unlinkSync(`${activeDbPath}-shm`); } catch {}
-  }
-
-  // Re-open DB
-  const newDb = getDatabase(activeDbPath);
-  const newCount = (newDb.prepare('SELECT count(*) as c FROM activities').get() as any)?.c || 0;
-
-  return {
-    success: true,
-    activityCount: newCount,
-    safetyBackupPath
-  };
 }
 
 export async function checkAndRunScheduledBackup(db: Database.Database): Promise<boolean> {
@@ -402,16 +430,23 @@ databaseRouter.get('/download', (req: Request, res: Response) => {
     const normalized = tmpPath.replace(/\\/g, '/').replace(/'/g, "''");
     db.prepare(`VACUUM INTO '${normalized}'`).run();
 
-    // Sanitize sensitive OAuth cloud tokens from exported user download
+    // Fail closed: never stream a snapshot if credential sanitization fails.
     try {
       const exportDb = new Database(tmpPath);
-      const tableCheck = exportDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='google_tokens'").get();
-      if (tableCheck) {
-        exportDb.prepare("DELETE FROM google_tokens").run();
+      try {
+        exportDb.pragma('secure_delete = ON');
+        for (const table of ['google_auth', 'google_tokens']) {
+          if (exportDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(table)) {
+            exportDb.prepare(`DELETE FROM ${table}`).run();
+          }
+        }
+        exportDb.exec('VACUUM'); // Remove deleted secrets from free pages as well.
+      } finally {
+        exportDb.close();
       }
-      exportDb.close();
     } catch (cleanErr) {
-      logger.warn('Database', 'Warning while clearing tokens from download', { error: String(cleanErr) });
+      try { fs.unlinkSync(tmpPath); } catch {}
+      throw cleanErr;
     }
 
     res.download(tmpPath, `runs-backup-${dateStr}.db`, (err) => {
@@ -491,9 +526,9 @@ databaseRouter.post('/restore', (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Missing database content. Please provide base64 database data.' });
     }
 
-    // Protect against unbounded memory allocation (max ~100MB decoded)
-    if (typeof rawData !== 'string' || rawData.length > 150 * 1024 * 1024) {
-      return res.status(413).json({ error: 'Database payload exceeds maximum permitted size (100MB).' });
+    // Protect against unbounded memory allocation (max ~100 MB decoded database)
+    if (typeof rawData !== 'string' || rawData.length > MAX_ENCODED_RESTORE_BYTES) {
+      return res.status(413).json({ error: 'Database payload exceeds maximum permitted size (100 MB database / 150 MB encoded).' });
     }
 
     const cleanBase64 = rawData.includes(';base64,') ? rawData.split(';base64,')[1] : rawData;

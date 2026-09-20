@@ -1,3 +1,4 @@
+import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { ActivityMetadata, ActivityRecord } from './csv-parser';
 import { EconomyMetrics } from '../physiology/economy';
 import { DetectedInterval, inferWorkoutPrescription } from './interval-detector';
@@ -42,12 +43,8 @@ export function classifyRun(
   const avgHr = metadata.avgHeartRate;
   const nameLower = (metadata.name || '').toLowerCase();
 
-  // Effective athlete HR references (profile first, session-observed fallback).
-  const sessionPeak = metadata.maxHeartRate > 140 ? metadata.maxHeartRate : 185;
-  const effMax = profile?.maxHr && profile.maxHr > 140 ? profile.maxHr : sessionPeak;
-  const resting = profile?.restingHr && profile.restingHr > 30 ? profile.restingHr : 55;
-  const lt1 = profile?.lt1Hr && profile.lt1Hr > 100 ? profile.lt1Hr : undefined;
-  const lt2 = profile?.lt2Hr && profile.lt2Hr > 100 ? profile.lt2Hr : undefined;
+  const profileWithMeta = profile ?? (metadata.maxHeartRate && metadata.maxHeartRate >= 100 ? { maxHr: metadata.maxHeartRate } : undefined);
+  const { maxHr: effMax, restingHr: resting, lt1Hr: lt1, lt2Hr: lt2 } = resolveHeartRateProfile(profileWithMeta);
 
   // Zone distribution from profile-relative zones (no hardcoded bpm anywhere).
   const zones = getDefaultZones(effMax, lt1, lt2, resting);
@@ -102,7 +99,7 @@ export function classifyRun(
   const gallowayWalkCount = Math.max(walkingBouts, recordWalkBouts);
   const isGallowaySession = gallowayWalkCount >= 4 &&
     (zoneDist.z4Pct + zoneDist.z5Pct < 15) &&
-    (avgHr <= (lt1 ?? 148) + 6 || (zoneDist.z1Pct + zoneDist.z2Pct >= 50));
+    (avgHr <= lt1 + 6 || (zoneDist.z1Pct + zoneDist.z2Pct >= 50));
 
   if (isGallowaySession) {
     const isLong = durationMin >= 100;
@@ -233,9 +230,9 @@ export function classifyRun(
   // 5. Recovery run check (duration + profile-relative low strain — no absolute bpm).
   // Recovery ceiling tracks just under LT1 (LT1 minus 12 bpm ≈ top of Z1),
   // or under 72% of max HR — so slower athletes qualify on their own zones.
-  const recoveryCeiling = (lt1 ?? 148) - 12;
+  const recoveryCeiling = Math.max(lt1 - 8, 136);
   const isExplicitRecovery = nameLower.includes('recovery');
-  const isRecoveryHr = avgHr <= recoveryCeiling || avgHr < effMax * 0.72;
+  const isRecoveryHr = avgHr <= recoveryCeiling || avgHr <= effMax * 0.72;
   if (isExplicitRecovery || (durationMin <= 50 && isRecoveryHr)) {
     return {
       runType: 'recovery',

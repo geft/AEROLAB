@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, TrendingUp, Award, Activity, ShieldCheck, Zap, LayoutGrid, List, ArrowUpRight } from 'lucide-react';
+import { Calendar, TrendingUp, Award, Activity, ShieldCheck, Zap, LayoutGrid, List, ArrowUpRight, History } from 'lucide-react';
 import { formatPace } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 
@@ -20,16 +20,16 @@ export interface PeriodSummary {
 }
 
 export const PeriodProgressView: React.FC = () => {
-  const { t, language } = useTranslation();
+  const { t, format, plural, formatDate } = useTranslation();
 
-  const formatPeriodLabel = (p: PeriodSummary, lang: string): string => {
-    if (lang !== 'zh') return p.label;
+  // Locale-driven period labels: Intl supplies the month/year text and the
+  // dictionary supplies the season suffix, so no language branch is required.
+  const formatPeriodLabel = (p: PeriodSummary): string => {
     if (/^\d{4}-\d{2}$/.test(p.period)) {
-      const [y, m] = p.period.split('-');
-      return `${y}年${parseInt(m, 10)}月`;
+      return formatDate(`${p.period}-01`, { month: 'short', year: 'numeric' });
     }
     if (/^\d{4}$/.test(p.period)) {
-      return `${p.period}赛季`;
+      return format(t.periodProgress.seasonLabel, { year: p.period });
     }
     return p.label;
   };
@@ -40,6 +40,8 @@ export const PeriodProgressView: React.FC = () => {
   const [runTypeFilter, setRunTypeFilter] = useState<'all' | 'easy' | 'threshold'>('all');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [visibleMonthsCount, setVisibleMonthsCount] = useState<number>(6);
+  const [visibleCardCount, setVisibleCardCount] = useState<number>(3);
 
   useEffect(() => {
     fetch(`/api/activities/progress-history?run_type=${runTypeFilter}`)
@@ -62,7 +64,9 @@ export const PeriodProgressView: React.FC = () => {
     );
   }
 
-  const periods = (activePeriodType === 'month' ? data.months : data.years) || [];
+  const allPeriods = (activePeriodType === 'month' ? data.months : data.years) || [];
+  const periods = activePeriodType === 'month' ? allPeriods.slice(-visibleMonthsCount) : allPeriods;
+  const hasMoreMonths = activePeriodType === 'month' && allPeriods.length > visibleMonthsCount;
 
   // Chart calculation metrics
   const validDistances = periods.map(p => (Number.isFinite(p.totalDistanceKm) ? p.totalDistanceKm : 0));
@@ -118,14 +122,19 @@ export const PeriodProgressView: React.FC = () => {
       }, '')
     : null;
 
-  const baselineEf = periods.length > 0 && periods[0]?.avgEfficiencyFactor ? periods[0].avgEfficiencyFactor : 1.15;
+  const baselineEf = periods.length > 0 && periods[0]?.avgEfficiencyFactor ? periods[0].avgEfficiencyFactor : 0;
   const latestMonthEf = periods.length > 0 && periods[periods.length - 1]?.avgEfficiencyFactor ? periods[periods.length - 1].avgEfficiencyFactor! : baselineEf;
   const efficiencyImprovementPct = baselineEf > 0
     ? (((latestMonthEf - baselineEf) / baselineEf) * 100).toFixed(1)
     : '0';
 
+  const displayPeriods = [...periods].reverse();
+  const visiblePeriods = activePeriodType === 'month' ? displayPeriods.slice(0, visibleCardCount) : displayPeriods;
+  const latestGlobalPeriod = allPeriods.length > 0 ? allPeriods[allPeriods.length - 1]?.period : null;
+
   return (
     <section className="period-progress-container">
+
       <div className="period-header-row">
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
@@ -167,6 +176,46 @@ export const PeriodProgressView: React.FC = () => {
               {t.progress.thresholdVo2Filter}
             </button>
           </div>
+
+          {/* Time Range Switcher (Chart Months Window) */}
+          {activePeriodType === 'month' && allPeriods.length > 3 && (
+            <div className="filter-pills" style={{ marginRight: '0.2rem' }}>
+              <button
+                className={`filter-pill-btn ${visibleMonthsCount === 3 ? 'active' : ''}`}
+                onClick={() => { setVisibleMonthsCount(3); setVisibleCardCount(3); }}
+                style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
+                title={t.periodProgress.window3m}
+              >
+                3M
+              </button>
+              <button
+                className={`filter-pill-btn ${visibleMonthsCount === 6 ? 'active' : ''}`}
+                onClick={() => { setVisibleMonthsCount(6); setVisibleCardCount(3); }}
+                style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
+                title={t.periodProgress.window6m}
+              >
+                6M
+              </button>
+              {allPeriods.length > 6 && (
+                <button
+                  className={`filter-pill-btn ${visibleMonthsCount === 12 ? 'active' : ''}`}
+                  onClick={() => { setVisibleMonthsCount(12); setVisibleCardCount(3); }}
+                  style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
+                  title={t.periodProgress.window12m}
+                >
+                  12M
+                </button>
+              )}
+              <button
+                className={`filter-pill-btn ${visibleMonthsCount >= allPeriods.length ? 'active' : ''}`}
+                onClick={() => { setVisibleMonthsCount(allPeriods.length); setVisibleCardCount(3); }}
+                style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
+                title={t.periodProgress.windowAllTitle}
+              >
+                {t.periodProgress.windowAll}
+              </button>
+            </div>
+          )}
 
           {/* Month / Year Switcher */}
           <div className="volume-tabs">
@@ -457,22 +506,22 @@ export const PeriodProgressView: React.FC = () => {
       {/* Detail Breakdown: Cards or Table */}
       {viewMode === 'cards' ? (
         <div className="period-cards-grid">
-          {periods.map((p, idx) => {
+          {visiblePeriods.map((p, idx) => {
             const hasCalibrations = (p.calibrations?.length ?? 0) > 0;
-            const isLatest = idx === periods.length - 1;
+            const isLatest = p.period === latestGlobalPeriod;
 
             return (
               <div
                 key={p.period}
                 className={`period-milestone-card ${isLatest ? 'highlighted-period' : ''}`}
-                onMouseEnter={() => setHoveredIndex(idx)}
+                onMouseEnter={() => setHoveredIndex(periods.findIndex(x => x.period === p.period))}
                 onMouseLeave={() => setHoveredIndex(null)}
               >
                 <div className="period-card-header">
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                       <Calendar size={15} color="#06b6d4" style={{ flexShrink: 0 }} />
-                      <span className="period-title">{formatPeriodLabel(p, language)}</span>
+                      <span className="period-title">{formatPeriodLabel(p)}</span>
                       {isLatest && (
                         <span className="run-badge badge-easy_base" style={{ fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
                           {t.progress.currentBlock || 'Current Block'}
@@ -480,11 +529,9 @@ export const PeriodProgressView: React.FC = () => {
                       )}
                     </div>
                     <span className="period-subtitle">
-                      {language === 'zh'
-                        ? `已记录 ${p.runCount} ${t.progress.loggedActivities}`
-                        : `${p.runCount} logged ${p.runCount === 1 ? 'activity' : 'activities'}`}
+                      {plural(p.runCount, t.periodProgress.loggedActivities)}
                       {p.activeMonths
-                        ? (language === 'zh' ? `，跨越 ${p.activeMonths} 个活跃月份` : ` across ${p.activeMonths} active months`)
+                        ? format(t.periodProgress.activeMonthsSuffix, { count: p.activeMonths })
                         : ''}
                     </span>
                   </div>
@@ -513,11 +560,11 @@ export const PeriodProgressView: React.FC = () => {
                       <span className="period-metric-num">
                         {p.totalDurationHours}
                       </span>
-                      <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{language === 'zh' ? '小时' : 'hrs'}</span>
+                      <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{t.periodProgress.hoursUnit}</span>
                     </div>
                     <span className="period-metric-sub">
                       {p.zone2Hours
-                        ? (language === 'zh' ? `2区: ${p.zone2Hours}小时 (${p.zone2Pct}%)` : `Zone 2: ${p.zone2Hours}h (${p.zone2Pct}%)`)
+                        ? format(t.periodProgress.zone2Summary, { hours: p.zone2Hours, pct: p.zone2Pct ?? 0 })
                         : t.progress.totalCardio}
                     </span>
                   </div>
@@ -552,9 +599,7 @@ export const PeriodProgressView: React.FC = () => {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.4rem' }}>
                         <Award size={13} color="#f59e0b" />
                         <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                          {language === 'zh'
-                            ? `${totalCals} ${t.progress.calibrationsCount}`
-                            : `${totalCals} Physiological Calibration${totalCals !== 1 ? 's' : ''}`}
+                          {plural(totalCals, t.periodProgress.calibrations)}
                         </span>
                       </div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
@@ -608,12 +653,12 @@ export const PeriodProgressView: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {periods.map(p => (
+              {visiblePeriods.map(p => (
                 <tr key={p.period}>
-                  <td><b>{formatPeriodLabel(p, language)}</b></td>
+                  <td><b>{formatPeriodLabel(p)}</b></td>
                   <td>{p.runCount}</td>
                   <td style={{ color: '#06b6d4', fontWeight: 600 }}>{p.totalDistanceKm} km</td>
-                  <td>{p.totalDurationHours} {language === 'zh' ? '小时' : 'hrs'}</td>
+                  <td>{p.totalDurationHours} {t.periodProgress.hoursUnit}</td>
                   <td style={{ color: '#10b981', fontWeight: 700 }}>
                     {p.avgEfficiencyFactor ? p.avgEfficiencyFactor.toFixed(2) : '—'} EF
                   </td>
@@ -623,9 +668,7 @@ export const PeriodProgressView: React.FC = () => {
                   <td>
                     {p.calibrations && p.calibrations.length > 0 ? (
                       <span className="run-badge badge-easy_base" style={{ fontSize: '0.7rem' }}>
-                        {language === 'zh'
-                          ? `${p.calibrations.length} 项校准`
-                          : `${p.calibrations.length} ${p.calibrations.length === 1 ? 'calibration' : 'calibrations'}`}
+                        {plural(p.calibrations.length, t.periodProgress.calibrationsShort)}
                       </span>
                     ) : (
                       <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
@@ -635,6 +678,55 @@ export const PeriodProgressView: React.FC = () => {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Load More Pagination Footer */}
+      {activePeriodType === 'month' && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.75rem', marginTop: '1.25rem', flexWrap: 'wrap' }}>
+          {displayPeriods.length > visiblePeriods.length ? (
+            <>
+              <button
+                type="button"
+                className="primary-btn"
+                style={{ fontSize: '0.82rem', padding: '0.5rem 1.1rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}
+                onClick={() => setVisibleCardCount(prev => Math.min(displayPeriods.length, prev + 3))}
+              >
+                <History size={14} />
+                {format(t.periodProgress.loadMoreCards, { shown: visiblePeriods.length, total: displayPeriods.length })}
+              </button>
+              <button
+                type="button"
+                className="outline-btn"
+                style={{ fontSize: '0.82rem', padding: '0.5rem 0.9rem' }}
+                onClick={() => setVisibleCardCount(displayPeriods.length)}
+              >
+                {format(t.periodProgress.showAllInChart, { count: displayPeriods.length })}
+              </button>
+            </>
+          ) : hasMoreMonths ? (
+            <button
+              type="button"
+              className="primary-btn"
+              style={{ fontSize: '0.82rem', padding: '0.5rem 1.1rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}
+              onClick={() => {
+                setVisibleMonthsCount(prev => Math.min(allPeriods.length, prev + 6));
+                setVisibleCardCount(prev => prev + 6);
+              }}
+            >
+              <History size={14} />
+              {format(t.periodProgress.loadPreviousMonths, { shown: periods.length, total: allPeriods.length })}
+            </button>
+          ) : visibleCardCount > 3 ? (
+            <button
+              type="button"
+              className="outline-btn"
+              style={{ fontSize: '0.75rem', padding: '0.35rem 0.7rem' }}
+              onClick={() => setVisibleCardCount(3)}
+            >
+              {t.periodProgress.collapseCards}
+            </button>
+          ) : null}
         </div>
       )}
     </section>

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Compass, TrendingUp, BarChart2, User, Settings, UploadCloud, Sun, Moon, Globe, Type, ChevronDown, Check, Minus, Plus, HardDrive, MoreHorizontal, Terminal } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
+import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES } from '../i18n/types.js';
 import { useFontSize, FontSize, FONT_SIZES, FONT_PERCENTAGES } from '../context/FontSizeContext.js';
 
 export type TabType = 'browse' | 'progress' | 'stats' | 'profile' | 'settings';
@@ -119,39 +120,30 @@ export const Navbar: React.FC<NavbarProps> = ({
               aria-expanded={langMenuOpen}
             >
               <Globe size={15} className="theme-icon" />
-              <span className="lang-code-label">{language === 'zh' ? '中' : 'EN'}</span>
-              <span className="theme-label">{language === 'zh' ? '简体中文' : 'English'}</span>
+              <span className="lang-code-label">{LANGUAGE_LABELS[language].short}</span>
+              <span className="theme-label">{LANGUAGE_LABELS[language].native}</span>
               <ChevronDown size={11} className={`dropdown-chevron ${langMenuOpen ? 'open' : ''}`} />
             </button>
 
             {langMenuOpen && (
               <div className="nav-dropdown-menu" role="menu" id="language-dropdown-menu">
-                <button
-                  type="button"
-                  id="lang-option-en"
-                  className={`nav-dropdown-item ${language === 'en' ? 'active' : ''}`}
-                  onClick={() => {
-                    setLanguage('en');
-                    setLangMenuOpen(false);
-                  }}
-                  role="menuitem"
-                >
-                  <span>{t.nav.langEnglish}</span>
-                  {language === 'en' && <Check size={13} />}
-                </button>
-                <button
-                  type="button"
-                  id="lang-option-zh"
-                  className={`nav-dropdown-item ${language === 'zh' ? 'active' : ''}`}
-                  onClick={() => {
-                    setLanguage('zh');
-                    setLangMenuOpen(false);
-                  }}
-                  role="menuitem"
-                >
-                  <span>{t.nav.langChinese}</span>
-                  {language === 'zh' && <Check size={13} />}
-                </button>
+                {SUPPORTED_LANGUAGES.map(code => (
+                  <button
+                    key={code}
+                    type="button"
+                    id={`lang-option-${code}`}
+                    className={`nav-dropdown-item ${language === code ? 'active' : ''}`}
+                    onClick={() => {
+                      setLanguage(code);
+                      setLangMenuOpen(false);
+                    }}
+                    role="menuitem"
+                  >
+                    <Globe size={14} />
+                    <span>{LANGUAGE_LABELS[code].native}</span>
+                    {language === code && <Check size={13} style={{ marginLeft: 'auto' }} />}
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -225,32 +217,22 @@ export const Navbar: React.FC<NavbarProps> = ({
           {moreMenuOpen && (
             <div className="nav-dropdown-menu nav-more-dropdown-menu" role="menu">
               <div className="nav-dropdown-section-title">{t.nav.langTitle || 'Language'}</div>
-              <button
-                type="button"
-                id="more-menu-lang-en"
-                className={`nav-dropdown-item ${language === 'en' ? 'active' : ''}`}
-                onClick={() => {
-                  setLanguage('en');
-                  setMoreMenuOpen(false);
-                }}
-              >
-                <Globe size={14} />
-                <span>{t.nav.langEnglish}</span>
-                {language === 'en' && <Check size={13} style={{ marginLeft: 'auto' }} />}
-              </button>
-              <button
-                type="button"
-                id="more-menu-lang-zh"
-                className={`nav-dropdown-item ${language === 'zh' ? 'active' : ''}`}
-                onClick={() => {
-                  setLanguage('zh');
-                  setMoreMenuOpen(false);
-                }}
-              >
-                <Globe size={14} />
-                <span>{t.nav.langChinese}</span>
-                {language === 'zh' && <Check size={13} style={{ marginLeft: 'auto' }} />}
-              </button>
+              {SUPPORTED_LANGUAGES.map(code => (
+                <button
+                  key={code}
+                  type="button"
+                  id={`more-menu-lang-${code}`}
+                  className={`nav-dropdown-item ${language === code ? 'active' : ''}`}
+                  onClick={() => {
+                    setLanguage(code);
+                    setMoreMenuOpen(false);
+                  }}
+                >
+                  <Globe size={14} />
+                  <span>{LANGUAGE_LABELS[code].native}</span>
+                  {language === code && <Check size={13} style={{ marginLeft: 'auto' }} />}
+                </button>
+              ))}
 
               <div className="nav-dropdown-section-title" style={{ marginTop: '0.35rem' }}>{t.nav.appearance}</div>
               <button

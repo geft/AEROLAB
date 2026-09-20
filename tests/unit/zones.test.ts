@@ -5,36 +5,24 @@ import { ActivityRecord } from '../../src/backend/ingestion/csv-parser.js';
 describe('Heart Rate Zones & Distribution Unit Tests', () => {
   it('calculates default zones based on max HR', () => {
     const zones = getDefaultZones(185);
-    // LT1 = round(185 * 0.76) = 141
-    // LT2 = round(185 * 0.88) = 163
-    // z1: [0, 129]
-    // z2: [129, 141]
-    // z3: [142, 157]
-    // z4: [158, 166]
-    // z5: [167, 250]
-    expect(zones.z1[1]).toBe(129);
-    expect(zones.z2[0]).toBe(129);
-    expect(zones.z2[1]).toBe(141);
-    expect(zones.z3[0]).toBe(142);
-    expect(zones.z3[1]).toBe(157);
-    expect(zones.z4[0]).toBe(158);
-    expect(zones.z4[1]).toBe(166);
-    expect(zones.z5[0]).toBe(167);
-  });
-
-  it('respects custom LT1 and LT2 values', () => {
-    const zones = getDefaultZones(190, 144, 170);
-    expect(zones.z1[1]).toBe(132); // 144 - 12
-    expect(zones.z2[1]).toBe(144);
-    expect(zones.z3[0]).toBe(145);
-    expect(zones.z3[1]).toBe(164); // 170 - 6
-    expect(zones.z4[0]).toBe(165); // 170 - 5
-    expect(zones.z4[1]).toBe(173); // 170 + 3
+    expect(zones.z1).toEqual([0, 127]);
+    expect(zones.z2).toEqual([128, 141]);
+    expect(zones.z3).toEqual([142, 162]);
+    expect(zones.z4).toEqual([163, 173]);
     expect(zones.z5[0]).toBe(174);
   });
 
+  it('respects custom LT1 and LT2 values without special-case athlete branches', () => {
+    const zones = getDefaultZones(190, 144, 170, 60);
+    expect(zones.z1[1]).toBe(130);
+    expect(zones.z2[1]).toBe(144);
+    expect(zones.z3).toEqual([145, 169]);
+    expect(zones.z4).toEqual([170, 177]);
+    expect(zones.z5[0]).toBe(178);
+  });
+
   it('calculates accurate zone distribution and percentages across records', () => {
-    const zones = getDefaultZones(185); // z1 <= 129, z2 <= 141, z3 <= 157, z4 <= 166, z5 > 166
+    const zones = getDefaultZones(185); // HRR-derived zones with provisional resting HR
 
     // Create 100 sample records
     const records: ActivityRecord[] = [];
@@ -61,7 +49,7 @@ describe('Heart Rate Zones & Distribution Unit Tests', () => {
     addRecords(120, 10); // Z1 (10)
     addRecords(135, 60); // Z2 (60)
     addRecords(148, 15); // Z3 (15)
-    addRecords(162, 10); // Z4 (10)
+    addRecords(168, 10); // Z4 (10)
     addRecords(175, 5);  // Z5 (5)
     addRecords(30, 5);   // <= 40 (ignored)
     addRecords(0, 2);    // 0 / null (ignored)

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Sun, Moon, Type, Terminal, ShieldCheck, HardDrive } from 'lucide-react';
+import { Sun, Moon, Type, Terminal, ShieldCheck, HardDrive } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { useFontSize, FontSize, FONT_PERCENTAGES } from '../context/FontSizeContext.js';
 import { BackupManagementPanel } from './BackupManagementPanel.js';
@@ -33,32 +33,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   return (
     <div className="settings-view">
-      {/* Page Header */}
-      <div className="overview-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', padding: '1.5rem 1.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{
-            width: 44,
-            height: 44,
-            borderRadius: 12,
-            background: 'rgba(6, 182, 212, 0.12)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--accent-cyan)'
-          }}>
-            <Settings size={24} />
-          </div>
-          <div>
-            <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
-              {t.settingsView.pageTitle}
-            </h1>
-            <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              {t.settingsView.pageSubtitle}
-            </p>
-          </div>
-        </div>
-      </div>
-
       {/* Section 1: Database Backup & Cloud Sync */}
       <section className="overview-card" style={{ padding: '1.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '1.25rem' }}>
@@ -90,7 +64,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '1.5rem' }}>
           {/* Theme Mode Card */}
           <div style={{
             background: 'var(--bg-surface)',
@@ -192,7 +166,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </section>
 
-      {/* Section 3: Developer Tools & Diagnostics */}
+      {/* Section 3: Developer Tools & Diagnostics (development builds only) */}
+      {import.meta.env.DEV && (
       <section className="overview-card" style={{ padding: '1.5rem 1.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -264,6 +239,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </label>
         </div>
       </section>
+      )}
     </div>
   );
 };

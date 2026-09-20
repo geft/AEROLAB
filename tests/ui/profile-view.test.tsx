@@ -22,6 +22,7 @@ describe('ProfileView UI Tests', () => {
     lt2Hr: 167,
     lt1PaceSecKm: 350,
     lt2PaceSecKm: 250,
+    baselineEconomyEf: 1.15,
     source: 'calibrated'
   };
 
@@ -58,7 +59,7 @@ describe('ProfileView UI Tests', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders runner cardio baselines, inferred thresholds, and live Karvonen zones', async () => {
+  it('renders runner cardio baselines, inferred thresholds, live Karvonen zones, and the calibrated EF baseline', async () => {
     render(<ProfileView />);
 
     await waitFor(() => {
@@ -68,6 +69,8 @@ describe('ProfileView UI Tests', () => {
       expect(screen.getByDisplayValue('203')).toBeTruthy();
       expect(screen.getByText(/~148 bpm/)).toBeTruthy();
       expect(screen.getByText(/~167 bpm/)).toBeTruthy();
+      // Efficiency Factor tile must show the calibrated EF instead of a blank dash
+      expect(screen.getByText('1.15')).toBeTruthy();
       expect(screen.getByText(/Training Zones Preview/i)).toBeTruthy();
     });
   });

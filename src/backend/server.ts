@@ -12,6 +12,7 @@ import { devRouter } from './routes/dev.js';
 import { databaseRouter, checkAndRunScheduledBackup } from './routes/database.js';
 import { authRouter } from './routes/auth.js';
 import { requestLogger, globalErrorHandler, logger } from './utils/logger.js';
+import { isDevToolsEnabled } from './utils/dev-mode.js';
 
 const currentDir = typeof __dirname !== 'undefined'
   ? __dirname
@@ -48,6 +49,15 @@ export function createServer() {
     credentials: true
   }));
 
+  // Large-body parsers are scoped to the routes that legitimately accept base64
+  // SQLite snapshots and Garmin "Export All Data" archives. The global parser
+  // stays small so ordinary API calls cannot allocate oversized buffers.
+  // 160 MB accommodates a ~100 MB database plus base64 encoding overhead.
+  const LARGE_UPLOAD_LIMIT = '160mb';
+  app.use(
+    ['/api/database/restore', '/api/database/restore-gdrive', '/api/ingest/upload'],
+    express.json({ limit: LARGE_UPLOAD_LIMIT })
+  );
   app.use(express.json({ limit: '50mb' }));
   app.use(requestLogger);
 
@@ -56,7 +66,12 @@ export function createServer() {
   app.use('/api/thresholds', thresholdsRouter);
   app.use('/api/ingest', ingestRouter);
   app.use('/api/profile', profileRouter);
-  app.use('/api/dev', devRouter);
+  // Developer diagnostics are a development-only surface. In a production build
+  // this router is never mounted, so /api/dev/* falls through to the API 404
+  // handler and no internal telemetry is reachable from a shipped installer.
+  if (isDevToolsEnabled()) {
+    app.use('/api/dev', devRouter);
+  }
   app.use('/api/database', databaseRouter);
   app.use('/api/auth', authRouter);
 
@@ -69,7 +84,9 @@ export function createServer() {
   app.post('/api/system/shutdown', (req, res) => {
     const ip = req.ip || req.socket.remoteAddress || '';
     const isLoopback = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
-    if (!isLoopback && process.env.NODE_ENV !== 'test') {
+    // Only loopback connections may terminate the local engine. This check is
+    // never bypassed, including in automated test runs.
+    if (!isLoopback) {
       return res.status(403).json({ error: 'Shutdown command rejected: only loopback connections authorized.' });
     }
 
@@ -115,7 +132,11 @@ export function createServer() {
   return app;
 }
 
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT || 3001);
+
+export function listenOnLoopback(app: ReturnType<typeof createServer>, port: number, onListening?: () => void) {
+  return app.listen(port, '127.0.0.1', onListening);
+}
 
 // Only listen if executed directly
 if (process.env.NODE_ENV !== 'test') {
@@ -128,7 +149,7 @@ if (process.env.NODE_ENV !== 'test') {
     logger.warn('server', 'Initial backup check failed', { error: err?.message || String(err) });
   }
 
-  app.listen(PORT, () => {
+  listenOnLoopback(app, PORT, () => {
     console.log(`\n🚀 Run Progress API server running at http://localhost:${PORT}`);
     console.log(`📊 Activities: http://localhost:${PORT}/api/activities`);
     console.log(`📈 Thresholds: http://localhost:${PORT}/api/thresholds\n`);

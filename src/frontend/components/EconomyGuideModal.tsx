@@ -13,62 +13,62 @@ interface EconomyGuideModalProps {
 export const EconomyGuideModal: React.FC<EconomyGuideModalProps> = ({
   isOpen,
   onClose,
-  currentEf = 1.15,
+  currentEf = null,
   lt1Hr,
   lt2Hr
 }) => {
-  const { t, language } = useTranslation();
+  const { t } = useTranslation();
   if (!isOpen) return null;
 
-  const effectiveLt1 = lt1Hr ?? 150;
-  const effectiveLt2 = lt2Hr ?? 165;
-  const activeEf = currentEf ?? 1.15;
+  const effectiveLt1 = lt1Hr ?? '—';
+  const effectiveLt2 = lt2Hr ?? '—';
+  const activeEf = currentEf ?? 0;
 
   const tiers = [
     {
       range: '0.90 – 1.05',
       label: t.economyGuide.developingBase,
-      paceExample: language === 'zh' ? '6:50 – 7:55 /公里 @ ~140 bpm' : '6:50 – 7:55 /km @ ~140 bpm',
+      paceExample: t.economyGuide.paceDeveloping,
       desc: t.economyGuide.developingBaseDesc,
       badgeColor: '#64748b',
-      isCurrent: activeEf >= 0.90 && activeEf < 1.10,
+      isCurrent: currentEf != null && activeEf >= 0.90 && activeEf < 1.10,
       isTarget: false
     },
     {
       range: '1.10 – 1.25',
       label: t.economyGuide.solidRunner,
-      paceExample: language === 'zh' ? '5:45 – 6:30 /公里 @ ~140 bpm' : '5:45 – 6:30 /km @ ~140 bpm',
+      paceExample: t.economyGuide.paceSolid,
       desc: t.economyGuide.solidRunnerDesc,
       badgeColor: '#06b6d4',
-      isCurrent: activeEf >= 1.10 && activeEf < 1.25,
+      isCurrent: currentEf != null && activeEf >= 1.10 && activeEf < 1.25,
       isTarget: false
     },
     {
       range: '1.25 – 1.40',
       label: t.economyGuide.advancedRunner,
-      paceExample: language === 'zh' ? '5:05 – 5:45 /公里 @ ~140 bpm' : '5:05 – 5:45 /km @ ~140 bpm',
+      paceExample: t.economyGuide.paceAdvanced,
       desc: t.economyGuide.advancedRunnerDesc,
       badgeColor: '#10b981',
-      isCurrent: activeEf >= 1.25 && activeEf < 1.45,
-      isTarget: activeEf < 1.25
+      isCurrent: currentEf != null && activeEf >= 1.25 && activeEf < 1.45,
+      isTarget: currentEf != null && activeEf < 1.25
     },
     {
       range: '1.45 – 1.65',
       label: t.economyGuide.competitiveRacer,
-      paceExample: language === 'zh' ? '4:20 – 4:55 /公里 @ ~140 bpm' : '4:20 – 4:55 /km @ ~140 bpm',
+      paceExample: t.economyGuide.paceCompetitive,
       desc: t.economyGuide.competitiveRacerDesc,
       badgeColor: '#f59e0b',
-      isCurrent: activeEf >= 1.45 && activeEf < 1.70,
-      isTarget: activeEf >= 1.25 && activeEf < 1.45
+      isCurrent: currentEf != null && activeEf >= 1.45 && activeEf < 1.70,
+      isTarget: currentEf != null && activeEf >= 1.25 && activeEf < 1.45
     },
     {
       range: '1.70 – 2.00+',
       label: t.economyGuide.eliteMarathoner,
-      paceExample: language === 'zh' ? '3:35 – 4:10 /公里 @ ~140 bpm' : '3:35 – 4:10 /km @ ~140 bpm',
+      paceExample: t.economyGuide.paceElite,
       desc: t.economyGuide.eliteMarathonerDesc,
       badgeColor: '#8b5cf6',
-      isCurrent: activeEf >= 1.70,
-      isTarget: activeEf >= 1.45 && activeEf < 1.70
+      isCurrent: currentEf != null && activeEf >= 1.70,
+      isTarget: currentEf != null && activeEf >= 1.45 && activeEf < 1.70
     }
   ];
 
@@ -115,7 +115,7 @@ export const EconomyGuideModal: React.FC<EconomyGuideModalProps> = ({
                 {t.economyGuide.tiersTitle}
               </span>
               <span style={{ fontSize: '0.72rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
-                {t.economyGuide.yourBaseline}: {currentEf ? Number(currentEf).toFixed(2) : '1.15'} EF
+                {t.economyGuide.yourBaseline}: {currentEf ? Number(currentEf).toFixed(2) : '—'} EF
               </span>
             </div>
             <p style={{ margin: '0 0 0.65rem 0', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
@@ -163,28 +163,9 @@ export const EconomyGuideModal: React.FC<EconomyGuideModalProps> = ({
             </div>
           </div>
 
-          {/* Fitness Gains Highlight */}
-          <div className="economy-gains-banner">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-              <TrendingUp size={16} color="#10b981" />
-              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#10b981' }}>
-                {t.economyGuide.gainsTitle}
-              </span>
-            </div>
-            {language === 'zh' ? (
-              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                在 <b>2026年1月</b>，您的长距离跑记录为 <b>1.06 EF</b>（~6:32/公里 @ 151 bpm）。到了 <b>2026年9月</b>，
-                您的平稳有氧基础跑已提升至 <b>1.16–1.19 EF</b>（~5:50/公里 @ 136–148 bpm）。
-                这代表着 <b>+9.4% 至 +12.2% 的有氧跑步经济性跃升</b>！
-              </p>
-            ) : (
-              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                In <b>January 2026</b>, your long run recorded <b>1.06 EF</b> (~6:32/km @ 151 bpm). By <b>September 2026</b>, 
-                your steady base runs have reached <b>1.16–1.19 EF</b> (~5:50/km @ 136–148 bpm). 
-                That represents a <b>+9.4% to +12.2% gain in aerobic running economy</b>!
-              </p>
-            )}
-          </div>
+          <p className="economy-gains-banner">
+            {t.economyGuide.comparisonNote}
+          </p>
 
           {/* Practical Action Tips */}
           <div style={{ marginTop: '1.25rem' }}>
@@ -208,7 +189,7 @@ export const EconomyGuideModal: React.FC<EconomyGuideModalProps> = ({
           </div>
         </div>
 
-        <div className="modal-actions" style={{ justifyContent: 'flex-end', marginTop: '1.25rem' }}>
+        <div className="modal-actions">
           <button className="primary-btn" onClick={onClose}>
             {t.economyGuide.gotIt}
           </button>

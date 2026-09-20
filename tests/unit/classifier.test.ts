@@ -236,10 +236,10 @@ describe('Run Classifier Engine (Unit)', () => {
     const meta: ActivityMetadata = {
       ...baseMetadata,
       avgHeartRate: 135,
-      maxHeartRate: 0 // Will fallback to 185
+      maxHeartRate: 0 // Missing session peak must not replace the athlete's maximum
     };
     const records = createMockRecords(1800, 135);
-    const result = classifyRun(meta, records, { ...baseEconomy, aerobicDecouplingPct: null }, []);
+    const result = classifyRun(meta, records, { ...baseEconomy, aerobicDecouplingPct: null }, [], { maxHr: 190, restingHr: 55, lt1Hr: 148, lt2Hr: 167 });
     expect(result.runType).toBe('recovery'); // 135 <= 136 and duration 30m <= 50m
   });
 
@@ -307,7 +307,7 @@ describe('Run Classifier Engine (Unit)', () => {
     // maxHr = 200, 72% is 144. HR 140 is > 136 bpm but < 144 bpm
     const meta = { ...baseMetadata, maxHeartRate: 200, avgHeartRate: 140, totalDurationSeconds: 1800 };
     const records = createMockRecords(1800, 140);
-    const res = classifyRun(meta, records, baseEconomy, []);
+    const res = classifyRun(meta, records, baseEconomy, [], { maxHr: 200, restingHr: 55 });
     expect(res.runType).toBe('recovery');
   });
 

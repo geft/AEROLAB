@@ -14,7 +14,13 @@ const SettingsView = lazy(() => import('./components/SettingsView').then(m => ({
 const UploadModal = lazy(() => import('./components/UploadModal').then(m => ({ default: m.UploadModal })));
 const BackupModal = lazy(() => import('./components/BackupModal').then(m => ({ default: m.BackupModal })));
 const OnboardingPage = lazy(() => import('./components/OnboardingPage').then(m => ({ default: m.OnboardingPage })));
-const DevDiagnosticsDrawer = lazy(() => import('./components/DevDiagnosticsDrawer').then(m => ({ default: m.DevDiagnosticsDrawer })));
+
+// Developer diagnostics are excluded from release bundles. Vite statically
+// replaces `import.meta.env.DEV` with `false` in production, so this ternary
+// resolves to null and the component (plus its code-split chunk) is dropped.
+const DevDiagnosticsDrawer = import.meta.env.DEV
+  ? lazy(() => import('./components/DevDiagnosticsDrawer').then(m => ({ default: m.DevDiagnosticsDrawer })))
+  : null;
 
 export const App: React.FC = () => {
   const { t } = useTranslation();
@@ -33,10 +39,13 @@ export const App: React.FC = () => {
     if (saved === 'light' || saved === 'dark') return saved;
     return 'dark';
   });
+  // Dev diagnostics state stays inert in release builds: the drawer resolves to
+  // null and the shortcut listener below is never attached.
   const [isDevDrawerOpen, setIsDevDrawerOpen] = useState<boolean>(false);
 
-  // Floating Dev Mode button: default to false (disabled)
+  // Floating Dev Mode button: default to false (disabled), development builds only
   const [showDevFloatingBtn, setShowDevFloatingBtn] = useState<boolean>(() => {
+    if (!import.meta.env.DEV) return false;
     return localStorage.getItem('aerolab_show_dev_btn') === 'true';
   });
 
@@ -46,6 +55,7 @@ export const App: React.FC = () => {
   };
 
   useEffect(() => {
+    if (!import.meta.env.DEV) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
         e.preventDefault();
@@ -204,7 +214,7 @@ export const App: React.FC = () => {
               }}
               theme={theme}
               onToggleTheme={toggleTheme}
-              onOpenDevDiagnostics={() => setIsDevDrawerOpen(true)}
+              onOpenDevDiagnostics={import.meta.env.DEV ? () => setIsDevDrawerOpen(true) : undefined}
               showDevFloatingBtn={showDevFloatingBtn}
               onToggleDevFloatingBtn={handleToggleDevFloatingBtn}
             />
@@ -234,7 +244,7 @@ export const App: React.FC = () => {
           />
         )}
 
-        {isDevDrawerOpen && (
+        {DevDiagnosticsDrawer && isDevDrawerOpen && (
           <DevDiagnosticsDrawer
             isOpen={isDevDrawerOpen}
             onClose={() => setIsDevDrawerOpen(false)}
@@ -243,7 +253,7 @@ export const App: React.FC = () => {
         )}
       </Suspense>
 
-      {showDevFloatingBtn && (
+      {import.meta.env.DEV && showDevFloatingBtn && (
         <button
           type="button"
           id="dev-mode-trigger-btn"

@@ -1,3 +1,4 @@
+import { seedBenchmarkProfile } from '../fixtures/benchmark-runs.js';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { getDatabase } from '../../src/backend/db/client.js';
@@ -10,6 +11,7 @@ describe('Threshold Tracker Unit Tests', () => {
 
   beforeEach(() => {
     db = getDatabase(':memory:');
+    seedBenchmarkProfile(db);
   });
 
   afterEach(() => {
@@ -43,6 +45,35 @@ describe('Threshold Tracker Unit Tests', () => {
   };
 
   const dummyRecords: ActivityRecord[] = [];
+
+  it.each([
+    { max: 160, rest: 45, lt1: 120, lt2: 140, pace: 480 },
+    { max: 210, rest: 65, lt1: 170, lt2: 190, pace: 280 }
+  ])('calibrates independently for athlete LT1 $lt1', ({ max, rest, lt1, lt2, pace }) => {
+    db.prepare("UPDATE athlete_profile SET max_hr = ?, resting_hr = ?, lt1_hr = ?, lt2_hr = ?, is_max_hr_estimated = 0 WHERE id = 'primary'").run(max, rest, lt1, lt2);
+    insertParentActivity('individual');
+    const estimate = evaluateThresholdUpdate(db, 'individual', dummyMetadata.date, 'easy_base', dummyMetadata, [], {
+      movingDurationSeconds: 3000, movingDistanceMeters: 3000000 / pace,
+      avgMovingHeartRate: lt1, avgMovingPaceSecKm: pace,
+      efficiencyFactor: 1, metersPerBeat: 2, firstHalfEf: 1, secondHalfEf: 1,
+      aerobicDecouplingPct: 0
+    });
+    expect(estimate.lt1Hr).toBe(lt1);
+    expect(estimate.lt1PaceSecKm).toBe(pace);
+    expect(getCurrentThresholds(db).lt1Hr).toBe(lt1);
+  });
+
+  it.each(['2026-09-17 19:00:00', '2026-09-19 05:00:00'])('uses effort rather than weekday or start time: %s', (date) => {
+    insertParentActivity('schedule', date);
+    const estimate = evaluateThresholdUpdate(db, 'schedule', date, 'easy_base', { ...dummyMetadata, date }, [], {
+      movingDurationSeconds: 3000, movingDistanceMeters: 8000,
+      avgMovingHeartRate: 150, avgMovingPaceSecKm: 375,
+      efficiencyFactor: 1, metersPerBeat: 2, firstHalfEf: 1, secondHalfEf: 1,
+      aerobicDecouplingPct: 1
+    });
+    expect(estimate.lt1Hr).toBe(150);
+    expect(estimate.lt1PaceSecKm).toBe(375);
+  });
 
   it('calibrates LT1 on qualifying steady base run (< 3.8% drift, >= 25 mins)', () => {
     const economy: EconomyMetrics = {
@@ -165,7 +196,7 @@ describe('Threshold Tracker Unit Tests', () => {
     const stored = db.prepare('SELECT * FROM physiological_thresholds WHERE source_activity_id = ?').get('test-act-cruising') as any;
     expect(stored).toBeDefined();
     expect(stored.lt1_hr).toBe(152);
-    expect(stored.notes).toContain('Cruising Block Km 4-10');
+    expect(stored.notes).toContain('Cruising Block Km 4-9'); // Stops at the first-hour boundary
   });
 
   it('rejects aerobic cruising candidate if splits are broken by non-contiguous gap', () => {
@@ -211,14 +242,13 @@ describe('Threshold Tracker Unit Tests', () => {
       wholeRunEconomy
     );
 
-    // Contiguous segment [3, 4, 5, 6] is selected (Km 3-6)
-    expect(estimate.lt1Hr).toBe(146);
+    // Missing opening splits mean the elapsed calibration window is unknown.
+    expect(estimate.lt1Hr).toBeNull();
     const stored = db.prepare('SELECT * FROM physiological_thresholds WHERE source_activity_id = ?').get('test-act-non-contiguous') as any;
-    expect(stored.notes).toContain('Cruising Block Km 3-6');
-    expect(stored.notes).not.toContain('Km 3-8'); // Must NOT bridge over split 7!
+    expect(stored).toBeUndefined();
   });
 
-  it('rejects candidate if pace drops > 50s/km below recent baseline', () => {
+  it('rejects candidate if pace drops > 10% below recent baseline', () => {
     // Seed recent baseline at 355 s/km (5:55/km) on Sep 5
     insertParentActivity('act-sep5', '2026-09-05 17:00:00');
     db.prepare(`
@@ -262,12 +292,14 @@ describe('Threshold Tracker Unit Tests', () => {
       wholeRunEconomy
     );
 
-    // Rejected because 426 s/km > 355 + 50
+    // Rejected because 426 s/km > 355 * 1.10
     expect(estimate.lt1Hr).toBeNull();
     expect(estimate.lt1PaceSecKm).toBeNull();
   });
 
-  it('calibrates LT1 on Zone 2 steady long run (140-145 bpm) with low decoupling', () => {
+  it('does not replace established LT1 with a slower sub-threshold long run', () => {
+    insertParentActivity('prior-lt1', '2026-09-05T17:00:00');
+    db.prepare("INSERT INTO physiological_thresholds (effective_date, source_activity_id, lt1_hr, lt1_pace_sec_km, confidence) VALUES ('2026-09-05T17:00:00', 'prior-lt1', 152, 355, 0.92)").run();
     insertParentActivity('test-act-z2-long', '2026-09-19 17:40:00');
 
     const insertSplit = db.prepare(`
@@ -303,13 +335,9 @@ describe('Threshold Tracker Unit Tests', () => {
       wholeRunEconomy
     );
 
-    expect(estimate.lt1Hr).toBe(144);
-    expect(estimate.lt1PaceSecKm).toBe(403);
-
-    const stored = db.prepare('SELECT * FROM physiological_thresholds WHERE source_activity_id = ?').get('test-act-z2-long') as any;
-    expect(stored).toBeDefined();
-    expect(stored.lt1_hr).toBe(144);
-    expect(stored.notes).toContain('Cruising Block Km 4-15');
+    expect(estimate.lt1Hr).toBeNull();
+    expect(estimate.lt1PaceSecKm).toBeNull();
+    expect(getCurrentThresholds(db).lt1PaceSecKm).toBe(355);
   });
 
   it('does NOT calibrate LT1 when decoupling is high or duration is under 30 minutes', () => {
@@ -365,7 +393,7 @@ describe('Threshold Tracker Unit Tests', () => {
     expect(count.count).toBe(0);
   });
 
-  it('calibrates LT2 on threshold runs', () => {
+  it('does not calibrate LT2 from a whole-run average without sustained evidence', () => {
     const thresholdEconomy: EconomyMetrics = {
       movingDurationSeconds: 2400,
       movingDistanceMeters: 9000,
@@ -390,15 +418,12 @@ describe('Threshold Tracker Unit Tests', () => {
       thresholdEconomy
     );
 
-    expect(estimate.lt2Hr).toBe(169);
-    expect(estimate.lt2PaceSecKm).toBe(267);
+    expect(estimate.lt2Hr).toBeNull();
+    expect(estimate.lt2PaceSecKm).toBeNull();
     expect(estimate.lt1Hr).toBeNull();
 
     const stored = db.prepare('SELECT * FROM physiological_thresholds WHERE source_activity_id = ?').get('test-act-thresh') as any;
-    expect(stored).toBeDefined();
-    expect(stored.lt2_hr).toBe(169);
-    expect(stored.lt2_pace_sec_km).toBe(267);
-    expect(stored.confidence).toBe(0.85);
+    expect(stored).toBeUndefined();
   });
 
   it('aggregates 30-day rolling baseline economy (EF)', () => {
@@ -473,10 +498,10 @@ describe('Threshold Tracker Unit Tests', () => {
     it('strips acceleration ramp (first 10-12s) when work interval starts from standing/walking (< 2.2 m/s)', () => {
       insertParentActivity('test-act-ramp', '2026-09-10 19:00:00');
 
-      // 1 work interval: 600 seconds.
+      // 1 sustained work interval: 1200 seconds.
       // Raw average pace without trimming would be ~283 s/km.
       // Cruising speed is 3.5714 m/s (280 s/km = 4:40/km).
-      insertWorkInterval('test-act-ramp', 1, 0, 600, 2120, 172, 283);
+      insertWorkInterval('test-act-ramp', 1, 0, 1200, 4240, 172, 283);
 
       // Insert records for the 600 seconds
       const insertRec = db.prepare(`
@@ -484,7 +509,7 @@ describe('Threshold Tracker Unit Tests', () => {
         VALUES (?, '2026-09-10 19:00:00', ?, ?, ?)
       `);
 
-      for (let t = 0; t <= 600; t++) {
+      for (let t = 0; t <= 1200; t++) {
         if (t < 12) {
           // Standing start accelerating: 0.5 m/s to 2.0 m/s
           insertRec.run('test-act-ramp', t, 0.5 + (t / 12) * 1.5, 140 + t * 2);
@@ -511,7 +536,7 @@ describe('Threshold Tracker Unit Tests', () => {
         'test-act-ramp',
         '2026-09-10 19:00:00',
         'threshold_lt2',
-        { ...dummyMetadata, id: 'test-act-ramp', totalDurationSeconds: 600 },
+        { ...dummyMetadata, id: 'test-act-ramp', totalDurationSeconds: 1200 },
         [],
         economy
       );
@@ -706,6 +731,31 @@ describe('Threshold Tracker Unit Tests', () => {
       const current = getCurrentThresholds(db);
       expect(current.lt2Hr).toBe(176);
       expect(current.lt2PaceSecKm).toBe(277);
+    });
+
+    it('exposes the latest LT1-calibrated baseline EF so the Profile EF tile is never blank', () => {
+      insertParentActivity('act-ef-lt1', '2026-08-29 16:45:00');
+      insertParentActivity('act-ef-lt2', '2026-09-17 19:30:00');
+
+      db.prepare(`
+        INSERT INTO physiological_thresholds (
+          effective_date, source_activity_id, lt1_hr, lt1_pace_sec_km, baseline_economy_ef, confidence, notes
+        ) VALUES ('2026-08-29 16:45:00', 'act-ef-lt1', 152, 359, 1.1499, 0.86, 'Aerobic base calibration')
+      `).run();
+
+      // Newer LT2-only calibration also carries its own economy reading
+      db.prepare(`
+        INSERT INTO physiological_thresholds (
+          effective_date, source_activity_id, lt2_hr, lt2_pace_sec_km, baseline_economy_ef, confidence, notes
+        ) VALUES ('2026-09-17 19:30:00', 'act-ef-lt2', 179, 275, 1.1566, 0.91, 'Lactate threshold calibration')
+      `).run();
+
+      // Mirrors the "Efficiency Factor" benchmark tile rendered in Progress & Stats
+      expect(getCurrentThresholds(db).baselineEconomyEf).toBeCloseTo(1.1499, 4);
+    });
+
+    it('reports a null baseline EF when no calibration has recorded one yet', () => {
+      expect(getCurrentThresholds(db).baselineEconomyEf).toBeNull();
     });
 
     it('applies recency decay factor prioritizing newer sessions over older sessions', () => {

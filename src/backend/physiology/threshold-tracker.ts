@@ -1,3 +1,6 @@
+import { getAthleteHeartRateProfile } from './athlete-profile.js';
+import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
+import { rollingThreshold } from '../../shared/threshold-trend.js';
 import Database from 'better-sqlite3';
 import { ActivityMetadata, ActivityRecord } from '../ingestion/csv-parser';
 import { EconomyMetrics } from './economy';
@@ -38,12 +41,25 @@ export function findAerobicCruisingBlock(
 ): CruisingBlock | null {
   const isCandidateSplit = (s: SplitRow) =>
     s.distance_meters >= 700 &&
-    s.avg_pace_sec_km >= 200 &&
-    s.avg_pace_sec_km <= 480 &&
-    s.avg_heart_rate > 100 &&
+    s.avg_pace_sec_km >= 120 &&
+    s.avg_pace_sec_km <= 1200 &&
+    s.avg_heart_rate > 40 &&
     Math.abs(s.elevation_change_m ?? 0) < 30;
 
   if (splits.length < 3) return null;
+
+  // Only the first hour is eligible for calibration. A locally steady block
+  // late in a long run can follow substantial accumulated cardiac drift.
+  // Keep elapsed time across hills, recovery splits and gaps; never restart it.
+  const elapsedAtEnd = new Map<SplitRow, number>();
+  let elapsed = 0;
+  let previousIndex = 0;
+  for (const split of splits) {
+    if (split.split_index !== previousIndex + 1) elapsed = Infinity;
+    elapsed += split.duration_seconds;
+    elapsedAtEnd.set(split, elapsed);
+    previousIndex = split.split_index;
+  }
 
   // Group into strictly contiguous segments to prevent non-consecutive split bridging
   const contiguousSegments: SplitRow[][] = [];
@@ -82,11 +98,12 @@ export function findAerobicCruisingBlock(
     for (let len = 3; len <= seg.length; len++) {
       for (let start = 0; start <= seg.length - len; start++) {
         const window = seg.slice(start, start + len);
+        if ((elapsedAtEnd.get(window[window.length - 1]) ?? Infinity) > 3600) continue;
 
         const totalDur = window.reduce((acc, s) => acc + s.duration_seconds, 0);
         const totalDist = window.reduce((acc, s) => acc + s.distance_meters, 0);
 
-        // Require minimum 20 minutes (1200 seconds) or >= 3.5 km of continuous steady aerobic running
+        // Require at least 20 minutes and 3.5 km of continuous steady aerobic running.
         if (totalDur < 1200 || totalDist < 3500) continue;
 
         const avgHr = window.reduce((acc, s) => acc + s.avg_heart_rate * s.duration_seconds, 0) / totalDur;
@@ -117,15 +134,43 @@ export function findAerobicCruisingBlock(
 
         const decouplingPct = firstEf > 0 ? ((firstEf - secondEf) / firstEf) * 100 : 0;
 
-        // Steady aerobic run: decoupling between -8.0% and 4.2%
-        if (decouplingPct > 4.2 || decouplingPct < -8.0) continue;
+        // Steady aerobic run: decoupling between -8.0% and 3.8%
+        if (decouplingPct > 3.8 || decouplingPct < -8.0) continue;
+
+        // Do not reset the drift clock by selecting a later plateau. Compare
+        // with an earlier continuous 20-minute block at comparable speed,
+        // excluding the first ten minutes of warmup.
+        const windowStart = (elapsedAtEnd.get(window[0]) ?? Infinity) - window[0].duration_seconds;
+        const candidateEf = (totalDist / totalDur * 60) / avgHr;
+        let accumulatedDrift = false;
+        for (const earlier of contiguousSegments) {
+          for (let r = 0; r < earlier.length; r++) {
+            const first = earlier[r];
+            if ((elapsedAtEnd.get(first)! - first.duration_seconds) < 600) continue;
+            let refDur = 0, refDist = 0, refHrSum = 0;
+            for (let q = r; q < earlier.length; q++) {
+              const s = earlier[q];
+              if (elapsedAtEnd.get(s)! > windowStart) break;
+              refDur += s.duration_seconds;
+              refDist += s.distance_meters;
+              refHrSum += s.avg_heart_rate * s.duration_seconds;
+              if (refDur >= 1200) {
+                const speedRatio = (totalDist / totalDur) / (refDist / refDur);
+                const refEf = (refDist / refDur * 60) / (refHrSum / refDur);
+                if (speedRatio >= 0.9 && speedRatio <= 1.1 && candidateEf < refEf * 0.962) accumulatedDrift = true;
+                break;
+              }
+            }
+          }
+        }
+        if (accumulatedDrift) continue;
 
         // Slower week protection: effort must reach the aerobic threshold stimulus band
         if (avgHr < stimulusFloorHr) continue;
 
         // Physiological sanity check against recent baseline:
-        // True aerobic threshold pace cannot suddenly collapse by > 50s/km in uninjured athletes
-        if (recentBaselinePace && avgPace > recentBaselinePace + 50) {
+        // Treat a single slowdown over 10% as insufficient evidence to replace a recent baseline.
+        if (recentBaselinePace && avgPace > recentBaselinePace * 1.10) {
           continue;
         }
 
@@ -164,50 +209,30 @@ export function evaluateThresholdUpdate(
   let estimatedLt2Pace: number | null = null;
   let lt1Confidence = 0.88;
 
-  // Retrieve athlete profile for baseline reference (profile-relative, no hardcoded bpm)
-  let baselineLt1Hr: number | null = null;
-  let profileLt2Hr: number | null = null;
-  let profileMaxHr: number | null = null;
-  let profileRestingHr: number | null = null;
-  try {
-    const prof = db.prepare('SELECT lt1_hr, lt2_hr, max_hr, resting_hr, age FROM athlete_profile WHERE id = ?').get('primary') as any;
-    if (prof?.lt1_hr) baselineLt1Hr = prof.lt1_hr;
-    if (prof?.lt2_hr) profileLt2Hr = prof.lt2_hr;
-    if (prof?.max_hr) profileMaxHr = prof.max_hr;
-    if (prof?.resting_hr) profileRestingHr = prof.resting_hr;
-  } catch {}
-
-  const effMax = profileMaxHr || 203;
-  const effRhr = profileRestingHr || 54;
-  // LT1 (aerobic threshold) is ~65% HRR (Karvonen), typical range 145-152 bpm
-  const targetLt1 = Math.min(152, Math.max(145, Math.round(effRhr + (effMax - effRhr) * 0.65)));
-  const minLt1Hr = Math.max(135, targetLt1 - 10);
-  const maxLt1Hr = Math.min(155, targetLt1 + 6);
-
-  // Sanitize baselineLt1Hr so it can never be poisoned above maxLt1Hr
-  if (!baselineLt1Hr || baselineLt1Hr > maxLt1Hr || baselineLt1Hr < minLt1Hr) {
-    baselineLt1Hr = Math.min(maxLt1Hr, Math.max(minLt1Hr, 148));
-  }
-
-  // 1. LT1 Candidate: Sustained Steady Aerobic Cruising Block with low decoupling
-  // Slower week protection: effort must reach the aerobic threshold stimulus band.
-  // Light recovery or sub-LT1 jogs (e.g. 125-135 bpm) do not touch the aerobic ceiling and MUST NOT calibrate LT1.
-  let cruisingNote: string | null = null;
-  const stimulusFloorHr = Math.max(142, (baselineLt1Hr ?? targetLt1) - 8);
-
-  // Retrieve recent baseline LT1 pace as an outlier protection anchor
+  const profile = getAthleteHeartRateProfile(db);
+  const { maxHr: effMax, restingHr: effRhr, lt2Hr: profileLt2Hr } = profile;
+  const reserve = effMax - effRhr;
   let recentBaselineLt1Pace: number | null = null;
-  try {
-    const recentRow = db.prepare(`
-      SELECT lt1_pace_sec_km
-      FROM physiological_thresholds
-      WHERE lt1_pace_sec_km IS NOT NULL AND effective_date < ?
-      ORDER BY effective_date DESC LIMIT 1
-    `).get(runDate) as any;
-    if (recentRow?.lt1_pace_sec_km) recentBaselineLt1Pace = recentRow.lt1_pace_sec_km;
-  } catch {}
+  let baselineLt1Hr = profile.lt1Hr;
+  // Compare to a prior, recent calibration, never to this run's stale row or
+  // a future calibration during chronological replay. Normalize mixed date formats.
+  const prior = db.prepare(`SELECT lt1_hr, lt1_pace_sec_km FROM physiological_thresholds
+    WHERE lt1_hr IS NOT NULL AND lt1_pace_sec_km IS NOT NULL
+      AND julianday(effective_date) < julianday(?)
+      AND julianday(effective_date) >= julianday(?, '-45 days')
+    ORDER BY julianday(effective_date) DESC, id DESC LIMIT 1`).get(runDate, runDate) as any;
+  if (prior) {
+    baselineLt1Hr = prior.lt1_hr;
+    recentBaselineLt1Pace = prior.lt1_pace_sec_km;
+  }
+  // Low-drift easy running only measures LT1 if it actually approaches this
+  // athlete's established ceiling. A recovery effort is not a new threshold.
+  const stimulusFloorHr = baselineLt1Hr - Math.max(2, Math.round(reserve * 0.025));
+  const minLt1Hr = Math.max(effRhr + 1, stimulusFloorHr);
+  const maxLt1Hr = Math.min(profileLt2Hr - 2, baselineLt1Hr + Math.max(3, Math.round(reserve * 0.04)));
+  let cruisingNote: string | null = null;
 
-  if (runType === 'easy_base' || runType === 'long_run') {
+  if (profile.hasBaseline && (runType === 'easy_base' || runType === 'long_run')) {
     let splits: SplitRow[] = [];
     try {
       splits = db.prepare(`
@@ -242,13 +267,13 @@ export function evaluateThresholdUpdate(
 
       const isAerobicZone = avgHr >= stimulusFloorHr && avgHr <= maxLt1Hr;
       const isLt1Candidate =
-        totalDuration >= 1500 &&
+        totalDuration >= 1500 && totalDuration <= 3600 &&
         dec !== null &&
         dec <= 3.8 &&
         dec >= -8.0 &&
         isAerobicZone;
 
-      if (isLt1Candidate && avgHr && avgPace) {
+      if (isLt1Candidate && avgHr && avgPace && (!recentBaselineLt1Pace || avgPace <= recentBaselineLt1Pace * 1.10)) {
         estimatedLt1Hr = Math.min(maxLt1Hr, Math.max(minLt1Hr, Math.round(avgHr)));
         estimatedLt1Pace = Math.round(avgPace);
         cruisingNote = `Steady aerobic run (${(totalDuration / 60).toFixed(0)}m, Decoupling: ${dec.toFixed(1)}%)`;
@@ -264,28 +289,29 @@ export function evaluateThresholdUpdate(
   }
 
   // Physiological pace validation:
-  // 1. LT1 aerobic base pace cannot be faster than 200 sec/km (3:20/km) for human aerobic running.
+  // 1. LT1 aerobic base pace cannot be faster than 120 sec/km (2:00/km) for human aerobic running.
   // 2. LT1 pace must always be slower than LT2 threshold pace.
   let knownLt2Pace: number | null = null;
   try {
-    const lt2Row = db.prepare('SELECT lt2_pace_sec_km FROM physiological_thresholds WHERE lt2_pace_sec_km IS NOT NULL ORDER BY effective_date DESC LIMIT 1').get() as any;
+    const lt2Row = db.prepare('SELECT lt2_pace_sec_km FROM physiological_thresholds WHERE lt2_pace_sec_km IS NOT NULL AND julianday(effective_date) < julianday(?) ORDER BY julianday(effective_date) DESC LIMIT 1').get(runDate) as any;
     if (lt2Row?.lt2_pace_sec_km) knownLt2Pace = lt2Row.lt2_pace_sec_km;
   } catch {}
 
   if (estimatedLt1Pace !== null) {
-    if (estimatedLt1Pace < 200 || (knownLt2Pace !== null && estimatedLt1Pace <= knownLt2Pace + 15)) {
+    if (estimatedLt1Pace < 120 || (knownLt2Pace !== null && estimatedLt1Pace <= knownLt2Pace)) {
       estimatedLt1Pace = null;
       estimatedLt1Hr = null;
     }
   }
   const qualifiesLt1 = estimatedLt1Hr !== null && estimatedLt1Pace !== null;
 
-  // 2. LT2 Candidate: Threshold run, quality intervals, or continuous race effort.
+  // 2. LT2 candidate: sustained threshold work. Race HR is not threshold HR;
+  // a fixed pace multiplier cannot convert arbitrary race distances to LT2.
   // Applies acceleration ramp stripping (removes 10-12s standing start),
   // caps evaluation to first 30 mins of quality work to avoid tropical dehydration drift,
   // compensates for cardiac ramp lag, and scores confidence continuously based on rest continuity.
   let lt2Confidence = 0.85;
-  if (runType === 'threshold_lt2' || runType === 'race') {
+  if (profile.hasBaseline && runType === 'threshold_lt2') {
     let workInvs: any[] = [];
     try {
       workInvs = db.prepare(
@@ -293,15 +319,23 @@ export function evaluateThresholdUpdate(
       ).all(activityId) as any[];
     } catch {}
 
-    const stimulusFloor = (profileLt2Hr ?? 167) - 10;
-    const qualifiedWork = workInvs.filter(i => (i.avg_heart_rate ?? 0) >= stimulusFloor);
+    // Screen effort against the independent athlete baseline, not the previous
+    // inferred HR: otherwise one high-HR session raises the admission bar for
+    // all later workouts and creates a self-reinforcing selection bias.
+    const lt2EffortBaseline = getAthleteHeartRateProfile(db, false).lt2Hr;
+    const stimulusFloor = lt2EffortBaseline - 10;
+    // Sustained work, not strides or short VO2 reps. Count elapsed session
+    // time as well as work time so a late long-run HR rise cannot qualify.
+    const qualifiedWork = workInvs.filter(i => (i.avg_heart_rate ?? 0) >= stimulusFloor
+      && i.duration_seconds >= 300 && i.start_seconds >= 0
+      && i.start_seconds + i.duration_seconds <= 3600);
 
     if (qualifiedWork.length > 0) {
       let interRepRecs: any[] = [];
       if (workInvs.length >= 2) {
         try {
-          const firstIdx = workInvs[0].interval_index;
-          const lastIdx = workInvs[workInvs.length - 1].interval_index;
+          const firstIdx = qualifiedWork[0].interval_index;
+          const lastIdx = qualifiedWork[qualifiedWork.length - 1].interval_index;
           interRepRecs = db.prepare(
             "SELECT duration_seconds, hr_drop FROM activity_intervals WHERE activity_id = ? AND type = 'recovery' AND interval_index > ? AND interval_index < ? ORDER BY interval_index ASC"
           ).all(activityId, firstIdx, lastIdx) as any[];
@@ -315,16 +349,19 @@ export function evaluateThresholdUpdate(
         ? interRepRecs.reduce((s, i) => s + (i.hr_drop || 0), 0) / interRepRecs.length
         : 0;
 
-      // Tropical window: evaluate up to first 30 minutes (1800s) of quality work
-      // to eliminate late-session hyperthermia and dehydration drift
+      // Evaluate at most 30 minutes of early quality work to limit drift exposure.
       const maxWorkEvalSec = 1800;
       let evalDur = 0;
       let evalDist = 0;
       let evalHrWeighted = 0;
+      const workEfficiencies: number[] = [];
+      let withinRepDrift = false;
 
       for (const inv of qualifiedWork) {
         if (evalDur >= maxWorkEvalSec) break;
         const durToTake = Math.min(inv.duration_seconds, maxWorkEvalSec - evalDur);
+        const previousDistance = evalDist;
+        const previousHrTime = evalHrWeighted;
 
         // Fetch records if available
         let repRecs: any[] = [];
@@ -346,6 +383,29 @@ export function evaluateThresholdUpdate(
           // 2. HR: strip initial cardiac lag (60-90s) if rep >= 300s
           const tRamp = inv.duration_seconds >= 300 ? Math.min(90, Math.max(45, Math.round(avgRestDrop * 1.5))) : 0;
           const hrRecs = repRecs.filter(r => r.elapsed_seconds >= inv.start_seconds + tRamp && r.heart_rate > 100);
+          // A single long rep can provide the entire calibration. Check its
+          // internal efficiency decline too, after the cardiac ramp, using
+          // elapsed-time weighting rather than the number of samples.
+          const steadyStart = inv.start_seconds + Math.max(tRamp, paceSkipSec);
+          const midpoint = (steadyStart + inv.start_seconds + durToTake) / 2;
+          const halves = [{ distance: 0, beats: 0, duration: 0 }, { distance: 0, beats: 0, duration: 0 }];
+          for (let r = 1; r < repRecs.length; r++) {
+            const a = repRecs[r - 1], b = repRecs[r];
+            if (b.elapsed_seconds - a.elapsed_seconds > 15 || b.heart_rate <= 40 || b.speed_mps <= 0) continue;
+            for (let half = 0; half < 2; half++) {
+              const from = Math.max(a.elapsed_seconds, half === 0 ? steadyStart : midpoint);
+              const to = Math.min(b.elapsed_seconds, half === 0 ? midpoint : inv.start_seconds + durToTake);
+              const dt = Math.max(0, to - from);
+              halves[half].distance += b.speed_mps * dt;
+              halves[half].beats += b.heart_rate * dt;
+              halves[half].duration += dt;
+            }
+          }
+          if (halves.every(h => h.duration >= 120 && h.beats > 0)) {
+            const firstEf = halves[0].distance / halves[0].beats;
+            const secondEf = halves[1].distance / halves[1].beats;
+            if (secondEf < firstEf * 0.95) withinRepDrift = true;
+          }
           const repAvgHr = hrRecs.length > 0
             ? hrRecs.reduce((s, r) => s + r.heart_rate, 0) / hrRecs.length
             : inv.avg_heart_rate;
@@ -362,17 +422,22 @@ export function evaluateThresholdUpdate(
           evalDist += (durToTake / (inv.duration_seconds || 1)) * inv.distance_meters;
           evalHrWeighted += (inv.avg_heart_rate + hrComp) * durToTake;
         }
+        if (durToTake >= 300) {
+          workEfficiencies.push((evalDist - previousDistance) * 60 / (evalHrWeighted - previousHrTime));
+        }
       }
 
-      if (evalDist > 0 && evalDur > 0) {
+      // A high-HR later repetition must not hide deterioration relative to
+      // earlier work. Reject the session as calibration evidence if efficiency
+      // falls over 5%, even when each repetition is locally steady.
+      const accumulatedDrift = workEfficiencies.slice(1).some(ef => ef < workEfficiencies[0] * 0.95);
+      if (evalDist > 0 && evalDur >= 1200 && !accumulatedDrift && !withinRepDrift) {
         const rawPace = Math.round((evalDur / evalDist) * 1000);
-        estimatedLt2Pace = runType === 'race' ? Math.round(rawPace * 1.045) : rawPace;
+        estimatedLt2Pace = rawPace;
         estimatedLt2Hr = Math.round(evalHrWeighted / evalDur);
 
         // Continuous confidence based on rest continuity and protocol type
-        if (runType === 'race') {
-          lt2Confidence = 0.95;
-        } else {
+        {
           const avgWorkDur = evalDur / qualifiedWork.length;
           const excessRest = Math.max(0, avgRestDur - 60);
           const restPenalty = Math.min(0.14, (excessRest / (avgWorkDur || 900)) * 0.45);
@@ -382,20 +447,48 @@ export function evaluateThresholdUpdate(
     }
 
     // Fallback when no usable work intervals exist yet (e.g. continuous tempo
-    // classified threshold via zone occupancy, or a race without splits).
+    // classified threshold via zone occupancy).
     // Skipped when work intervals exist but never reached the stimulus band.
     // (profile-relative HR floor, no speed gate so slower athletes qualify equally).
     if (!estimatedLt2Pace && workInvs.length === 0) {
-      const lt2Floor = (profileLt2Hr ?? 167) - 5;
-      const highRecords = records.filter(r => r.heartRate && r.heartRate >= lt2Floor);
-      if (highRecords.length >= 300) {
-        const avgSpd = highRecords.reduce((s, r) => s + (r.speedMps || 0), 0) / highRecords.length;
+      const lt2Floor = lt2EffortBaseline - 5;
+      // Find continuous evidence, never stitch isolated high-HR samples across
+      // recoveries. Without records, a whole-run average cannot establish LT2.
+      let highRecords: ActivityRecord[] = [];
+      let candidate: ActivityRecord[] = [];
+      for (const record of [...records].sort((a, b) => a.elapsedSeconds - b.elapsedSeconds)) {
+        const previous = candidate[candidate.length - 1];
+        const gap = previous ? record.elapsedSeconds - previous.elapsedSeconds : 0;
+        if (record.elapsedSeconds > 3600 || !record.heartRate || record.heartRate < lt2Floor || !record.speedMps || record.speedMps <= 0 || gap > 5 || gap < 0) {
+          candidate = [];
+        }
+        if (record.elapsedSeconds <= 3600 && record.heartRate && record.heartRate >= lt2Floor && record.speedMps && record.speedMps > 0) {
+          candidate.push(record);
+          const duration = record.elapsedSeconds - candidate[0].elapsedSeconds;
+          if (duration >= 1200) { highRecords = candidate; break; }
+        }
+      }
+      if (highRecords.length > 1) {
+        let duration = 0, distance = 0, hrTime = 0;
+        let firstDistance = 0, firstHrTime = 0;
+        const midpoint = (highRecords[0].elapsedSeconds + highRecords[highRecords.length - 1].elapsedSeconds) / 2;
+        for (let i = 1; i < highRecords.length; i++) {
+          const dt = highRecords[i].elapsedSeconds - highRecords[i - 1].elapsedSeconds;
+          duration += dt;
+          distance += (highRecords[i].speedMps || 0) * dt;
+          hrTime += (highRecords[i].heartRate || 0) * dt;
+          const firstDt = Math.max(0, Math.min(highRecords[i].elapsedSeconds, midpoint) - highRecords[i - 1].elapsedSeconds);
+          firstDistance += (highRecords[i].speedMps || 0) * firstDt;
+          firstHrTime += (highRecords[i].heartRate || 0) * firstDt;
+        }
+        const avgSpd = distance / duration;
         const segmentPace = Math.round(1000 / avgSpd);
-        estimatedLt2Pace = runType === 'race' ? Math.round(segmentPace * 1.045) : segmentPace;
-        estimatedLt2Hr = Math.round(highRecords.reduce((s, r) => s + (r.heartRate || 0), 0) / highRecords.length);
-      } else if (economy.avgMovingHeartRate && economy.avgMovingPaceSecKm) {
-        estimatedLt2Hr = economy.avgMovingHeartRate;
-        estimatedLt2Pace = Math.round(economy.avgMovingPaceSecKm);
+        const firstEf = firstDistance / firstHrTime;
+        const secondEf = (distance - firstDistance) / (hrTime - firstHrTime);
+        if (Number.isFinite(segmentPace) && secondEf >= firstEf * 0.95) {
+          estimatedLt2Pace = segmentPace;
+          estimatedLt2Hr = Math.round(hrTime / duration);
+        }
       }
     }
   }
@@ -412,7 +505,7 @@ export function evaluateThresholdUpdate(
   const baselineEconomyEf = row?.avg_ef ? Number(row.avg_ef.toFixed(4)) : economy.efficiencyFactor;
 
   // 4. Save to physiological_thresholds if new candidate detected
-  const isLt2Candidate = (runType === 'threshold_lt2' || runType === 'race') && estimatedLt2Pace !== null;
+  const isLt2Candidate = runType === 'threshold_lt2' && estimatedLt2Pace !== null;
   if (qualifiesLt1 || isLt2Candidate) {
     db.prepare('DELETE FROM physiological_thresholds WHERE source_activity_id = ?').run(activityId);
 
@@ -435,10 +528,8 @@ export function evaluateThresholdUpdate(
       note = `Calibrated dual LT1/LT2 baseline (${cruisingNote || (economy.aerobicDecouplingPct !== null ? `Decoupling: ${economy.aerobicDecouplingPct.toFixed(1)}%` : 'steady')})`;
     } else if (qualifiesLt1) {
       note = `Calibrated Aerobic Base (LT1) from ${cruisingNote || 'steady aerobic cruising block'}`;
-    } else if (runType === 'race') {
-      note = `Calibrated Lactate Threshold (LT2) from all-out 5K race pace`;
     } else {
-      note = `Calibrated Lactate Threshold (LT2) from structured quality intervals`;
+      note = `Calibrated Lactate Threshold (LT2) from sustained early threshold work`;
     }
 
     const confidenceToSave = qualifiesLt1 && isLt2Candidate
@@ -515,46 +606,6 @@ export function computeRollingThresholds(
   lastLt2Date: string | null;
 } {
   const refDateStr = asOfDate || new Date().toISOString();
-  const refTimeMs = new Date(refDateStr.replace(' ', 'T')).getTime() || Date.now();
-
-  const computeWeighted = (
-    rows: Array<{ hr: number; pace: number | null; confidence: number; effective_date: string }>
-  ) => {
-    if (!rows || rows.length === 0) return null;
-
-    let totalWeight = 0;
-    let weightedHrSum = 0;
-    let totalPaceWeight = 0;
-    let weightedPaceSum = 0;
-    let weightedConfSum = 0;
-
-    for (const r of rows) {
-      const rowTimeMs = new Date(r.effective_date.replace(' ', 'T')).getTime() || refTimeMs;
-      const daysAgo = Math.max(0, (refTimeMs - rowTimeMs) / (24 * 3600 * 1000));
-      // Recency factor decays over 45 days down to floor of 0.25
-      const recencyFactor = Math.max(0.25, 1 - (daysAgo / 45));
-      const weight = (r.confidence || 0.85) * recencyFactor;
-
-      totalWeight += weight;
-      weightedHrSum += r.hr * weight;
-      weightedConfSum += (r.confidence || 0.85) * weight;
-
-      if (r.pace && r.pace > 0) {
-        totalPaceWeight += weight;
-        weightedPaceSum += r.pace * weight;
-      }
-    }
-
-    if (totalWeight <= 0) return null;
-
-    return {
-      hr: Math.round(weightedHrSum / totalWeight),
-      pace: totalPaceWeight > 0 ? Math.round(weightedPaceSum / totalPaceWeight) : null,
-      confidence: Number((weightedConfSum / totalWeight).toFixed(2)),
-      latestDate: rows[0].effective_date
-    };
-  };
-
   // 1. Fetch recent LT1 calibrations (up to 5 in last 45 days, or last 3 if none in 45 days)
   let lt1Rows: any[] = [];
   try {
@@ -562,9 +613,9 @@ export function computeRollingThresholds(
       SELECT lt1_hr as hr, lt1_pace_sec_km as pace, confidence, effective_date
       FROM physiological_thresholds
       WHERE lt1_hr IS NOT NULL
-        AND effective_date <= ?
-        AND effective_date >= datetime(?, '-45 days')
-      ORDER BY effective_date DESC, id DESC
+        AND julianday(effective_date) <= julianday(?)
+        AND julianday(effective_date) >= julianday(?, '-45 days')
+      ORDER BY julianday(effective_date) DESC, id DESC
       LIMIT 5
     `).all(refDateStr, refDateStr) as any[];
 
@@ -573,8 +624,8 @@ export function computeRollingThresholds(
         SELECT lt1_hr as hr, lt1_pace_sec_km as pace, confidence, effective_date
         FROM physiological_thresholds
         WHERE lt1_hr IS NOT NULL
-          AND effective_date <= ?
-        ORDER BY effective_date DESC, id DESC
+          AND julianday(effective_date) <= julianday(?)
+        ORDER BY julianday(effective_date) DESC, id DESC
         LIMIT 3
       `).all(refDateStr) as any[];
     }
@@ -587,9 +638,9 @@ export function computeRollingThresholds(
       SELECT lt2_hr as hr, lt2_pace_sec_km as pace, confidence, effective_date
       FROM physiological_thresholds
       WHERE lt2_hr IS NOT NULL
-        AND effective_date <= ?
-        AND effective_date >= datetime(?, '-45 days')
-      ORDER BY effective_date DESC, id DESC
+        AND julianday(effective_date) <= julianday(?)
+        AND julianday(effective_date) >= julianday(?, '-45 days')
+      ORDER BY julianday(effective_date) DESC, id DESC
       LIMIT 5
     `).all(refDateStr, refDateStr) as any[];
 
@@ -598,15 +649,15 @@ export function computeRollingThresholds(
         SELECT lt2_hr as hr, lt2_pace_sec_km as pace, confidence, effective_date
         FROM physiological_thresholds
         WHERE lt2_hr IS NOT NULL
-          AND effective_date <= ?
-        ORDER BY effective_date DESC, id DESC
+          AND julianday(effective_date) <= julianday(?)
+        ORDER BY julianday(effective_date) DESC, id DESC
         LIMIT 3
       `).all(refDateStr) as any[];
     }
   } catch {}
 
-  const rolledLt1 = computeWeighted(lt1Rows);
-  const rolledLt2 = computeWeighted(lt2Rows);
+  const rolledLt1 = rollingThreshold(lt1Rows, refDateStr);
+  const rolledLt2 = rollingThreshold(lt2Rows, refDateStr);
 
   return {
     lt1Hr: rolledLt1?.hr ?? null,
@@ -620,38 +671,60 @@ export function computeRollingThresholds(
   };
 }
 
+/**
+ * Latest calibrated running-economy baseline (metres per heart beat).
+ * Mirrors the "Efficiency Factor" tile shown in Progress & Stats so the Profile
+ * tab never renders an empty EF value once a calibration exists.
+ */
+export function getLatestBaselineEconomyEf(db: Database.Database): number | null {
+  try {
+    const lt1Row = db.prepare(`
+      SELECT baseline_economy_ef
+      FROM physiological_thresholds
+      WHERE baseline_economy_ef IS NOT NULL AND lt1_hr IS NOT NULL
+      ORDER BY effective_date DESC, id DESC
+      LIMIT 1
+    `).get() as { baseline_economy_ef: number } | undefined;
+
+    if (lt1Row?.baseline_economy_ef != null) {
+      return Number(lt1Row.baseline_economy_ef);
+    }
+
+    const anyRow = db.prepare(`
+      SELECT baseline_economy_ef
+      FROM physiological_thresholds
+      WHERE baseline_economy_ef IS NOT NULL
+      ORDER BY effective_date DESC, id DESC
+      LIMIT 1
+    `).get() as { baseline_economy_ef: number } | undefined;
+
+    return anyRow?.baseline_economy_ef != null ? Number(anyRow.baseline_economy_ef) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function getCurrentThresholds(db: Database.Database): {
   lt1Hr: number;
   lt2Hr: number;
   lt1Range: [number, number];
   lt1PaceSecKm: number | null;
   lt2PaceSecKm: number | null;
+  baselineEconomyEf: number | null;
   confidence: number;
   source: 'calibrated' | 'baseline';
   lastCalibratedDate: string | null;
 } {
   try {
-    const profile = db.prepare('SELECT lt1_hr, lt2_hr, max_hr, resting_hr, age FROM athlete_profile WHERE id = ?').get('primary') as any;
-    const effMax = profile?.max_hr || (profile?.age ? Math.round(208 - 0.7 * profile.age) : 203);
-    const effRhr = profile?.resting_hr || 54;
-    const fallbackLt1 = Math.min(152, Math.max(145, Math.round(effRhr + (effMax - effRhr) * 0.65))); // ~148-151 bpm
-    const fallbackLt2 = Math.round(effRhr + (effMax - effRhr) * 0.82); // ~176 bpm
-
-    const maxPlausibleLt1 = Math.min(155, fallbackLt2 - 18);
-    const minPlausibleLt1 = Math.max(135, fallbackLt1 - 12);
-
+    const profile = getAthleteHeartRateProfile(db);
     const rolling = computeRollingThresholds(db);
-
-    let lt1Hr = rolling.lt1Hr || profile?.lt1_hr || fallbackLt1;
-    if (lt1Hr > maxPlausibleLt1 || lt1Hr < minPlausibleLt1) {
-      lt1Hr = fallbackLt1;
-    }
-    const lt2Hr = rolling.lt2Hr || profile?.lt2_hr || fallbackLt2;
+    const { lt1Hr, lt2Hr } = resolveHeartRateProfile({ ...profile,
+      lt1Hr: rolling.lt1Hr ?? profile.lt1Hr, lt2Hr: rolling.lt2Hr ?? profile.lt2Hr });
 
     const hasCalibration = rolling.lt1Hr !== null || rolling.lt2Hr !== null;
     const conf = hasCalibration
       ? Number((((rolling.lt1Hr ? rolling.lt1Confidence : 0) + (rolling.lt2Hr ? rolling.lt2Confidence : 0)) / ((rolling.lt1Hr ? 1 : 0) + (rolling.lt2Hr ? 1 : 0) || 1)).toFixed(2))
-      : 1.0;
+      : 0.5;
 
     const latestDate = rolling.lastLt2Date || rolling.lastLt1Date || null;
 
@@ -661,18 +734,21 @@ export function getCurrentThresholds(db: Database.Database): {
       lt1Range: [lt1Hr - 1, lt1Hr + 1],
       lt1PaceSecKm: rolling.lt1PaceSecKm,
       lt2PaceSecKm: rolling.lt2PaceSecKm,
+      baselineEconomyEf: getLatestBaselineEconomyEf(db),
       confidence: conf,
       source: hasCalibration ? 'calibrated' : 'baseline',
       lastCalibratedDate: latestDate
     };
   } catch {
+    const fallback = getAthleteHeartRateProfile(db);
     return {
-      lt1Hr: 148,
-      lt2Hr: 167,
-      lt1Range: [147, 149],
+      lt1Hr: fallback.lt1Hr,
+      lt2Hr: fallback.lt2Hr,
+      lt1Range: [fallback.lt1Hr - 1, fallback.lt1Hr + 1],
       lt1PaceSecKm: null,
       lt2PaceSecKm: null,
-      confidence: 1.0,
+      baselineEconomyEf: getLatestBaselineEconomyEf(db),
+      confidence: 0.5,
       source: 'baseline',
       lastCalibratedDate: null
     };

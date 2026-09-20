@@ -1,10 +1,13 @@
 :root {
   color-scheme: dark;
   --bg-primary: #07090e;
+  --bg-base: #07090e;
   --bg-card: #0d121f;
   --bg-card-hover: #131b2d;
+  --bg-card-subtle: rgba(255, 255, 255, 0.05);
   --bg-surface: #172138;
   --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.2);
   --border-active: rgba(6, 182, 212, 0.4);
 
   --accent-cyan: #06b6d4;
@@ -30,15 +33,19 @@
 
   --font-heading: 'Outfit', sans-serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 }
 
 [data-theme="light"] {
   color-scheme: light;
   --bg-primary: #f1f5f9;         /* Slate 100 */
+  --bg-base: #f1f5f9;            /* Slate 100 */
   --bg-card: #ffffff;            /* Pure white card */
   --bg-card-hover: #f8fafc;      /* Subtle hover */
+  --bg-card-subtle: rgba(15, 23, 42, 0.05);
   --bg-surface: #e2e8f0;         /* Slate 200 input/surface */
   --border-subtle: rgba(15, 23, 42, 0.08);
+  --border-hover: rgba(15, 23, 42, 0.22);
   --border-active: rgba(2, 132, 199, 0.4);
 
   --accent-cyan: #0284c7;         /* Sky 600 - high contrast */
@@ -360,7 +367,7 @@ body {
 .nav-dropdown-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.6rem;
   padding: 0.45rem 0.65rem;
   border-radius: 6px;
   border: none;
@@ -885,6 +892,16 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+}
+
+/* Generic card surface shared by standalone widgets (ACWR training load,
+   personal bests, ...) so they match sibling cards instead of rendering bare. */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  box-shadow: var(--card-shadow);
+  width: 100%;
 }
 
 .overview-top {
@@ -1633,10 +1650,18 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: 14px;
-  padding: 1.5rem;
+  padding: 1.25rem 1.4rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  justify-content: space-between;
+  gap: 0.85rem;
+  min-height: 165px;
+}
+
+.benchmark-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 .benchmark-label {
@@ -1651,6 +1676,7 @@ body {
   font-size: 2rem;
   font-weight: 800;
   color: var(--text-primary);
+  line-height: 1.15;
 }
 
 .benchmark-sub {
@@ -1722,6 +1748,12 @@ body {
   cursor: pointer;
   transition: all 0.2s ease;
   user-select: none;
+}
+
+/* Badge icons must never shrink when the commit hash wraps on narrow screens */
+.footer-version-icon {
+  flex-shrink: 0;
+  opacity: 0.85;
 }
 
 .footer-version-badge:hover {
@@ -1833,6 +1865,36 @@ body {
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 8px;
+}
+
+/* Full-page/suspense loading placeholders (App splash & lazy onboarding).
+   Unstyled before, which produced a bare transparent block during the swap. */
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 40vh;
+  background: var(--bg-base);
+}
+
+/* Shimmer placeholder that stands in for the period progress card, so the
+   loader keeps the same card footprint as the loaded component. */
+.period-progress-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  padding: 1.25rem;
+  width: 100%;
+}
+
+/* Horizontally scrollable SVG chart shell (period progress + threshold trends) */
+.svg-chart-wrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.25rem;
 }
 
 @keyframes shimmer {
@@ -1962,19 +2024,32 @@ body {
   gap: 0.35rem;
   font-size: 0.72rem;
   font-weight: 600;
-  padding: 0.2rem 0.5rem;
+  padding: 0.25rem 0.55rem;
   border-radius: 6px;
   background: rgba(16, 185, 129, 0.15);
   color: #10b981;
   border: 1px solid rgba(16, 185, 129, 0.3);
   margin-top: 0.25rem;
   width: fit-content;
+  white-space: nowrap;
 }
 
 .threshold-marker-badge.amber {
   background: rgba(245, 158, 11, 0.15);
   color: #f59e0b;
   border-color: rgba(245, 158, 11, 0.3);
+}
+
+.threshold-marker-badge.purple {
+  background: rgba(139, 92, 246, 0.15);
+  color: #a78bfa;
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+.threshold-marker-badge.cyan {
+  background: rgba(6, 182, 212, 0.15);
+  color: #06b6d4;
+  border-color: rgba(6, 182, 212, 0.3);
 }
 
 .profile-sync-badge {
@@ -2325,7 +2400,8 @@ body {
 
 .period-cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  /* min() keeps the track from overflowing phones narrower than the 330px floor */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr));
   gap: 1.15rem;
 }
 
@@ -2471,6 +2547,37 @@ body {
   width: 100%;
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6);
   padding: 1.5rem;
+  overscroll-behavior: contain;
+}
+
+/* ---- Guide modals (Running Economy Reference & VDOT) -----------------------
+   Both guides scroll internally (max-height: 90vh / overflow-y: auto). The
+   trailing breathing room must live INSIDE the scrolled content, because bottom
+   padding on a scroll container is dropped once the user scrolls to the end.
+   The card therefore keeps only a hair of bottom padding and .modal-actions
+   carries the gap that sits below the "Got It" button. */
+.modal-card.economy-guide-modal,
+.modal-card.vdot-guide-modal {
+  padding: 1.5rem 1.5rem 0.25rem;
+  scroll-padding-bottom: 1.25rem;
+}
+
+.economy-guide-body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Shared footer row for modal actions — previously unstyled, which left
+   `justify-content: flex-end` inert and the confirm button stuck to the left. */
+.modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+  padding-top: 0.25rem;
+  padding-bottom: 1.25rem;
 }
 
 .economy-concept-box {
@@ -2622,6 +2729,35 @@ body {
 }
 
 .primary-btn:active {
+  transform: translateY(0);
+}
+
+/* Secondary action button (e.g. "Show All" pagination) — outlined companion
+   to .primary-btn so both share the same height and rounded corners. */
+.outline-btn {
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 0.55rem 1.4rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  transition: all 0.2s ease;
+}
+
+.outline-btn:hover {
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  background: rgba(6, 182, 212, 0.08);
+}
+
+.outline-btn:active {
   transform: translateY(0);
 }
 
@@ -2984,7 +3120,8 @@ body {
 
 .profile-sections-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+  /* min() prevents a single 480px column from overflowing tablet/phone widths */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr));
   gap: 1.5rem;
 }
 
@@ -2992,6 +3129,16 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
+}
+
+/* Profile tab: the <form> stacks the Cardiovascular Baselines and Max HR
+   cards. Without this it was an unstyled block, so the two cards sat flush
+   against each other with no gutter. */
+.profile-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
 }
 
 .form-group {
@@ -3369,6 +3516,18 @@ body {
   border-color: rgba(0, 0, 0, 0.03);
 }
 
+/* Per-metric chip accents — previously undefined modifier classes, so every
+   chip inherited the same neutral tone. */
+.sec-chip.pace { color: #38bdf8; }
+.sec-chip.hr { color: #f87171; }
+.sec-chip.ef { color: #10b981; }
+.sec-chip.elev { color: #a3e635; }
+.sec-chip.time { color: var(--text-secondary); }
+
+.sec-chip svg {
+  flex-shrink: 0;
+}
+
 .splits-empty-state {
   display: flex;
   flex-direction: column;
@@ -3668,6 +3827,12 @@ body {
     width: 95vw;
     padding: 1.25rem 1rem;
   }
+
+  /* Keep the guide-modal bottom gutter inside the scrolled content on phones */
+  .modal-card.economy-guide-modal,
+  .modal-card.vdot-guide-modal {
+    padding: 1.25rem 1rem 0.25rem;
+  }
 }
 
 /* Dev Mode Diagnostics Drawer */
@@ -3805,6 +3970,43 @@ body {
 }
 
 /* Logs Tab */
+.dev-logs-container,
+.dev-server-container,
+.dev-sandbox-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  width: 100%;
+}
+
+/* Metrics tab scrolls its own content so the drawer header stays pinned */
+.dev-metrics-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  max-height: 100%;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.dev-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 9px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+  font-size: 0.8rem;
+}
+
+.dev-log-error-detail {
+  margin-top: 0.35rem;
+  border-left: 2px solid rgba(239, 68, 68, 0.5);
+  padding-left: 0.55rem;
+}
+
 .dev-logs-toolbar {
   display: flex;
   align-items: center;

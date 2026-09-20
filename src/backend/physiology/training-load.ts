@@ -1,3 +1,5 @@
+import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
+import { getDefaultZones } from './zones.js';
 /**
  * AEROLAB Physiological Training Load & ACWR Engine
  *
@@ -62,12 +64,9 @@ export function calculateActivityTrainingLoad(
   hrProfile: HrProfile,
   fallbackSummary?: { durationSeconds?: number | null; avgHeartRate?: number | null }
 ): ActivityLoadResult {
-  const maxHr = hrProfile.maxHr > 100 ? hrProfile.maxHr : 185;
-  const restingHr = hrProfile.restingHr > 30 ? hrProfile.restingHr : 50;
-  const hrReserve = Math.max(30, maxHr - restingHr);
-
-  const lt1Hr = hrProfile.lt1Hr || Math.round(restingHr + hrReserve * 0.65);
-  const lt2Hr = hrProfile.lt2Hr || Math.round(restingHr + hrReserve * 0.82);
+  const { maxHr, restingHr, lt1Hr, lt2Hr } = resolveHeartRateProfile(hrProfile);
+  const hrReserve = maxHr - restingHr;
+  const boundaries = getDefaultZones(maxHr, lt1Hr, lt2Hr, restingHr);
 
   const isFemale = hrProfile.gender?.toLowerCase() === 'female';
   const expMultiplier = isFemale ? 1.67 : 1.92;
@@ -100,15 +99,15 @@ export function calculateActivityTrainingLoad(
       accumulatedTrimp += impulse;
 
       // 5-zone physiological bucket accumulation
-      if (hr < lt1Hr) {
-        if (hr < restingHr + hrReserve * 0.45) {
+      if (hr <= boundaries.z2[1]) {
+        if (hr <= boundaries.z1[1]) {
           z1Sec += dtSec;
         } else {
           z2Sec += dtSec;
         }
-      } else if (hr < lt2Hr) {
+      } else if (hr <= boundaries.z3[1]) {
         z3Sec += dtSec;
-      } else if (hr < maxHr * 0.93) {
+      } else if (hr <= boundaries.z4[1]) {
         z4Sec += dtSec;
       } else {
         z5Sec += dtSec;
@@ -121,12 +120,16 @@ export function calculateActivityTrainingLoad(
     accumulatedTrimp = durationMin * hrrFraction * genderFactor * Math.exp(expMultiplier * hrrFraction);
 
     // Approximate zone distribution from average HR
-    if (avgHr < lt1Hr) {
+    if (avgHr <= boundaries.z1[1]) {
+      z1Sec = fallbackSummary.durationSeconds;
+    } else if (avgHr <= boundaries.z2[1]) {
       z2Sec = fallbackSummary.durationSeconds;
-    } else if (avgHr < lt2Hr) {
+    } else if (avgHr <= boundaries.z3[1]) {
       z3Sec = fallbackSummary.durationSeconds;
-    } else {
+    } else if (avgHr <= boundaries.z4[1]) {
       z4Sec = fallbackSummary.durationSeconds;
+    } else {
+      z5Sec = fallbackSummary.durationSeconds;
     }
   }
 

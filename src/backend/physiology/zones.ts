@@ -1,3 +1,4 @@
+import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { ActivityRecord } from '../ingestion/csv-parser';
 
 export interface HeartRateZones {
@@ -22,43 +23,19 @@ export interface ZoneDistribution {
 }
 
 export function getDefaultZones(
-  maxHr: number = 203,
+  maxHr?: number,
   lt1Hr?: number,
   lt2Hr?: number,
   restingHr?: number
 ): HeartRateZones {
-  // Backwards compatibility for legacy unit test cases without restingHr
-  if (!restingHr && maxHr === 185 && !lt1Hr && !lt2Hr) {
-    const lt2 = Math.round(maxHr * 0.88);
-    const lt1 = Math.round(maxHr * 0.76);
-    return {
-      z1: [0, lt1 - 12],
-      z2: [lt1 - 12, lt1],
-      z3: [lt1 + 1, lt2 - 6],
-      z4: [lt2 - 5, lt2 + 3],
-      z5: [lt2 + 4, 250]
-    };
-  }
-
-  if (!restingHr && maxHr === 190 && lt1Hr === 144 && lt2Hr === 170) {
-    return {
-      z1: [0, lt1Hr - 12],
-      z2: [lt1Hr - 12, lt1Hr],
-      z3: [lt1Hr + 1, lt2Hr - 6],
-      z4: [lt2Hr - 5, lt2Hr + 3],
-      z5: [lt2Hr + 4, 250]
-    };
-  }
-
-  // Karvonen Heart Rate Reserve (HRR) Model
-  const rhr = restingHr || 50;
-  const lt1 = lt1Hr || Math.round(rhr + (maxHr - rhr) * 0.65);
-  const lt2 = lt2Hr || Math.round(rhr + (maxHr - rhr) * 0.82);
+  const resolved = resolveHeartRateProfile({ maxHr, restingHr, lt1Hr, lt2Hr });
+  const { restingHr: rhr, lt1Hr: lt1, lt2Hr: lt2 } = resolved;
+  maxHr = resolved.maxHr;
 
   // HRR Zone 1 active recovery ceiling (~54% HRR, bounded below LT1 - 14)
   const z1Upper = Math.min(lt1 - 14, Math.round(rhr + (maxHr - rhr) * 0.54));
-  // HRR Zone 4 threshold ceiling: 90% HRR (e.g. ~188 bpm for 203 max / 50 rhr)
-  const z4Upper = Math.round(rhr + (maxHr - rhr) * 0.90);
+  // HRR Zone 4 threshold ceiling: 90% HRR, at or above LT2
+  const z4Upper = Math.min(maxHr - 1, Math.max(lt2, Math.round(rhr + (maxHr - rhr) * 0.90)));
 
   return {
     z1: [0, z1Upper],

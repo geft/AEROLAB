@@ -1,5 +1,41 @@
 export type Language = 'en' | 'zh';
 
+/**
+ * BCP-47 locale tags used for `Intl` date/number formatting.
+ *
+ * This is the web equivalent of Android's `values/` + `values-zh/` resource
+ * folders: the language code selects the message dictionary, and this map
+ * selects the matching locale for locale-aware formatting (dates, numbers).
+ * Never hardcode 'zh-CN' / 'en-US' inside a component — read `locale` from
+ * `useTranslation()` so adding a language is a one-line change here.
+ */
+export const LOCALES: Record<Language, string> = {
+  en: 'en-US',
+  zh: 'zh-CN'
+};
+
+/**
+ * Plural forms for a dictionary entry. The correct form is selected at runtime
+ * by `Intl.PluralRules` for the active locale — the web equivalent of Android
+ * `plurals`. Use `{count}` as the interpolation token.
+ */
+export interface PluralForms {
+  one: string;
+  other: string;
+}
+
+/**
+ * Language switcher metadata. Declared once so UI can iterate over the
+ * supported languages instead of branching per language.
+ */
+export const LANGUAGE_LABELS: Record<Language, { short: string; native: string }> = {
+  en: { short: 'EN', native: 'English' },
+  zh: { short: '中', native: '简体中文' }
+};
+
+/** Every supported language, in switcher display order. */
+export const SUPPORTED_LANGUAGES: Language[] = ['en', 'zh'];
+
 export interface Translations {
   nav: {
     brand: string;
@@ -188,6 +224,14 @@ export interface Translations {
       race: string;
       generic: string;
     };
+    close: string;
+    calendar: string;
+    otherGroup: string;
+    medalGold: string;
+    medalSilver: string;
+    medalBronze: string;
+    /** Short weekday column headers, Sunday first. */
+    weekdayShort: string[];
   };
   splits: {
     title: string;
@@ -226,7 +270,12 @@ export interface Translations {
     lt1Sub: string;
     lt2Title: string;
     lt2Sub: string;
+    vdotSub: string;
     zone2Ceiling: string;
+    zone4Threshold: string;
+    vdotRacingIndex: string;
+    predicted5k: string;
+    cardioEfficiency: string;
     benchmarksTitle: string;
     filterAll: string;
     filterLt1: string;
@@ -326,7 +375,14 @@ export interface Translations {
     zone2Mileage: string;
     zone2Time: string;
     qualityMileage: string;
+    speedworkQuality: string;
     distributionTitle: string;
+    hrsTotal: string;
+    zone1Recovery: string;
+    zone2AerobicBase: string;
+    zone3Tempo: string;
+    zone4Threshold: string;
+    zone5Vo2Max: string;
     thresholdsTitle: string;
     predictionsTitle: string;
     marginGuideBtn: string;
@@ -352,6 +408,37 @@ export interface Translations {
     turnpointTierDevDesc: string;
     turnpointOptimizeTitle: string;
     turnpointGotIt: string;
+    polarizedBalanceValue: string;
+    /** Templates with a `{seconds}` token. */
+    gapSeconds: string;
+    estGapSeconds: string;
+    /** Template with `{easy}`, `{threshold}` and `{estimated}` tokens. */
+    paceGapCalc: string;
+    estimatedSuffix: string;
+    /** Template with a `{pace}` token. */
+    calibratedAt: string;
+    notCalibrated: string;
+    /**
+     * Overrides for server-provided period labels, keyed by the API string.
+     * `en` leaves this empty (the payload is already English) while `zh`
+     * translates the known labels. Unknown labels pass through unchanged.
+     */
+    periodLabelOverrides: Record<string, string>;
+    /** Template with a `{year}` token for "<year> Season" labels. */
+    periodLabelSeasonPattern: string;
+    /** `whatIs` copy alternates plain and bold fragments around inline `<b>` tags. */
+    whatIsP1: string;
+    whatIsBoldMargin: string;
+    whatIsP2: string;
+    whatIsBoldLt1: string;
+    whatIsP3: string;
+    whatIsBoldLt2: string;
+    whatIsP4: string;
+    optimizeGapWideBold: string;
+    /** Template with an `{hr}` token. */
+    optimizeGapWideBody: string;
+    optimizeGapNarrowBold: string;
+    optimizeGapNarrowBody: string;
     zoneDesc: {
       z1: string;
       z2: string;
@@ -422,6 +509,17 @@ export interface Translations {
     displaySettingsSub: string;
     fontSizeLabel: string;
     fontSizePreview: string;
+    readOnlyBaseline: string;
+    thresholdHeartRate: string;
+    yearsUnit: string;
+    /** Template with an `{hr}` token. */
+    tanakaMaxShort: string;
+    /** Template with `{hr}`, `{activity}` and `{date}` tokens. */
+    observedPeakNote: string;
+    /** Template with `{age}` and `{hr}` tokens. */
+    tanakaFormulaNote: string;
+    /** Template with `{resting}` and `{max}` tokens. */
+    zonesHeaderSummary: string;
   };
   upload: {
     title: string;
@@ -442,6 +540,9 @@ export interface Translations {
     batchWarnings: string;
     batchFailed: string;
     fitCsvOnly: string;
+    dupTip: string;
+    /** Plural copy for the number of skipped duplicate files. */
+    skippedFiles: PluralForms;
   };
   backup: {
     cardTitle: string;
@@ -579,6 +680,12 @@ export interface Translations {
     tipWeatherTitle: string;
     tipWeatherDesc: string;
     gotIt: string;
+    paceDeveloping: string;
+    paceSolid: string;
+    paceAdvanced: string;
+    paceCompetitive: string;
+    paceElite: string;
+    comparisonNote: string;
   };
   vdotGuide: {
     modalTitle: string;
@@ -599,6 +706,11 @@ export interface Translations {
     marathonPace: string;
     thresholdLt2: string;
     intervalsVo2: string;
+    equivHalf: string;
+    equivFull: string;
+    equivSub15: string;
+    equivSub108: string;
+    equivSub224: string;
     gotIt: string;
   };
   baselineSetup: {
@@ -614,6 +726,22 @@ export interface Translations {
     goalLabel: string;
     submitBtn: string;
     savingBtn: string;
+    /** Template with an `{age}` token. */
+    ageAuto: string;
+    dobHint: string;
+    genderPreferNotToSay: string;
+    genderFemale: string;
+    genderMale: string;
+    genderNonBinary: string;
+    restingHrHint: string;
+    /** Split around the highlighted HR value and `maxHrAutoFormula` code span. */
+    maxHrAutoPrefix: string;
+    maxHrAutoFormulaPrefix: string;
+    /** Template with an `{age}` token, rendered inside a `<code>` element. */
+    maxHrAutoFormula: string;
+    maxHrAutoSuffix: string;
+    maxHrManualHint: string;
+    goalPlaceholder: string;
   };
   settingsView: {
     pageTitle: string;
@@ -633,5 +761,82 @@ export interface Translations {
     devTitle: string;
     devSubtitle: string;
     openDiagnostics: string;
+  };
+  trainingLoad: {
+    loading: string;
+    title: string;
+    subtitle: string;
+    acuteTitle: string;
+    acuteDesc: string;
+    optimalTitle: string;
+    optimalDesc: string;
+    chronicTitle: string;
+    chronicDesc: string;
+    weeklyTitle: string;
+    weeklyDesc: string;
+    hoverDaily: string;
+    hoverAcute: string;
+    hoverTunnel: string;
+    legend: string;
+    guideTitle: string;
+    guideIntro: string;
+    guideOptimal: string;
+    guideMaintaining: string;
+    guideRecovery: string;
+    guideOverreaching: string;
+    gotIt: string;
+    /**
+     * The API returns status copy as English data, so `en` leaves these maps
+     * empty (the payload is used as-is) while `zh` supplies translations keyed
+     * by the stable status code. Unknown codes fall back to the API string.
+     */
+    statusLabels: Record<string, string>;
+    statusDescriptions: Record<string, string>;
+  };
+  periodProgress: {
+    window3m: string;
+    window6m: string;
+    window12m: string;
+    windowAllTitle: string;
+    windowAll: string;
+    hoursUnit: string;
+    /** Template with `{hours}` and `{pct}` tokens. */
+    zone2Summary: string;
+    loggedActivities: PluralForms;
+    /** Template with a `{count}` token. */
+    activeMonthsSuffix: string;
+    calibrations: PluralForms;
+    calibrationsShort: PluralForms;
+    /** Templates with `{shown}` and `{total}` tokens. */
+    loadMoreCards: string;
+    showAllInChart: string;
+    loadPreviousMonths: string;
+    collapseCards: string;
+    /** Template with a `{year}` token, e.g. `{year} Season`. */
+    seasonLabel: string;
+  };
+  bestEfforts: {
+    loading: string;
+    title: string;
+    subtitle: string;
+    allTime: string;
+    empty: string;
+    /**
+     * Overrides for benchmark distance labels returned by the API.
+     * `en` leaves this empty (the payload is already English).
+     */
+    distanceLabels: Record<string, string>;
+  };
+  thresholdTrends: {
+    rollingDesc: string;
+    showRolling: string;
+    showIndividual: string;
+  };
+  progressExtras: {
+    calibrationRun: string;
+    steadyCalibrationRun: string;
+    /** Templates with a `{shown}` and `{total}` token. */
+    loadMoreCalibrations: string;
+    showAllFiltered: string;
   };
 }

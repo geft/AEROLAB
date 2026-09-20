@@ -8,6 +8,13 @@ describe('BestEffortsCard UI Tests', () => {
   const currentYear = new Date().getFullYear().toString();
 
   const mockBestEffortsData = {
+    targets: [
+      { id: '1k', label: '1 km', distanceMeters: 1000 },
+      { id: '5k', label: '5 km', distanceMeters: 5000 },
+      { id: '10k', label: '10 km', distanceMeters: 10000 },
+      { id: 'hm', label: 'Half Marathon', distanceMeters: 21097.5 },
+      { id: 'mar', label: 'Marathon', distanceMeters: 42195 }
+    ],
     allTime: [
       {
         targetId: '5k',
@@ -63,6 +70,30 @@ describe('BestEffortsCard UI Tests', () => {
       expect(screen.getByText('20:50')).toBeDefined(); // 1250s
       expect(screen.getByText(/4:10\/km/i)).toBeDefined(); // 250s/km
     });
+  });
+
+  it('lists every tracked distance and leaves un-raced ones as empty placeholders', async () => {
+    const { container } = render(<BestEffortsCard />);
+
+    await waitFor(() => {
+      expect(screen.getByText('5 km')).toBeDefined();
+    });
+
+    // 1 Mile must no longer be a tracked benchmark
+    expect(screen.queryByText(/1 Mile|1 英里/)).toBeNull();
+
+    // ...while Marathon is displayed as an ordinary empty slot
+    expect(screen.getByText('Marathon')).toBeDefined();
+    expect(screen.getByText('Half Marathon')).toBeDefined();
+
+    // No literal copy — empty distances use the app-wide "--:--" / "—" placeholders
+    expect(screen.queryByText(/nothing yet/i)).toBeNull();
+    expect(screen.queryByText('暂无成绩')).toBeNull();
+    expect(screen.getAllByText('--:--').length).toBe(4);
+    expect(screen.getAllByText('—').length).toBe(4);
+
+    const cards = container.querySelectorAll('div[style*="border-radius: 10px"]');
+    expect(cards.length).toBe(5);
   });
 
   it('toggles scope to current year and displays year records', async () => {

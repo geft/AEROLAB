@@ -24,7 +24,7 @@ interface BatchSummary {
 }
 
 export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSuccess }) => {
-  const { t, language } = useTranslation();
+  const { t, plural } = useTranslation();
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<{ current: number; total: number; currentFileName: string } | null>(null);
@@ -405,9 +405,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                         </div>
                         {isUniqueError && (
                           <div style={{ color: 'var(--accent-amber)', fontSize: '0.72rem', marginTop: '0.25rem' }}>
-                            {language === 'zh'
-                              ? '💡 提示：该训练已存在于数据库中。勾选“强制覆盖并重新计算”选项以替换。'
-                              : '💡 Tip: This activity already exists in the database. Enable the "Overwrite / re-calculate" option to replace it.'}
+                            {t.upload.dupTip}
                           </div>
                         )}
                       </div>
@@ -427,9 +425,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                 borderRadius: 6,
                 border: '1px solid var(--border-subtle)'
               }}>
-                {language === 'zh'
-                  ? `ℹ️ 已跳过 ${summary.skipped} 个已有训练记录。如需重新计算并覆盖，请点击下方的“强制覆盖并重试”。`
-                  : `ℹ️ ${summary.skipped} file${summary.skipped > 1 ? 's were' : ' was'} skipped because the workout already exists in your database. Click "Retry with Overwrite" below if you wish to re-calculate and overwrite existing data.`}
+                {plural(summary.skipped, t.upload.skippedFiles)}
               </div>
             )}
 

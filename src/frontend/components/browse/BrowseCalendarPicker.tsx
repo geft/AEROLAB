@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { useTranslation } from '../../i18n/LanguageContext';
 
 interface BrowseCalendarPickerProps {
   calendarViewYm: string;
@@ -28,10 +29,10 @@ export const BrowseCalendarPicker: React.FC<BrowseCalendarPickerProps> = ({
   setSelectedMonth,
   onSelectActivity,
   setMobileSubTab,
-  language,
   t,
   activities = []
 }) => {
+  const { formatDate } = useTranslation();
   const [viewYearStr, viewMonthStr] = calendarViewYm.split('-');
   const viewYear = parseInt(viewYearStr, 10);
   const viewMonth = parseInt(viewMonthStr, 10) - 1; // 0-indexed
@@ -39,10 +40,7 @@ export const BrowseCalendarPicker: React.FC<BrowseCalendarPickerProps> = ({
   const firstDayOfMonth = new Date(viewYear, viewMonth, 1).getDay(); // 0 = Sun
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
 
-  const monthLabel = new Date(viewYear, viewMonth, 1).toLocaleDateString(
-    language === 'zh' ? 'zh-CN' : 'en-US',
-    { month: 'long', year: 'numeric' }
-  );
+  const monthLabel = formatDate(new Date(viewYear, viewMonth, 1), { month: 'long', year: 'numeric' });
 
   const handlePrevMonth = () => {
     const prev = new Date(viewYear, viewMonth - 1, 1);
@@ -66,9 +64,7 @@ export const BrowseCalendarPicker: React.FC<BrowseCalendarPickerProps> = ({
     setCalendarViewYm(`${viewYear + 1}-${viewMonthStr}`);
   };
 
-  const daysOfWeek = language === 'zh'
-    ? ['日', '一', '二', '三', '四', '五', '六']
-    : ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+  const daysOfWeek: string[] = t.browse.weekdayShort;
 
   return (
     <div

@@ -1,3 +1,5 @@
+import { getAthleteHeartRateProfile } from '../physiology/athlete-profile.js';
+import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { detectIntervals } from '../ingestion/interval-detector.js';
 import { classifyRun } from '../ingestion/classifier.js';
 import { calculateEconomy, calculateKmSplits } from '../physiology/economy.js';
@@ -38,16 +40,6 @@ function mapRecords(rows: any[]): any[] {
   }));
 }
 
-function readHrProfile(db: any): { maxHr: number | null; restingHr: number | null; lt1Hr: number | null; lt2Hr: number | null } {
-  try {
-    const prof = db.prepare('SELECT max_hr, resting_hr, lt1_hr, lt2_hr FROM athlete_profile WHERE id = ?').get('primary') as any;
-    if (prof) {
-      return { maxHr: prof.max_hr ?? null, restingHr: prof.resting_hr ?? null, lt1Hr: prof.lt1_hr ?? null, lt2Hr: prof.lt2_hr ?? null };
-    }
-  } catch { /* profile table may not exist yet */ }
-  return { maxHr: null, restingHr: null, lt1Hr: null, lt2Hr: null };
-}
-
 function buildTags(runType: string, name: string, intervals: any[], hrProfile: { maxHr?: number | null; restingHr?: number | null; lt1Hr: number | null; lt2Hr: number | null }): string[] {
   const tags: string[] = [];
   if (runType === 'easy_base') tags.push('Easy Base');
@@ -58,8 +50,7 @@ function buildTags(runType: string, name: string, intervals: any[], hrProfile: {
   else if (runType === 'race') tags.push('Race');
 
   const nameLower = (name || '').toLowerCase();
-  const mpLt1 = hrProfile.lt1Hr ?? (hrProfile.maxHr ? Math.round(hrProfile.maxHr * 0.73) : 148);
-  const mpLt2 = hrProfile.lt2Hr ?? (hrProfile.maxHr ? Math.round(hrProfile.maxHr * 0.85) : 167);
+  const { lt1Hr: mpLt1, lt2Hr: mpLt2 } = resolveHeartRateProfile(hrProfile);
   const hasMpBlocks =
     runType === 'long_run' &&
     (intervals.some((i: any) => i.type === 'work' && i.durationSeconds >= 600 && i.avgHeartRate >= mpLt1 - 2 && i.avgHeartRate <= mpLt2) ||
@@ -103,13 +94,17 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
   if (options.activityIds && options.activityIds.length > 0) {
     const placeholders = options.activityIds.map(() => '?').join(',');
     activities = db.prepare(
-      `SELECT * FROM activities WHERE id IN (${placeholders}) ORDER BY start_time ASC`
+      `SELECT * FROM activities WHERE id IN (${placeholders}) ORDER BY julianday(start_time) ASC, id ASC`
     ).all(...options.activityIds) as any[];
   } else {
-    activities = db.prepare('SELECT * FROM activities ORDER BY start_time ASC').all() as any[];
+    activities = db.prepare('SELECT * FROM activities ORDER BY julianday(start_time) ASC, id ASC').all() as any[];
   }
   if (activities.length === 0) return stats;
   log(`Realigning ${activities.length} activities in chronological order...`);
+  const fullReplay = !options.activityIds?.length;
+  // Classification must not inherit inferred thresholds from the end of the
+  // previous replay. Freeze the athlete's independent baseline for this pass.
+  const replayProfile = getAthleteHeartRateProfile(db, !fullReplay);
 
   const insertInterval = db.prepare(`
     INSERT INTO activity_intervals (
@@ -147,7 +142,7 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
         nameLower.includes(' tt') ||
         nameLower.includes('race') ||
         nameLower.includes('parkrun');
-      const hrProfile = readHrProfile(db);
+      const hrProfile = replayProfile;
       const intervals = detectIntervals(mapped as any, {
         isRace,
         lt1Hr: hrProfile?.lt1Hr ?? undefined,
@@ -250,23 +245,15 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
   }
 
   // Phase 2: rebuild threshold calibrations chronologically. Stale rows whose
-  // source activity no longer qualifies, or unphysiological rows (LT1 > 156 or pace < 200), are pruned first.
+  // source activity no longer qualifies, or values outside the athlete’s HR range or broad running pace limits, are pruned first.
   try {
     // Initialize athlete_profile baseline cleanly before chronological threshold replay
-    const prof = db.prepare('SELECT max_hr, resting_hr, age FROM athlete_profile WHERE id = ?').get('primary') as any;
-    const effMax = prof?.max_hr || 203;
-    const effRhr = prof?.resting_hr || 54;
-    const initialLt1 = Math.round(effRhr + (effMax - effRhr) * 0.65); // ~151 bpm
-    db.prepare(`
-      UPDATE athlete_profile
-      SET lt1_hr = ?, lt1_min_hr = ?, lt1_max_hr = ?, z3_start_hr = ?
-      WHERE id = 'primary'
-    `).run(initialLt1, initialLt1 - 1, initialLt1 + 1, initialLt1 + 1);
+    const { maxHr: effMax, restingHr: effRhr } = getAthleteHeartRateProfile(db);
 
     const prunable = db.prepare(`
       DELETE FROM physiological_thresholds
-      WHERE (lt1_hr IS NOT NULL AND lt1_hr > 156)
-         OR (lt1_pace_sec_km IS NOT NULL AND (lt1_pace_sec_km < 200 OR lt1_pace_sec_km > 450))
+      WHERE (lt1_hr IS NOT NULL AND (lt1_hr >= ? OR lt1_hr <= ?))
+         OR (lt1_pace_sec_km IS NOT NULL AND (lt1_pace_sec_km < 120 OR lt1_pace_sec_km > 1200))
          OR source_activity_id IS NULL
          OR source_activity_id NOT IN (SELECT id FROM activities)
          OR source_activity_id IN (
@@ -278,10 +265,21 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
           t.lt1_hr IS NOT NULL AND t.lt2_hr IS NULL AND a.run_type NOT IN ('easy_base', 'long_run')
         )
       )
-    `).run();
+    `).run(effMax, effRhr);
     stats.thresholdsPruned += prunable.changes ?? 0;
   } catch (err: any) {
     log(`  threshold prune skipped: ${err?.message || err}`);
+  }
+
+  if (fullReplay && evaluated.length > 0) {
+    // Clear only successfully rebuilt activities; preserve evidence for runs
+    // whose records could not be processed. Never use future cached profile HR.
+    const remove = db.prepare('DELETE FROM physiological_thresholds WHERE source_activity_id = ?');
+    db.transaction(() => {
+      for (const e of evaluated) remove.run(e.act.id);
+      db.prepare("UPDATE athlete_profile SET lt1_hr = ?, lt2_hr = ? WHERE id = 'primary'")
+        .run(replayProfile.hasBaseline ? replayProfile.lt1Hr : null, replayProfile.hasBaseline ? replayProfile.lt2Hr : null);
+    })();
   }
 
   for (const e of evaluated) {
@@ -308,7 +306,7 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
     const current = getCurrentThresholds(db);
     try {
       const prof = db.prepare('SELECT lt1_hr, lt2_hr FROM athlete_profile WHERE id = ?').get('primary') as any;
-      if (prof) {
+      if (prof && getAthleteHeartRateProfile(db).hasBaseline) {
         if (current.lt1Hr !== prof.lt1_hr || current.lt2Hr !== prof.lt2_hr) {
           db.prepare('UPDATE athlete_profile SET lt1_hr = ?, lt2_hr = ?, lt1_min_hr = ?, lt1_max_hr = ?, z3_start_hr = ?, z4_start_hr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
             .run(current.lt1Hr, current.lt2Hr, current.lt1Hr - 1, current.lt1Hr + 1, current.lt1Hr + 1, current.lt2Hr, 'primary');

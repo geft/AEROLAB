@@ -7,16 +7,12 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true
-      }
-    },
+    maxWorkers: 1,
+    fileParallelism: false,
     env: {
       DATABASE_PATH: ':memory:'
     },
     include: ['tests/**/*.{test,spec}.{ts,tsx}']
   }
 });
-
 

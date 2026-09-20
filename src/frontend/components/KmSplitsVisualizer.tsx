@@ -33,8 +33,8 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
   splits,
   overallAvgPace,
   overallAvgHr,
-  lt1Hr = 148,
-  lt2Hr = 167,
+  lt1Hr,
+  lt2Hr,
   compact = false
 }) => {
   const { t } = useTranslation();
@@ -213,7 +213,7 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
 
           <div className="split-insight-card">
             <span className="split-insight-label">{t.splits.paceSpread}</span>
-            <div className="split-insight-val" style={{ color: stats.paceSpreadSec <= 15 ? 'var(--accent-green)' : 'var(--text-primary)' }}>
+            <div className="split-insight-val" style={{ color: stats.paceSpreadSec <= 15 ? 'var(--accent-emerald)' : 'var(--text-primary)' }}>
               ±{stats.paceSpreadSec}s
             </div>
             <span className="split-insight-sub">
@@ -289,7 +289,9 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
                 isNeutral: Math.abs(diff) <= 1
               };
 
-              if (hr <= lt1Hr) {
+              if (lt1Hr == null || lt2Hr == null) {
+                barColor = 'var(--text-muted)';
+              } else if (hr <= lt1Hr) {
                 barColor = 'linear-gradient(90deg, rgba(16, 185, 129, 0.4), #10b981)'; // Z1/Z2
               } else if (hr < lt2Hr) {
                 barColor = 'linear-gradient(90deg, rgba(6, 182, 212, 0.4), #06b6d4)'; // Z3
@@ -368,7 +370,7 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
                 )}
                 {selectedMetric !== 'hr' && hr && (
                   <span className="sec-chip hr" title={t.splits.heartRate}>
-                    <Heart size={11} color={hr >= lt2Hr ? '#f59e0b' : hr > lt1Hr ? '#06b6d4' : '#10b981'} />
+                    <Heart size={11} color={lt1Hr == null || lt2Hr == null ? 'var(--text-muted)' : hr >= lt2Hr ? '#f59e0b' : hr > lt1Hr ? '#06b6d4' : '#10b981'} />
                     {Math.round(hr)}
                   </span>
                 )}

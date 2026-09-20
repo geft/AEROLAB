@@ -211,6 +211,53 @@ describe('ProgressView UI Tests', () => {
     });
   });
 
+  it('renders the Show All in Chart action with the shared rounded outline button style', async () => {
+    const fiveMonths = {
+      months: ['2026-05', '2026-06', '2026-07', '2026-08', '2026-09'].map((period, idx) => ({
+        period,
+        label: `${period} Block`,
+        runCount: 2,
+        totalDistanceKm: 20 + idx * 5,
+        totalDurationHours: 2.5,
+        avgEfficiencyFactor: 1.12,
+        avgPaceSecKm: 400,
+        avgHeartRate: 142,
+        zone2Hours: 1.2,
+        zone2Pct: 48,
+        calibrations: []
+      })),
+      years: []
+    };
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.includes('/api/thresholds')) {
+          return Promise.resolve({ ok: true, json: () => Promise.resolve(mockThresholdData) });
+        }
+        if (url.includes('/api/activities/progress-history')) {
+          return Promise.resolve({ ok: true, json: () => Promise.resolve(fiveMonths) });
+        }
+        return Promise.reject(new Error(`Unhandled fetch url: ${url}`));
+      })
+    );
+
+    render(<ProgressView />);
+
+    // Card list paginates (3 visible of 5 blocks) so both footer actions render
+    const showAllBtn = await screen.findByRole('button', { name: /Show All in Chart/ });
+    const loadMoreBtn = screen.getByRole('button', { name: /Load More Cards/ });
+
+    // Secondary action must use the themed outlined class (rounded corners, shared height)
+    expect(showAllBtn.className).toContain('outline-btn');
+    expect(loadMoreBtn.className).toContain('primary-btn');
+
+    fireEvent.click(showAllBtn);
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /Show All in Chart/ })).toBeNull();
+    });
+  });
+
   it('filters PeriodProgressView by run type (Easy / Base vs Threshold / VO2)', async () => {
     render(<ProgressView />);
 
@@ -331,11 +378,12 @@ describe('ProgressView UI Tests', () => {
     });
 
     // Toggle to 3 Months range
-    const range3mBtn = screen.getByRole('button', { name: '3 Months' });
-    fireEvent.click(range3mBtn);
+    const range3mBtns = screen.getAllByRole('button', { name: '3 Months' });
+    expect(range3mBtns.length).toBeGreaterThanOrEqual(1);
+    fireEvent.click(range3mBtns[0]);
 
     await waitFor(() => {
-      expect(range3mBtn.className).toContain('active');
+      expect(range3mBtns[0].className).toContain('active');
     });
   });
 });

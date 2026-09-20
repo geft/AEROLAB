@@ -6,7 +6,7 @@
  * acts as a living classification benchmark (including slow-athlete paces —
  * several workouts run at ~7:30/km with zero absolute pace thresholds).
  *
- * Expectations assume the default seeded athlete profile
+ * Expectations use an explicitly seeded TEST athlete profile
  * (max 203, resting 55, LT1 148, LT2 167).
  */
 
@@ -217,4 +217,9 @@ export function toCsv(bench: BenchmarkRun): string {
     ].join(','));
   });
   return lines.join('\n');
+}
+
+/** Test-only athlete; application databases deliberately start without measurements. */
+export function seedBenchmarkProfile(db: import('better-sqlite3').Database): void {
+  db.prepare("UPDATE athlete_profile SET age = 37, dob = '1989-04-15', max_hr = 203, resting_hr = 55, lt1_hr = 148, lt2_hr = 167, is_max_hr_estimated = 0 WHERE id = 'primary'").run();
 }

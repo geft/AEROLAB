@@ -86,8 +86,8 @@ describe('StatsView UI Tests', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders volume analytics with period tabs and month dropdown', async () => {
-    render(<StatsView />);
+  it('renders volume analytics with period tabs, KPI boxes, and zone visual bar', async () => {
+    const { container } = render(<StatsView />);
 
     await waitFor(() => {
       expect(screen.getByText('Training Volume & Effort Analytics')).toBeDefined();
@@ -96,6 +96,25 @@ describe('StatsView UI Tests', () => {
       expect(screen.getByText('This Year')).toBeDefined();
       expect(screen.getByText('All-Time')).toBeDefined();
     });
+
+    // Verify KPI grid & styled boxes exist
+    const kpiGrid = container.querySelector('.volume-kpis-grid');
+    expect(kpiGrid).toBeTruthy();
+    const kpiBoxes = container.querySelectorAll('.volume-kpi-box');
+    expect(kpiBoxes.length).toBe(4);
+    expect(container.querySelector('.volume-kpi-box.highlight')).toBeTruthy();
+
+    // Verify Zone Visual Bar exists and has 5 segments
+    const zoneBar = container.querySelector('.zone-visual-bar');
+    expect(zoneBar).toBeTruthy();
+    const barSegments = zoneBar!.querySelectorAll('.zone-bar-segment');
+    expect(barSegments.length).toBe(5);
+
+    // Benchmark cards & HR training zones were removed from Stats — they live in
+    // Progress and Profile to avoid duplicating the same numbers twice.
+    expect(container.querySelector('.benchmarks-grid')).toBeNull();
+    expect(container.querySelector('.zones-section')).toBeNull();
+    expect(container.querySelector('.zones-grid')).toBeNull();
 
     // Verify month dropdown is present when Monthly tab is active
     await waitFor(() => {

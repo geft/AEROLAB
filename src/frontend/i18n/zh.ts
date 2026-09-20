@@ -187,7 +187,14 @@ export const zh: Translations = {
       accidental_tempo: '意外跑快的节奏跑',
       race: '正式比赛 / 计时测验',
       generic: '有氧跑步'
-    }
+    },
+    close: '关闭',
+    calendar: '日历',
+    otherGroup: '其他',
+    medalGold: '★★★ 金牌',
+    medalSilver: '★★☆ 银牌',
+    medalBronze: '★☆☆ 铜牌',
+    weekdayShort: ['日', '一', '二', '三', '四', '五', '六']
   },
   splits: {
     title: '公里分段明细',
@@ -223,10 +230,15 @@ export const zh: Translations = {
     vdotTrend: 'VDOT / 跑力值演进',
     vdotGuideBtn: 'VDOT 参考指南',
     lt1Title: '第一乳酸阈值 (LT1) 配速',
-    lt1Sub: '校准 Zone 2 有氧上限心率',
+    lt1Sub: '校准基础有氧配速',
     lt2Title: '第二乳酸阈值 (LT2) 配速',
-    lt2Sub: '无氧转折点 (~1小时竞赛配速)',
+    lt2Sub: '1小时最大维持配速',
+    vdotSub: '有氧竞速体能指数',
     zone2Ceiling: 'Zone 2 有氧上限',
+    zone4Threshold: 'Zone 4 乳酸阈值',
+    vdotRacingIndex: 'VDOT 跑力指数',
+    predicted5k: '预估 5K 配速',
+    cardioEfficiency: '心血管输出效率',
     benchmarksTitle: '生理校准与基准测试日志',
     filterAll: '全部基准测试',
     filterLt1: 'LT1 有氧测试',
@@ -325,8 +337,15 @@ export const zh: Translations = {
     totalCals: '预估消耗热量',
     zone2Mileage: 'Zone 2 有氧跑量',
     zone2Time: 'Zone 2 有氧时长',
-    qualityMileage: '高强度课表跑量',
+    qualityMileage: '速度与高强度课表 (Z4/Z5)',
+    speedworkQuality: '速度与高强度课表 (Z4/Z5)',
     distributionTitle: '有氧基石与强度课表配比分布',
+    hrsTotal: '小时总计',
+    zone1Recovery: 'Z1 恢复跑',
+    zone2AerobicBase: 'Z2 基础有氧',
+    zone3Tempo: 'Z3 节奏跑',
+    zone4Threshold: 'Z4 乳酸阈值',
+    zone5Vo2Max: 'Z5 最大摄氧量/间歇',
     thresholdsTitle: '生理阈值与转折点',
     predictionsTitle: '比赛预测成绩',
     marginGuideBtn: '阈值区间说明',
@@ -352,6 +371,33 @@ export const zh: Translations = {
     turnpointTierDevDesc: '表明存在有氧能力欠缺（ADS）。由于脂肪氧化酶和慢肌纤维毛细血管密度仍在适应中，轻松跑配速明显落后于阈值能力。',
     turnpointOptimizeTitle: '如何优化您的边际：',
     turnpointGotIt: '知道了',
+    polarizedBalanceValue: '82% 低强度 / 18% 高强度',
+    gapSeconds: '差距 {seconds} 秒',
+    estGapSeconds: '预估差距 {seconds} 秒',
+    paceGapCalc: '轻松跑 ({easy}) 与乳酸阈值跑 ({threshold}{estimated}) 之间的配速差距。随着有氧能力的提高，这一差距将逐渐收窄。',
+    estimatedSuffix: ' 预估',
+    calibratedAt: '轻松跑基础配速已校准为 {pace}。进行一次乳酸阈值训练以校准精准的LT2边际。',
+    notCalibrated: '进行稳定的有氧基础跑和阈值训练，以校准您的转折点边际。',
+    periodLabelOverrides: {
+      'Past 30 Days': '近 30 天',
+      '30 Days': '近 30 天',
+      'Past 7 Days': '近 7 天',
+      '7 Days': '近 7 天',
+      'All-Time History': '历史全周期',
+      'All-Time': '历史全周期'
+    },
+    periodLabelSeasonPattern: '{year} 赛季',
+    whatIsP1: '',
+    whatIsBoldMargin: '有氧转折点边际',
+    whatIsP2: '是指您的',
+    whatIsBoldLt1: '基础有氧配速 (LT1)',
+    whatIsP3: ' 与',
+    whatIsBoldLt2: '乳酸阈值配速 (LT2)',
+    whatIsP4: ' 之间的配速差距。在耐力生理学（如 Stephen Seiler、Olbrecht、Maffetone）中，它衡量了相对于您极限1小时持续速度而言，脂肪氧化和线粒体毛细血管基础的发展程度。',
+    optimizeGapWideBold: '若差距 > 70秒',
+    optimizeGapWideBody: '：严格在LT1以下（< {hr} bpm）增加每周里程。避免将轻松跑跑得过快；真正的2区跑量可触发线粒体生物合成，在不提升心率的情况下拉升LT1配速。',
+    optimizeGapNarrowBold: '若差距 < 45秒',
+    optimizeGapNarrowBody: '：您的有氧基础已非常发达！若想跑得更快，请引入优质的LT2阈值间歇（如4区内的3x15分钟），以进一步提升无氧天花板。',
     zoneDesc: {
       z1: '动态恢复与热身 (< LT1 - 14 bpm)',
       z2: '有氧耐力基石 (LT1 - 13 bpm 至 LT1)',
@@ -421,7 +467,14 @@ export const zh: Translations = {
     displaySettings: '显示与字体设置',
     displaySettingsSub: '根据您的视觉偏好自定义界面的字体与缩放大小',
     fontSizeLabel: '界面字体大小',
-    fontSizePreview: '效果预览：敏捷的棕色狐狸跃过懒狗。心率 145 次/分 • 配速 5:20/公里'
+    fontSizePreview: '效果预览：敏捷的棕色狐狸跃过懒狗。心率 145 次/分 • 配速 5:20/公里',
+    readOnlyBaseline: '根据跑步记录自动推算 • 非手动编辑',
+    thresholdHeartRate: '乳酸阈值心率',
+    yearsUnit: '岁',
+    tanakaMaxShort: 'Tanaka预估: ~{hr} bpm',
+    observedPeakNote: '在 {activity} ({date}) 中观测到峰值 {hr} bpm。',
+    tanakaFormulaNote: 'Tanaka公式：208 - (0.7 × {age}) = {hr} bpm，待记录高强度间歇训练后自动更新。',
+    zonesHeaderSummary: '静息心率: {resting} bpm • 最大心率: {max} bpm'
   },
   upload: {
     title: '导入 Garmin 跑步记录 (FIT 或 CSV)',
@@ -441,7 +494,12 @@ export const zh: Translations = {
     batchSuccess: '批量跑步记录导入成功',
     batchWarnings: '批量导入完成（包含警告）',
     batchFailed: '批量导入失败',
-    fitCsvOnly: '请上传从 Garmin 导出的 .fit 或 .csv 跑步数据文件。'
+    fitCsvOnly: '请上传从 Garmin 导出的 .fit 或 .csv 跑步数据文件。',
+    dupTip: '💡 提示：该训练已存在于数据库中。勾选“强制覆盖并重新计算”选项以替换。',
+    skippedFiles: {
+      one: 'ℹ️ 已跳过 {count} 个已有训练记录。如需重新计算并覆盖，请点击下方的“强制覆盖并重试”。',
+      other: 'ℹ️ 已跳过 {count} 个已有训练记录。如需重新计算并覆盖，请点击下方的“强制覆盖并重试”。'
+    }
   },
   backup: {
     cardTitle: '数据库备份与云端同步',
@@ -578,7 +636,13 @@ export const zh: Translations = {
     tipLt2Desc: '持续阈值间歇跑（单组 8–12 分钟）可训练肌肉快速代谢并重新利用乳酸作为能源。',
     tipWeatherTitle: '在相似气候条件下进行对比',
     tipWeatherDesc: '尽量在气温与湿度相近的环境下进行对比，极端高温会导致心血管漂移（升高心率并降低 EF）。',
-    gotIt: '知道了'
+    gotIt: '知道了',
+    paceDeveloping: '6:50 – 7:55 /公里 @ ~140 bpm',
+    paceSolid: '5:45 – 6:30 /公里 @ ~140 bpm',
+    paceAdvanced: '5:05 – 5:45 /公里 @ ~140 bpm',
+    paceCompetitive: '4:20 – 4:55 /公里 @ ~140 bpm',
+    paceElite: '3:35 – 4:10 /公里 @ ~140 bpm',
+    comparisonNote: '请比较相近心率、路线和天气条件下的多次跑步。单次轻松跑的配速变化并不等于有氧阈值变化。'
   },
   vdotGuide: {
     modalTitle: '最大摄氧量预估与 VDOT 指南',
@@ -599,6 +663,11 @@ export const zh: Translations = {
     marathonPace: '马拉松配速 (M)',
     thresholdLt2: '乳酸阈值配速 (T)',
     intervalsVo2: '间歇冲刺配速 (I)',
+    equivHalf: '半马',
+    equivFull: '全马',
+    equivSub15: '15分以内',
+    equivSub108: '1小时08分以内',
+    equivSub224: '2小时24分以内',
     gotIt: '知道了'
   },
   baselineSetup: {
@@ -613,7 +682,20 @@ export const zh: Translations = {
     vo2MaxLabel: '预估初始最大摄氧量 (VO2 Max)',
     goalLabel: '主要训练目标 / 专注方向',
     submitBtn: '保存基准并进入系统',
-    savingBtn: '正在保存基准…'
+    savingBtn: '正在保存基准…',
+    ageAuto: '年龄: {age} 岁 (自动计算)',
+    dobHint: '用于估算心血管上限，您未来无需手动更新年龄。',
+    genderPreferNotToSay: '不便透露',
+    genderFemale: '女性',
+    genderMale: '男性',
+    genderNonBinary: '非二元性别',
+    restingHrHint: '您的清晨静息脉搏或运动手表睡眠均值，用于卡氏心率储备 (HRR) 计算。',
+    maxHrAutoPrefix: '预估基准: ',
+    maxHrAutoFormulaPrefix: '（田中公式 ',
+    maxHrAutoFormula: '208 - 0.7 × {age}',
+    maxHrAutoSuffix: '）。当您上传 5公里 全力测试或最大摄氧量冲刺间歇后，AEROLAB 将自动适应您的实测峰值。',
+    maxHrManualHint: '实验室力竭台阶测试或实测全力冲刺测试值。',
+    goalPlaceholder: '例如 10公里 突破、全马破3、有氧基础'
   },
   settingsView: {
     pageTitle: '设置',
@@ -633,5 +715,97 @@ export const zh: Translations = {
     devTitle: '开发者诊断与系统运行状况',
     devSubtitle: '查看实时数据库统计、底层引擎遥测数据与服务运行日志。快捷键：Ctrl+Shift+D',
     openDiagnostics: '打开诊断面板'
+  },
+  trainingLoad: {
+    loading: '正在计算训练负荷...',
+    title: '训练负荷与最适区间',
+    subtitle: '基于心率储备与EPOC模型，对比7天急性负荷与28天基础体能',
+    acuteTitle: '7天急性负荷',
+    acuteDesc: '当前疲劳指数',
+    optimalTitle: '最适负荷区间',
+    optimalDesc: '最佳效益区间',
+    chronicTitle: '28天体能基线',
+    chronicDesc: '长期有氧耐受力',
+    weeklyTitle: '近7天累计负荷',
+    weeklyDesc: '本周跑步总刺激',
+    hoverDaily: '当日跑步',
+    hoverAcute: '7天负荷',
+    hoverTunnel: '最适区间',
+    legend: '绿色阴影 = 最适负荷区间 (Optimal Tunnel)',
+    guideTitle: '训练负荷与最适区间说明',
+    guideIntro: '本功能根据每场跑步的心率储备强度与时长（Firstbeat EPOC / Bannister TRIMP模型），实时计算您的7天急性负荷与28天体能基线：',
+    guideOptimal: '最佳训练区间（绿色阴影隧道），有氧体能稳步提升且伤病风险最低。',
+    guideMaintaining: '负荷适中，保持当前体能水平。',
+    guideRecovery: '负荷低于基线，适合减量周或赛前调整。',
+    guideOverreaching: '负荷激增过快，需注意疲劳恢复。',
+    gotIt: '知道了',
+    statusLabels: {
+      optimal: '最适区间 (Optimal)',
+      maintaining: '负荷维持 (Maintaining)',
+      recovery: '减量恢复 (Recovery)',
+      overreaching: '过度冲击 (Overreaching)',
+      very_high: '负荷超载 (Very High)',
+      establishing: '基线建立中 (Establishing)'
+    },
+    statusDescriptions: {
+      optimal: '您的训练负荷处于高收益且伤病风险低的最适区间。',
+      maintaining: '当前训练负荷保持稳定，有效维持既有有氧体能。',
+      recovery: '负荷低于长期基准，适合赛前减量或课后深度恢复。',
+      overreaching: '负荷短期上升较快，需重点关注睡眠与肌肉恢复。',
+      very_high: '训练负荷远超长期承受力，建议增加休息以规避过度训练。',
+      establishing: '正在根据历史数据建立您的28天长期体能基线。'
+    }
+  },
+  periodProgress: {
+    window3m: '近 3 个月',
+    window6m: '近 6 个月',
+    window12m: '近 12 个月',
+    windowAllTitle: '显示全部',
+    windowAll: '全部',
+    hoursUnit: '小时',
+    zone2Summary: '2区: {hours}小时 ({pct}%)',
+    loggedActivities: {
+      one: '已记录 {count} 次记录',
+      other: '已记录 {count} 次记录'
+    },
+    activeMonthsSuffix: '，跨越 {count} 个活跃月份',
+    calibrations: {
+      one: '{count} 项生理校准',
+      other: '{count} 项生理校准'
+    },
+    calibrationsShort: {
+      one: '{count} 项校准',
+      other: '{count} 项校准'
+    },
+    loadMoreCards: '展开更多卡片 (+3) • 已显示 {shown} / {total} 个月份',
+    showAllInChart: '显示图表全部 ({count})',
+    loadPreviousMonths: '加载前 6 个月历史周期 (+6) • 已显示 {shown} / {total} 个周期',
+    collapseCards: '收起卡片至近 3 个月',
+    seasonLabel: '{year}赛季'
+  },
+  bestEfforts: {
+    loading: '正在加载最佳成绩...',
+    title: '个人最佳成绩',
+    subtitle: '基于历史跑步GPS与秒级分段数据',
+    allTime: '历史最佳',
+    empty: '暂无匹配的标准距离成绩',
+    distanceLabels: {
+      '1 km': '1 公里',
+      '5 km': '5 公里',
+      '10 km': '10 公里',
+      'Half Marathon': '半程马拉松',
+      'Marathon': '全程马拉松'
+    }
+  },
+  thresholdTrends: {
+    rollingDesc: '滚动趋势：根据过去45天内最多5次校准计算。切换时间范围不会改变同一天的估计。',
+    showRolling: '显示滚动趋势',
+    showIndividual: '显示单次跑步'
+  },
+  progressExtras: {
+    calibrationRun: '校准跑步',
+    steadyCalibrationRun: '平稳校准跑',
+    loadMoreCalibrations: '加载更多校准 (+10) • 已显示 {shown} / {total} 条记录',
+    showAllFiltered: '显示当前筛选全部 ({count})'
   }
 };

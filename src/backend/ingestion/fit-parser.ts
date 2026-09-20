@@ -397,7 +397,7 @@ export function convertFitToCsv(
       ? `garmin_${fileIdMsg.serialNumber}_${fileIdMsg.timeCreated}`
       : `fit_${filename.replace(/\.fit$/i, '').replace(/[^a-zA-Z0-9_-]/g, '_')}`);
 
-  const actName = existingName || 'Singapore Running';
+  const actName = existingName || 'Running';
 
   const lines: string[] = [];
   lines.push('# Garmin Run Export — Parsed for AI Analysis');

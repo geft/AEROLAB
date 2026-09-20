@@ -280,7 +280,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
       )}
 
       {/* Top 2-Column Grid: Offline Snapshot & Google Drive */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: '1.25rem' }}>
         {/* Column 1: Local Snapshot & File Restore */}
         <div style={{
           background: 'var(--bg-surface)',

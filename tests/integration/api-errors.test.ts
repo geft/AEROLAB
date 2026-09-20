@@ -38,6 +38,27 @@ describe('API Error Handling & Dev Diagnostics Integration Tests', () => {
     expect(res.body.details?.timestamp).toBeTruthy();
   });
 
+  it('does not mount developer routes in a production build', async () => {
+    const previous = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      const productionApp = createServer();
+      const diagnostics = await request(productionApp).get('/api/dev/diagnostics');
+      expect(diagnostics.status).toBe(404);
+      expect(diagnostics.body.code).toBe('ERR_ROUTE_NOT_FOUND');
+
+      const sandbox = await request(productionApp).post('/api/dev/test-error').send({});
+      expect(sandbox.status).toBe(404);
+    } finally {
+      process.env.NODE_ENV = previous;
+    }
+  });
+
+  it('mounts developer routes outside production so diagnostics stay testable', async () => {
+    const res = await request(app).get('/api/dev/diagnostics');
+    expect(res.status).toBe(200);
+  });
+
   it('GET /api/nonexistent-route returns structured 404 error schema', async () => {
     const res = await request(app).get('/api/nonexistent-route-xyz');
     expect(res.status).toBe(404);

@@ -165,15 +165,15 @@ describe('Athlete Profile & Resting HR Persistence Tests', () => {
     const res = await request(app).get('/api/thresholds');
     expect(res.status).toBe(200);
 
-    // lt1 was calibrated to 145 by evaluateThresholdUpdate, so z1 ceiling is min(145 - 14 = 131, 134) = 131
+    // A sub-threshold 145 bpm run does not lower LT1; Z1 follows the athlete’s HR reserve.
     // z4 threshold ceiling: Math.round(54 + (203 - 54) * 0.90) = 188
-    expect(res.body.zones.z1[1]).toBe(131);
+    expect(res.body.zones.z1[1]).toBe(134);
     expect(res.body.zones.z4[1]).toBe(188);
 
     // Verify GET /api/profile zones also reflect the custom resting HR and persisted profile
     const profRes = await request(app).get('/api/profile');
     expect(profRes.body.profile.resting_hr).toBe(54);
-    expect(profRes.body.zones.z1[1]).toBe(131);
+    expect(profRes.body.zones.z1[1]).toBe(134);
     expect(profRes.body.zones.z4[1]).toBe(188);
   });
 });

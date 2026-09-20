@@ -193,8 +193,11 @@ describe('AEROLAB App Full Integration Tests', () => {
     fireEvent.click(statsTab!);
 
     await waitFor(() => {
-      expect(screen.getAllByText(/aerobic.*\(lt1\)/i).length).toBeGreaterThan(0);
-      expect(screen.getAllByText(/anaerobic.*\(lt2\)/i).length).toBeGreaterThan(0);
+      // Physiological benchmark cards and HR training zones now live in Progress/Profile,
+      // so the Stats tab renders the volume analytics card without duplicating them
+      expect(screen.getByText('Training Volume & Effort Analytics')).toBeTruthy();
+      expect(document.querySelector('.benchmarks-grid')).toBeNull();
+      expect(document.querySelector('.zones-section')).toBeNull();
     });
 
     // Switch to Profile View
@@ -415,7 +418,11 @@ describe('AEROLAB App Full Integration Tests', () => {
     const statsTab = document.getElementById('tab-stats-btn');
     fireEvent.click(statsTab!);
     await waitFor(() => {
-      expect(screen.getAllByText(/aerobic.*\(lt1\)/i).length).toBeGreaterThan(0);
+      // Physiological benchmark cards and HR training zones were de-duplicated away
+      // from Stats (they live in Progress & Profile), so Stats leads with volume analytics
+      expect(screen.getByText('Training Volume & Effort Analytics')).toBeTruthy();
+      expect(document.querySelector('.benchmarks-grid')).toBeNull();
+      expect(document.querySelector('.zones-section')).toBeNull();
     });
 
     // Open upload modal

@@ -132,7 +132,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
   theme = 'dark'
 }) => {
   const safeActivities = useMemo(() => (Array.isArray(activities) ? activities : []), [activities]);
-  const { t, language } = useTranslation();
+  const { t, language, formatDate } = useTranslation();
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showCalendar, setShowCalendar] = useState<boolean>(false);
@@ -182,6 +182,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
     intervals: any[];
     records: any[];
     coachSummary: any;
+    heartRateThresholds?: { lt1Hr: number; lt2Hr: number };
   } | null>(null);
   const [loadingDetail, setLoadingDetail] = useState<boolean>(false);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -282,12 +283,12 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
       const totalKm = items.reduce((sum, item) => sum + item.distance_meters, 0) / 1000;
       const dObj = new Date(`${ym}-01`);
       const title = ym === 'Other'
-        ? (language === 'zh' ? '其他' : 'Other')
-        : dObj.toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US', { month: 'long', year: 'numeric' });
+        ? t.browse.otherGroup
+        : formatDate(dObj, { month: 'long', year: 'numeric' });
       groups.push({ ym, title, items, totalKm: Number(totalKm.toFixed(1)) });
     });
     return groups;
-  }, [filteredActivities, selectedMonth, language]);
+  }, [filteredActivities, selectedMonth, formatDate, t]);
 
   // Auto-select first activity on initial mount only
   const didAutoSelect = useRef(false);
@@ -754,6 +755,8 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                 splits={detailData.splits || []}
                 overallAvgPace={act.avg_pace_sec_km}
                 overallAvgHr={act.avg_heart_rate}
+                lt1Hr={detailData.heartRateThresholds?.lt1Hr}
+                lt2Hr={detailData.heartRateThresholds?.lt2Hr}
                 compact={false}
               />
             )}

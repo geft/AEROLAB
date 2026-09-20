@@ -16,31 +16,31 @@ interface BaselineSetupModalProps {
 export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
   isOpen,
   onCompleted,
-  initialDob = '1992-05-15',
+  initialDob = '',
   initialGender = 'Prefer not to say',
-  initialRestingHr = 60,
-  initialMaxHr = 190,
-  initialVo2Max = 48
+  initialRestingHr,
+  initialMaxHr,
+  initialVo2Max
 }) => {
-  const { t, language } = useTranslation();
+  const { t, format } = useTranslation();
   const [dob, setDob] = useState<string>(initialDob);
   const [gender, setGender] = useState<string>(initialGender);
-  const [restingHr, setRestingHr] = useState<number>(initialRestingHr);
-  const [manualMaxHr, setManualMaxHr] = useState<number>(initialMaxHr);
+  const [restingHr, setRestingHr] = useState<number | string>(initialRestingHr ?? '');
+  const [manualMaxHr, setManualMaxHr] = useState<number | string>(initialMaxHr ?? '');
   const [isAutoMaxHr, setIsAutoMaxHr] = useState<boolean>(true);
-  const [vo2Max, setVo2Max] = useState<number>(initialVo2Max);
+  const [vo2Max, setVo2Max] = useState<number | string>(initialVo2Max ?? '');
   const [goal, setGoal] = useState<string>('Build aerobic endurance');
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   // Dynamic age calculation from DOB
   const computedAge = useMemo(() => {
-    return calculateAgeFromDob(dob, 34);
+    return calculateAgeFromDob(dob, 0);
   }, [dob]);
 
   // Dynamic Tanaka formula calculation: 208 - 0.7 * age
   const tanakaMaxHr = useMemo(() => {
-    return Math.round(208 - 0.7 * computedAge);
+    return computedAge ? Math.round(208 - 0.7 * computedAge) : null;
   }, [computedAge]);
 
   const effectiveMaxHr = isAutoMaxHr ? tanakaMaxHr : manualMaxHr;
@@ -62,6 +62,10 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!computedAge || !Number(restingHr) || !Number(effectiveMaxHr)) {
+      setError('Enter your date of birth and heart-rate baselines.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -71,10 +75,10 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
         body: JSON.stringify({
           dob,
           gender,
-          resting_hr: Number(restingHr) || 60,
+          resting_hr: Number(restingHr),
           max_hr: Number(effectiveMaxHr) || tanakaMaxHr,
           is_max_hr_estimated: isAutoMaxHr ? 1 : 0,
-          vo2_max: Number(vo2Max) || 45,
+          vo2_max: Number(vo2Max) || null,
           upcoming_benchmark: goal,
           is_configured: 1
         })
@@ -181,7 +185,7 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
                   borderRadius: 999
                 }}
               >
-                {language === 'zh' ? `年龄: ${computedAge} 岁 (自动计算)` : `Age: ${computedAge} yrs (auto-computed)`}
+                {format(t.baselineSetup.ageAuto, { age: computedAge })}
               </span>
             </div>
             <input
@@ -200,7 +204,7 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
               }}
             />
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
-              {language === 'zh' ? '用于估算心血管上限，您未来无需手动更新年龄。' : 'Used to predict cardiovascular ceilings. You will never need to manually update your age.'}
+              {t.baselineSetup.dobHint}
             </div>
           </div>
 
@@ -222,10 +226,10 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
                 fontSize: '0.85rem'
               }}
             >
-              <option value="Prefer not to say">{language === 'zh' ? '不便透露' : 'Prefer not to say'}</option>
-              <option value="Female">{language === 'zh' ? '女性' : 'Female'}</option>
-              <option value="Male">{language === 'zh' ? '男性' : 'Male'}</option>
-              <option value="Non-binary">{language === 'zh' ? '非二元性别' : 'Non-binary'}</option>
+              <option value="Prefer not to say">{t.baselineSetup.genderPreferNotToSay}</option>
+              <option value="Female">{t.baselineSetup.genderFemale}</option>
+              <option value="Male">{t.baselineSetup.genderMale}</option>
+              <option value="Non-binary">{t.baselineSetup.genderNonBinary}</option>
             </select>
           </div>
 
@@ -252,7 +256,7 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
               }}
             />
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
-              {language === 'zh' ? '您的清晨静息脉搏或运动手表睡眠均值，用于卡氏心率储备 (HRR) 计算。' : 'Your waking resting pulse or watch sleep average. Used for Karvonen Heart Rate Reserve (HRR).'}
+              {t.baselineSetup.restingHrHint}
             </div>
           </div>
 
@@ -279,11 +283,13 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
 
             {isAutoMaxHr ? (
               <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                {language === 'zh' ? (
-                  <>预估基准: <strong style={{ color: '#38bdf8' }}>{tanakaMaxHr} bpm</strong>（田中公式 <code>208 - 0.7 × {computedAge}</code>）。当您上传 5公里 全力测试或最大摄氧量冲刺间歇后，AEROLAB 将自动适应您的实测峰值。</>
-                ) : (
-                  <>Predicted baseline: <strong style={{ color: '#38bdf8' }}>{tanakaMaxHr} bpm</strong> via Tanaka formula (<code>208 - 0.7 × {computedAge}</code>). Once you upload all-out 5K time trials or VO2 Max intervals, AEROLAB will dynamically adapt to your true peak effort.</>
-                )}
+                <>
+                  {t.baselineSetup.maxHrAutoPrefix}
+                  <strong style={{ color: '#38bdf8' }}>{tanakaMaxHr} bpm</strong>
+                  {t.baselineSetup.maxHrAutoFormulaPrefix}
+                  <code>{format(t.baselineSetup.maxHrAutoFormula, { age: computedAge })}</code>
+                  {t.baselineSetup.maxHrAutoSuffix}
+                </>
               </div>
             ) : (
               <div>
@@ -305,7 +311,7 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
                   }}
                 />
                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
-                  {language === 'zh' ? '实验室力竭台阶测试或实测全力冲刺测试值。' : 'Laboratory ramp test or all-out field test benchmark.'}
+                  {t.baselineSetup.maxHrManualHint}
                 </div>
               </div>
             )}
@@ -343,7 +349,7 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
                 type="text"
                 value={goal}
                 onChange={e => setGoal(e.target.value)}
-                placeholder={language === 'zh' ? '例如 10公里 突破、全马破3、有氧基础' : 'e.g. 10k race, Aerobic Base'}
+                placeholder={t.baselineSetup.goalPlaceholder}
                 style={{
                   width: '100%',
                   padding: '0.55rem 0.7rem',

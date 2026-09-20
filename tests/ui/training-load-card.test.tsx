@@ -62,7 +62,7 @@ describe('TrainingLoadCard UI Tests', () => {
     render(<TrainingLoadCard />);
 
     await waitFor(() => {
-      expect(screen.getByText(/7-Day Training Load & Optimal Tunnel/i)).toBeDefined();
+      expect(screen.getByText(/Training Load & Optimal Tunnel/i)).toBeDefined();
       expect(screen.getAllByText('520').length).toBeGreaterThanOrEqual(1); // Acute / Raw Load
       expect(screen.getByText('480')).toBeDefined(); // Chronic Load
       expect(screen.getByText(/1.08/)).toBeDefined(); // ACWR
@@ -74,7 +74,7 @@ describe('TrainingLoadCard UI Tests', () => {
     const { container } = render(<TrainingLoadCard />);
 
     await waitFor(() => {
-      expect(screen.getByText(/7-Day Training Load & Optimal Tunnel/i)).toBeDefined();
+      expect(screen.getByText(/Training Load & Optimal Tunnel/i)).toBeDefined();
     });
 
     const svg = container.querySelector('svg');
@@ -84,11 +84,30 @@ describe('TrainingLoadCard UI Tests', () => {
     expect(paths.length).toBeGreaterThan(0);
   });
 
+  it('renders time filter buttons and triggers fetch with chosen range', async () => {
+    render(<TrainingLoadCard />);
+
+    await waitFor(() => {
+      expect(screen.getByText('7D')).toBeDefined();
+      expect(screen.getByText('14D')).toBeDefined();
+      expect(screen.getByText('30D')).toBeDefined();
+      expect(screen.getByText('60D')).toBeDefined();
+      expect(screen.getByText('90D')).toBeDefined();
+    });
+
+    const btn60d = screen.getByRole('button', { name: '60D' });
+    fireEvent.click(btn60d);
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('/api/activities/training-load?days=60');
+    });
+  });
+
   it('opens and closes Educational Guide Modal when info (?) button is clicked', async () => {
     render(<TrainingLoadCard />);
 
     await waitFor(() => {
-      expect(screen.getByText(/7-Day Training Load & Optimal Tunnel/i)).toBeDefined();
+      expect(screen.getByText(/Training Load & Optimal Tunnel/i)).toBeDefined();
     });
 
     const infoBtn = screen.getByTitle('Training Load Guide');

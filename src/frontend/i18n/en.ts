@@ -187,7 +187,14 @@ export const en: Translations = {
       accidental_tempo: 'Unplanned Tempo',
       race: 'Race / Time Trial',
       generic: 'Aerobic Run'
-    }
+    },
+    close: 'Close',
+    calendar: 'Calendar',
+    otherGroup: 'Other',
+    medalGold: '★★★ Gold',
+    medalSilver: '★★☆ Silver',
+    medalBronze: '★☆☆ Bronze',
+    weekdayShort: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
   },
   splits: {
     title: 'Kilometer Splits',
@@ -223,10 +230,15 @@ export const en: Translations = {
     vdotTrend: 'Estimated VO2 Max / VDOT',
     vdotGuideBtn: 'VDOT Guide',
     lt1Title: 'Aerobic Threshold (LT1) Pace',
-    lt1Sub: 'Calibrated Zone 2 Ceiling',
+    lt1Sub: 'Calibrated Aerobic Base',
     lt2Title: 'Lactate Threshold (LT2) Pace',
-    lt2Sub: 'Anaerobic Turnpoint (~1hr Race Pace)',
+    lt2Sub: '1-Hour Max Sustained Pace',
+    vdotSub: 'Aerobic Racing Capacity',
     zone2Ceiling: 'Zone 2 Ceiling',
+    zone4Threshold: 'Zone 4 Threshold',
+    vdotRacingIndex: 'VDOT Racing Index',
+    predicted5k: 'Predicted 5K',
+    cardioEfficiency: 'Cardio Efficiency',
     benchmarksTitle: 'Historical Threshold Calibrations',
     filterAll: 'All',
     filterLt1: 'LT1 Base',
@@ -325,8 +337,15 @@ export const en: Translations = {
     totalCals: 'Estimated Calories',
     zone2Mileage: 'Zone 2 Mileage',
     zone2Time: 'Zone 2 Time',
-    qualityMileage: 'Quality Mileage',
-    distributionTitle: 'Aerobic Base vs Quality Work Distribution',
+    qualityMileage: 'Speedwork & Quality',
+    speedworkQuality: 'Speedwork & Quality (Z4/Z5)',
+    distributionTitle: 'Aerobic Base vs. Quality Distribution',
+    hrsTotal: 'hrs total',
+    zone1Recovery: 'Z1 Recovery',
+    zone2AerobicBase: 'Z2 Aerobic Base',
+    zone3Tempo: 'Z3 Tempo',
+    zone4Threshold: 'Z4 Threshold',
+    zone5Vo2Max: 'Z5 VO2 Max',
     thresholdsTitle: 'Physiological Thresholds & Turnpoints',
     predictionsTitle: 'Race Performance Predictions',
     marginGuideBtn: 'Turnpoint Margin Guide',
@@ -352,6 +371,27 @@ export const en: Translations = {
     turnpointTierDevDesc: 'Indicates Aerobic Deficiency Syndrome (ADS). Easy pace lags far behind threshold capability because fat oxidation enzymes and slow-twitch capillary density are still adapting.',
     turnpointOptimizeTitle: 'How to Optimize Your Margin:',
     turnpointGotIt: 'Got It',
+    polarizedBalanceValue: '82% Low / 18% High',
+    gapSeconds: '{seconds}s gap',
+    estGapSeconds: '{seconds}s est. gap',
+    paceGapCalc: 'Pace gap between Easy ({easy}) and Threshold ({threshold}{estimated}). Narrows as aerobic fitness improves.',
+    estimatedSuffix: ' Est.',
+    calibratedAt: 'Easy base pace calibrated at {pace}. Run a threshold workout to calibrate precise LT2 margin.',
+    notCalibrated: 'Run steady aerobic base and threshold workouts to calibrate your turnpoint margin.',
+    // Server period labels are already English, so no overrides are needed.
+    periodLabelOverrides: {},
+    periodLabelSeasonPattern: '{year} Season',
+    whatIsP1: 'The ',
+    whatIsBoldMargin: 'Aerobic Turnpoint Margin',
+    whatIsP2: ' is the pace spread between your ',
+    whatIsBoldLt1: 'Aerobic Base (LT1)',
+    whatIsP3: ' and your ',
+    whatIsBoldLt2: 'Lactate Threshold (LT2)',
+    whatIsP4: '. In endurance physiology (e.g. Stephen Seiler, Olbrecht, Maffetone), it measures how well-developed your lipid oxidation and mitochondrial capillary foundation are relative to your maximum 1-hour sustained velocity.',
+    optimizeGapWideBold: 'If your gap is > 70s',
+    optimizeGapWideBody: ': Increase weekly mileage strictly below LT1 (< {hr} bpm). Avoid the temptation to run easy days too fast; true Zone 2 miles trigger mitochondrial biogenesis that pulls LT1 pace faster without raising heart rate.',
+    optimizeGapNarrowBold: 'If your gap is < 45s',
+    optimizeGapNarrowBody: ': Your aerobic base is well-developed! To run faster, introduce quality LT2 threshold intervals (e.g. 3x15min in Zone 4) to lift your anaerobic ceiling higher.',
     zoneDesc: {
       z1: 'Active Recovery & Warmup (< LT1 - 14 bpm)',
       z2: 'Aerobic Base / Steady Endurance (LT1 - 13 bpm to LT1)',
@@ -421,7 +461,14 @@ export const en: Translations = {
     displaySettings: 'Display & Typography',
     displaySettingsSub: 'Adjust application font sizing and text scaling to your visual comfort',
     fontSizeLabel: 'Interface Font Scale',
-    fontSizePreview: 'Preview: The quick brown fox jumps over the lazy dog. 145 bpm • 5:20/km'
+    fontSizePreview: 'Preview: The quick brown fox jumps over the lazy dog. 145 bpm • 5:20/km',
+    readOnlyBaseline: 'Calibrated from running workouts • Read-only baseline',
+    thresholdHeartRate: 'Threshold Heart Rate',
+    yearsUnit: 'yrs',
+    tanakaMaxShort: 'Tanaka max: ~{hr} bpm',
+    observedPeakNote: 'Peak of {hr} bpm observed during {activity} ({date}).',
+    tanakaFormulaNote: 'Tanaka formula: 208 - (0.7 × {age}) = {hr} bpm until hard interval runs are logged.',
+    zonesHeaderSummary: 'Resting HR: {resting} bpm • Max HR: {max} bpm'
   },
   upload: {
     title: 'Import Garmin Runs (FIT or CSV)',
@@ -441,7 +488,12 @@ export const en: Translations = {
     batchSuccess: 'Batch Ingestion Completed Successfully',
     batchWarnings: 'Batch Ingestion Completed with Warnings',
     batchFailed: 'Batch Ingestion Failed',
-    fitCsvOnly: 'Please upload .fit or .csv file(s) exported from your Garmin device or run-parser.'
+    fitCsvOnly: 'Please upload .fit or .csv file(s) exported from your Garmin device or run-parser.',
+    dupTip: '💡 Tip: This activity already exists in the database. Enable the "Overwrite / re-calculate" option to replace it.',
+    skippedFiles: {
+      one: 'ℹ️ {count} file was skipped because the workout already exists in your database. Click "Retry with Overwrite" below if you wish to re-calculate and overwrite existing data.',
+      other: 'ℹ️ {count} files were skipped because the workout already exists in your database. Click "Retry with Overwrite" below if you wish to re-calculate and overwrite existing data.'
+    }
   },
   backup: {
     cardTitle: 'Database Backup & Cloud Sync',
@@ -578,7 +630,13 @@ export const en: Translations = {
     tipLt2Desc: 'Sustained threshold intervals (8–12 min reps) train muscles to shuttle and re-use lactate as fuel.',
     tipWeatherTitle: 'Apples-to-Apples Comparisons',
     tipWeatherDesc: 'Compare runs under similar temperature and humidity, as extreme heat causes cardiac drift (elevating HR and lowering EF).',
-    gotIt: 'Got It'
+    gotIt: 'Got It',
+    paceDeveloping: '6:50 – 7:55 /km @ ~140 bpm',
+    paceSolid: '5:45 – 6:30 /km @ ~140 bpm',
+    paceAdvanced: '5:05 – 5:45 /km @ ~140 bpm',
+    paceCompetitive: '4:20 – 4:55 /km @ ~140 bpm',
+    paceElite: '3:35 – 4:10 /km @ ~140 bpm',
+    comparisonNote: 'Compare several runs at similar heart rates, routes, and conditions. A pace change in one easy run does not establish a change in aerobic threshold.'
   },
   vdotGuide: {
     modalTitle: 'Estimated VO2 Max & VDOT Guide',
@@ -599,6 +657,11 @@ export const en: Translations = {
     marathonPace: 'Marathon Pace',
     thresholdLt2: 'Threshold (LT2)',
     intervalsVo2: 'Intervals (VO2 Max)',
+    equivHalf: 'Half',
+    equivFull: 'Marathon',
+    equivSub15: 'Sub-15:00',
+    equivSub108: 'Sub-1:08:00',
+    equivSub224: 'Sub-2:24:00',
     gotIt: 'Got It'
   },
   baselineSetup: {
@@ -613,7 +676,20 @@ export const en: Translations = {
     vo2MaxLabel: 'Estimated Starting VO2 Max',
     goalLabel: 'Primary Training Focus / Goal',
     submitBtn: 'Save Baselines & Start AEROLAB',
-    savingBtn: 'Saving Baselines…'
+    savingBtn: 'Saving Baselines…',
+    ageAuto: 'Age: {age} yrs (auto-computed)',
+    dobHint: 'Used to predict cardiovascular ceilings. You will never need to manually update your age.',
+    genderPreferNotToSay: 'Prefer not to say',
+    genderFemale: 'Female',
+    genderMale: 'Male',
+    genderNonBinary: 'Non-binary',
+    restingHrHint: 'Your waking resting pulse or watch sleep average. Used for Karvonen Heart Rate Reserve (HRR).',
+    maxHrAutoPrefix: 'Predicted baseline: ',
+    maxHrAutoFormulaPrefix: ' via Tanaka formula (',
+    maxHrAutoFormula: '208 - 0.7 × {age}',
+    maxHrAutoSuffix: '). Once you upload all-out 5K time trials or VO2 Max intervals, AEROLAB will dynamically adapt to your true peak effort.',
+    maxHrManualHint: 'Laboratory ramp test or all-out field test benchmark.',
+    goalPlaceholder: 'e.g. 10k race, Aerobic Base'
   },
   settingsView: {
     pageTitle: 'Settings',
@@ -633,5 +709,79 @@ export const en: Translations = {
     devTitle: 'Developer Diagnostics & System Health',
     devSubtitle: 'Inspect live database counts, engine telemetry, and server logs. Shortcut: Ctrl+Shift+D',
     openDiagnostics: 'Open Diagnostics Drawer'
+  },
+  trainingLoad: {
+    loading: 'Calculating training load...',
+    title: 'Training Load & Optimal Tunnel',
+    subtitle: 'EPOC & cardiac impulse model: 7-day acute fatigue vs. 28-day fitness baseline',
+    acuteTitle: '7-Day Acute Load',
+    acuteDesc: 'Current fatigue index',
+    optimalTitle: 'Optimal Tunnel',
+    optimalDesc: 'Optimal sweet spot',
+    chronicTitle: '28-Day Chronic Baseline',
+    chronicDesc: 'Aerobic work capacity',
+    weeklyTitle: 'Past 7 Days Raw Load',
+    weeklyDesc: 'Cumulative effort units',
+    hoverDaily: 'Daily',
+    hoverAcute: 'Acute',
+    hoverTunnel: 'Tunnel',
+    legend: 'Green shaded band = Optimal Tunnel',
+    guideTitle: 'Training Load & Optimal Tunnel Guide',
+    guideIntro: 'Calculates physiological workout strain based on Heart Rate Reserve (%HRR) and duration, modeling 7-day acute fatigue against 28-day chronic baseline:',
+    guideOptimal: 'The optimal sweet spot where aerobic fitness increases with low injury risk.',
+    guideMaintaining: 'Workload is steady and maintains aerobic capacity.',
+    guideRecovery: 'Workload has dropped below baseline; suitable for taper weeks.',
+    guideOverreaching: 'Workload is ramping up quickly; watch fatigue levels.',
+    gotIt: 'Got it',
+    // English status copy ships in the API payload, so no overrides are needed.
+    statusLabels: {},
+    statusDescriptions: {}
+  },
+  periodProgress: {
+    window3m: 'Last 3 Months',
+    window6m: 'Last 6 Months',
+    window12m: 'Last 12 Months',
+    windowAllTitle: 'All Months',
+    windowAll: 'All',
+    hoursUnit: 'hrs',
+    zone2Summary: 'Zone 2: {hours}h ({pct}%)',
+    loggedActivities: {
+      one: '{count} logged activity',
+      other: '{count} logged activities'
+    },
+    activeMonthsSuffix: ' across {count} active months',
+    calibrations: {
+      one: '{count} Physiological Calibration',
+      other: '{count} Physiological Calibrations'
+    },
+    calibrationsShort: {
+      one: '{count} calibration',
+      other: '{count} calibrations'
+    },
+    loadMoreCards: 'Load More Cards (+3) • Showing {shown} of {total} Months',
+    showAllInChart: 'Show All in Chart ({count})',
+    loadPreviousMonths: 'Load Previous 6 Months (+6) • Showing {shown} of {total} Blocks',
+    collapseCards: 'Collapse Cards to Last 3 Months',
+    seasonLabel: '{year} Season'
+  },
+  bestEfforts: {
+    loading: 'Loading best efforts...',
+    title: 'Personal Best Efforts',
+    subtitle: 'Fastest continuous segments from workout telemetry',
+    allTime: 'All-Time PRs',
+    empty: 'No benchmark records logged for this period yet.',
+    // Server benchmark labels are already English, so no overrides are needed.
+    distanceLabels: {}
+  },
+  thresholdTrends: {
+    rollingDesc: 'Rolling trend from up to 5 calibrations in the preceding 45 days. Estimates stay consistent across date ranges.',
+    showRolling: 'Show rolling trend',
+    showIndividual: 'Show individual runs'
+  },
+  progressExtras: {
+    calibrationRun: 'Calibration Run',
+    steadyCalibrationRun: 'Steady calibration run',
+    loadMoreCalibrations: 'Load More Calibrations (+10) • Showing {shown} of {total}',
+    showAllFiltered: 'Show All ({count})'
   }
 };

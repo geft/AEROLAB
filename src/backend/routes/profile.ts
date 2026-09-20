@@ -1,3 +1,8 @@
+import { ageFromDob } from '../../shared/heart-rate.js';
+import { getAthleteHeartRateProfile, getObservedPeakHeartRate } from '../physiology/athlete-profile.js';
+import { calculateActivityTrainingLoad } from '../physiology/training-load.js';
+export { getObservedPeakHeartRate } from '../physiology/athlete-profile.js';
+export { ageFromDob as calculateAgeFromDob } from '../../shared/heart-rate.js';
 import { Router } from 'express';
 import { getDatabase } from '../db/client.js';
 import { getDefaultZones } from '../physiology/zones.js';
@@ -15,55 +20,6 @@ export interface ObservedPeakHeartRate {
   runType: string;
 }
 
-export function getObservedPeakHeartRate(db: any, age: number = 37): ObservedPeakHeartRate | null {
-  try {
-    const tanakaFallback = Math.round(208 - 0.7 * age);
-    // Minimum threshold for an observed effort to qualify as a peak HR candidate:
-    // Either from a high-effort run type ('race', 'intervals_vo2', 'threshold_lt2'),
-    // OR reaching at least 82% of age-predicted max.
-    const minQualifyingHr = Math.round(tanakaFallback * 0.82);
-    const row = db.prepare(`
-      SELECT id, name, run_type, start_time, max_heart_rate, avg_heart_rate
-      FROM activities
-      WHERE max_heart_rate IS NOT NULL
-        AND max_heart_rate >= ?
-        AND (run_type IN ('race', 'intervals_vo2', 'threshold_lt2') OR max_heart_rate >= 165)
-      ORDER BY max_heart_rate DESC, start_time DESC
-      LIMIT 1
-    `).get(minQualifyingHr) as any;
-
-    if (!row || !row.max_heart_rate) return null;
-
-    return {
-      peakHr: row.max_heart_rate,
-      activityId: row.id,
-      activityName: row.name || 'Quality Effort',
-      activityDate: row.start_time ? String(row.start_time).slice(0, 10) : '',
-      runType: row.run_type || 'race'
-    };
-  } catch {
-    return null;
-  }
-}
-
-export function calculateAgeFromDob(dob?: string | null, fallbackAge: number = 35): number {
-  if (!dob) return fallbackAge;
-  const parts = dob.trim().split('-');
-  const year = parseInt(parts[0], 10);
-  const month = parts[1] ? parseInt(parts[1], 10) - 1 : 0;
-  const day = parts[2] ? parseInt(parts[2], 10) : 1;
-  if (isNaN(year) || year < 1900 || year > 2100) return fallbackAge;
-
-  const birthDate = new Date(year, month, day);
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  return age > 0 ? age : fallbackAge;
-}
-
 // GET /api/profile - return athlete profile and calculated HRR zones reflecting current LT1/LT2
 profileRouter.get('/', (req, res) => {
   try {
@@ -78,44 +34,36 @@ profileRouter.get('/', (req, res) => {
     const isConfigured = profile.is_configured === 1 && hasRequiredBaselines;
 
     const currentThresholds = getCurrentThresholds(db);
-    const dynamicAge = calculateAgeFromDob(profile.dob, Number(profile.age) || 35);
+    const dynamicAge = ageFromDob(profile.dob, Number(profile.age) || 0);
     const tanakaMaxHr = Math.round(208 - 0.7 * dynamicAge);
     const observedPeak = getObservedPeakHeartRate(db, dynamicAge);
 
-    let effectiveMaxHr = profile.max_hr || tanakaMaxHr;
-    let maxHrSource: 'manual' | 'observed_run' | 'tanaka_formula' = profile.max_hr ? 'manual' : 'tanaka_formula';
-
-    if (profile.is_max_hr_estimated || (observedPeak && observedPeak.peakHr > effectiveMaxHr)) {
-      if (observedPeak && observedPeak.peakHr >= 140) {
-        effectiveMaxHr = observedPeak.peakHr;
-        maxHrSource = 'observed_run';
-      } else {
-        effectiveMaxHr = tanakaMaxHr;
-        maxHrSource = 'tanaka_formula';
-      }
-    }
+    const hrProfile = getAthleteHeartRateProfile(db);
+    const effectiveMaxHr = hrProfile.maxHr;
+    const maxHrSource = !profile.is_max_hr_estimated && profile.max_hr ? 'manual'
+      : observedPeak ? 'observed_run' : 'tanaka_formula';
 
     const zones = getDefaultZones(
       effectiveMaxHr,
       currentThresholds.lt1Hr,
       currentThresholds.lt2Hr,
-      profile.resting_hr || 55
+      hrProfile.restingHr
     );
 
     res.json({
       profile: {
         ...profile,
-        age: dynamicAge,
+        age: dynamicAge || null,
         is_configured: isConfigured ? 1 : 0,
-        max_hr: effectiveMaxHr,
+        max_hr: hrProfile.hasBaseline ? effectiveMaxHr : profile.max_hr,
         schedule: profile.schedule_json ? JSON.parse(profile.schedule_json) : null,
         preferences: profile.preferences_json ? JSON.parse(profile.preferences_json) : null
       },
-      currentThresholds,
-      zones,
+      currentThresholds: hrProfile.hasBaseline ? currentThresholds : null,
+      zones: hrProfile.hasBaseline ? zones : null,
       observedPeakHr: observedPeak,
-      tanakaMaxHr,
-      effectiveMaxHr,
+      tanakaMaxHr: dynamicAge ? tanakaMaxHr : null,
+      effectiveMaxHr: hrProfile.hasBaseline ? effectiveMaxHr : null,
       maxHrSource,
       isConfigured
     });
@@ -143,13 +91,13 @@ profileRouter.patch('/', (req, res) => {
     // Dynamically derive age from DOB if DOB is provided
     let ageVal: number;
     if (updates.dob) {
-      ageVal = calculateAgeFromDob(updates.dob, Number(updates.age) || Number(existing?.age) || 35);
+      ageVal = ageFromDob(updates.dob, Number(updates.age) || Number(existing?.age) || 0);
       updates.age = ageVal;
     } else {
-      ageVal = Number(updates.age) || calculateAgeFromDob(existing?.dob, Number(existing?.age) || 35);
+      ageVal = Number(updates.age) || ageFromDob(existing?.dob, Number(existing?.age) || 0);
     }
 
-    const tanakaMax = Math.round(208 - 0.7 * ageVal);
+    const tanakaMax = ageVal > 0 ? Math.round(208 - 0.7 * ageVal) : null;
     const observedPeak = getObservedPeakHeartRate(db, ageVal);
 
     // Safeguard resting_hr from accidental reset or corruption
@@ -173,9 +121,10 @@ profileRouter.patch('/', (req, res) => {
     // Handle Max HR Opt-Out / Estimation:
     // If opting out of manual entry, prefer observed peak from real hard runs; otherwise fall back to Tanaka formula
     if (updates.opt_out_max_hr || updates.is_max_hr_estimated) {
-      if (observedPeak && observedPeak.peakHr >= 140) {
+      if (observedPeak) {
         updates.max_hr = observedPeak.peakHr;
       } else {
+        if (!tanakaMax) return res.status(400).json({ error: 'A valid date of birth or age is required to estimate maximum heart rate.' });
         updates.max_hr = tanakaMax;
       }
       updates.is_max_hr_estimated = 1;
@@ -212,6 +161,26 @@ profileRouter.patch('/', (req, res) => {
       sets.push(`updated_at = CURRENT_TIMESTAMP`);
       values.push('primary');
       db.prepare(`UPDATE athlete_profile SET ${sets.join(', ')} WHERE id = ?`).run(...values);
+
+      const baselineChanged = ['dob', 'age', 'max_hr', 'resting_hr', 'is_max_hr_estimated', 'gender'].some(key => key in updates);
+      if (baselineChanged) {
+        // These columns cache inferred thresholds, not manually entered baselines.
+        db.prepare("UPDATE athlete_profile SET lt1_hr = NULL, lt2_hr = NULL, lt1_min_hr = NULL, lt1_max_hr = NULL, z3_start_hr = NULL, z4_start_hr = NULL WHERE id = 'primary'").run();
+        const thresholds = getCurrentThresholds(db);
+        db.prepare("UPDATE athlete_profile SET lt1_hr = ?, lt2_hr = ?, lt1_min_hr = ?, lt1_max_hr = ?, z3_start_hr = ?, z4_start_hr = ? WHERE id = 'primary'")
+          .run(thresholds.lt1Hr, thresholds.lt2Hr, thresholds.lt1Hr - 1, thresholds.lt1Hr + 1, thresholds.lt1Hr + 1, thresholds.lt2Hr);
+        const hrProfile = getAthleteHeartRateProfile(db);
+        const activities = db.prepare('SELECT id, duration_seconds, avg_heart_rate FROM activities').all() as any[];
+        const selectRecords = db.prepare('SELECT elapsed_seconds, heart_rate FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds');
+        const updateLoad = db.prepare('UPDATE activities SET training_load = ?, z1_seconds = ?, z2_seconds = ?, z3_seconds = ?, z4_seconds = ?, z5_seconds = ? WHERE id = ?');
+        db.transaction(() => {
+          for (const activity of activities) {
+            const load = calculateActivityTrainingLoad(selectRecords.all(activity.id) as any[], hrProfile,
+              { durationSeconds: activity.duration_seconds, avgHeartRate: activity.avg_heart_rate });
+            updateLoad.run(load.trainingLoad, load.zones.z1Seconds, load.zones.z2Seconds, load.zones.z3Seconds, load.zones.z4Seconds, load.zones.z5Seconds, activity.id);
+          }
+        })();
+      }
 
       // Continuously update all coach summaries across all activities using updated profile thresholds
       try {

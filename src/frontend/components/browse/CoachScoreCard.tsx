@@ -88,7 +88,7 @@ export const CoachScoreCard: React.FC<CoachScoreCardProps> = ({
             <span className="score-breakdown-total">
               {t.browse.scoreFinalExecution}: <b>{effScore ?? '—'} / 100</b>
               {' · '}
-              {coachStars === 3 ? (language === 'zh' ? '★★★ 金牌' : '★★★ Gold') : coachStars === 2 ? (language === 'zh' ? '★★☆ 银牌' : '★★☆ Silver') : (language === 'zh' ? '★☆☆ 铜牌' : '★☆☆ Bronze')}
+              {coachStars === 3 ? t.browse.medalGold : coachStars === 2 ? t.browse.medalSilver : t.browse.medalBronze}
             </span>
           </div>
 

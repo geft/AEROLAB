@@ -1,3 +1,4 @@
+import { seedBenchmarkProfile } from '../fixtures/benchmark-runs.js';
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import { createServer } from '../../src/backend/server.js';
@@ -11,7 +12,7 @@ describe('API Server Integration Tests', () => {
   beforeAll(() => {
     // In-memory test DB
     process.env.DATABASE_PATH = ':memory:';
-    getDatabase(':memory:');
+    seedBenchmarkProfile(getDatabase(':memory:'));
     app = createServer();
   });
 
@@ -513,6 +514,19 @@ describe('API Server Integration Tests', () => {
       expect(record.timeSeconds).toBeGreaterThan(0);
       expect(record.paceSecKm).toBeGreaterThan(0);
     }
+  });
+
+  it('GET /api/activities/best-efforts advertises 1k/5k/10k/HM/Marathon targets (no 1 Mile)', async () => {
+    const res = await request(app).get('/api/activities/best-efforts');
+    expect(res.status).toBe(200);
+    expect(res.body.targets).toBeInstanceOf(Array);
+
+    const ids = res.body.targets.map((t: any) => t.id);
+    expect(ids).toEqual(['1k', '5k', '10k', 'hm', 'mar']);
+
+    const marathon = res.body.targets.find((t: any) => t.id === 'mar');
+    expect(marathon.label).toBe('Marathon');
+    expect(marathon.distanceMeters).toBe(42195);
   });
 });
 

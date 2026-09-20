@@ -1,20 +1,35 @@
 import React from 'react';
 import { X, Award, Target, Activity, Zap, CheckCircle } from 'lucide-react';
+import { formatPace } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 
 interface VdotGuideModalProps {
   isOpen: boolean;
   onClose: () => void;
-  currentVdot?: number;
+  currentVdot?: number | null;
 }
 
 export const VdotGuideModal: React.FC<VdotGuideModalProps> = ({
   isOpen,
   onClose,
-  currentVdot = 58
+  currentVdot = null
 }) => {
-  const { t, language } = useTranslation();
+  const { t } = useTranslation();
   if (!isOpen) return null;
+
+  const effVdot = currentVdot && currentVdot >= 25 && currentVdot <= 85 ? currentVdot : 45.0;
+  // Calculate threshold velocity (m/min) at 88% VO2max from VDOT
+  const a = 0.000104;
+  const b = 0.182258;
+  const c = -(0.88 * effVdot + 4.6);
+  const disc = Math.max(0, b * b - 4 * a * c);
+  const vMpm = (-b + Math.sqrt(disc)) / (2 * a);
+  const thresholdSecKm = vMpm > 0 ? (1000 / vMpm) * 60 : 277;
+
+  const easyPaceRange = `${formatPace(thresholdSecKm * 1.28)} – ${formatPace(thresholdSecKm * 1.42)}`;
+  const marathonPaceRange = `${formatPace(thresholdSecKm * 1.10)} – ${formatPace(thresholdSecKm * 1.16)}`;
+  const thresholdPaceRange = `${formatPace(thresholdSecKm * 0.98)} – ${formatPace(thresholdSecKm * 1.02)}`;
+  const intervalPaceRange = `${formatPace(thresholdSecKm * 0.91)} – ${formatPace(thresholdSecKm * 0.94)}`;
 
   const tiers = [
     {
@@ -24,7 +39,7 @@ export const VdotGuideModal: React.FC<VdotGuideModalProps> = ({
       equivHalf: '1:55:00 – 2:21:00',
       equivMarathon: '3:58:00 – 4:51:00',
       badgeColor: '#64748b',
-      isCurrent: false
+      isCurrent: currentVdot != null && currentVdot >= 35 && currentVdot < 45
     },
     {
       range: '45 – 54',
@@ -33,7 +48,7 @@ export const VdotGuideModal: React.FC<VdotGuideModalProps> = ({
       equivHalf: '1:36:00 – 1:54:00',
       equivMarathon: '3:20:00 – 3:56:00',
       badgeColor: '#06b6d4',
-      isCurrent: false
+      isCurrent: currentVdot != null && currentVdot >= 45 && currentVdot < 55
     },
     {
       range: '55 – 64',
@@ -42,7 +57,7 @@ export const VdotGuideModal: React.FC<VdotGuideModalProps> = ({
       equivHalf: '1:21:00 – 1:35:00',
       equivMarathon: '2:50:00 – 3:19:00',
       badgeColor: '#10b981',
-      isCurrent: true
+      isCurrent: currentVdot != null && currentVdot >= 55 && currentVdot < 65
     },
     {
       range: '65 – 74',
@@ -51,16 +66,16 @@ export const VdotGuideModal: React.FC<VdotGuideModalProps> = ({
       equivHalf: '1:10:00 – 1:20:00',
       equivMarathon: '2:27:00 – 2:49:00',
       badgeColor: '#f59e0b',
-      isCurrent: false
+      isCurrent: currentVdot != null && currentVdot >= 65 && currentVdot < 75
     },
     {
       range: '75 – 85+',
       label: t.vdotGuide.worldClass,
-      equiv5k: language === 'zh' ? '15分以内' : 'Sub-15:00',
-      equivHalf: language === 'zh' ? '1小时08分以内' : 'Sub-1:08:00',
-      equivMarathon: language === 'zh' ? '2小时24分以内' : 'Sub-2:24:00',
+      equiv5k: t.vdotGuide.equivSub15,
+      equivHalf: t.vdotGuide.equivSub108,
+      equivMarathon: t.vdotGuide.equivSub224,
       badgeColor: '#8b5cf6',
-      isCurrent: false
+      isCurrent: currentVdot != null && currentVdot >= 75 && currentVdot < 100
     }
   ];
 
@@ -107,7 +122,7 @@ export const VdotGuideModal: React.FC<VdotGuideModalProps> = ({
                 {t.vdotGuide.tiersTitle}
               </span>
               <span style={{ fontSize: '0.75rem', color: '#a78bfa', fontWeight: 700 }}>
-                {t.vdotGuide.estimatedVdot}: {currentVdot}
+                {t.vdotGuide.estimatedVdot}: {currentVdot ?? '—'}
               </span>
             </div>
 
@@ -130,13 +145,13 @@ export const VdotGuideModal: React.FC<VdotGuideModalProps> = ({
 
                     {tier.isCurrent && (
                       <span className="tier-tag current" style={{ borderColor: 'rgba(139, 92, 246, 0.4)', background: 'rgba(139, 92, 246, 0.15)', color: '#c084fc' }}>
-                        <CheckCircle size={11} style={{ marginRight: 3 }} /> {t.vdotGuide.yourCurrentLevel} ({currentVdot})
+                        <CheckCircle size={11} style={{ marginRight: 3 }} /> {t.vdotGuide.yourCurrentLevel} ({currentVdot ?? '—'})
                       </span>
                     )}
                   </div>
 
                   <div className="tier-desc" style={{ marginTop: '0.35rem', color: 'var(--text-secondary)' }}>
-                    <b>{t.vdotGuide.equivRaceTimes}:</b> 5K: {tier.equiv5k} • {language === 'zh' ? '半马' : 'Half'}: {tier.equivHalf} • {language === 'zh' ? '全马' : 'Marathon'}: {tier.equivMarathon}
+                    <b>{t.vdotGuide.equivRaceTimes}:</b> 5K: {tier.equiv5k} • {t.vdotGuide.equivHalf}: {tier.equivHalf} • {t.vdotGuide.equivFull}: {tier.equivMarathon}
                   </div>
                 </div>
               ))}
@@ -148,31 +163,31 @@ export const VdotGuideModal: React.FC<VdotGuideModalProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
               <Zap size={16} color="#c084fc" />
               <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#c084fc' }}>
-                {t.vdotGuide.trainingPacesTitle} {currentVdot}
+                {t.vdotGuide.trainingPacesTitle} {currentVdot ?? '—'}
               </span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.6rem', marginTop: '0.5rem' }}>
               <div style={{ background: 'rgba(0,0,0,0.25)', padding: '0.4rem 0.6rem', borderRadius: 6 }}>
                 <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{t.vdotGuide.easyBase}</div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#10b981' }}>5:15 – 5:45 /km</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#10b981' }}>{easyPaceRange} /km</div>
               </div>
               <div style={{ background: 'rgba(0,0,0,0.25)', padding: '0.4rem 0.6rem', borderRadius: 6 }}>
                 <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{t.vdotGuide.marathonPace}</div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#38bdf8' }}>4:05 – 4:15 /km</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#38bdf8' }}>{marathonPaceRange} /km</div>
               </div>
               <div style={{ background: 'rgba(0,0,0,0.25)', padding: '0.4rem 0.6rem', borderRadius: 6 }}>
                 <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{t.vdotGuide.thresholdLt2}</div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f59e0b' }}>3:50 – 4:00 /km</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f59e0b' }}>{thresholdPaceRange} /km</div>
               </div>
               <div style={{ background: 'rgba(0,0,0,0.25)', padding: '0.4rem 0.6rem', borderRadius: 6 }}>
                 <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{t.vdotGuide.intervalsVo2}</div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#ec4899' }}>3:30 – 3:40 /km</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#ec4899' }}>{intervalPaceRange} /km</div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="modal-actions" style={{ justifyContent: 'flex-end', marginTop: '1.25rem' }}>
+        <div className="modal-actions">
           <button className="primary-btn" onClick={onClose}>
             {t.vdotGuide.gotIt}
           </button>

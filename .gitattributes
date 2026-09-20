@@ -1,0 +1,26 @@
+# Ensure every text file is stored with LF in the repository and checked out
+# with LF everywhere. This removes the "LF will be replaced by CRLF" warnings
+# that appear when core.autocrlf=true and keeps diffs stable across platforms.
+* text=auto eol=lf
+
+# Binaries must never be line-ending converted.
+*.exe    binary
+*.dll    binary
+*.node   binary
+*.ico    binary
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.pdf    binary
+*.sqlite binary
+*.sqlite3 binary
+*.db     binary
+*.fit    binary
+
+# Windows-only scripts stay CRLF so they run correctly in cmd.exe.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Keep large generated files out of GitHub diff/review noise.
+package-lock.json linguist-generated=true

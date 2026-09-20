@@ -84,8 +84,8 @@ describe('SettingsView & Header Tab Navigation Tests', () => {
       </LanguageProvider>
     );
 
-    // Verify header
-    expect(screen.getByRole('heading', { level: 1, name: /Settings/i })).toBeTruthy();
+    // The redundant in-page header was removed; the Navbar tab already labels this page
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
 
     // Verify sections
     expect(screen.getByText(/Database Backup & Cloud Sync/i)).toBeTruthy();

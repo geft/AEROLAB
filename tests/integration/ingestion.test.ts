@@ -1,3 +1,4 @@
+import { seedBenchmarkProfile } from '../fixtures/benchmark-runs.js';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import os from 'os';
@@ -6,6 +7,7 @@ import Database from 'better-sqlite3';
 import { getDatabase } from '../../src/backend/db/client';
 import { importRunContent, importRunFile, importDirectory } from '../../src/backend/ingestion/importer';
 import { BENCHMARKS, getBenchmark, toCsv } from '../fixtures/benchmark-runs';
+import { realignDatabase } from '../../src/backend/db/realign.js';
 
 describe('Database Ingestion Pipeline (Integration)', () => {
   let db: Database.Database;
@@ -15,10 +17,26 @@ describe('Database Ingestion Pipeline (Integration)', () => {
   beforeEach(() => {
     // In-memory database for clean, isolated test runs
     db = getDatabase(':memory:');
+    seedBenchmarkProfile(db);
   });
 
   afterEach(() => {
     db.close();
+  });
+
+  it('replays the same history independently of cached inferred thresholds', () => {
+    for (const bench of BENCHMARKS) importRunContent(db, toCsv(bench), `${bench.id}.csv`);
+    const read = () => ({
+      thresholds: db.prepare('SELECT source_activity_id, lt1_hr, lt1_pace_sec_km, lt2_hr, lt2_pace_sec_km FROM physiological_thresholds ORDER BY source_activity_id').all(),
+      runs: db.prepare('SELECT id, run_type FROM activities ORDER BY id').all()
+    });
+    expect(realignDatabase(db).activitiesFailed).toEqual([]);
+    const first = read();
+    db.prepare("UPDATE athlete_profile SET lt1_hr = 130, lt2_hr = 160 WHERE id = 'primary'").run();
+    expect(realignDatabase(db).activitiesFailed).toEqual([]);
+    expect(read()).toEqual(first);
+    realignDatabase(db);
+    expect(read()).toEqual(first);
   });
 
   it('imports activity, computes running economy, and stores splits & records', () => {

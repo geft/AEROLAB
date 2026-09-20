@@ -3,6 +3,7 @@ import { Activity, Zap, ShieldCheck, Calendar, Clock, Heart, ArrowUpRight, Trend
 import { formatPace, formatDate } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { translateActivityName, translateCalibrationNote } from '../i18n/coachTranslator.js';
+import { rollingThreshold } from '../../shared/threshold-trend.js';
 
 export interface CalibrationHistoryItem {
   id?: number;
@@ -37,7 +38,8 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
 }) => {
   const { t, language } = useTranslation();
   const [metric, setMetric] = useState<'pace' | 'hr'>('pace');
-  const [timeRange, setTimeRange] = useState<'all' | '6m' | '3m'>('all');
+  const [timeRange, setTimeRange] = useState<'3m' | '6m' | '12m' | 'all'>('6m');
+  const [showIndividualRuns, setShowIndividualRuns] = useState(false);
   const [hoveredPoint, setHoveredPoint] = useState<{
     type: 'lt1' | 'lt2';
     item: CalibrationHistoryItem;
@@ -63,17 +65,38 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
     });
   }, [history]);
 
+  // Compute from the complete history before filtering: changing the viewport
+  // must not change the estimate at a date visible in both ranges.
+  const trendHistory = useMemo(() => {
+    if (showIndividualRuns) return sortedHistory;
+    const observations = (type: 'lt1' | 'lt2') => sortedHistory
+      .filter(h => h[`${type}_hr`] != null)
+      .map(h => ({ hr: h[`${type}_hr`]!, pace: h[`${type}_pace_sec_km`],
+        confidence: h.confidence, effective_date: h.effective_date }));
+    const lt1 = observations('lt1'), lt2 = observations('lt2');
+    return sortedHistory.map(h => {
+      const a = h.lt1_hr != null ? rollingThreshold(lt1, h.effective_date) : null;
+      const b = h.lt2_hr != null ? rollingThreshold(lt2, h.effective_date) : null;
+      return { ...h, lt1_hr: a?.hr ?? h.lt1_hr, lt1_pace_sec_km: a?.pace ?? h.lt1_pace_sec_km,
+        lt2_hr: b?.hr ?? h.lt2_hr, lt2_pace_sec_km: b?.pace ?? h.lt2_pace_sec_km,
+        confidence: a?.confidence ?? b?.confidence ?? h.confidence,
+        activity_name: undefined, notes: undefined };
+    });
+  }, [sortedHistory, showIndividualRuns]);
+
   // 2. Filter by time range
   const filteredHistory = useMemo(() => {
-    if (timeRange === 'all') return sortedHistory;
-    const now = Date.now();
-    const cutoffDays = timeRange === '3m' ? 92 : 184;
-    const cutoffMs = now - cutoffDays * 24 * 3600 * 1000;
-    return sortedHistory.filter(h => {
+    if (timeRange === 'all') return trendHistory;
+    const latestTime = sortedHistory.length > 0
+      ? new Date(sortedHistory[sortedHistory.length - 1].effective_date.replace(' ', 'T')).getTime()
+      : Date.now();
+    const cutoffDays = timeRange === '3m' ? 92 : timeRange === '6m' ? 184 : 365;
+    const cutoffMs = latestTime - cutoffDays * 24 * 3600 * 1000;
+    return trendHistory.filter(h => {
       const t = new Date(h.effective_date.replace(' ', 'T')).getTime();
       return t >= cutoffMs;
     });
-  }, [sortedHistory, timeRange]);
+  }, [sortedHistory, trendHistory, timeRange]);
 
   // 3. Extract series points
   const lt1Points = useMemo(() => {
@@ -229,12 +252,16 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
             </span>
           </div>
           <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-            {t.progress.thresholdTrendsDesc}
+            {showIndividualRuns ? t.progress.thresholdTrendsDesc : t.thresholdTrends.rollingDesc}
           </p>
         </div>
 
         {/* Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+          <button className="filter-pill-btn" aria-pressed={showIndividualRuns}
+            onClick={() => { setShowIndividualRuns(v => !v); setHoveredPoint(null); }}>
+            {showIndividualRuns ? t.thresholdTrends.showRolling : t.thresholdTrends.showIndividual}
+          </button>
           {/* Metric Toggle: Pace vs HR */}
           <div className="filter-pills" style={{ display: 'flex', background: 'var(--bg-card-subtle, rgba(255,255,255,0.05))', borderRadius: 8, padding: 2 }}>
             <button
@@ -258,25 +285,32 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
           {/* Time Range Filter */}
           <div className="filter-pills" style={{ display: 'flex', background: 'var(--bg-card-subtle, rgba(255,255,255,0.05))', borderRadius: 8, padding: 2 }}>
             <button
-              className={`filter-pill-btn ${timeRange === 'all' ? 'active' : ''}`}
-              onClick={() => setTimeRange('all')}
+              className={`filter-pill-btn ${timeRange === '3m' ? 'active' : ''}`}
+              onClick={() => setTimeRange('3m')}
               style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem', borderRadius: 6 }}
             >
-              {t.progress.rangeAll}
+              {t.progress.range3m || '3M'}
             </button>
             <button
               className={`filter-pill-btn ${timeRange === '6m' ? 'active' : ''}`}
               onClick={() => setTimeRange('6m')}
               style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem', borderRadius: 6 }}
             >
-              {t.progress.range6m}
+              {t.progress.range6m || '6M'}
             </button>
             <button
-              className={`filter-pill-btn ${timeRange === '3m' ? 'active' : ''}`}
-              onClick={() => setTimeRange('3m')}
+              className={`filter-pill-btn ${timeRange === '12m' ? 'active' : ''}`}
+              onClick={() => setTimeRange('12m')}
               style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem', borderRadius: 6 }}
             >
-              {t.progress.range3m}
+              12M
+            </button>
+            <button
+              className={`filter-pill-btn ${timeRange === 'all' ? 'active' : ''}`}
+              onClick={() => setTimeRange('all')}
+              style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem', borderRadius: 6 }}
+            >
+              {t.progress.rangeAll || 'All'}
             </button>
           </div>
         </div>
@@ -434,6 +468,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
                   style={{ cursor: 'pointer' }}
                 >
                   <circle
+                    aria-label={`LT1 ${p.effective_date}: ${val}`}
                     cx={x}
                     cy={y}
                     r={isHovered ? 6 : 4}
@@ -462,6 +497,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
                   style={{ cursor: 'pointer' }}
                 >
                   <circle
+                    aria-label={`LT2 ${p.effective_date}: ${val}`}
                     cx={x}
                     cy={y}
                     r={isHovered ? 6 : 4}
