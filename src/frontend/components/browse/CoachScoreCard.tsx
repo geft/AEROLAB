@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import type { Translations } from '../../i18n/types.js';
 import { ShieldCheck, ChevronDown } from 'lucide-react';
 import {
   translateCoachHeadline,
@@ -32,7 +33,7 @@ interface CoachScoreCardProps {
     recommendation?: string;
   };
   language: 'en' | 'zh';
-  t: any;
+  t: Translations;
 }
 
 export const CoachScoreCard: React.FC<CoachScoreCardProps> = ({

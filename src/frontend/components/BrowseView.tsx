@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import type { Activity, ActivitySplit, ActivityInterval, ActivityRecord, ActivityUpdate, CoachSummary } from '../types/api.js';
+import type { Translations } from '../i18n/types.js';
 import {
   HeartPulse,
   Plus,
@@ -18,54 +20,19 @@ import { IntervalsTable } from './browse/IntervalsTable.js';
 
 export { scoreToStars };
 
-export interface ActivitySummary {
-  id: string;
-  start_time: string;
-  name: string;
-  run_type: string;
-  distance_meters: number;
-  duration_seconds: number;
-  avg_pace_sec_km: number | null;
-  avg_heart_rate: number | null;
-  max_heart_rate: number | null;
-  avg_cadence: number | null;
-  calories: number;
-  elevation_gain_m: number | null;
-  avg_temperature: number | null;
-  avg_vertical_oscillation: number | null;
-  avg_stance_time: number | null;
-  efficiency_factor: number | null;
-  aerobic_decoupling_pct: number | null;
-  meters_per_beat: number | null;
-  tags?: string;
-  steady_pace_sec_km?: number | null;
-  steady_heart_rate?: number | null;
-  steady_cadence?: number | null;
-  steady_stance_time?: number | null;
-  pause_duration_seconds?: number | null;
-  walk_duration_seconds?: number | null;
-  walk_distance_meters?: number | null;
-  workout_lat?: number | null;
-  workout_lon?: number | null;
-  weather_temperature_c?: number | null;
-  weather_humidity_pct?: number | null;
-  weather_apparent_temp_c?: number | null;
-  weather_condition?: string | null;
-  weather_code?: number | null;
-  weather_fetched_at?: string | null;
-  effectiveness_score?: number | null;
-}
+/** A workout row as used by the browse list. Same shape as the API contract. */
+export type ActivitySummary = Activity;
 
 export interface BrowseViewProps {
   activities: ActivitySummary[];
   selectedActivityId: string | null;
   onSelectActivity: (id: string) => void;
   onOpenUpload: () => void;
-  onActivityUpdated?: (activity: any) => void;
+  onActivityUpdated?: (activity: ActivityUpdate) => void;
   theme?: 'dark' | 'light';
 }
 
-export function getDisplayTitle(activity: { name?: string; run_type?: string; distance_meters?: number }, t?: any): string {
+export function getDisplayTitle(activity: Activity, t?: Translations): string {
   const rawName = activity.name || '';
   const isGenericGarminName = rawName.endsWith('Running') || rawName.endsWith('Run') || rawName === 'Singapore Running' || rawName === 'Singapore Intervals';
 
@@ -75,8 +42,9 @@ export function getDisplayTitle(activity: { name?: string; run_type?: string; di
 
   if (t?.browse?.defaultTitles) {
     const key = activity.run_type || '';
-    if ((t.browse.defaultTitles as any)[key]) {
-      return (t.browse.defaultTitles as any)[key];
+    const defaultTitle = (t.browse.defaultTitles as Record<string, string | undefined>)[key];
+    if (defaultTitle) {
+      return defaultTitle;
     }
   }
 
@@ -173,11 +141,11 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
   }, [selectedActivityId]);
 
   const [detailData, setDetailData] = useState<{
-    activity: any;
-    splits: any[];
-    intervals: any[];
-    records: any[];
-    coachSummary: any;
+    activity: Activity;
+    splits: ActivitySplit[];
+    intervals: ActivityInterval[];
+    records: ActivityRecord[];
+    coachSummary: CoachSummary | null;
     heartRateThresholds?: { lt1Hr: number; lt2Hr: number };
   } | null>(null);
   const [loadingDetail, setLoadingDetail] = useState<boolean>(false);
@@ -367,7 +335,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
     if (list.length === 0) return false;
     const runType = detailData?.activity?.run_type;
     if (runType === 'threshold_lt2' || runType === 'intervals_vo2' || runType === 'race') return true;
-    return list.some((i: any) => i.type === 'stride');
+    return list.some((i: ActivityInterval) => i.type === 'stride');
   }, [detailData]);
 
   useEffect(() => {
@@ -674,7 +642,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                       <HeartPulse size={18} color="#06b6d4" />
                     </div>
                     <div className="goal-stat-highlight" style={{ color: (act.aerobic_decoupling_pct ?? 0) < 4.5 ? '#10b981' : '#f59e0b' }}>
-                      {act.aerobic_decoupling_pct !== null ? `${act.aerobic_decoupling_pct.toFixed(1)}%` : '—'}
+                      {act.aerobic_decoupling_pct != null ? `${act.aerobic_decoupling_pct.toFixed(1)}%` : '—'}
                     </div>
                     <p className="goal-stat-desc">
                       {(act.aerobic_decoupling_pct ?? 0) < 4.5
@@ -732,7 +700,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
             {activeSubTab === 'strides' && intervalsTabVisible && (
               <IntervalsTable
                 intervals={detailData.intervals || []}
-                activityRunType={detailData.activity?.run_type}
+                activityRunType={detailData.activity?.run_type ?? undefined}
                 formatPace={formatPace}
                 formatTime={formatTime}
               />

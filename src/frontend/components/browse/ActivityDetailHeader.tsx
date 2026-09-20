@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import type { Activity, ActivityUpdate } from '../../types/api.js';
+import type { Translations } from '../../i18n/types.js';
 import { Edit2, Tag, Plus, X, Check, ShieldCheck } from 'lucide-react';
 import { ActivityWeatherCard } from './ActivityWeatherCard';
 import { translateTag } from '../../i18n/tagTranslator';
@@ -9,18 +11,18 @@ const COMMON_TAG_PRESETS = [
 ];
 
 interface ActivityDetailHeaderProps {
-  act: any;
-  getDisplayTitle: (act: any, t?: any) => string;
+  act: Activity;
+  getDisplayTitle: (act: Activity, t?: Translations) => string;
   formatPace: (secKm: number | null) => string;
   formatTime: (sec: number) => string;
   getTimeOfDay: (dateStr: string) => string;
-  onActivityUpdated?: (activity: any) => void;
+  onActivityUpdated?: (activity: ActivityUpdate) => void;
   onRefreshWeather: () => void;
   isRefreshingWeather: boolean;
   showTagMenu: boolean;
   setShowTagMenu: React.Dispatch<React.SetStateAction<boolean>>;
   tagMenuRef: React.RefObject<HTMLDivElement | null>;
-  t: any;
+  t: Translations;
 }
 
 export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
@@ -135,7 +137,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
               <h1 style={{ margin: 0 }}>{getDisplayTitle(act, t)}</h1>
               <button
-                onClick={() => { setCustomTitle(act.name); setIsEditingTitle(true); }}
+                onClick={() => { setCustomTitle(act.name ?? ''); setIsEditingTitle(true); }}
                 title="Rename activity or name special race"
                 style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '0.2rem', display: 'flex', alignItems: 'center' }}
               >

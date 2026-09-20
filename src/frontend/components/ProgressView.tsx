@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import type { ThresholdsResponse, CalibrationHistoryItem } from '../types/api.js';
 import { TrendingUp, Activity, Zap, ShieldCheck, Calendar, List, LayoutGrid, Award } from 'lucide-react';
 import { PeriodProgressView } from './PeriodProgressView';
 import { ThresholdTrendsChart } from './ThresholdTrendsChart';
@@ -11,15 +12,15 @@ import { translateCalibrationNote, translateActivityName } from '../i18n/coachTr
 interface ThresholdData {
   latest: {
     lt1: { lt1_hr: number; lt1_pace_sec_km: number; effective_date: string; baseline_economy_ef: number } | null;
-    lt2: { lt2_hr: number; lt2_pace_sec_km: number; effective_date: string } | null;
+    lt2: { lt2_hr: number; lt2_pace_sec_km: number; effective_date: string; is_estimated?: boolean | null } | null;
     vo2Max: number;
   };
-  currentThresholds?: any;
-  zones?: any;
-  predictions: any[];
-  history: any[];
-  economyTrend: any[];
-  scatterData: any[];
+  currentThresholds?: ThresholdsResponse['currentThresholds'];
+  zones?: ThresholdsResponse['zones'];
+  predictions: ThresholdsResponse['predictions'];
+  history: CalibrationHistoryItem[];
+  economyTrend: ThresholdsResponse['economyTrend'];
+  scatterData: ThresholdsResponse['scatterData'];
 }
 
 export const ProgressView: React.FC = () => {
@@ -98,7 +99,7 @@ export const ProgressView: React.FC = () => {
     );
   }
 
-  const pred5k = data.predictions?.find((p: any) => p.distanceName === '5K');
+  const pred5k = data.predictions?.find((p: ThresholdsResponse['predictions'][number]) => p.distanceName === '5K');
 
   return (
     <div className="progress-grid">
@@ -123,7 +124,7 @@ export const ProgressView: React.FC = () => {
           <div className="benchmark-card-main">
             <span className="benchmark-label">{t.progress.lt2Title}</span>
             <div className="benchmark-value" style={{ color: '#f59e0b' }}>
-              {data.latest.lt2?.lt2_pace_sec_km ? `${formatPace(data.latest.lt2.lt2_pace_sec_km)}${(data.latest.lt2 as any)?.is_estimated ? ' (Est.)' : ''}` : '--'}
+              {data.latest.lt2?.lt2_pace_sec_km ? `${formatPace(data.latest.lt2.lt2_pace_sec_km)}${data.latest.lt2?.is_estimated ? ' (Est.)' : ''}` : '--'}
             </div>
             <span className="benchmark-sub">
               {t.progress.lt2Sub}
@@ -334,7 +335,7 @@ export const ProgressView: React.FC = () => {
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <span className="run-badge badge-easy_base" style={{ fontSize: '0.68rem' }}>
-                        {(h.confidence * 100).toFixed(0)}% {t.progress.confidence}
+                        {((h.confidence ?? 0) * 100).toFixed(0)}% {t.progress.confidence}
                       </span>
                       <span className={`run-badge ${isRace ? 'badge-race' : (isLt2 ? 'badge-threshold_lt2' : 'badge-easy_base')}`}>
                         {isRace ? t.progress.raceBenchmark : (isLt2 ? t.progress.lt2ThresholdBadge : t.progress.lt1AerobicBaseBadge)}
@@ -385,7 +386,7 @@ export const ProgressView: React.FC = () => {
 
                   {h.notes && (
                     <div className="calibration-card-note">
-                      "{translateCalibrationNote(h.notes, language)}"
+                      "{translateCalibrationNote(h.notes ?? '', language)}"
                     </div>
                   )}
                 </div>
@@ -422,8 +423,8 @@ export const ProgressView: React.FC = () => {
                     <td>{h.lt1_hr ? `${h.lt1_hr} bpm` : '—'}</td>
                     <td style={{ color: '#f59e0b', fontWeight: 600 }}>{formatPace(h.lt2_pace_sec_km)}</td>
                     <td>{h.lt2_hr ? `${h.lt2_hr} bpm` : '—'}</td>
-                    <td><span className="run-badge badge-easy_base">{(h.confidence * 100).toFixed(0)}%</span></td>
-                    <td style={{ color: '#94a3b8', fontSize: '0.8rem' }}>{translateCalibrationNote(h.notes, language)}</td>
+                    <td><span className="run-badge badge-easy_base">{((h.confidence ?? 0) * 100).toFixed(0)}%</span></td>
+                    <td style={{ color: '#94a3b8', fontSize: '0.8rem' }}>{translateCalibrationNote(h.notes ?? '', language)}</td>
                   </tr>
                 ))}
 

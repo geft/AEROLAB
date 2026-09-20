@@ -1,3 +1,5 @@
+import { errorMessage } from './errors.js';
+
 export type ClientLogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 
 export interface ClientLogEntry {
@@ -6,7 +8,7 @@ export interface ClientLogEntry {
   level: ClientLogLevel;
   category: string;
   message: string;
-  data?: any;
+  data?: unknown;
   error?: {
     message: string;
     stack?: string;
@@ -67,14 +69,14 @@ class ClientLogger {
     this.notify();
   }
 
-  public log(level: ClientLogLevel, category: string, message: string, data?: any, err?: any): ClientLogEntry {
+  public log(level: ClientLogLevel, category: string, message: string, data?: unknown, err?: unknown): ClientLogEntry {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const timestamp = new Date().toISOString();
 
     const errorObj = err ? {
-      message: err.message || String(err),
-      stack: err.stack,
-      code: err.code
+      message: errorMessage(err, String(err)),
+      stack: err instanceof Error ? err.stack : undefined,
+      code: (err as { code?: string } | undefined)?.code
     } : undefined;
 
     const entry: ClientLogEntry = {
@@ -96,19 +98,19 @@ class ClientLogger {
     return entry;
   }
 
-  public debug(category: string, message: string, data?: any): ClientLogEntry {
+  public debug(category: string, message: string, data?: unknown): ClientLogEntry {
     return this.log('DEBUG', category, message, data);
   }
 
-  public info(category: string, message: string, data?: any): ClientLogEntry {
+  public info(category: string, message: string, data?: unknown): ClientLogEntry {
     return this.log('INFO', category, message, data);
   }
 
-  public warn(category: string, message: string, data?: any): ClientLogEntry {
+  public warn(category: string, message: string, data?: unknown): ClientLogEntry {
     return this.log('WARN', category, message, data);
   }
 
-  public error(category: string, message: string, err?: any, data?: any): ClientLogEntry {
+  public error(category: string, message: string, err?: unknown, data?: unknown): ClientLogEntry {
     return this.log('ERROR', category, message, data, err);
   }
 

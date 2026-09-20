@@ -1,4 +1,5 @@
 import React from 'react';
+import type { Translations } from '../../i18n/types.js';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
 
@@ -14,7 +15,7 @@ interface BrowseCalendarPickerProps {
   onSelectActivity: (id: string) => void;
   setMobileSubTab: (tab: 'list' | 'detail') => void;
   language: 'en' | 'zh';
-  t: any;
+  t: Translations;
   activities?: Array<{ start_time: string }>;
 }
 

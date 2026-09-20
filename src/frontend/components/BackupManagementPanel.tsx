@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import type { DatabaseStatus, DatabaseSnapshot } from '../types/api.js';
 import {
   HardDrive, Download, FileUp, RefreshCw,
   CheckCircle2, AlertCircle, FolderSync, Check
@@ -16,7 +17,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
 }) => {
   const { t, format } = useTranslation();
 
-  const [dbStatus, setDbStatus] = useState<any>(null);
+  const [dbStatus, setDbStatus] = useState<DatabaseStatus | null>(null);
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(true);
   const [backupDirectory, setBackupDirectory] = useState('');
   const [isBackingUp, setIsBackingUp] = useState(false);
@@ -433,7 +434,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {snapshots.map((s: any) => {
+                  {snapshots.map((s: DatabaseSnapshot) => {
                     const sizeMb = s.sizeMb ?? (s.sizeBytes ? (s.sizeBytes / (1024 * 1024)).toFixed(2) : '0.00');
                     return (
                       <tr key={s.filename} style={{ borderBottom: '1px solid var(--border-subtle)' }}>

@@ -1,4 +1,6 @@
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
+import { errorMessage } from '../utils/errors.js';
+import type { ApiError, ThresholdsResponse } from '../types/api.js';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Heart, Zap, Save, CheckCircle, AlertCircle,
   Activity, Flame, Calendar, HardDrive, FolderSync
@@ -33,7 +35,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
   const [isAutoMaxHr, setIsAutoMaxHr] = useState(true);
 
   // Loaded metadata
-  const [currentThresholds, setCurrentThresholds] = useState<any>(null);
+  const [currentThresholds, setCurrentThresholds] = useState<ThresholdsResponse['currentThresholds']>(null);
   const [observedPeakHr, setObservedPeakHr] = useState<ObservedPeakData | null>(null);
   const [tanakaMaxHr, setTanakaMaxHr] = useState<number | null>(null);
 
@@ -141,7 +143,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
         body: JSON.stringify(payload)
       });
 
-      let resData: any = {};
+      let resData: Partial<ThresholdsResponse> & Partial<ApiError> & { message?: string } = {};
       try {
         resData = await res.json();
       } catch {
@@ -157,8 +159,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onOpenBackup, onNaviga
 
       setStatusMessage({ type: 'success', text: 'Cardiovascular baselines updated and training models re-synchronized!' });
       setTimeout(() => setStatusMessage(null), 4000);
-    } catch (err: any) {
-      setStatusMessage({ type: 'error', text: err.message || '[ERR_PROFILE_UPDATE]: Error updating profile' });
+    } catch (err) {
+      setStatusMessage({ type: 'error', text: errorMessage(err) || '[ERR_PROFILE_UPDATE]: Error updating profile' });
     } finally {
       setSaving(false);
     }

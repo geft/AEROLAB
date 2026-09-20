@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { errorMessage } from '../utils/errors.js';
 import {
   ShieldCheck,
   Activity,
@@ -120,8 +121,8 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
 
       localStorage.setItem('aerolab_profile_configured', 'true');
       onCompleted();
-    } catch (err: any) {
-      setError(err.message || '[ERR_UNKNOWN]: Something went wrong. Please try again.');
+    } catch (err) {
+      setError(errorMessage(err) || '[ERR_UNKNOWN]: Something went wrong. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -153,8 +154,8 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
       setTimeout(() => {
         onCompleted();
       }, 1200);
-    } catch (err: any) {
-      setError(err.message || t.backup.restoreFailed);
+    } catch (err) {
+      setError(errorMessage(err) || t.backup.restoreFailed);
     } finally {
       setIsRestoring(false);
     }

@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { errorMessage } from '../utils/errors.js';
 import { UploadCloud, CheckCircle, AlertCircle, X, Files } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
 
@@ -94,7 +95,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           const len = bytes.byteLength;
           const CHUNK = 0x8000;
           for (let b = 0; b < len; b += CHUNK) {
-            binary += String.fromCharCode.apply(null, bytes.subarray(b, Math.min(b + CHUNK, len)) as any);
+            const chunk = bytes.subarray(b, Math.min(b + CHUNK, len));
+            for (let i = 0; i < chunk.length; i++) binary += String.fromCharCode(chunk[i]);
           }
           content = btoa(binary);
         } else {
@@ -151,11 +153,11 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
             error: data.error || 'Server error'
           });
         }
-      } catch (err: any) {
+      } catch (err) {
         errors++;
         errorDetails.push({
           filename: file.name,
-          error: err.message || 'Network error'
+          error: errorMessage(err) || 'Network error'
         });
       }
     }

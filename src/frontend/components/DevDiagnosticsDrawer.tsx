@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { errorMessage } from '../utils/errors.js';
+import type { ServerLogEntry } from '../types/api.js';
 import { Terminal, Database, Activity, AlertTriangle, RefreshCw, X, ShieldAlert, Cpu, Trash2 } from 'lucide-react';
 import { clientLogger, ClientLogEntry } from '../utils/clientLogger';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -39,7 +41,7 @@ interface ServerDiagnostics {
     lt2Hr?: number;
     baselineEconomyEf?: number;
   };
-  logs: any[];
+  logs: ServerLogEntry[];
 }
 
 export const DevDiagnosticsDrawer: React.FC<DevDiagnosticsDrawerProps> = ({
@@ -75,8 +77,8 @@ export const DevDiagnosticsDrawer: React.FC<DevDiagnosticsDrawerProps> = ({
       }
       const data = await res.json();
       setServerDiag(data);
-    } catch (err: any) {
-      setServerError(err.message || 'Error fetching server diagnostics');
+    } catch (err) {
+      setServerError(errorMessage(err) || 'Error fetching server diagnostics');
     } finally {
       setLoadingServer(false);
     }
@@ -101,7 +103,7 @@ export const DevDiagnosticsDrawer: React.FC<DevDiagnosticsDrawerProps> = ({
       });
       const errJson = await res.json();
       clientLogger.recordApiCall('/api/dev/test-error', 'POST', res.status, 25, errJson.error);
-    } catch (err: any) {
+    } catch (err) {
       clientLogger.error('DEV_SANDBOX', 'Simulated network test exception', err);
     } finally {
       setSimulatingError(false);
@@ -111,8 +113,8 @@ export const DevDiagnosticsDrawer: React.FC<DevDiagnosticsDrawerProps> = ({
   const handleSimulateClientError = () => {
     try {
       throw new Error('Dev Mode deliberate client-side component exception');
-    } catch (err: any) {
-      clientLogger.error('DEV_SANDBOX', err.message, err, {
+    } catch (err) {
+      clientLogger.error('DEV_SANDBOX', errorMessage(err), err, {
         simulated: true,
         traceTime: new Date().toISOString()
       });
@@ -240,7 +242,7 @@ export const DevDiagnosticsDrawer: React.FC<DevDiagnosticsDrawerProps> = ({
                             )}
                           </div>
                         )}
-                        {log.data && (
+                        {log.data != null && (
                           <pre className="dev-log-data">{JSON.stringify(log.data, null, 2)}</pre>
                         )}
                       </div>

@@ -1,4 +1,6 @@
 import React from 'react';
+import type { Activity } from '../../types/api.js';
+import type { Translations } from '../../i18n/types.js';
 import { Calendar, X } from 'lucide-react';
 import { BrowseCalendarPicker } from './BrowseCalendarPicker';
 import { translateTag } from '../../i18n/tagTranslator';
@@ -38,10 +40,10 @@ interface BrowseSidebarProps {
   setMobileSubTab: (tab: 'list' | 'detail') => void;
   setShowTagMenu: (show: boolean) => void;
   onOpenUpload: () => void;
-  getDisplayTitle: (act: any, t?: any) => string;
+  getDisplayTitle: (act: Activity, t?: Translations) => string;
   formatPace: (secKm: number | null) => string;
   language: 'en' | 'zh';
-  t: any;
+  t: Translations;
   activitiesCount: number;
 }
 
@@ -266,7 +268,7 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
                   <div className="session-card-top">
                     <span className="session-date">{dateStr}</span>
                     <span className={`run-badge badge-${a.run_type || 'easy_base'}`}>
-                      {(t.runTypes as any)[a.run_type] || (a.run_type || 'Easy').replace('_', ' ')}
+                      {(t.runTypes as Record<string, string | undefined>)[a.run_type ?? ''] || (a.run_type || 'Easy').replace('_', ' ')}
                     </span>
                   </div>
                   {isRace && <div className="session-name">{getDisplayTitle(a, t)}</div>}

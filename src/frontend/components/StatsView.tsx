@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import type { ThresholdsResponse, VolumeData } from '../types/api.js';
 import { Target, Zap, Calendar, HelpCircle, X } from 'lucide-react';
 import { formatPace } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
@@ -15,12 +16,12 @@ export const StatsView: React.FC = () => {
     if (name === 'Marathon') return t.stats.marathon;
     return name;
   };
-  const [data, setData] = useState<any | null>(null);
+  const [data, setData] = useState<ThresholdsResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [volumePeriod, setVolumePeriod] = useState<'week' | 'month' | 'year' | 'all'>('month');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [availableMonths, setAvailableMonths] = useState<{ period: string; label: string }[]>([]);
-  const [volumeData, setVolumeData] = useState<any | null>(null);
+  const [volumeData, setVolumeData] = useState<VolumeData | null>(null);
   const [loadingVolume, setLoadingVolume] = useState<boolean>(false);
   const [isMarginGuideOpen, setIsMarginGuideOpen] = useState<boolean>(false);
 
@@ -278,7 +279,7 @@ export const StatsView: React.FC = () => {
         </div>
 
         <div className="predictions-grid">
-          {data.predictions?.map((pred: any) => (
+          {data.predictions?.map((pred: ThresholdsResponse['predictions'][number]) => (
             <div key={pred.distanceName} className="prediction-item">
               <span className="prediction-distance">{formatDistanceName(pred.distanceName)}</span>
               <div className="prediction-time">{pred.timeFormatted}</div>

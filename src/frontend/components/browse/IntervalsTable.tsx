@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import type { ActivityInterval } from '../../types/api.js';
 
 interface IntervalsTableProps {
-  intervals: any[];
+  intervals: ActivityInterval[];
   activityRunType?: string;
   formatPace: (secKm: number | null) => string;
   formatTime: (sec: number) => string;
@@ -16,7 +17,7 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
   const [intervalFilter, setIntervalFilter] = useState<'work_only' | 'all'>('work_only');
 
   const allIntervals = intervals || [];
-  const workIntervals = allIntervals.filter((i: any) => i.type === 'work' || i.type === 'stride');
+  const workIntervals = allIntervals.filter((i: ActivityInterval) => i.type === 'work' || i.type === 'stride');
   const displayedIntervals = intervalFilter === 'work_only' && workIntervals.length > 0
     ? workIntervals
     : allIntervals;
@@ -47,19 +48,19 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
     return s[Math.floor(s.length / 2)];
   };
 
-  const workOnlyForPresc = allIntervals.filter((i: any) => i.type === 'work');
+  const workOnlyForPresc = allIntervals.filter((i: ActivityInterval) => i.type === 'work');
   const firstWorkIdx = workOnlyForPresc.length > 0
-    ? Math.min(...workOnlyForPresc.map((i: any) => i.interval_index))
+    ? Math.min(...workOnlyForPresc.map((i: ActivityInterval) => i.interval_index))
     : 0;
   const lastWorkIdx = workOnlyForPresc.length > 0
-    ? Math.max(...workOnlyForPresc.map((i: any) => i.interval_index))
+    ? Math.max(...workOnlyForPresc.map((i: ActivityInterval) => i.interval_index))
     : 0;
-  const recOnlyForPresc = allIntervals.filter((i: any) =>
+  const recOnlyForPresc = allIntervals.filter((i: ActivityInterval) =>
     i.type === 'recovery' && i.interval_index > firstWorkIdx && i.interval_index < lastWorkIdx
   );
 
-  const medWork = median(workOnlyForPresc.map((i: any) => i.duration_seconds).filter((d: number) => d > 0));
-  const medRec = median(recOnlyForPresc.map((i: any) => i.duration_seconds).filter((d: number) => d > 0));
+  const medWork = median(workOnlyForPresc.map((i: ActivityInterval) => i.duration_seconds).filter((d: number) => d > 0));
+  const medRec = median(recOnlyForPresc.map((i: ActivityInterval) => i.duration_seconds).filter((d: number) => d > 0));
   const WORK_GRID = [60, 90, 120, 180, 240, 300, 360, 480, 600, 720, 900, 1200, 1800];
   const REC_GRID = [30, 60, 90, 120, 180, 240, 300];
 
@@ -141,13 +142,13 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
               </tr>
             </thead>
             <tbody>
-              {displayedIntervals.map((inv: any) => {
+              {displayedIntervals.map((inv: ActivityInterval) => {
                 const isFirst = inv.interval_index === 1;
                 const isLast = inv.interval_index === allIntervals.length;
                 const isWarmup = isFirst && inv.duration_seconds > 180 && inv.type === 'recovery';
                 const isCooldown = isLast && inv.duration_seconds > 180 && inv.type === 'recovery';
 
-                const allIdx = allIntervals.findIndex((x: any) => x.id === inv.id);
+                const allIdx = allIntervals.findIndex((x: ActivityInterval) => x.id === inv.id);
                 const nextSegment = allIdx >= 0 && allIdx + 1 < allIntervals.length ? allIntervals[allIdx + 1] : null;
                 const nextRecoveryDrop = nextSegment && nextSegment.type === 'recovery' ? nextSegment.hr_drop : null;
                 const effectiveDrop = inv.hr_drop || nextRecoveryDrop;
@@ -182,9 +183,9 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
                     <td>
                       <div className="workreps-stacked-val">
                         <span className="val-primary" style={{ color: '#06b6d4', fontWeight: 600 }}>
-                          {formatPace(inv.avg_pace_sec_km)}<span className="val-unit">/km</span>
+                          {formatPace(inv.avg_pace_sec_km ?? 0)}<span className="val-unit">/km</span>
                         </span>
-                        {inv.peak_pace_sec_km && inv.peak_pace_sec_km < inv.avg_pace_sec_km && (
+                        {inv.peak_pace_sec_km && inv.peak_pace_sec_km < (inv.avg_pace_sec_km ?? Infinity) && (
                           <span className="val-secondary">
                             {formatPace(inv.peak_pace_sec_km)}
                           </span>

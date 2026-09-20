@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import type { CalibrationHistoryItem } from '../types/api.js';
 import { Calendar, TrendingUp, Award, LayoutGrid, List, History } from 'lucide-react';
 import { formatPace } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
@@ -16,7 +17,7 @@ export interface PeriodSummary {
   zone2Hours?: number;
   zone2Pct?: number;
   activeMonths?: number;
-  calibrations?: any[];
+  calibrations?: CalibrationHistoryItem[];
 }
 
 export const PeriodProgressView: React.FC = () => {

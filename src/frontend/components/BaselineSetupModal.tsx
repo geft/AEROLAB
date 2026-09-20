@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { errorMessage } from '../utils/errors.js';
 import { HeartPulse, ShieldCheck } from 'lucide-react';
 import { calculateAgeFromDob } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
@@ -89,8 +90,8 @@ export const BaselineSetupModal: React.FC<BaselineSetupModalProps> = ({
       }
 
       onCompleted();
-    } catch (err: any) {
-      setError(err.message || 'Error saving baselines');
+    } catch (err) {
+      setError(errorMessage(err) || 'Error saving baselines');
     } finally {
       setSaving(false);
     }

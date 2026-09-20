@@ -1,4 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
+import type { ActivityUpdate } from './types/api.js';
 import { Navbar, TabType } from './components/Navbar';
 import { BrowseView, ActivitySummary } from './components/BrowseView';
 import { Footer } from './components/Footer';
@@ -125,7 +126,7 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleActivityUpdated = (updatedActivity: any) => {
+  const handleActivityUpdated = (updatedActivity: ActivityUpdate) => {
     setActivities(prev =>
       prev.map(a => (a.id === updatedActivity.id ? { ...a, ...updatedActivity } : a))
     );

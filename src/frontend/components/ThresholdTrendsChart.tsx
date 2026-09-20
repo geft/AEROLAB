@@ -1,35 +1,17 @@
 import React, { useState, useMemo, useCallback } from 'react';
+import type { CalibrationHistoryItem as ContractCalibrationHistoryItem, ThresholdsResponse } from '../types/api.js';
 import { Clock, Heart, TrendingUp } from 'lucide-react';
 import { formatPace, formatDate } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { translateActivityName, translateCalibrationNote } from '../i18n/coachTranslator.js';
 import { rollingThreshold } from '../../shared/threshold-trend.js';
 
-export interface CalibrationHistoryItem {
-  id?: number;
-  source_activity_id?: string;
-  effective_date: string;
-  lt1_hr: number | null;
-  lt1_pace_sec_km: number | null;
-  lt2_hr: number | null;
-  lt2_pace_sec_km: number | null;
-  confidence: number;
-  notes?: string;
-  activity_name?: string;
-  distance_meters?: number;
-  duration_seconds?: number;
-}
-
+// Calibration point shape comes from the API contract so this component and
+// ProgressView cannot drift apart.
+export type CalibrationHistoryItem = ContractCalibrationHistoryItem;
 interface ThresholdTrendsChartProps {
   history: CalibrationHistoryItem[];
-  currentThresholds?: {
-    lt1Hr: number;
-    lt2Hr: number;
-    lt1PaceSecKm: number | null;
-    lt2PaceSecKm: number | null;
-    confidence: number;
-    source: string;
-  };
+  currentThresholds?: ThresholdsResponse['currentThresholds'];
 }
 
 export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
@@ -75,8 +57,8 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
     if (showIndividualRuns) return sortedHistory;
     const observations = (type: 'lt1' | 'lt2') => sortedHistory
       .filter(h => h[`${type}_hr`] != null)
-      .map(h => ({ hr: h[`${type}_hr`]!, pace: h[`${type}_pace_sec_km`],
-        confidence: h.confidence, effective_date: h.effective_date }));
+      .map(h => ({ hr: h[`${type}_hr`]!, pace: h[`${type}_pace_sec_km`] ?? 0,
+        confidence: h.confidence ?? 0, effective_date: h.effective_date }));
     const lt1 = observations('lt1'), lt2 = observations('lt2');
     return sortedHistory.map(h => {
       const a = h.lt1_hr != null ? rollingThreshold(lt1, h.effective_date) : null;
@@ -586,7 +568,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', margin: '0.2rem 0' }}>
                 <span style={{ color: '#cbd5e1' }}>{t.common.confidence}:</span>
                 <span style={{ fontWeight: 600, color: '#38bdf8' }}>
-                  {(hoveredPoint.item.confidence * 100).toFixed(0)}%
+                  {((hoveredPoint.item.confidence ?? 0) * 100).toFixed(0)}%
                 </span>
               </div>
 
