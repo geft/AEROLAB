@@ -6,6 +6,11 @@ dist/
 dist-backend/
 release/
 
+# Compiled Windows launchers / installers
+# AEROLAB.exe is rebuilt from launcher.cs by scripts/build-all.js during packaging.
+# `npm run dev` and `npm run app` never need it, so it must not be tracked.
+*.exe
+
 # Test coverage
 coverage/
 
