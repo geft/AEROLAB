@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   ArrowRight,
   Database,
-  UploadCloud,
   FileUp,
   CheckCircle2,
   Sparkles
@@ -20,11 +19,13 @@ interface OnboardingPageProps {
 
 export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) => {
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'setup' | 'restore' | 'import'>('setup');
+  const [activeTab, setActiveTab] = useState<'setup' | 'restore'>('setup');
 
-  // Form states
+  // Form states. Everything starts empty on purpose: a fresh database carries
+  // schema placeholder values, and prefilling them would let someone "complete"
+  // onboarding without ever entering their own measurements.
   const [dob, setDob] = useState<string>('');
-  const [gender, setGender] = useState<string>('Prefer not to say');
+  const [gender, setGender] = useState<string>('');
   const [restingHr, setRestingHr] = useState<string>('');
   const [manualMaxHr, setManualMaxHr] = useState<string>('');
   const [isAutoMaxHr, setIsAutoMaxHr] = useState<boolean>(true);
@@ -37,40 +38,33 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
   const [restoreSuccess, setRestoreSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-
-  // Import states
-  const [isImporting, setIsImporting] = useState<boolean>(false);
-  const [importedCount, setImportedCount] = useState<number>(0);
-  const importInputRef = useRef<HTMLInputElement | null>(null);
-
-  // Pre-load existing profile on mount so the user never has to re-type existing data
+  // Pre-load an existing profile on mount so a returning athlete never has to
+  // re-type it. Only a genuinely configured profile is copied into the form:
+  // an unconfigured row only holds schema placeholder values, and showing those
+  // as if the athlete had entered them is exactly how invalid profiles happen.
   useEffect(() => {
     fetch('/api/profile')
       .then(async res => {
         if (!res.ok) return;
         const data = await res.json();
-        if (data?.profile) {
-          const p = data.profile;
-          if (p.dob) {
-            let cleanDob = String(p.dob).trim();
-            if (cleanDob.includes('T')) cleanDob = cleanDob.split('T')[0];
-            if (/^\d{4}-\d{2}$/.test(cleanDob)) cleanDob = `${cleanDob}-01`;
-            setDob(cleanDob);
-          }
-          if (p.gender) setGender(p.gender);
-          if (p.resting_hr) setRestingHr(String(p.resting_hr));
-          if (p.max_hr) {
-            setManualMaxHr(String(p.max_hr));
-            setIsAutoMaxHr(Boolean(p.is_max_hr_estimated));
-          }
+        const p = data?.profile;
+        const isReady = Boolean(data?.isConfigured && p?.is_configured === 1 && p?.dob && p?.resting_hr);
+        setHasExistingData(isReady);
+        if (!isReady) {
+          localStorage.removeItem('aerolab_profile_configured');
+          return;
+        }
 
-          const isReady = Boolean(data?.isConfigured && p?.is_configured === 1 && p?.dob && p?.resting_hr);
-          setHasExistingData(isReady);
-          if (isReady) {
-            localStorage.setItem('aerolab_profile_configured', 'true');
-          } else {
-            localStorage.removeItem('aerolab_profile_configured');
-          }
+        localStorage.setItem('aerolab_profile_configured', 'true');
+        let cleanDob = String(p.dob).trim();
+        if (cleanDob.includes('T')) cleanDob = cleanDob.split('T')[0];
+        if (/^\d{4}-\d{2}$/.test(cleanDob)) cleanDob = `${cleanDob}-01`;
+        setDob(cleanDob);
+        if (p.gender) setGender(p.gender);
+        setRestingHr(String(p.resting_hr));
+        if (p.max_hr) {
+          setManualMaxHr(String(p.max_hr));
+          setIsAutoMaxHr(Boolean(p.is_max_hr_estimated));
         }
       })
       .catch(() => {});
@@ -90,26 +84,43 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
 
   const effectiveMaxHr = isAutoMaxHr ? tanakaMaxHr : (Number(manualMaxHr) || null);
 
+  // Nothing may be submitted until every required measurement is a real value:
+  // no schema placeholders, no half-filled form, no out-of-range numbers.
+  // Gender is deliberately optional — it only scales the Banister TRIMP load
+  // model, and leaving it unset falls back to the standard coefficients.
+  const isFormValid = useMemo(() => {
+    if (!dob) return false;
+    const rhr = Number(restingHr);
+    if (!restingHr || Number.isNaN(rhr) || rhr < 30 || rhr > 120) return false;
+    if (isAutoMaxHr) return computedAge !== null && tanakaMaxHr !== null;
+    const maxHr = Number(manualMaxHr);
+    return manualMaxHr.trim().length > 0 && !Number.isNaN(maxHr) && maxHr >= 100 && maxHr <= 230;
+  }, [dob, restingHr, isAutoMaxHr, computedAge, tanakaMaxHr, manualMaxHr]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!dob || !restingHr) {
-      setError('[ERR_VALIDATION]: Date of birth and resting heart rate are required.');
+    if (!isFormValid) {
+      setError(t.onboarding.validationMissing);
       return;
     }
     setSaving(true);
     setError(null);
     try {
+      const payload: Record<string, unknown> = {
+        dob,
+        resting_hr: Number(restingHr),
+        max_hr: effectiveMaxHr ?? tanakaMaxHr,
+        is_max_hr_estimated: isAutoMaxHr ? 1 : 0,
+        is_configured: 1
+      };
+      // Gender is optional: only send it when the athlete chose one, so an
+      // untouched selector never overwrites a previously saved value.
+      if (gender) payload.gender = gender;
+
       const res = await fetch('/api/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          dob,
-          gender,
-          resting_hr: Number(restingHr),
-          max_hr: effectiveMaxHr ?? tanakaMaxHr,
-          is_max_hr_estimated: isAutoMaxHr ? 1 : 0,
-          is_configured: 1
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!res.ok) {
@@ -158,54 +169,6 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
       setError(errorMessage(err) || t.backup.restoreFailed);
     } finally {
       setIsRestoring(false);
-    }
-  };
-
-
-
-  // Import Workout Files (.fit, .csv)
-  const handleWorkoutImport = async (files: FileList | File[]) => {
-    if (!files || files.length === 0) return;
-    setIsImporting(true);
-    setError(null);
-    let imported = 0;
-
-    for (const file of Array.from(files)) {
-      try {
-        const reader = new FileReader();
-        await new Promise<void>((resolve, _reject) => {
-          reader.onload = async () => {
-            try {
-              const base64 = (reader.result as string).split(',')[1] || (reader.result as string);
-              const res = await fetch('/api/ingest/upload', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  content: base64,
-                  filename: file.name
-                })
-              });
-              if (res.ok) {
-                const data = await res.json();
-                if (data.result?.status === 'imported') {
-                  imported++;
-                }
-              }
-              resolve();
-            } catch (e) {
-              resolve();
-            }
-          };
-          reader.onerror = () => resolve();
-          reader.readAsDataURL(file);
-        });
-      } catch { /* intentionally ignored: non-fatal */ }
-    }
-
-    setIsImporting(false);
-    setImportedCount(imported);
-    if (imported > 0) {
-      setRestoreSuccess(`Imported ${imported} workouts! You can now proceed.`);
     }
   };
 
@@ -265,7 +228,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
         {/* Onboarding Mode Selector Tabs */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr 1fr',
+          gridTemplateColumns: '1fr 1fr',
           background: 'var(--bg-surface)',
           padding: '4px',
           borderRadius: 10,
@@ -318,30 +281,6 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
           >
             <Database size={14} style={{ color: activeTab === 'restore' ? '#38bdf8' : 'inherit' }} />
             <span>{t.onboarding.tabRestore}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => { setActiveTab('import'); setError(null); }}
-            style={{
-              padding: '0.55rem 0.25rem',
-              borderRadius: 7,
-              border: 'none',
-              background: activeTab === 'import' ? 'var(--bg-card)' : 'transparent',
-              color: activeTab === 'import' ? 'var(--text-primary)' : 'var(--text-muted)',
-              fontWeight: activeTab === 'import' ? 700 : 500,
-              fontSize: '0.78rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.35rem',
-              boxShadow: activeTab === 'import' ? '0 2px 4px rgba(0,0,0,0.1)' : 'none',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <UploadCloud size={14} style={{ color: activeTab === 'import' ? '#38bdf8' : 'inherit' }} />
-            <span>{t.onboarding.tabImport}</span>
           </button>
         </div>
 
@@ -413,12 +352,12 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
                   onChange={e => setGender(e.target.value)}
                   style={inputStyle}
                 >
-                  <option value="Prefer not to say">Prefer not to say</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Non-binary">Non-binary</option>
+                  <option value="">{t.onboarding.genderPlaceholder}</option>
+                  <option value="Prefer not to say">{t.onboarding.genderPreferNotToSay}</option>
+                  <option value="Male">{t.onboarding.genderMale}</option>
+                  <option value="Female">{t.onboarding.genderFemale}</option>
                 </select>
-                <p style={hintStyle}>For normative baselines</p>
+                <p style={hintStyle}>{t.onboarding.genderHint}</p>
               </div>
             </div>
 
@@ -442,7 +381,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
                   bpm
                 </span>
               </div>
-              <p style={hintStyle}>Crucial for accurate Karvonen Heart Rate Reserve (HRR) zones</p>
+              <p style={hintStyle}>{t.onboarding.restingHrHint}</p>
             </div>
 
             {/* Max HR Mode */}
@@ -523,25 +462,25 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
 
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || !isFormValid}
               style={{
                 marginTop: '0.5rem',
                 padding: '0.9rem',
                 borderRadius: 10,
-                background: saving
-                  ? 'rgba(6,182,212,0.4)'
+                background: saving || !isFormValid
+                  ? 'rgba(6,182,212,0.25)'
                   : 'linear-gradient(135deg, #0284c7, #06b6d4)',
                 border: 'none',
                 color: '#ffffff',
                 fontWeight: 700,
                 fontSize: '0.95rem',
-                cursor: saving ? 'not-allowed' : 'pointer',
+                cursor: saving || !isFormValid ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.5rem',
                 transition: 'all 0.15s ease',
-                boxShadow: saving ? 'none' : '0 4px 14px 0 rgba(6,182,212,0.4)'
+                boxShadow: saving || !isFormValid ? 'none' : '0 4px 14px 0 rgba(6,182,212,0.4)'
               }}
             >
               <ShieldCheck size={18} />
@@ -633,92 +572,6 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
               </div>
             </div>
 
-          </div>
-        )}
-
-        {/* TAB 3: DIRECT WORKOUT IMPORT */}
-        {activeTab === 'import' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div style={{
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 12,
-              padding: '1.25rem'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-                <UploadCloud size={17} style={{ color: '#38bdf8' }} />
-                <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {t.onboarding.importWorkoutsTitle}
-                </h3>
-              </div>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4, margin: '0 0 1rem' }}>
-                {t.onboarding.importWorkoutsDesc}
-              </p>
-
-              <input
-                type="file"
-                ref={importInputRef}
-                multiple
-                accept=".fit,.FIT,.csv"
-                style={{ display: 'none' }}
-                onChange={e => {
-                  if (e.target.files) handleWorkoutImport(e.target.files);
-                }}
-              />
-
-              <div
-                onClick={() => importInputRef.current?.click()}
-                onDragOver={e => e.preventDefault()}
-                onDrop={e => {
-                  e.preventDefault();
-                  if (e.dataTransfer.files) handleWorkoutImport(e.dataTransfer.files);
-                }}
-                style={{
-                  border: '2px dashed rgba(56,189,248,0.4)',
-                  borderRadius: 10,
-                  padding: '1.75rem',
-                  textAlign: 'center',
-                  cursor: isImporting ? 'wait' : 'pointer',
-                  background: 'rgba(56,189,248,0.03)',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <UploadCloud size={30} style={{ color: '#38bdf8', margin: '0 auto 0.5rem' }} />
-                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                  {isImporting ? 'Importing workouts…' : t.onboarding.dropWorkoutsPrompt}
-                </div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                  Drop multiple Garmin .fit activity files or exported Garmin CSVs
-                </div>
-              </div>
-
-              {importedCount > 0 && (
-                <div style={{ marginTop: '1.25rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('setup')}
-                    style={{
-                      width: '100%',
-                      padding: '0.8rem',
-                      borderRadius: 8,
-                      background: 'var(--accent-emerald)',
-                      border: 'none',
-                      color: '#ffffff',
-                      fontWeight: 700,
-                      fontSize: '0.85rem',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.4rem'
-                    }}
-                  >
-                    <span>Proceed to Baseline Calibration</span>
-                    <ArrowRight size={15} />
-                  </button>
-                </div>
-              )}
-            </div>
           </div>
         )}
       </div>

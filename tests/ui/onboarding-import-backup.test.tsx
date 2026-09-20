@@ -68,15 +68,6 @@ describe('Onboarding & Profile Backup / Import UI Component Tests', () => {
         });
       }
 
-      if (urlStr.includes('/api/ingest/upload')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({
-            result: { status: 'imported', activityId: 'mock-upload-1' }
-          })
-        });
-      }
-
       return Promise.resolve({
         ok: true,
         json: async () => ({})
@@ -161,46 +152,46 @@ describe('Onboarding & Profile Backup / Import UI Component Tests', () => {
     expect(onCompleted).not.toHaveBeenCalled();
   });
 
-  it('imports workout files in Onboarding and enables finishing setup', async () => {
-    const onCompleted = vi.fn();
+  it('never pre-fills placeholder profile values and keeps setup blocked until completed', async () => {
+    // A schema placeholder row (is_configured = 0) must not populate the form.
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes('/api/profile')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            isConfigured: false,
+            profile: {
+              id: 'primary',
+              gender: 'Prefer not to say',
+              dob: '1989-04-15',
+              resting_hr: 55,
+              is_configured: 0
+            }
+          })
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+
     render(
       <LanguageProvider>
-        <OnboardingPage onCompleted={onCompleted} />
+        <OnboardingPage onCompleted={vi.fn()} />
       </LanguageProvider>
     );
 
-    // Switch to Import Workouts tab
-    fireEvent.click(screen.getByText('Import Workouts'));
-
-    expect(screen.getByText(/Import Workout Files/i)).toBeTruthy();
-
-    const csvFile1 = new File(['Date,Time,Distance\n2026-09-10,08:00,5000'], 'workout1.csv', { type: 'text/csv' });
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-    expect(fileInput).toBeTruthy();
-
-    fireEvent.change(fileInput, { target: { files: [csvFile1] } });
-
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/ingest/upload',
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        })
-      );
+      expect(global.fetch).toHaveBeenCalledWith('/api/profile');
     });
 
-    // Verifies success text and Proceed button
-    await waitFor(() => {
-      expect(screen.getByText(/Imported 1 workouts!/i)).toBeTruthy();
-      expect(screen.getByRole('button', { name: /Proceed to Baseline Calibration/i })).toBeTruthy();
-    });
+    const dobInput = document.querySelector('input[type="date"]') as HTMLInputElement;
+    const rhrInput = document.querySelector('input[type="number"]') as HTMLInputElement;
+    const genderSelect = document.querySelector('select') as HTMLSelectElement;
+    const submitBtn = screen.getByRole('button', { name: /Save & Launch AEROLAB/i }) as HTMLButtonElement;
 
-    // Click proceed to calibration tab
-    fireEvent.click(screen.getByRole('button', { name: /Proceed to Baseline Calibration/i }));
-    await waitFor(() => {
-      expect(screen.getByText('Date of Birth')).toBeTruthy();
-    });
+    expect(dobInput.value).toBe('');
+    expect(rhrInput.value).toBe('');
+    expect(genderSelect.value).toBe('');
+    expect(submitBtn.disabled).toBe(true);
   });
 
   it('triggers local database backup from BackupModal', async () => {

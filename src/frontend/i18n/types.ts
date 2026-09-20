@@ -528,19 +528,22 @@ export interface Translations {
     stepRequired: string;
     tabSetup: string;
     tabRestore: string;
-    tabImport: string;
     dobLabel: string;
     genderLabel: string;
+    genderPlaceholder: string;
+    genderHint: string;
+    genderPreferNotToSay: string;
+    genderMale: string;
+    genderFemale: string;
     restingHrLabel: string;
+    restingHrHint: string;
     maxHrLabel: string;
     saveAndLaunch: string;
     calibrating: string;
+    validationMissing: string;
     restoreDbCardTitle: string;
     restoreDbCardDesc: string;
     dropDbPrompt: string;
-    importWorkoutsTitle: string;
-    importWorkoutsDesc: string;
-    dropWorkoutsPrompt: string;
     restoreSuccessToast: string;
     localSecurityNote: string;
   };
@@ -612,35 +615,6 @@ export interface Translations {
     equivSub108: string;
     equivSub224: string;
     gotIt: string;
-  };
-  baselineSetup: {
-    modalTitle: string;
-    modalSubtitle: string;
-    dobLabel: string;
-    genderLabel: string;
-    restingHrLabel: string;
-    maxHrLabel: string;
-    maxHrAutoOption: string;
-    vo2MaxLabel: string;
-    goalLabel: string;
-    submitBtn: string;
-    savingBtn: string;
-    /** Template with an `{age}` token. */
-    ageAuto: string;
-    dobHint: string;
-    genderPreferNotToSay: string;
-    genderFemale: string;
-    genderMale: string;
-    genderNonBinary: string;
-    restingHrHint: string;
-    /** Split around the highlighted HR value and `maxHrAutoFormula` code span. */
-    maxHrAutoPrefix: string;
-    maxHrAutoFormulaPrefix: string;
-    /** Template with an `{age}` token, rendered inside a `<code>` element. */
-    maxHrAutoFormula: string;
-    maxHrAutoSuffix: string;
-    maxHrManualHint: string;
-    goalPlaceholder: string;
   };
   settingsView: {
     appearanceTitle: string;
