@@ -32,7 +32,12 @@ export interface BrowseViewProps {
   theme?: 'dark' | 'light';
 }
 
-export function getDisplayTitle(activity: Activity, t?: Translations): string {
+/** The subset of a workout row needed to derive a display title. */
+export type DisplayTitleInput = Pick<Activity, 'name' | 'run_type'> & Partial<Pick<Activity, 'distance_meters'>>;
+
+export type DisplayTitleFn = (activity: DisplayTitleInput, t?: Translations) => string;
+
+export function getDisplayTitle(activity: DisplayTitleInput, t?: Translations): string {
   const rawName = activity.name || '';
   const isGenericGarminName = rawName.endsWith('Running') || rawName.endsWith('Run') || rawName === 'Singapore Running' || rawName === 'Singapore Intervals';
 

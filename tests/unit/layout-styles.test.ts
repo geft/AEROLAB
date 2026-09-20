@@ -91,6 +91,14 @@ describe('Layout stylesheet contracts', () => {
     expect(actions).toMatch(/padding-bottom:\s*1\.25rem/);
   });
 
+  it('spaces the guide modal header off the first content block', () => {
+    // Both guides use `.modal-card`, which is not a flex container, so they do
+    // not inherit the `.modal-content` flex gap. Without this the title sat
+    // flush against the formula banner.
+    const header = ruleBody('.modal-card.economy-guide-modal > .modal-header, .modal-card.vdot-guide-modal > .modal-header');
+    expect(header).toMatch(/margin-bottom:\s*1\.25rem/);
+  });
+
   it('keeps loaders and chart shells styled', () => {
     expect(ruleBody('.loading-state')).toMatch(/background:\s*var\(--bg-base\)/);
     expect(ruleBody('.period-progress-card')).toMatch(/border-radius:\s*14px/);

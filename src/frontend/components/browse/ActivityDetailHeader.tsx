@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Activity, ActivityUpdate } from '../../types/api.js';
+
+import type { DisplayTitleFn } from '../BrowseView.js';
 import type { Translations } from '../../i18n/types.js';
 import { Edit2, Tag, Plus, X, Check, ShieldCheck } from 'lucide-react';
 import { ActivityWeatherCard } from './ActivityWeatherCard';
@@ -12,7 +14,7 @@ const COMMON_TAG_PRESETS = [
 
 interface ActivityDetailHeaderProps {
   act: Activity;
-  getDisplayTitle: (act: Activity, t?: Translations) => string;
+  getDisplayTitle: DisplayTitleFn;
   formatPace: (secKm: number | null) => string;
   formatTime: (sec: number) => string;
   getTimeOfDay: (dateStr: string) => string;

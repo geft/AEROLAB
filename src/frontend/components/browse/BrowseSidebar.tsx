@@ -1,5 +1,7 @@
 import React from 'react';
 import type { Activity } from '../../types/api.js';
+
+import type { DisplayTitleFn } from '../BrowseView.js';
 import type { Translations } from '../../i18n/types.js';
 import { Calendar, X } from 'lucide-react';
 import { BrowseCalendarPicker } from './BrowseCalendarPicker';
@@ -40,7 +42,7 @@ interface BrowseSidebarProps {
   setMobileSubTab: (tab: 'list' | 'detail') => void;
   setShowTagMenu: (show: boolean) => void;
   onOpenUpload: () => void;
-  getDisplayTitle: (act: Activity, t?: Translations) => string;
+  getDisplayTitle: DisplayTitleFn;
   formatPace: (secKm: number | null) => string;
   language: 'en' | 'zh';
   t: Translations;

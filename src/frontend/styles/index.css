@@ -2562,6 +2562,15 @@ body {
   scroll-padding-bottom: 1.25rem;
 }
 
+/* These two guides use `.modal-card`, not `.modal-content`, so they do not
+   inherit that container's 1.25rem flex gap and the title sat flush against the
+   first content block. Space the header explicitly instead of relying on the
+   body's own margins. */
+.modal-card.economy-guide-modal > .modal-header,
+.modal-card.vdot-guide-modal > .modal-header {
+  margin-bottom: 1.25rem;
+}
+
 .economy-guide-body {
   display: flex;
   flex-direction: column;
