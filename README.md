@@ -8,8 +8,7 @@ A local-first, high-performance running analytics platform and dashboard designe
 - **Automatic Interval & Stride Detection**: Isolates structured work reps, recoveries, and explosive strides (15–40s bursts), recording Peak Pace, Peak Cadence, Min Ground Contact Time (GCT), and Heart Rate Recovery (HRR) drop
 - **Transparent Physiological Execution Score (3-Tier: Bronze / Silver / Gold)**: Granular 100-point scoring engine with itemized point breakdowns for aerobic stability, cadence discipline, decoupling drift, and pacing adherence
 - **Intelligent Physiological Debrief**: Algorithmic coaching summary that flags "accidental tempos" (grey-zone cardiac drift), identifies failed or aborted workouts, detects uphill ramp walks, and provides actionable recovery recommendations
-- **Built-in Google Drive Cloud Sync**: 1-click Google sign-in with zero manual credentials setup; syncs database snapshots to Google Drive and supports 1-click cloud restoration
-- **Automated Local Backup Rotation**: Scheduled weekly SQLite snapshots with a rolling 10-backup retention policy
+- **Automated Local Backup Rotation**: Scheduled weekly SQLite snapshots with a rolling 10-backup retention policy, plus manual snapshot download and drop-in restore
 - **Full Bilingual Localization (English & 简体中文)**: Key-based dictionaries with `Intl`-driven date and plural formatting (never inline language conditionals), covering the interface, AI coach advice, activity tags, and physiological guides with an instant navbar dropdown switcher
 - **Customizable Typography & Font Scaling**: Smooth 25% font-scaling increments (75%, 100%, 125%, 150%, 175%, 200%)
 - **Period Progress & Training Volume**: Monthly and annual mileage breakdowns, weekly volume cadence, and 5-zone cardiovascular distribution
@@ -46,24 +45,11 @@ Weather conditions in tropical climates vary dramatically across short distances
 - Rather than sampling weather at the runner's doorstep (which biases every run to the starting location), AEROLAB trims the warmup (first 5 min / 20%) and cooldown (last 3–5 min / 15%) to calculate the **mathematical geographic centroid** of the core workout segment.
 - This centroid is stored as `workout_lat` and `workout_lon` on the activity, enabling hyper-local weather lookups while keeping home coordinates private.
 
-### 5. Google Drive Cloud Sync & Local Backup Rotation
-- **Zero-Config Google OAuth**: Comes with a pre-configured Google OAuth Client ID out of the box. Athletes simply click **Sign in with Google** to authorize without setting up cloud credentials.
-- **PKCE Hardening**: Sign-in uses PKCE (RFC 7636, S256), so an authorization code intercepted on the loopback redirect cannot be exchanged by another local process.
-- **Google Drive Backup Folder**: Snapshots are synced automatically to an `AEROLAB_Backups` folder in the user's personal Google Drive.
-- **1-Click Restore**: Restore any past database snapshot directly from Google Drive or local file drops. A safety backup of the current database is automatically created before any restore operation.
-- **Rolling Local Backup Retention**: Automatic rolling retention policy retains the 10 most recent backups and automatically prunes older files to prevent disk clutter.
-
-> **OAuth client requirements (maintainers).** Google's token endpoint decides
-> whether a secret is required based on the *client type* of the embedded client ID:
->
-> | Client type | Secret required? | Notes |
-> | --- | --- | --- |
-> | **Desktop app** | No | The correct type for a loopback flow; PKCE alone is sufficient. |
-> | **Web application** | **Yes** | Google rejects the exchange with `client_secret is missing` unless one is sent. |
->
-> If you must use a web-application client, provide the secret via
-> `GOOGLE_CLIENT_SECRET` (or `POST /api/auth/google/credentials`). A missing
-> secret now produces an actionable in-app message instead of a raw JSON dump.
+### 5. Local Backup Rotation & Restore
+- **Weekly Auto Backup**: A SQLite snapshot is written to the local backup directory every 7 days on launch, with a rolling retention policy that keeps the 10 most recent files.
+- **Manual Snapshot Download**: Download a portable `.db` snapshot at any time via the Settings backup panel (one `.db` file contains the whole history).
+- **Drop-In Restore**: Drag a `.db` snapshot back in to restore. The upload is streamed straight to disk, so snapshot size is bounded by disk space rather than process memory, and a safety backup of the current database is always written before anything is replaced.
+- **No Cloud Dependency**: Backups are local-only by design. The database grows roughly 150 KB per run (per-second telemetry), and run data can be re-exported from Garmin at any time, so mirroring it into a personal cloud quota was not worth it.
 
 ---
 
@@ -86,7 +72,7 @@ Garmin Connect gives you a great overview of what you did. AEROLAB tells you **h
 | **Traffic stop & walk break isolation** (prevents stop-light distortion) | — | ✅ |
 | **VDOT race predictions from actual physiological thresholds** (not just recent pace) | — | ✅ |
 | **Workout centroid weather** (tracks conditions where you actually ran, not your doorstep) | — | ✅ |
-| **Google Drive automatic cloud sync & 1-click restore** | — | ✅ |
+| **Local-only weekly backup with rolling retention** | — | ✅ |
 | **Bilingual interface (English & 简体中文)** | — | ✅ |
 | **Customizable UI font size scaling (75% to 200%)** | — | ✅ |
 | **Editable runner's notebook** attached to each session | — | ✅ |
@@ -223,7 +209,7 @@ python scripts/batch_ingest.py --dir "C:/path/to/Garmin/Activities" --clean
 ```
 
 ### Method D: Direct Database Portability (`data/runs.db`)
-AEROLAB operates on a **single embedded SQLite WAL database file** (`data/runs.db`). To back up or transfer your running history, simply copy `data/runs.db` or use the built-in **Google Drive Sync / Download Snapshot** buttons in the Profile tab.
+AEROLAB operates on a **single embedded SQLite WAL database file** (`data/runs.db`). To back up or transfer your running history, simply copy `data/runs.db` or use the **Download Snapshot** button in the backup panel.
 
 ---
 
@@ -243,7 +229,7 @@ AEROLAB operates on a **single embedded SQLite WAL database file** (`data/runs.d
   1. **Telemetry & Chart**: Interactive canvas scrub chart plotting Pace (cyan), Heart Rate (amber), and Elevation fill, plus key physiological chips and a compact 1km splits preview.
   2. **KM Splits**: Interactive Kilometer Split Visualizer with proportional horizontal bars, pacing dynamics insights (Fastest/Slowest Split, Pace Spread, and Negative/Positive split strategy classifier), with on-the-fly metric switching across **Pace**, **Heart Rate**, **Efficiency Factor**, and **Elevation**.
   3. **Strides & Intervals**: Dedicated breakdown of detected strides and interval work reps with Rep #, Type, Duration, Distance, Avg & Peak Pace, Avg & Peak Cadence, Min Ground Contact Time, and Recovery HR Drop.
-  4. **Notes & AI Coach**: Intelligent physiological debrief with clickable **Score Breakdown Modal**, grading rubric, and an editable, auto-saving runner's notebook.
+  4. **AI Coach Debrief**: Intelligent physiological debrief with a clickable **Score Breakdown Modal**, grading rubric, and itemized point factors.
 
 ### 2. Progress View
 - **Physiological Threshold Trends (LT1 & LT2)**: Interactive timeline chart visualizing the progression of your Aerobic Base (LT1) and Lactate Threshold (LT2) over time, with instant toggles between **Pace Trend (min/km)** and **Heart Rate Trend (bpm)**, time-range filtering (`All Time`, `6 Months`, `3 Months`), interactive hover tooltips, and active baseline reference lines.
@@ -261,7 +247,7 @@ AEROLAB operates on a **single embedded SQLite WAL database file** (`data/runs.d
 - **Cardiovascular Baselines**: Resting HR, Max HR engine, and VO2 Max.
 - **Max Heart Rate Engine & Auto-Inference**: Automatically infers peak heart rate from your hardest actual workout efforts (e.g. 5K time trial at 203 bpm), with an opt-out toggle to auto-estimate via the Tanaka formula (208 - 0.7 * age) or manual baseline entry.
 - **Inferred Physiological Thresholds**: Visual reference card displaying active LT1 and LT2 paces and heart rates calibrated from empirical training sessions.
-- **Google Drive Cloud Sync & Local Backups**: One-click Google sign-in, instant Google Drive backup/restore, local backup directory setting, and immediate database snapshot download.
+- **Local Backups**: Weekly automatic SQLite snapshots with rolling retention, a configurable backup directory, and immediate database snapshot download.
 - **Display & Typography**: Font size selector pills with live typography sample preview.
 
 ---
@@ -277,7 +263,6 @@ AEROLAB operates on a **single embedded SQLite WAL database file** (`data/runs.d
 | `activity_coach_summaries` | AI Coach debrief: headline, recommendation, effectiveness score (0–100), stars (1–3), rating5, key insights JSON, and itemized `score_breakdown_json`. |
 | `physiological_thresholds` | Historical calibration points for LT1, LT2, and 30-day baseline Running Economy. |
 | `athlete_profile` | Athlete configuration: max HR, resting HR, LT1/LT2 baselines, and demographic calibration. |
-| `google_auth` | OAuth token cache and configuration for Google Drive cloud synchronization. |
 | `database_settings` | Configuration for automated local backup cadence and retention policies. |
 
 ---
