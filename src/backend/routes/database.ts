@@ -5,12 +5,6 @@ import os from 'os';
 import { randomUUID } from 'crypto';
 import Database from 'better-sqlite3';
 import { getDatabase, closeDatabase, openDatabase } from '../db/client.js';
-import { getValidAccessToken, getGoogleAuthStatus } from '../auth/google-auth.js';
-import {
-  uploadBackupToGoogleDrive,
-  listGoogleDriveBackups,
-  downloadBackupFromGoogleDrive
-} from '../services/google-drive.js';
 import { logger } from '../utils/logger.js';
 
 export const databaseRouter = Router();
@@ -21,13 +15,77 @@ export const databaseRouter = Router();
 // and returns its specific message instead of a generic body-parser 413.
 const MAX_ENCODED_RESTORE_BYTES = 150 * 1024 * 1024;
 
+/**
+ * Ceiling for streamed binary restores.
+ *
+ * The legacy path sends the database as base64 inside JSON, which inflates the
+ * payload by ~33% and needs the whole thing in memory twice (JSON string +
+ * decoded buffer). The binary path pipes the request body straight to disk, so
+ * the practical limit is disk space rather than RAM. Override with
+ * MAX_RESTORE_BYTES if you really need a larger snapshot.
+ */
+const MAX_BINARY_RESTORE_BYTES = Number(process.env.MAX_RESTORE_BYTES) || 2 * 1024 * 1024 * 1024;
+
+/** Every SQLite database file starts with this 16-byte header. */
+const SQLITE_MAGIC = 'SQLite format 3\0';
+
+/** Stream a request body to disk, aborting as soon as it exceeds maxBytes. */
+function saveStreamToFile(
+  req: Request,
+  targetPath: string,
+  maxBytes: number
+): Promise<{ ok: true } | { ok: false; tooLarge: boolean; error?: string }> {
+  return new Promise(resolve => {
+    const out = fs.createWriteStream(targetPath);
+    let received = 0;
+    let settled = false;
+
+    const settle = (result: { ok: true } | { ok: false; tooLarge: boolean; error?: string }) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+
+    req.on('data', (chunk: Buffer) => {
+      received += chunk.length;
+      if (received > maxBytes) {
+        req.destroy();
+        out.destroy();
+        settle({ ok: false, tooLarge: true });
+      }
+    });
+    req.on('error', (err: Error) => {
+      out.destroy();
+      settle({ ok: false, tooLarge: false, error: err.message });
+    });
+    out.on('error', (err: Error) => settle({ ok: false, tooLarge: false, error: err.message }));
+    out.on('finish', () => settle({ ok: true }));
+
+    req.pipe(out);
+  });
+}
+
+/** Confirm the staged file really is a SQLite database before touching the live one. */
+function hasSqliteHeader(filePath: string): boolean {
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    try {
+      const header = Buffer.alloc(SQLITE_MAGIC.length);
+      const read = fs.readSync(fd, header, 0, header.length, 0);
+      return read === header.length && header.toString('latin1') === SQLITE_MAGIC;
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return false;
+  }
+}
+
 export interface BackupSettings {
   autoBackupEnabled: boolean;
   backupDirectory: string;
   backupIntervalDays: number;
   lastBackupAt: string | null;
-  cloudSyncEnabled?: boolean;
-  lastCloudBackupAt?: string | null;
 }
 
 export function getDefaultBackupDir(_db: Database.Database): string {
@@ -50,9 +108,7 @@ export function getBackupSettings(db: Database.Database): BackupSettings {
           autoBackupEnabled: Boolean(prefs.backup.autoBackupEnabled),
           backupDirectory: prefs.backup.backupDirectory || defaultDir,
           backupIntervalDays: prefs.backup.backupIntervalDays || 7,
-          lastBackupAt: prefs.backup.lastBackupAt || null,
-          cloudSyncEnabled: Boolean(prefs.backup.cloudSyncEnabled),
-          lastCloudBackupAt: prefs.backup.lastCloudBackupAt || null
+          lastBackupAt: prefs.backup.lastBackupAt || null
         };
       }
     }
@@ -62,9 +118,7 @@ export function getBackupSettings(db: Database.Database): BackupSettings {
     autoBackupEnabled: true,
     backupDirectory: defaultDir,
     backupIntervalDays: 7,
-    lastBackupAt: null,
-    cloudSyncEnabled: false,
-    lastCloudBackupAt: null
+    lastBackupAt: null
   };
 }
 
@@ -319,19 +373,7 @@ export async function checkAndRunScheduledBackup(db: Database.Database): Promise
     }
 
     const backup = createDatabaseBackup(db, settings.backupDirectory);
-
-    // Also sync to Google Drive if connected and enabled
-    if (settings.cloudSyncEnabled) {
-      try {
-        const token = await getValidAccessToken(db);
-        if (token) {
-          await uploadBackupToGoogleDrive(token, backup.filePath, backup.filename);
-          saveBackupSettings(db, { lastCloudBackupAt: new Date().toISOString() });
-        }
-      } catch (cloudErr) {
-        logger.warn('Database', 'Scheduled backup cloud sync failed', { error: String(cloudErr) });
-      }
-    }
+    logger.info('Database', `Scheduled backup created: ${backup.filename}`);
 
     return true;
   } catch {
@@ -352,7 +394,6 @@ databaseRouter.get('/status', (req: Request, res: Response) => {
     const activityCount = (db.prepare('SELECT count(*) as c FROM activities').get() as any)?.c || 0;
     const settings = getBackupSettings(db);
     const backups = listBackups(settings.backupDirectory);
-    const googleStatus = getGoogleAuthStatus(db);
 
     const backupsWithMb = backups.map(b => ({
       ...b,
@@ -365,7 +406,6 @@ databaseRouter.get('/status', (req: Request, res: Response) => {
       sizeMb: Number((sizeBytes / (1024 * 1024)).toFixed(2)),
       activityCount,
       settings,
-      googleStatus,
       snapshots: backupsWithMb,
       recentBackups: backupsWithMb.slice(0, 5)
     });
@@ -402,8 +442,7 @@ databaseRouter.post('/settings', (req: Request, res: Response) => {
     const updated = saveBackupSettings(db, {
       ...(autoBackupEnabled !== undefined ? { autoBackupEnabled: Boolean(autoBackupEnabled) } : {}),
       ...(backupDirectory ? { backupDirectory: String(backupDirectory).trim() } : {}),
-      ...(backupIntervalDays ? { backupIntervalDays: Number(backupIntervalDays) } : {}),
-      ...(cloudSyncEnabled !== undefined ? { cloudSyncEnabled: Boolean(cloudSyncEnabled) } : {})
+      ...(backupIntervalDays ? { backupIntervalDays: Number(backupIntervalDays) } : {})
     });
     res.json({
       status: 'ok',
@@ -461,64 +500,53 @@ databaseRouter.get('/download', (req: Request, res: Response) => {
   }
 });
 
-// POST /api/database/backup-gdrive - create snapshot and upload directly to Google Drive
-databaseRouter.post('/backup-gdrive', async (req: Request, res: Response) => {
-  try {
-    const db = getDatabase();
-    const token = await getValidAccessToken(db);
-    if (!token) {
-      return res.status(401).json({ error: 'Google account is not connected or token expired. Please sign in with Google.' });
-    }
+// POST /api/database/restore - restore the active database from an uploaded .db file.
+// Accepts either a raw binary body (application/octet-stream, streamed to disk) or
+// the legacy base64-in-JSON payload.
+databaseRouter.post('/restore', async (req: Request, res: Response) => {
+  const tmpCandidatePath = path.join(os.tmpdir(), `restore-candidate-${Date.now()}.db`);
 
-    // Create local temporary snapshot
-    const tmpDir = os.tmpdir();
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `runs-backup-${stamp}.db`;
-    const tmpPath = path.join(tmpDir, filename);
-
-    if (fs.existsSync(tmpPath)) {
-      try { fs.unlinkSync(tmpPath); } catch { /* best-effort cleanup: safe to ignore */ }
-    }
-
-    const normalized = tmpPath.replace(/\\/g, '/').replace(/'/g, "''");
-    db.prepare(`VACUUM INTO '${normalized}'`).run();
-
+  const cleanup = () => {
     try {
-      const gdriveFile = await uploadBackupToGoogleDrive(token, tmpPath, filename);
-      saveBackupSettings(db, { lastCloudBackupAt: gdriveFile.createdTime });
+      if (fs.existsSync(tmpCandidatePath)) fs.unlinkSync(tmpCandidatePath);
+    } catch { /* best-effort cleanup: safe to ignore */ }
+  };
 
-      res.json({
-        status: 'ok',
-        file: gdriveFile
-      });
-    } finally {
-      try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch { /* best-effort cleanup: safe to ignore */ }
+  const finish = (result: { success: boolean; error?: string; activityCount?: number; safetyBackupPath?: string }) => {
+    cleanup();
+    if (!result.success) {
+      return res.status(422).json({ error: result.error || 'Failed to restore database' });
     }
-  } catch (err: any) {
-    logger.error('Database', 'Google Drive Backup Error', err);
-    res.status(500).json({ error: err.message || 'Failed to backup to Google Drive' });
-  }
-});
+    res.json({
+      status: 'ok',
+      activityCount: result.activityCount,
+      safetyBackupPath: result.safetyBackupPath
+    });
+  };
 
-// GET /api/database/gdrive-backups - list backups in Google Drive
-databaseRouter.get('/gdrive-backups', async (req: Request, res: Response) => {
   try {
-    const db = getDatabase();
-    const token = await getValidAccessToken(db);
-    if (!token) {
-      return res.status(401).json({ error: 'Google account is not connected' });
+    const contentType = String(req.headers['content-type'] || '');
+
+    if (contentType.includes('application/octet-stream')) {
+      // Stream straight to disk: no base64 inflation and no double buffering, so
+      // the practical ceiling is disk space rather than process memory.
+      const saved = await saveStreamToFile(req, tmpCandidatePath, MAX_BINARY_RESTORE_BYTES);
+      if (!saved.ok) {
+        cleanup();
+        return res.status(saved.tooLarge ? 413 : 400).json({
+          error: saved.tooLarge
+            ? `Database payload exceeds the maximum permitted size (${Math.round(MAX_BINARY_RESTORE_BYTES / (1024 * 1024))} MB).`
+            : `Failed to receive the database payload: ${saved.error}`
+        });
+      }
+      if (!hasSqliteHeader(tmpCandidatePath)) {
+        cleanup();
+        return res.status(422).json({ error: 'That file is not a SQLite database (unexpected file header).' });
+      }
+      return finish(restoreDatabaseFromFile(tmpCandidatePath));
     }
 
-    const backups = await listGoogleDriveBackups(token);
-    res.json({ backups });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Failed to fetch Google Drive backups' });
-  }
-});
-
-// POST /api/database/restore - restore active database from uploaded .db file or base64
-databaseRouter.post('/restore', (req: Request, res: Response) => {
-  try {
+    // Legacy base64-in-JSON path, kept so older clients keep working.
     const { content, base64 } = req.body || {};
     const rawData = content || base64;
     if (!rawData) {
@@ -531,65 +559,14 @@ databaseRouter.post('/restore', (req: Request, res: Response) => {
     }
 
     const cleanBase64 = rawData.includes(';base64,') ? rawData.split(';base64,')[1] : rawData;
-    const fileBuffer = Buffer.from(cleanBase64, 'base64');
-
-    const tmpDir = os.tmpdir();
-    const tmpCandidatePath = path.join(tmpDir, `restore-candidate-${Date.now()}.db`);
-    fs.writeFileSync(tmpCandidatePath, fileBuffer);
-
-    try {
-      const result = restoreDatabaseFromFile(tmpCandidatePath);
-      if (!result.success) {
-        return res.status(422).json({ error: result.error || 'Failed to restore database' });
-      }
-
-      res.json({
-        status: 'ok',
-        activityCount: result.activityCount,
-        safetyBackupPath: result.safetyBackupPath
-      });
-    } finally {
-      try { if (fs.existsSync(tmpCandidatePath)) fs.unlinkSync(tmpCandidatePath); } catch { /* best-effort cleanup: safe to ignore */ }
-    }
+    fs.writeFileSync(tmpCandidatePath, Buffer.from(cleanBase64, 'base64'));
+    return finish(restoreDatabaseFromFile(tmpCandidatePath));
   } catch (err: any) {
+    cleanup();
     res.status(500).json({ error: err.message || 'Failed to restore database' });
   }
 });
 
-// POST /api/database/restore-gdrive - download backup from Google Drive and restore
-databaseRouter.post('/restore-gdrive', async (req: Request, res: Response) => {
-  try {
-    const { fileId } = req.body || {};
-    if (!fileId) {
-      return res.status(400).json({ error: 'Missing fileId parameter' });
-    }
-
-    const db = getDatabase();
-    const token = await getValidAccessToken(db);
-    if (!token) {
-      return res.status(401).json({ error: 'Google account is not connected' });
-    }
-
-    const buffer = await downloadBackupFromGoogleDrive(token, fileId);
-    const tmpDir = os.tmpdir();
-    const tmpCandidatePath = path.join(tmpDir, `gdrive-restore-${Date.now()}.db`);
-    fs.writeFileSync(tmpCandidatePath, buffer);
-
-    try {
-      const result = restoreDatabaseFromFile(tmpCandidatePath);
-      if (!result.success) {
-        return res.status(422).json({ error: result.error || 'Failed to restore database from Google Drive' });
-      }
-
-      res.json({
-        status: 'ok',
-        activityCount: result.activityCount,
-        safetyBackupPath: result.safetyBackupPath
-      });
-    } finally {
-      try { if (fs.existsSync(tmpCandidatePath)) fs.unlinkSync(tmpCandidatePath); } catch { /* best-effort cleanup: safe to ignore */ }
-    }
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Failed to restore from Google Drive' });
-  }
-});
+// POST /api/database/restore-gdrive removed: Google Drive sync was retired because the
+// database grows past what is sensible to mirror into a personal Drive quota, and run
+// data can be re-exported from Garmin at any time.

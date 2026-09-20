@@ -10,7 +10,6 @@ import { ingestRouter } from './routes/ingest.js';
 import { profileRouter } from './routes/profile.js';
 import { devRouter } from './routes/dev.js';
 import { databaseRouter, checkAndRunScheduledBackup } from './routes/database.js';
-import { authRouter } from './routes/auth.js';
 import { requestLogger, globalErrorHandler, logger } from './utils/logger.js';
 import { isDevToolsEnabled } from './utils/dev-mode.js';
 
@@ -55,7 +54,7 @@ export function createServer() {
   // 160 MB accommodates a ~100 MB database plus base64 encoding overhead.
   const LARGE_UPLOAD_LIMIT = '160mb';
   app.use(
-    ['/api/database/restore', '/api/database/restore-gdrive', '/api/ingest/upload'],
+    ['/api/database/restore', '/api/ingest/upload'],
     express.json({ limit: LARGE_UPLOAD_LIMIT })
   );
   app.use(express.json({ limit: '50mb' }));
@@ -73,7 +72,6 @@ export function createServer() {
     app.use('/api/dev', devRouter);
   }
   app.use('/api/database', databaseRouter);
-  app.use('/api/auth', authRouter);
 
   // Health check
   app.get('/api/health', (req, res) => {

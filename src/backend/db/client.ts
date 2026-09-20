@@ -319,7 +319,6 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
 
     // Automatic migration: Deduplicate runs imported across different formats (FIT vs CSV)
     deduplicateRuns(db, (msg) => logger.info('DB', `[dedup] ${msg}`));
-
     // Automatic migration: Re-classify and re-detect intervals with updated physiological definitions
     // (also prunes stale threshold rows, re-syncs profile + coach summaries)
     realignDatabase(db, { logger: (msg) => logger.info('DB', `[realign] ${msg}`) });
@@ -327,6 +326,15 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
     // Migrations are non-fatal so a bad row cannot block startup, but the failure
     // must be visible — this previously swallowed errors silently (see audit).
     logger.error('DB', 'Startup migration pass failed; database may be stale', err);
+  }
+
+  // Retire the Google Drive integration: drop any stored OAuth tokens left behind
+  // so refresh tokens do not linger on disk once the feature is gone.
+  try {
+    db.exec('DROP TABLE IF EXISTS google_auth');
+    db.exec('DROP TABLE IF EXISTS google_tokens');
+  } catch (err: any) {
+    logger.debug('DB', 'Legacy auth table cleanup skipped', { error: err?.message || String(err) });
   }
 
   // Periodic SQLite query planner & index optimization

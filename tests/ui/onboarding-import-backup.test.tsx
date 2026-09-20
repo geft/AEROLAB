@@ -33,19 +33,6 @@ describe('Onboarding & Profile Backup / Import UI Component Tests', () => {
         });
       }
 
-      if (urlStr.includes('/api/auth/google/status')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({
-            status: {
-              isConfigured: true,
-              isConnected: false,
-              email: null
-            }
-          })
-        });
-      }
-
       if (urlStr.includes('/api/database/status')) {
         return Promise.resolve({
           ok: true,
@@ -61,13 +48,6 @@ describe('Onboarding & Profile Backup / Import UI Component Tests', () => {
             },
             recentBackups: []
           })
-        });
-      }
-
-      if (urlStr.includes('/api/database/gdrive-backups')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ backups: [] })
         });
       }
 
@@ -131,7 +111,10 @@ describe('Onboarding & Profile Backup / Import UI Component Tests', () => {
         '/api/database/restore',
         expect.objectContaining({
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
+          // Raw binary body: the server streams it to disk, so the snapshot size is
+          // no longer limited by the JSON body parser.
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: file
         })
       );
     });
@@ -228,7 +211,7 @@ describe('Onboarding & Profile Backup / Import UI Component Tests', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/Database Backup & Cloud Sync/i)).toBeTruthy();
+      expect(screen.getByText(/Database Backup & Snapshots/i)).toBeTruthy();
     });
 
     // Find and click Backup Now to Folder button

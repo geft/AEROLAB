@@ -90,29 +90,4 @@ describe('Database Restore & Auth Integration Tests', () => {
     const count = (activeDb.prepare('SELECT count(*) as c FROM activities').get() as any).c;
     expect(count).toBe(3);
   });
-
-  it('configures Google OAuth credentials and returns consent URL', async () => {
-    const credRes = await request(app)
-      .post('/api/auth/google/credentials')
-      .send({
-        clientId: 'test-google-client-id.apps.googleusercontent.com',
-        clientSecret: 'test-google-secret-999'
-      });
-
-    expect(credRes.status).toBe(200);
-    expect(credRes.body.authStatus.isConfigured).toBe(true);
-
-    const urlRes = await request(app).get('/api/auth/google/url');
-    expect(urlRes.status).toBe(200);
-    expect(urlRes.body.url).toContain('https://accounts.google.com/o/oauth2/v2/auth');
-    expect(urlRes.body.url).toContain('test-google-client-id.apps.googleusercontent.com');
-
-    const statusRes = await request(app).get('/api/auth/google/status');
-    expect(statusRes.status).toBe(200);
-    expect(statusRes.body.status.isConfigured).toBe(true);
-
-    const dcRes = await request(app).post('/api/auth/google/disconnect');
-    expect(dcRes.status).toBe(200);
-    expect(dcRes.body.authStatus.isConnected).toBe(false);
-  });
 });

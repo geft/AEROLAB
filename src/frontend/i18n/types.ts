@@ -56,7 +56,6 @@ export interface Translations {
     loading: string;
     close: string;
     done: string;
-    delete: string;
     filter: string;
     all: string;
     date: string;
@@ -470,23 +469,11 @@ export interface Translations {
     dbSize: string;
     totalRuns: string;
     recentBackups: string;
-    googleTitle: string;
-    googleDesc: string;
-    signInWithGoogle: string;
-    disconnect: string;
-    syncSuccess: string;
-    syncFailed: string;
     restoreFileButton: string;
-    restoreSuccess: string;
+    restoreSuccessWithCount: string;
     restoreFailed: string;
     restoring: string;
-    googleConnected: string;
-    googleDisconnected: string;
-    googleConnectFailed: string;
     settingsSaved: string;
-    connectGoogle: string;
-    syncing: string;
-    syncButton: string;
     enableAutoBackup: string;
     selectFolder: string;
     backingUp: string;
@@ -501,12 +488,6 @@ export interface Translations {
     downloadAction: string;
     saveSettings: string;
     restoreConfirm: string;
-    restoreFromCloud: string;
-    googleConnectedStatus: string;
-    availableGdriveSnapshots: string;
-    hide: string;
-    noGdriveBackups: string;
-    restoreAction: string;
     refreshAction: string;
   };
   onboarding: {
@@ -525,8 +506,6 @@ export interface Translations {
     restoreDbCardTitle: string;
     restoreDbCardDesc: string;
     dropDbPrompt: string;
-    restoreGdriveCardTitle: string;
-    restoreGdriveCardDesc: string;
     importWorkoutsTitle: string;
     importWorkoutsDesc: string;
     dropWorkoutsPrompt: string;

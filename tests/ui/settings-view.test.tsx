@@ -87,7 +87,7 @@ describe('SettingsView & Header Tab Navigation Tests', () => {
 
     // Verify sections. Developer diagnostics intentionally have no settings
     // entry: they are opened from the floating dev button in development builds.
-    expect(screen.getByText(/Database Backup & Cloud Sync/i)).toBeTruthy();
+    expect(screen.getByText(/Database Backup & Snapshots/i)).toBeTruthy();
     expect(screen.getByText(/Display & Appearance/i)).toBeTruthy();
     expect(screen.queryByText(/Developer Diagnostics/i)).toBeNull();
 

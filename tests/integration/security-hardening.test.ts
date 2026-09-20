@@ -6,7 +6,6 @@ import os from 'os';
 import Database from 'better-sqlite3';
 import { createServer } from '../../src/backend/server.js';
 import { getDatabase, closeDatabase } from '../../src/backend/db/client.js';
-import { ensureGoogleAuthTable } from '../../src/backend/auth/google-auth.js';
 import { isSafeBackupDirectory } from '../../src/backend/routes/database.js';
 
 describe('Security Hardening Integration Tests', () => {
@@ -22,11 +21,6 @@ describe('Security Hardening Integration Tests', () => {
     process.env.DATABASE_PATH = dbFilePath;
 
     const db = getDatabase(dbFilePath);
-    ensureGoogleAuthTable(db);
-    db.prepare(`INSERT INTO google_auth (id, client_secret, access_token, refresh_token, email)
-      VALUES ('primary', 'secret-client-value', 'super-secret-access-token-12345',
-        'super-secret-refresh-token-67890', 'runner@example.com')`).run();
-
     app = createServer();
   });
 
@@ -140,7 +134,7 @@ describe('Security Hardening Integration Tests', () => {
   });
 
   describe('4. Exported Snapshot Sanitization', () => {
-    it('GET /api/database/download scrubs sensitive OAuth tokens before streaming snapshot', async () => {
+    it('GET /api/database/download excludes retired OAuth credential tables', async () => {
       const downloadRes = await request(app)
         .get('/api/database/download')
         .responseType('blob');
@@ -148,25 +142,20 @@ describe('Security Hardening Integration Tests', () => {
       expect(downloadRes.status).toBe(200);
       expect(downloadRes.headers['content-type']).toContain('octet-stream');
 
-      // Write received binary blob to a temp file and inspect with sqlite
+      // Write the received binary blob to a temp file and inspect it with sqlite
       const tmpDownloaded = path.join(testDir, 'downloaded-snapshot.db');
       fs.writeFileSync(tmpDownloaded, downloadRes.body);
 
       const inspectDb = new Database(tmpDownloaded, { readonly: true });
-      const rows = inspectDb.prepare('SELECT * FROM google_auth').all();
+      const tables = inspectDb
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+        .all() as Array<{ name: string }>;
       inspectDb.close();
 
-      // Ensure tokens were completely wiped from the download
-      expect(rows).toHaveLength(0);
-      for (const secret of ['secret-client-value', 'super-secret-access-token-12345', 'super-secret-refresh-token-67890']) {
-        expect(Buffer.from(downloadRes.body).includes(Buffer.from(secret))).toBe(false);
-      }
-
-      // Verify the active primary DB still has the tokens
-      const activeDb = getDatabase(dbFilePath);
-      const activeRows = activeDb.prepare('SELECT * FROM google_auth').all();
-      expect(activeRows).toHaveLength(1);
-      expect((activeRows[0] as any).access_token).toBe('super-secret-access-token-12345');
+      // Google Drive sync was retired; credentials must never appear in a snapshot.
+      const names = tables.map(t => t.name);
+      expect(names).not.toContain('google_auth');
+      expect(names).not.toContain('google_tokens');
     });
   });
 

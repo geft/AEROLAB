@@ -51,7 +51,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     const allFiles = Array.from(fileList);
     const validFiles = allFiles.filter(f => {
       const l = f.name.toLowerCase();
-      return l.endsWith('.csv') || l.endsWith('.fit') || l.endsWith('.zip');
+      return l.endsWith('.csv') || l.endsWith('.fit');
     });
 
     if (validFiles.length === 0) {
@@ -87,7 +87,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
       try {
         let content: string;
-        if (file.name.toLowerCase().endsWith('.fit') || file.name.toLowerCase().endsWith('.zip')) {
+        if (file.name.toLowerCase().endsWith('.fit')) {
           const buffer = await file.arrayBuffer();
           let binary = '';
           const bytes = new Uint8Array(buffer);
@@ -114,25 +114,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
         const data = await res.json();
         if (res.ok && data.result) {
-          if (Array.isArray(data.result.results)) {
-            // Unpack ZIP archive batch results
-            for (const r of data.result.results) {
-              if (r.status === 'imported') {
-                imported++;
-              } else if (r.status === 'skipped' || r.status === 'skipped_duplicate') {
-                skipped++;
-                skippedDetails.push({
-                  filename: r.filename || file.name,
-                  reason: r.message || 'Already imported'
-                });
-              } else if (r.status === 'skipped_non_running' || r.status === 'skipped_non_run') {
-                skippedNonRun++;
-              } else {
-                errors++;
-                errorDetails.push({ filename: r.filename || file.name, error: r.error || 'Import failed' });
-              }
-            }
-          } else if (data.result.status === 'imported') {
+          if (data.result.status === 'imported') {
             imported++;
             if (validFiles.length === 1 && data.result.activityId) {
               singleActivityId = data.result.activityId;
@@ -252,7 +234,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileSelect}
-                accept=".csv,.fit,.FIT,.zip,.ZIP"
+                accept=".csv,.fit,.FIT"
                 multiple
                 style={{ display: 'none' }}
               />

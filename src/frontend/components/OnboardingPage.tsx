@@ -37,10 +37,6 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
   const [restoreSuccess, setRestoreSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Google Drive restore states
-  const [gdriveStatus, setGdriveStatus] = useState<any>(null);
-  const [gdriveBackups, setGdriveBackups] = useState<any[]>([]);
-  const [loadingGdrive, setLoadingGdrive] = useState<boolean>(false);
 
   // Import states
   const [isImporting, setIsImporting] = useState<boolean>(false);
@@ -79,33 +75,8 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
       })
       .catch(() => {});
 
-    // Check Google auth status
-    fetch('/api/auth/google/status')
-      .then(res => res.json())
-      .then(data => {
-        if (data?.status) {
-          setGdriveStatus(data.status);
-          if (data.status.isConnected) {
-            fetchGdriveBackups();
-          }
-        }
-      })
-      .catch(() => {});
   }, []);
 
-  const fetchGdriveBackups = async () => {
-    setLoadingGdrive(true);
-    try {
-      const res = await fetch('/api/database/gdrive-backups');
-      if (res.ok) {
-        const data = await res.json();
-        setGdriveBackups(data.backups || []);
-      }
-    } catch { /* intentionally ignored: non-fatal */ }
-    finally {
-      setLoadingGdrive(false);
-    }
-  };
 
   const computedAge = useMemo(() => {
     if (!dob) return null;
@@ -165,48 +136,12 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
     setRestoreSuccess(null);
 
     try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const base64 = (reader.result as string).split(',')[1] || (reader.result as string);
-          const res = await fetch('/api/database/restore', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ base64 })
-          });
-
-          if (!res.ok) {
-            const errData = await res.json().catch(() => ({}));
-            throw new Error(errData.error || t.backup.restoreFailed);
-          }
-
-          setRestoreSuccess(t.onboarding.restoreSuccessToast);
-          localStorage.setItem('aerolab_profile_configured', 'true');
-          setTimeout(() => {
-            onCompleted();
-          }, 1200);
-        } catch (err: any) {
-          setError(err.message || t.backup.restoreFailed);
-        } finally {
-          setIsRestoring(false);
-        }
-      };
-      reader.readAsDataURL(file);
-    } catch (err: any) {
-      setError(err.message || t.backup.restoreFailed);
-      setIsRestoring(false);
-    }
-  };
-
-  // Restore from Google Drive backup
-  const handleGdriveRestore = async (fileId: string) => {
-    setIsRestoring(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/database/restore-gdrive', {
+      // Send the file as a raw binary body: no base64 inflation and the server
+      // streams it to disk, so size is no longer limited by process memory.
+      const res = await fetch('/api/database/restore', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileId })
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: file
       });
 
       if (!res.ok) {
@@ -226,34 +161,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
     }
   };
 
-  // Trigger Google OAuth popup
-  const handleGoogleConnect = async () => {
-    try {
-      const res = await fetch('/api/auth/google/url');
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        setError(err.error || 'Please configure your Google Client ID first');
-        return;
-      }
-      const data = await res.json();
-      if (data.url) {
-        window.open(data.url, 'google_oauth_popup', 'width=540,height=650');
-        const handleMessage = (e: MessageEvent) => {
-          if (e.data?.type === 'AEROLAB_GOOGLE_AUTH_SUCCESS') {
-            window.removeEventListener('message', handleMessage);
-            fetchGdriveBackups();
-            setGdriveStatus((prev: any) => ({ ...prev, isConnected: true, email: e.data.email }));
-          } else if (e.data?.type === 'AEROLAB_GOOGLE_AUTH_FAILURE') {
-            window.removeEventListener('message', handleMessage);
-            setError(e.data.error || t.backup.googleConnectFailed);
-          }
-        };
-        window.addEventListener('message', handleMessage);
-      }
-    } catch (err: any) {
-      setError(err.message || 'Failed to initiate Google authentication');
-    }
-  };
+
 
   // Import Workout Files (.fit, .csv)
   const handleWorkoutImport = async (files: FileList | File[]) => {
@@ -666,7 +574,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
           </form>
         )}
 
-        {/* TAB 2: RESTORE BACKUP (.DB / GDRIVE) */}
+        {/* TAB 2: RESTORE BACKUP (.db SNAPSHOT) */}
         {activeTab === 'restore' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {/* Option A: Restore from .db File */}
@@ -725,116 +633,6 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
               </div>
             </div>
 
-            {/* Option B: Restore from Google Drive */}
-            <div style={{
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 12,
-              padding: '1.25rem'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <UploadCloud size={17} style={{ color: 'var(--accent-emerald)' }} />
-                  <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    {t.onboarding.restoreGdriveCardTitle}
-                  </h3>
-                </div>
-                {gdriveStatus?.isConnected && (
-                  <span style={{ fontSize: '0.72rem', color: 'var(--accent-emerald)', fontWeight: 600 }}>
-                    ✓ {gdriveStatus.email}
-                  </span>
-                )}
-              </div>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4, margin: '0 0 1rem' }}>
-                {t.onboarding.restoreGdriveCardDesc}
-              </p>
-
-              {!gdriveStatus?.isConnected ? (
-                <button
-                  type="button"
-                  onClick={handleGoogleConnect}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.6rem',
-                    background: '#ffffff',
-                    color: '#1f2937',
-                    border: '1px solid #d1d5db',
-                    borderRadius: 8,
-                    padding: '0.65rem 1rem',
-                    fontSize: '0.85rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                  }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                  </svg>
-                  <span>{t.backup.signInWithGoogle}</span>
-                </button>
-              ) : (
-                <div>
-                  {loadingGdrive ? (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '1rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                      <RefreshCw size={14} className="spinning" />
-                      <span>Checking Google Drive backups…</span>
-                    </div>
-                  ) : gdriveBackups.length === 0 ? (
-                    <div style={{ padding: '0.75rem', background: 'var(--bg-card)', borderRadius: 8, textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                      No AEROLAB backups found on your Google Drive.
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: 180, overflowY: 'auto' }}>
-                      {gdriveBackups.map(b => (
-                        <div
-                          key={b.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '0.55rem 0.75rem',
-                            background: 'var(--bg-card)',
-                            borderRadius: 6,
-                            border: '1px solid var(--border-subtle)',
-                            fontSize: '0.78rem'
-                          }}
-                        >
-                          <div>
-                            <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{b.name}</div>
-                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                              {new Date(b.createdTime).toLocaleString()} • {(b.sizeBytes / (1024 * 1024)).toFixed(2)} MB
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleGdriveRestore(b.id)}
-                            disabled={isRestoring}
-                            style={{
-                              background: 'var(--accent-emerald)',
-                              color: '#ffffff',
-                              border: 'none',
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: 6,
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Restore
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
         )}
 

@@ -20,18 +20,6 @@ describe('Onboarding Tabs & Restore Flow UI Tests', () => {
           json: async () => ({ isConfigured: false, profile: null })
         });
       }
-      if (url.includes('/api/auth/google/status')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ status: { isConfigured: true, isConnected: false } })
-        });
-      }
-      if (url.includes('/api/database/gdrive-backups')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ backups: [] })
-        });
-      }
       return Promise.resolve({
         ok: true,
         json: async () => ({})
@@ -58,8 +46,6 @@ describe('Onboarding Tabs & Restore Flow UI Tests', () => {
     await waitFor(() => {
       expect(screen.getByText(/Restore from Database Snapshot/i)).toBeTruthy();
     });
-    expect(screen.getByText(/Restore from Google Drive/i)).toBeTruthy();
-    expect(screen.getAllByText(/Sign in with Google/i).length).toBeGreaterThan(0);
 
     // Click Import Workouts tab
     fireEvent.click(screen.getByText('Import Workouts'));

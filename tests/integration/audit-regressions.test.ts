@@ -7,7 +7,6 @@ import path from 'path';
 import { createServer, listenOnLoopback } from '../../src/backend/server.js';
 import * as client from '../../src/backend/db/client.js';
 import { restoreDatabaseFromFile, validateDatabaseSnapshot } from '../../src/backend/routes/database.js';
-import { saveGoogleCredentials } from '../../src/backend/auth/google-auth.js';
 import { importRunContent } from '../../src/backend/ingestion/importer.js';
 import { getBenchmark, toCsv } from '../fixtures/benchmark-runs.js';
 
@@ -36,16 +35,6 @@ describe('Audit security and data integrity regressions', () => {
     fs.rmSync(directory, { recursive: true, force: true });
   });
 
-  async function beginLogin() {
-    saveGoogleCredentials(client.getDatabase(), 'test-client', 'test-secret');
-    const response = await request(app).get('/api/auth/google/url').set('Referer', 'http://localhost:5173/profile')
-      .query({ origin: 'http://localhost:3001', state: 'attacker-chosen' });
-    expect(response.status).toBe(200);
-    const state = new URL(response.body.url).searchParams.get('state')!;
-    const cookie = response.headers['set-cookie'][0].split(';')[0];
-    return { state, cookie, response };
-  }
-
   function donor() {
     const donorPath = path.join(directory, 'donor.db');
     const db = client.openDatabase(donorPath, true);
@@ -68,98 +57,6 @@ describe('Audit security and data integrity regressions', () => {
     } finally {
       await new Promise<void>((resolve, reject) => server.close(err => err ? reject(err) : resolve()));
     }
-  });
-
-  it('issues unique server-generated states with an HttpOnly browser binding', async () => {
-    const first = await beginLogin();
-    const second = await beginLogin();
-    expect(first.state).not.toBe('attacker-chosen');
-    expect(second.state).not.toBe(first.state);
-    expect(first.response.headers['set-cookie'][0]).toContain('HttpOnly');
-    expect(first.response.headers['set-cookie'][0]).toContain('SameSite=Lax');
-  });
-
-  it('rejects missing, unknown, unbound and expired state before exchanging tokens', async () => {
-    const login = await beginLogin();
-    for (const state of [undefined, 'unknown', login.state]) {
-      const response = await request(app).get('/api/auth/google/callback').query({ code: 'test-code', state });
-      expect(response.status).toBe(400);
-      expect(response.body.error).toContain('OAuth state');
-    }
-    const now = Date.now();
-    vi.spyOn(Date, 'now').mockReturnValue(now + 11 * 60 * 1000);
-    const expired = await request(app).get('/api/auth/google/callback').set('Cookie', login.cookie)
-      .query({ code: 'test-code', state: login.state });
-    expect(expired.status).toBe(400);
-    expect(fetch).not.toHaveBeenCalled();
-  });
-
-  it('escapes callback error HTML and consumes the state even when cancelled', async () => {
-    const login = await beginLogin();
-    const response = await request(app).get('/api/auth/google/callback').set('Cookie', login.cookie)
-      .query({ state: login.state, error: '<script>window.injected=1</script>' });
-    expect(response.status).toBe(400);
-    expect(response.text).toContain('&lt;script&gt;');
-    expect(response.text).not.toContain('<script>window.injected');
-    const replay = await request(app).get('/api/auth/google/callback').set('Cookie', login.cookie)
-      .query({ state: login.state, code: 'replay' });
-    expect(replay.body.error).toContain('OAuth state');
-    expect(fetch).not.toHaveBeenCalled();
-  });
-
-  it('escapes token exchange failures', async () => {
-    const login = await beginLogin();
-    vi.mocked(fetch).mockResolvedValue(new Response('<script>bad()</script>', { status: 400 }));
-    const response = await request(app).get('/api/auth/google/callback').set('Cookie', login.cookie)
-      .query({ state: login.state, code: 'valid-code' });
-    expect(response.status).toBe(400);
-    expect(response.text).toContain('&lt;script&gt;bad()&lt;/script&gt;');
-    expect(response.text).not.toContain('<script>bad()');
-  });
-
-  it('does not stream a backup when credentials cannot be scrubbed', async () => {
-    saveGoogleCredentials(client.getDatabase(), 'test-client', 'private-client-secret');
-    client.getDatabase().exec("CREATE TRIGGER prevent_auth_delete BEFORE DELETE ON google_auth BEGIN SELECT RAISE(ABORT, 'cannot scrub'); END");
-    const response = await request(app).get('/api/database/download');
-    expect(response.status).toBe(500);
-    expect(response.headers['content-disposition']).toBeUndefined();
-    expect(response.text).not.toContain('private-client-secret');
-    expect(client.getDatabase().prepare('SELECT client_secret FROM google_auth').get())
-      .toEqual({ client_secret: 'private-client-secret' });
-  });
-
-  it('also removes legacy token rows from downloaded snapshots', async () => {
-    client.getDatabase().exec("CREATE TABLE google_tokens (access_token TEXT); INSERT INTO google_tokens VALUES ('legacy-secret')");
-    const response = await request(app).get('/api/database/download').responseType('blob');
-    expect(response.status).toBe(200);
-    const snapshot = new Database(response.body);
-    try {
-      expect(snapshot.prepare('SELECT * FROM google_tokens').all()).toEqual([]);
-      expect(response.body.includes(Buffer.from('legacy-secret'))).toBe(false);
-    } finally {
-      snapshot.close();
-    }
-    expect(client.getDatabase().prepare('SELECT access_token FROM google_tokens').get())
-      .toEqual({ access_token: 'legacy-secret' });
-  });
-
-  it('accepts a bound state once and safely renders profile data in HTML and JavaScript', async () => {
-    const login = await beginLogin();
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(Response.json({ access_token: 'fake-token', refresh_token: 'fake-refresh' }))
-      .mockResolvedValueOnce(Response.json({ email: '</script><script>bad()</script>' }));
-    const response = await request(app).get('/api/auth/google/callback').set('Cookie', login.cookie)
-      .query({ state: login.state, code: 'valid-code' });
-    expect(response.status).toBe(200);
-    expect(response.text).not.toContain('</script><script>bad()');
-    expect(response.text).toContain('\\u003c/script>');
-    expect(response.text).toContain('"http://localhost:5173"');
-    expect(String(vi.mocked(fetch).mock.calls[0][1]?.body)).toContain('redirect_uri=http%3A%2F%2Flocalhost%3A3001%2Fapi%2Fauth%2Fgoogle%2Fcallback');
-    expect(client.getDatabase().prepare('SELECT access_token FROM google_auth').get()).toEqual({ access_token: 'fake-token' });
-    const replay = await request(app).get('/api/auth/google/callback').set('Cookie', login.cookie)
-      .query({ state: login.state, code: 'valid-code' });
-    expect(replay.status).toBe(400);
-    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it('rejects an incompatible activities table without closing or replacing the live database', () => {
@@ -249,20 +146,39 @@ describe('Audit security and data integrity regressions', () => {
     expect(tables.map(table => db.prepare(`SELECT * FROM ${table}`).all())).toEqual(before);
   });
 
-  it('reports a failed token exchange through a self-closing pop-up', async () => {
-    const { state, cookie } = await beginLogin();
+  // The Google Drive integration was retired, but databases created before that
+  // still hold OAuth rows on disk. Downloading a snapshot must never leak them.
+  it('does not stream a snapshot when credential tables cannot be scrubbed', async () => {
+    const db = client.getDatabase();
+    db.exec("CREATE TABLE google_auth (client_secret TEXT); INSERT INTO google_auth VALUES ('private-client-secret')");
+    db.exec("CREATE TRIGGER prevent_auth_delete BEFORE DELETE ON google_auth BEGIN SELECT RAISE(ABORT, 'cannot scrub'); END");
 
-    const res = await request(app)
-      .get('/api/auth/google/callback')
-      .set('Cookie', cookie)
-      .query({ code: 'bogus-code', state });
+    const response = await request(app).get('/api/database/download');
 
-    expect(res.status).toBe(400);
-    // The pop-up must never navigate to the app root: doing so rendered the whole
-    // dashboard inside the small pop-up window.
-    expect(res.text).not.toContain('href="/"');
-    // The opener is told the result so the UI can surface the error itself.
-    expect(res.text).toContain('AEROLAB_GOOGLE_AUTH_FAILURE');
-    expect(res.text).toContain('window.close()');
+    expect(response.status).toBe(500);
+    expect(response.headers['content-disposition']).toBeUndefined();
+    expect(response.text).not.toContain('private-client-secret');
+    expect(db.prepare('SELECT client_secret FROM google_auth').get())
+      .toEqual({ client_secret: 'private-client-secret' });
   });
+
+  it('strips legacy credential rows from downloaded snapshots', async () => {
+    const db = client.getDatabase();
+    db.exec("CREATE TABLE google_tokens (access_token TEXT); INSERT INTO google_tokens VALUES ('legacy-secret')");
+
+    const response = await request(app).get('/api/database/download').responseType('blob');
+
+    expect(response.status).toBe(200);
+    const snapshot = new Database(response.body);
+    try {
+      expect(snapshot.prepare('SELECT * FROM google_tokens').all()).toEqual([]);
+      expect(response.body.includes(Buffer.from('legacy-secret'))).toBe(false);
+    } finally {
+      snapshot.close();
+    }
+    // The live database must be left untouched.
+    expect(db.prepare('SELECT access_token FROM google_tokens').get())
+      .toEqual({ access_token: 'legacy-secret' });
+  });
+
 });
