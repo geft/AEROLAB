@@ -24,6 +24,73 @@ function escapeHtml(value: unknown): string {
   }[char]!));
 }
 
+/**
+ * Turn a raw Google token-endpoint error into guidance the athlete can act on.
+ */
+function describeOAuthFailure(rawError: string): string {
+  if (/client_secret is missing/i.test(rawError)) {
+    return 'Google rejected the token exchange because this OAuth client is a "Web application" client, and those require a client secret. Use a "Desktop app" OAuth client instead (PKCE alone is then enough), or provide the secret through the GOOGLE_CLIENT_SECRET environment variable.';
+  }
+  if (/redirect_uri_mismatch/i.test(rawError)) {
+    return 'Google rejected the redirect URI. Add the exact callback URL shown in the AEROLAB address bar to the OAuth client\'s authorised redirect URIs.';
+  }
+  if (/invalid_grant/i.test(rawError)) {
+    return 'That authorisation code was already used or has expired. Please start the sign-in again.';
+  }
+  return rawError;
+}
+
+/**
+ * Renders the pop-up window shown after Google redirects back to AEROLAB.
+ *
+ * The pop-up reports its outcome to the opener and then closes itself. It never
+ * navigates to the app root: doing so rendered the entire dashboard inside the
+ * small pop-up window, which looked broken.
+ */
+function renderOAuthPopup(options: {
+  outcome: 'success' | 'failure';
+  heading: string;
+  message: string;
+  accent: string;
+  glyph: string;
+  openerOrigin: string;
+  email?: string;
+}): string {
+  const payload = JSON.stringify({
+    type: options.outcome === 'success' ? 'AEROLAB_GOOGLE_AUTH_SUCCESS' : 'AEROLAB_GOOGLE_AUTH_FAILURE',
+    email: options.email || '',
+    error: options.outcome === 'success' ? '' : options.message
+  }).replace(/</g, '\\u003c');
+
+  return `<!DOCTYPE html>
+<html>
+  <head><title>${escapeHtml(options.heading)} | AEROLAB</title></head>
+  <body style="font-family: sans-serif; background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
+    <div style="text-align: center; max-width: 460px; padding: 2rem; background: #1e293b; border-radius: 16px; border: 1px solid #334155;">
+      <div style="width: 50px; height: 50px; background: ${options.accent}22; border: 1px solid ${options.accent}66; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; color: ${options.accent}; font-size: 24px;">${options.glyph}</div>
+      <h2 style="margin: 0 0 0.5rem; font-size: 1.25rem;">${escapeHtml(options.heading)}</h2>
+      <p style="color: #94a3b8; font-size: 0.85rem; margin: 0 0 1rem; line-height: 1.5;">${escapeHtml(options.message)}</p>
+      <p id="close-hint" style="display: none; color: #64748b; font-size: 0.75rem; margin: 0;">This window can be closed. Your AEROLAB tab is still open.</p>
+    </div>
+    <script>
+      (function () {
+        var payload = ${payload};
+        try {
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage(payload, ${JSON.stringify(options.openerOrigin)});
+          }
+        } catch (e) {}
+        try { window.close(); } catch (e) {}
+        window.setTimeout(function () {
+          var hint = document.getElementById('close-hint');
+          if (hint) hint.style.display = 'block';
+        }, 400);
+      })();
+    </script>
+  </body>
+</html>`;
+}
+
 // GET /api/auth/google/url - get Google OAuth login consent URL
 authRouter.get('/google/url', (req: Request, res: Response) => {
   try {
@@ -76,17 +143,14 @@ authRouter.get('/google/callback', async (req: Request, res: Response) => {
   res.clearCookie(stateCookie, cookieOptions);
   res.setHeader('Cache-Control', 'no-store');
   if (error) {
-    return res.status(400).send(`
-      <html>
-        <body style="font-family: sans-serif; background: #0f172a; color: #f87171; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
-          <div style="text-align: center; max-width: 480px; padding: 2rem; background: #1e293b; border-radius: 12px; border: 1px solid #334155;">
-            <h2 style="margin-top: 0;">Authentication Cancelled</h2>
-            <p style="color: #94a3b8; font-size: 0.9rem;">${escapeHtml(error)}</p>
-            <p><a href="/" style="color: #38bdf8; text-decoration: none;">Return to AEROLAB</a></p>
-          </div>
-        </body>
-      </html>
-    `);
+    return res.status(400).send(renderOAuthPopup({
+      outcome: 'failure',
+      heading: 'Authentication Cancelled',
+      message: String(error),
+      accent: '#f87171',
+      glyph: '!',
+      openerOrigin: login.openerOrigin
+    }));
   }
 
   if (!code || typeof code !== 'string') {
@@ -98,48 +162,26 @@ authRouter.get('/google/callback', async (req: Request, res: Response) => {
     const result = await exchangeCodeForTokens(db, code, login.origin, login.codeVerifier);
 
     if (!result.success) {
-      return res.status(400).send(`
-        <html>
-          <body style="font-family: sans-serif; background: #0f172a; color: #f87171; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
-            <div style="text-align: center; max-width: 480px; padding: 2rem; background: #1e293b; border-radius: 12px; border: 1px solid #334155;">
-              <h2 style="margin-top: 0;">Connection Failed</h2>
-              <p style="color: #94a3b8; font-size: 0.9rem;">${escapeHtml(result.error || 'Failed to exchange token with Google')}</p>
-              <p><a href="/" style="color: #38bdf8; text-decoration: none;">Return to AEROLAB</a></p>
-            </div>
-          </body>
-        </html>
-      `);
+      return res.status(400).send(renderOAuthPopup({
+        outcome: 'failure',
+        heading: 'Connection Failed',
+        message: describeOAuthFailure(result.error || 'Failed to exchange token with Google'),
+        accent: '#f87171',
+        glyph: '!',
+        openerOrigin: login.openerOrigin
+      }));
     }
 
-    // Return an HTML popup communicator that informs opener window and closes automatically
-    res.send(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Google Connected | AEROLAB</title>
-        </head>
-        <body style="font-family: sans-serif; background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
-          <div style="text-align: center; max-width: 420px; padding: 2rem; background: #1e293b; border-radius: 16px; border: 1px solid #334155; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);">
-            <div style="width: 50px; height: 50px; background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.4); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; color: #4ade80; font-size: 24px;">✓</div>
-            <h2 style="margin: 0 0 0.5rem; font-size: 1.25rem;">Connected to Google</h2>
-            <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1.5rem;">${escapeHtml(result.email || 'Your account has been connected successfully')}</p>
-            <p style="color: #64748b; font-size: 0.75rem;">This window will close automatically...</p>
-            <script>
-              try {
-                if (window.opener) {
-                  window.opener.postMessage({ type: 'AEROLAB_GOOGLE_AUTH_SUCCESS', email: ${JSON.stringify(result.email || '').replace(/</g, '\\u003c')} }, ${JSON.stringify(login.openerOrigin)});
-                  setTimeout(function() { window.close(); }, 1200);
-                } else {
-                  setTimeout(function() { window.location.href = '/'; }, 1500);
-                }
-              } catch (e) {
-                setTimeout(function() { window.location.href = '/'; }, 1500);
-              }
-            </script>
-          </div>
-        </body>
-      </html>
-    `);
+    // Report success to the opener, then close the pop-up.
+    res.send(renderOAuthPopup({
+      outcome: 'success',
+      heading: 'Connected to Google',
+      message: result.email || 'Your account has been connected successfully.',
+      accent: '#4ade80',
+      glyph: '✓',
+      openerOrigin: login.openerOrigin,
+      email: result.email
+    }));
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Server error exchanging Google OAuth code' });
   }

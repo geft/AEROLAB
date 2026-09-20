@@ -438,6 +438,7 @@ export const zh: Translations = {
     restoring: '正在还原数据库…',
     googleConnected: '已连接至 Google 云端硬盘',
     googleDisconnected: '已断开 Google 账号连接',
+    googleConnectFailed: '无法连接至 Google 云端硬盘。',
     settingsSaved: '备份设置已成功保存',
     connectGoogle: '连接 Google 云端硬盘',
     syncing: '正在同步…',

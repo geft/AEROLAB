@@ -248,4 +248,21 @@ describe('Audit security and data integrity regressions', () => {
     expect(importRunContent(db, csv, 'run.csv', { force: true })).toMatchObject({ status: 'error', error: 'simulated insert failure' });
     expect(tables.map(table => db.prepare(`SELECT * FROM ${table}`).all())).toEqual(before);
   });
+
+  it('reports a failed token exchange through a self-closing pop-up', async () => {
+    const { state, cookie } = await beginLogin();
+
+    const res = await request(app)
+      .get('/api/auth/google/callback')
+      .set('Cookie', cookie)
+      .query({ code: 'bogus-code', state });
+
+    expect(res.status).toBe(400);
+    // The pop-up must never navigate to the app root: doing so rendered the whole
+    // dashboard inside the small pop-up window.
+    expect(res.text).not.toContain('href="/"');
+    // The opener is told the result so the UI can surface the error itself.
+    expect(res.text).toContain('AEROLAB_GOOGLE_AUTH_FAILURE');
+    expect(res.text).toContain('window.close()');
+  });
 });

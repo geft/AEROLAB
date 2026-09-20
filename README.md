@@ -48,9 +48,22 @@ Weather conditions in tropical climates vary dramatically across short distances
 
 ### 5. Google Drive Cloud Sync & Local Backup Rotation
 - **Zero-Config Google OAuth**: Comes with a pre-configured Google OAuth Client ID out of the box. Athletes simply click **Sign in with Google** to authorize without setting up cloud credentials.
+- **PKCE Hardening**: Sign-in uses PKCE (RFC 7636, S256), so an authorization code intercepted on the loopback redirect cannot be exchanged by another local process.
 - **Google Drive Backup Folder**: Snapshots are synced automatically to an `AEROLAB_Backups` folder in the user's personal Google Drive.
 - **1-Click Restore**: Restore any past database snapshot directly from Google Drive or local file drops. A safety backup of the current database is automatically created before any restore operation.
 - **Rolling Local Backup Retention**: Automatic rolling retention policy retains the 10 most recent backups and automatically prunes older files to prevent disk clutter.
+
+> **OAuth client requirements (maintainers).** Google's token endpoint decides
+> whether a secret is required based on the *client type* of the embedded client ID:
+>
+> | Client type | Secret required? | Notes |
+> | --- | --- | --- |
+> | **Desktop app** | No | The correct type for a loopback flow; PKCE alone is sufficient. |
+> | **Web application** | **Yes** | Google rejects the exchange with `client_secret is missing` unless one is sent. |
+>
+> If you must use a web-application client, provide the secret via
+> `GOOGLE_CLIENT_SECRET` (or `POST /api/auth/google/credentials`). A missing
+> secret now produces an actionable in-app message instead of a raw JSON dump.
 
 ---
 

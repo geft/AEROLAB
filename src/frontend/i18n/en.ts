@@ -432,6 +432,7 @@ export const en: Translations = {
     restoring: 'Restoring database…',
     googleConnected: 'Connected to Google Drive',
     googleDisconnected: 'Disconnected from Google Drive',
+    googleConnectFailed: 'Could not connect to Google Drive.',
     settingsSaved: 'Backup settings saved successfully',
     connectGoogle: 'Connect Google Drive',
     syncing: 'Syncing to Drive…',

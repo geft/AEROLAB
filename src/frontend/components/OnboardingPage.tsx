@@ -243,6 +243,9 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
             window.removeEventListener('message', handleMessage);
             fetchGdriveBackups();
             setGdriveStatus((prev: any) => ({ ...prev, isConnected: true, email: e.data.email }));
+          } else if (e.data?.type === 'AEROLAB_GOOGLE_AUTH_FAILURE') {
+            window.removeEventListener('message', handleMessage);
+            setError(e.data.error || t.backup.googleConnectFailed);
           }
         };
         window.addEventListener('message', handleMessage);

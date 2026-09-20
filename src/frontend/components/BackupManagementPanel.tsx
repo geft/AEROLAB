@@ -85,6 +85,13 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
             popup?.close();
             fetchGoogleStatus();
             setGdriveStatusMessage({ type: 'success', text: t.backup.googleConnected });
+          } else if (e.data?.type === 'AEROLAB_GOOGLE_AUTH_FAILURE') {
+            window.removeEventListener('message', handleMessage);
+            fetchGoogleStatus();
+            setGdriveStatusMessage({
+              type: 'error',
+              text: e.data.error || t.backup.googleConnectFailed
+            });
           }
         };
         window.addEventListener('message', handleMessage);

@@ -482,6 +482,7 @@ export interface Translations {
     restoring: string;
     googleConnected: string;
     googleDisconnected: string;
+    googleConnectFailed: string;
     settingsSaved: string;
     connectGoogle: string;
     syncing: string;

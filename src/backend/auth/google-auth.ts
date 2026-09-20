@@ -60,16 +60,17 @@ export function ensureGoogleAuthTable(db: Database.Database): void {
  * Google Drive sync is a first-class feature, so AEROLAB ships a public client
  * ID and users never have to create or paste credentials. A client *ID* is a
  * public identifier (it appears in the consent URL on every sign-in) and is
- * safe to embed; the matching client **secret is deliberately NOT bundled** —
- * `clientSecret` stays optional and is only ever read from the environment or
- * an explicitly configured value.
+ * safe to embed.
+ *
+ * IMPORTANT — client type decides whether a secret is needed:
+ *   - "Desktop app" client: use PKCE (see below). No client secret is required.
+ *   - "Web application" client: Google REQUIRES `client_secret` at the token
+ *     endpoint and rejects the exchange with "client_secret is missing" without
+ *     it. Supply it through GOOGLE_CLIENT_SECRET (or the credentials API) if you
+ *     must use a web-application client.
  *
  * Power users may override either value with:
  *   GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET
- *
- * Follow-up hardening (OAuth 2.1 / RFC 8252): migrate to a "Desktop app" client
- * using PKCE (`code_challenge` / `code_verifier`) so no secret is required at
- * all and the loopback redirect is fully scoped to this device.
  */
 export const DEFAULT_GOOGLE_CLIENT_ID = '805691757155-m96h9kbbb1v1pno1qa3bfq5bn1t5k91i.apps.googleusercontent.com';
 
