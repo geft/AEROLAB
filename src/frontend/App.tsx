@@ -43,17 +43,6 @@ export const App: React.FC = () => {
   // null and the shortcut listener below is never attached.
   const [isDevDrawerOpen, setIsDevDrawerOpen] = useState<boolean>(false);
 
-  // Floating Dev Mode button: default to false (disabled), development builds only
-  const [showDevFloatingBtn, setShowDevFloatingBtn] = useState<boolean>(() => {
-    if (!import.meta.env.DEV) return false;
-    return localStorage.getItem('aerolab_show_dev_btn') === 'true';
-  });
-
-  const handleToggleDevFloatingBtn = (enabled: boolean) => {
-    setShowDevFloatingBtn(enabled);
-    localStorage.setItem('aerolab_show_dev_btn', String(enabled));
-  };
-
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -214,9 +203,6 @@ export const App: React.FC = () => {
               }}
               theme={theme}
               onToggleTheme={toggleTheme}
-              onOpenDevDiagnostics={import.meta.env.DEV ? () => setIsDevDrawerOpen(true) : undefined}
-              showDevFloatingBtn={showDevFloatingBtn}
-              onToggleDevFloatingBtn={handleToggleDevFloatingBtn}
             />
           )}
         </Suspense>
@@ -253,7 +239,9 @@ export const App: React.FC = () => {
         )}
       </Suspense>
 
-      {import.meta.env.DEV && showDevFloatingBtn && (
+      {/* Dev mode button is always available in development builds and is
+          compiled out of release builds entirely. */}
+      {import.meta.env.DEV && (
         <button
           type="button"
           id="dev-mode-trigger-btn"

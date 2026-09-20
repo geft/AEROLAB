@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sun, Moon, Type, Terminal, ShieldCheck, HardDrive } from 'lucide-react';
+import { Sun, Moon, Type, ShieldCheck, HardDrive } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { useFontSize, FontSize, FONT_PERCENTAGES } from '../context/FontSizeContext.js';
 import { BackupManagementPanel } from './BackupManagementPanel.js';
@@ -8,18 +8,12 @@ export interface SettingsViewProps {
   onRestoreComplete?: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
-  onOpenDevDiagnostics?: () => void;
-  showDevFloatingBtn?: boolean;
-  onToggleDevFloatingBtn?: (enabled: boolean) => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
   onRestoreComplete,
   theme,
-  onToggleTheme,
-  onOpenDevDiagnostics,
-  showDevFloatingBtn = false,
-  onToggleDevFloatingBtn
+  onToggleTheme
 }) => {
   const { t } = useTranslation();
   const { fontSize, setFontSize } = useFontSize();
@@ -166,80 +160,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </section>
 
-      {/* Section 3: Developer Tools & Diagnostics (development builds only) */}
-      {import.meta.env.DEV && (
-      <section className="overview-card" style={{ padding: '1.5rem 1.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Terminal size={22} style={{ color: '#8b5cf6' }} />
-            <div>
-              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                {t.settingsView.devTitle}
-              </h3>
-              <p style={{ margin: '0.15rem 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                {t.settingsView.devSubtitle}
-              </p>
-            </div>
-          </div>
-
-          {onOpenDevDiagnostics && (
-            <button
-              type="button"
-              id="settings-open-dev-btn"
-              onClick={onOpenDevDiagnostics}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                background: 'rgba(139, 92, 246, 0.12)',
-                color: '#a78bfa',
-                border: '1px solid rgba(139, 92, 246, 0.3)',
-                padding: '0.55rem 1rem',
-                borderRadius: 8,
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              <Terminal size={14} />
-              <span>{t.settingsView.openDiagnostics}</span>
-            </button>
-          )}
-        </div>
-
-        {/* Floating Button Toggle */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '0.75rem',
-          paddingTop: '1rem',
-          borderTop: '1px solid var(--border-subtle)'
-        }}>
-          <div>
-            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-              {t.common.showDevButton}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
-              {t.common.showDevButtonDesc}
-            </div>
-          </div>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              id="settings-toggle-dev-btn"
-              checked={showDevFloatingBtn}
-              onChange={e => onToggleDevFloatingBtn?.(e.target.checked)}
-              style={{ accentColor: '#8b5cf6', width: 17, height: 17, cursor: 'pointer' }}
-            />
-            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: showDevFloatingBtn ? 'var(--accent-cyan)' : 'var(--text-muted)' }}>
-              {showDevFloatingBtn ? t.common.enabled : t.common.disabled}
-            </span>
-          </label>
-        </div>
-      </section>
-      )}
+      {/* Developer diagnostics open from the floating dev-mode button rendered by
+          App.tsx, which is always present in development builds. There is no
+          settings entry for it, and it is absent from release builds entirely. */}
     </div>
   );
 };

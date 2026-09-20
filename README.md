@@ -10,7 +10,7 @@ A local-first, high-performance running analytics platform and dashboard designe
 - **Intelligent Physiological Debrief**: Algorithmic coaching summary that flags "accidental tempos" (grey-zone cardiac drift), identifies failed or aborted workouts, detects uphill ramp walks, and provides actionable recovery recommendations
 - **Built-in Google Drive Cloud Sync**: 1-click Google sign-in with zero manual credentials setup; syncs database snapshots to Google Drive and supports 1-click cloud restoration
 - **Automated Local Backup Rotation**: Scheduled weekly SQLite snapshots with a rolling 10-backup retention policy
-- **Full Bilingual Localization (English & 简体中文)**: Complete interface, AI coach advice, activity tags, and physiological guides translated with an instant navbar dropdown switcher
+- **Full Bilingual Localization (English & 简体中文)**: Key-based dictionaries with `Intl`-driven date and plural formatting (never inline language conditionals), covering the interface, AI coach advice, activity tags, and physiological guides with an instant navbar dropdown switcher
 - **Customizable Typography & Font Scaling**: Smooth 25% font-scaling increments (75%, 100%, 125%, 150%, 175%, 200%)
 - **Period Progress & Training Volume**: Monthly and annual mileage breakdowns, weekly volume cadence, and 5-zone cardiovascular distribution
 - **Calibrated Race Predictions**: Jack Daniels VDOT and Critical Velocity projections for 5K, 10K, Half Marathon, and Marathon based on empirical physiological thresholds
@@ -146,10 +146,14 @@ AEROLAB automatically classifies each activity into one of six core categories:
 npm install
 ```
 
-### 2. Run Automated Tests
-Runs the complete test suite (37 test suites, 257 automated tests, 100% passing) spanning physiology unit tests, binary/CSV ingestion, API integration, and React UI user flows:
+### 2. Verify Your Change
+Type-check, lint, and run the full suite (54 test files, 365 automated tests, 100% passing) spanning physiology unit tests, binary/CSV ingestion, API integration, and React UI user flows:
 ```bash
-npm test
+npx tsc --noEmit      # 0 errors
+npm run lint          # ESLint: hardcoded labels, hardcoded run stats, empty catches
+npm test              # Vitest
+npm run test:coverage # optional V8 coverage report
+npm run i18n:unused   # fails if a dictionary key is never referenced
 ```
 
 ### 3. Start Backend & Frontend Concurrently (Development Mode)
@@ -173,7 +177,7 @@ npm run package:chromium-free
 ```
 This produces a single, self-extracting installer executable in `release/AEROLAB-Setup.exe` (~47 MB) with:
 - Zero Chromium download overhead (uses host Chrome or Edge in App Mode)
-- Native C# launcher (`AEROLAB.exe`) that starts with zero terminal window
+- Native C# launcher (`AEROLAB.exe`, compiled from `launcher.cs` during packaging — it is a build artifact and is **not** tracked in git)
 - Embedded Node runtime and production bundles
 - Desktop shortcut creation on install
 
@@ -342,3 +346,38 @@ AEROLAB is designed with local-first data isolation:
      ```bash
      DATABASE_PATH=data/partner_runs.db
      ```
+
+---
+
+## Contributing & Code Rules
+
+Full rules live in [`AGENTS.md`](AGENTS.md) (`.clinerules` points there). The essentials:
+
+### Localization
+All user-facing copy lives in dictionaries — the web equivalent of Android's `values/` and `values-zh/` folders:
+
+| File | Purpose |
+| --- | --- |
+| `src/frontend/i18n/types.ts` | Typed key surface (`Translations` interface) |
+| `src/frontend/i18n/en.ts` | English values |
+| `src/frontend/i18n/zh.ts` | Chinese values |
+| `src/frontend/i18n/LanguageContext.tsx` | `t`, `format`, `plural`, `formatDate`, `locale` |
+
+```tsx
+const { t, format, plural, formatDate } = useTranslation();
+
+t.browse.title                                     // plain lookup
+format(t.periodProgress.zone2Summary, { hours: 12, pct: 68 })  // {token} interpolation
+plural(count, t.periodProgress.calibrations)       // Intl.PluralRules selection
+formatDate(row.start_time, { month: 'short', day: 'numeric' })
+```
+
+**Never** write an inline language conditional (`language === 'zh' ? … : …`) and never hardcode a locale such as `'zh-CN'` in a component. Locale identifiers belong in `LOCALES`; adding a language is a one-line change plus one dictionary file. Hardcoded run statistics are equally disallowed — metrics must come from the API payload or a shared helper so they cannot drift from the backend.
+
+### Developer tooling never ships
+The diagnostics drawer, the floating dev-mode button, and the whole `/api/dev/*` surface are development-only. The frontend gates them behind `import.meta.env.DEV` (so Vite tree-shakes them out of the release bundle), and the backend refuses to mount the dev router unless `isDevToolsEnabled()` passes. The packaged launcher starts the engine with `NODE_ENV=production`.
+
+### Verification
+`npx tsc --noEmit`, `npm run lint`, `npm test`, and `npm run i18n:unused` must all pass before a commit. Use the `gh` CLI for GitHub work (`gh run list`, `gh workflow run release.yml`).
+
+The ESLint config surfaces the pre-existing backlog as **warnings** (currently ~490) so lint stays a useful, non-blocking signal while it is burned down; genuinely broken code is an error.

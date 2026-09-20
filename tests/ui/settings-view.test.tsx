@@ -43,7 +43,7 @@ describe('SettingsView & Header Tab Navigation Tests', () => {
     expect(onTabChange).toHaveBeenCalledWith('settings');
   });
 
-  it('renders SettingsView with Backup & Cloud Sync, Display, and Diagnostics sections', async () => {
+  it('renders SettingsView with Backup & Cloud Sync and Display sections', async () => {
     // Mock database and google status endpoints
     vi.spyOn(global, 'fetch').mockImplementation((url: any) => {
       if (typeof url === 'string' && url.includes('/api/database/status')) {
@@ -70,7 +70,6 @@ describe('SettingsView & Header Tab Navigation Tests', () => {
     });
 
     const onToggleTheme = vi.fn();
-    const onOpenDevDiagnostics = vi.fn();
 
     render(
       <LanguageProvider>
@@ -78,7 +77,6 @@ describe('SettingsView & Header Tab Navigation Tests', () => {
           <SettingsView
             theme="dark"
             onToggleTheme={onToggleTheme}
-            onOpenDevDiagnostics={onOpenDevDiagnostics}
           />
         </FontSizeProvider>
       </LanguageProvider>
@@ -87,22 +85,17 @@ describe('SettingsView & Header Tab Navigation Tests', () => {
     // The redundant in-page header was removed; the Navbar tab already labels this page
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
 
-    // Verify sections
+    // Verify sections. Developer diagnostics intentionally have no settings
+    // entry: they are opened from the floating dev button in development builds.
     expect(screen.getByText(/Database Backup & Cloud Sync/i)).toBeTruthy();
     expect(screen.getByText(/Display & Appearance/i)).toBeTruthy();
-    expect(screen.getByText(/Developer Diagnostics/i)).toBeTruthy();
+    expect(screen.queryByText(/Developer Diagnostics/i)).toBeNull();
 
     // Verify theme toggle in settings
     const themeBtn = document.getElementById('settings-theme-toggle-btn');
     expect(themeBtn).toBeTruthy();
     fireEvent.click(themeBtn!);
     expect(onToggleTheme).toHaveBeenCalled();
-
-    // Verify dev diagnostics trigger
-    const devBtn = document.getElementById('settings-open-dev-btn');
-    expect(devBtn).toBeTruthy();
-    fireEvent.click(devBtn!);
-    expect(onOpenDevDiagnostics).toHaveBeenCalled();
   });
 
   it('navigates from ProfileView backup card to Settings tab', async () => {
@@ -161,45 +154,5 @@ describe('SettingsView & Header Tab Navigation Tests', () => {
     expect(moreThemeBtn).toBeTruthy();
     fireEvent.click(moreThemeBtn!);
     expect(onToggleTheme).toHaveBeenCalled();
-  });
-
-  it('renders and toggles floating dev mode button setting', () => {
-    const onToggleDevFloatingBtn = vi.fn();
-
-    const { rerender } = render(
-      <LanguageProvider>
-        <FontSizeProvider>
-          <SettingsView
-            theme="dark"
-            onToggleTheme={vi.fn()}
-            showDevFloatingBtn={false}
-            onToggleDevFloatingBtn={onToggleDevFloatingBtn}
-          />
-        </FontSizeProvider>
-      </LanguageProvider>
-    );
-
-    const toggleInput = document.getElementById('settings-toggle-dev-btn') as HTMLInputElement;
-    expect(toggleInput).toBeTruthy();
-    expect(toggleInput.checked).toBe(false);
-
-    fireEvent.click(toggleInput);
-    expect(onToggleDevFloatingBtn).toHaveBeenCalledWith(true);
-
-    // Re-render enabled
-    rerender(
-      <LanguageProvider>
-        <FontSizeProvider>
-          <SettingsView
-            theme="dark"
-            onToggleTheme={vi.fn()}
-            showDevFloatingBtn={true}
-            onToggleDevFloatingBtn={onToggleDevFloatingBtn}
-          />
-        </FontSizeProvider>
-      </LanguageProvider>
-    );
-
-    expect(toggleInput.checked).toBe(true);
   });
 });

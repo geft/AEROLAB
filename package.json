@@ -15,6 +15,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "i18n:unused": "node scripts/find-unused-i18n-keys.mjs",
     "ingest": "tsx scripts/ingest.ts",
     "realign": "tsx scripts/realign.ts",
     "app": "node scripts/launch-chrome-app.js",
@@ -36,6 +39,7 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.3",
     "@types/better-sqlite3": "^7.6.12",
@@ -47,10 +51,15 @@
     "@types/supertest": "^6.0.2",
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/coverage-v8": "^4.1.11",
+    "eslint": "^9.39.5",
+    "eslint-plugin-i18next": "^6.1.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.12.0",
     "jsdom": "^29.1.1",
     "supertest": "^7.0.0",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2",
+    "typescript-eslint": "^8.70.0",
     "vite": "^6.2.0",
     "vitest": "^4.1.11"
   }
