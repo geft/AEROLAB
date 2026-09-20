@@ -84,7 +84,7 @@ export const ProgressView: React.FC = () => {
       const t = new Date(h.effective_date.replace(' ', 'T')).getTime();
       return t >= cutoffMs;
     });
-  }, [uniqueHistory, calFilter, historyRange]);
+  }, [uniqueHistory, calFilter, historyRange, mountedAt]);
 
   const paginatedHistory = React.useMemo(() => {
     return filteredHistory.slice(0, visibleHistoryCount);

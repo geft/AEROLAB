@@ -100,7 +100,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
       const t = new Date(h.effective_date.replace(' ', 'T')).getTime();
       return t >= cutoffMs;
     });
-  }, [sortedHistory, trendHistory, timeRange]);
+  }, [sortedHistory, trendHistory, timeRange, mountedAt]);
 
   // 3. Extract series points
   const lt1Points = useMemo(() => {
@@ -138,7 +138,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
     const t = new Date(dateStr.replace(' ', 'T')).getTime();
     const ratio = Math.max(0, Math.min(1, (t - minTime) / (maxTime - minTime || 1)));
     return padLeft + ratio * innerW;
-  }, [minTime, maxTime]);
+  }, [minTime, maxTime, innerW]);
 
   // Y-Scale calculations
   const { minYVal, maxYVal, yTicks } = useMemo(() => {
@@ -205,7 +205,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
       const ratio = (val - minYVal) / (maxYVal - minYVal || 1);
       return padTop + (1 - ratio) * innerH;
     }
-  }, [metric, minYVal, maxYVal]);
+  }, [metric, minYVal, maxYVal, innerH]);
 
   // Build SVG Paths
   const buildPath = useCallback((pts: CalibrationHistoryItem[], valGetter: (p: CalibrationHistoryItem) => number) => {

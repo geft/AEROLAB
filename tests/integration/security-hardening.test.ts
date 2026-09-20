@@ -20,7 +20,7 @@ describe('Security Hardening Integration Tests', () => {
     dbFilePath = path.join(testDir, 'security-test.db');
     process.env.DATABASE_PATH = dbFilePath;
 
-    const db = getDatabase(dbFilePath);
+    getDatabase(dbFilePath);
     app = createServer();
   });
 
