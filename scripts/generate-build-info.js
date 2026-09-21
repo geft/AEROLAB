@@ -12,13 +12,18 @@ const rootDir = path.resolve(__dirname, '..');
 const pkgPath = path.join(rootDir, 'package.json');
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
 
-// Determine version: environment override, git tag, or package.json
-let version = pkg.version || '1.0.0';
+// Determine version: explicit override, release tag, then package.json.
+// package.json is authoritative for local builds, because
+// scripts/package-chromium-free.js names the installer from it — preferring the
+// newest git tag here made the app footer report the previous release (v1.0.22)
+// while the installer was named AEROLAB-Setup-v1.1.0.exe. The tag is kept as a
+// last resort for a checkout whose package.json carries no version at all.
+let version = pkg.version ? String(pkg.version).trim() : '';
 if (process.env.APP_VERSION) {
   version = process.env.APP_VERSION.replace(/^v/, '');
 } else if (process.env.GITHUB_REF_NAME && process.env.GITHUB_REF_NAME.startsWith('v')) {
   version = process.env.GITHUB_REF_NAME.replace(/^v/, '');
-} else {
+} else if (!version) {
   try {
     const gitTag = execSync('git describe --tags --abbrev=0', { cwd: rootDir, stdio: ['pipe', 'pipe', 'ignore'] })
       .toString()
@@ -28,6 +33,7 @@ if (process.env.APP_VERSION) {
     }
   } catch {}
 }
+if (!version) version = '1.0.0';
 
 // Determine git commit hash
 let gitCommit = 'local';
