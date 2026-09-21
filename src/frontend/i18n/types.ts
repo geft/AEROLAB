@@ -122,7 +122,6 @@ export interface Translations {
     importFirstWorkoutBtn: string;
     existingTags: string;
     activeCount: string;
-    focusCore: string;
     showAll: string;
     cadenceLabel: string;
     elevationLabel: string;
@@ -146,28 +145,22 @@ export interface Translations {
     timeOfDayEvening: string;
     timeOfDayNight: string;
     /** Execution emblem tooltip. Tokens: `{stars}` (and `{score}` when scored). */
-    executionStarsTitle: string;
-    executionStarsScoredTitle: string;
-    scoreBreakdownTitle: string;
-    scoreFinalExecution: string;
-    scoreGradingTiers: string;
-    scoreGoldTier: string;
-    scoreGoldDesc: string;
-    scoreSilverTier: string;
-    scoreSilverDesc: string;
-    scoreBronzeTier: string;
-    scoreBronzeDesc: string;
     /** Weighted-rubric transparency labels. */
-    coachFocusLever: string;
-    coachFocusTag: string;
     coachBaselineTitle: string;
     coachContextAcwr: string;
     coachContextEconomy: string;
     coachContextHrAtPace: string;
     coachContextDecoupling: string;
     coachContextLongest: string;
-    coachScoreCoverage: string;
     /** Title above the coach-debrief tone legend strip. */
+    coachTextOverrides: Record<string, string>;
+    verdictOnTrack: string;
+    verdictSomeDeviation: string;
+    verdictOffTarget: string;
+    verdictInsufficientEvidence: string;
+    verdictDetails: string;
+    verdictExplanation: string;
+    coachAllInsights: string;
     coachInsightMix: string;
     /** Tone legend for coach-debrief insights: strength, watch-out, fix, context. */
     coachToneGood: string;
@@ -201,9 +194,6 @@ export interface Translations {
     close: string;
     calendar: string;
     otherGroup: string;
-    medalGold: string;
-    medalSilver: string;
-    medalBronze: string;
     /** Short weekday column headers, Sunday first. */
     weekdayShort: string[];
   };

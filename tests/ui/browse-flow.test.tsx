@@ -173,7 +173,8 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     await waitFor(() => {
       expect(screen.getByText('Near-Perfect Aerobic Base Execution')).toBeTruthy();
       // Emblem shows stars + score only (no label text) — verify score appears in badge
-      expect(screen.getByText('95/100')).toBeTruthy();
+      expect(screen.queryByText('95/100')).toBeNull();
+      expect(screen.getAllByText('Insufficient evidence').length).toBeGreaterThan(0);
       expect(screen.getByText(/superb cardiovascular stability with only 2\.1% drift/i)).toBeTruthy();
       expect(screen.getByText(/ready for progressive tempo/i)).toBeTruthy();
     });
@@ -316,6 +317,7 @@ describe('BrowseView User Flow & Navigation Tests', () => {
       aerobic_decoupling_pct: 2.5,
       meters_per_beat: 1.25,
       tags: '["Long Run","Strides"]',
+      verdict: 'on_track' as const,
       effectiveness_score: 96
     };
 
@@ -337,6 +339,7 @@ describe('BrowseView User Flow & Navigation Tests', () => {
             records: [],
             coachSummary: {
               headline: 'Masterful Execution',
+              verdict: 'on_track',
               effectivenessScore: 96,
               rating5: 4.8,
               keyInsights: ['Superb consistency'],
@@ -367,9 +370,10 @@ describe('BrowseView User Flow & Navigation Tests', () => {
       expect(strideChips.length).toBeGreaterThanOrEqual(1);
 
       // Execution emblem should appear on sidebar card (score 96 = Gold tier = 3 stars, no text label)
-      const emblem = screen.getByTitle(/Execution: 3 \/ 3 Stars/i);
+      const emblem = screen.getByTitle('On track');
       expect(emblem).toBeTruthy();
-      expect(emblem.textContent).toContain('★');
+      expect(emblem.textContent).toContain('✓');
+      expect(emblem.textContent).not.toContain('★');
     });
 
     // Check intervals table work reps toggle & peak HR

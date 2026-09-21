@@ -1,3 +1,4 @@
+import type { SessionVerdict } from '../../shared/session-verdict.js';
 /**
  * API response contracts.
  *
@@ -64,6 +65,7 @@ export interface Activity {
   created_at?: string;
   /** Present on list payloads, supplied by the coach-summary join. */
   effectiveness_score?: number | null;
+  verdict?: SessionVerdict;
 }
 
 /**
@@ -197,6 +199,7 @@ export type CoachInsightTone = 'positive' | 'neutral' | 'caution' | 'negative';
 
 /** The algorithmic coach debrief attached to an activity. */
 export interface CoachSummary {
+  verdict?: SessionVerdict;
   headline: string;
   effectivenessScore: number;
   rating5?: number;

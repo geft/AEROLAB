@@ -12,11 +12,10 @@ interface RecordPoint {
 
 interface CanvasRunChartProps {
   records: RecordPoint[];
-  focusCoreSegment: boolean;
   theme?: 'dark' | 'light';
 }
 
-export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, focusCoreSegment, theme = 'dark' }) => {
+export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme = 'dark' }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [layoutTick, setLayoutTick] = useState(0);
   const [hoverData, setHoverData] = useState<{
@@ -28,15 +27,7 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, focusCo
     distKm: string;
   } | null>(null);
 
-  // Subsample and filter records if core segment is focused (trim first 5 mins / 300s and last 300s)
-  const displayRecords = React.useMemo(() => {
-    if (!records || records.length === 0) return [];
-    if (!focusCoreSegment || records.length < 600) return records;
-
-    const startTrimSec = 300; // 5 min warmup
-    const endTrimSec = Math.max(startTrimSec + 60, records[records.length - 1].elapsed_seconds - 300);
-    return records.filter(r => r.elapsed_seconds >= startTrimSec && r.elapsed_seconds <= endTrimSec);
-  }, [records, focusCoreSegment]);
+  const displayRecords = records;
 
   useEffect(() => {
     const canvas = canvasRef.current;

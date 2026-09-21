@@ -1,3 +1,5 @@
+import { sessionVerdict } from './session-verdict.js';
+import type { SessionVerdict } from '../../shared/session-verdict.js';
 import { PauseBreakdown } from './economy.js';
 
 /**
@@ -55,6 +57,7 @@ export interface RubricInput {
 }
 
 export interface RubricResult {
+  verdict: SessionVerdict;
   family: RunFamily;
   score: number;
   factors: RubricFactor[];
@@ -585,6 +588,28 @@ const medianOf = (values: number[]): number | null => {
 };
 
 /**
+ * Recoveries that genuinely sit between work reps — the only ones that describe a
+ * set's recovery structure.
+ *
+ * Requiring a work rep on *both* sides is what keeps warm-up strides out. On a
+ * session with a stride block before the set, the stride jog-recoveries (105-115s)
+ * used to qualify because a work rep merely existed somewhere later, dragging the
+ * reported set recovery from 2:13 down to 1:54. Warm-up walks and the trailing
+ * cool-down are excluded by the duration window and the missing neighbour.
+ */
+export function betweenRepRecoveries<T extends { type: string }>(intervals: T[] | null | undefined): T[] {
+  const rows = intervals || [];
+  return rows.filter((i: T, idx: number) => {
+    if (i.type !== INTERVAL_TYPE.recovery && i.type !== 'rest') return false;
+    const dur = intervalDuration(i);
+    if (dur < 20 || dur > 600) return false;
+    const workBefore = rows.slice(0, idx).some((earlier: T) => earlier.type === INTERVAL_TYPE.work);
+    const workAfter = rows.slice(idx + 1).some((later: T) => later.type === INTERVAL_TYPE.work);
+    return workBefore && workAfter;
+  });
+}
+
+/**
  * Shape of an interval set. Grading has to adapt to it: a 12 x 1 min set and a
  * 3 x 15 min set are different instruments, and a universal "no drift beyond 3%"
  * rule would punish the first for HR lag and the second for ordinary cardiac
@@ -609,13 +634,7 @@ export function describeSet(intervals: any[] | null | undefined): SetShape | nul
   const durations = workReps.map(intervalDuration).filter((d: number) => d > 0);
   const medianRepSec = durations.length > 0 ? Math.round(medianOf(durations) as number) : 0;
 
-  const recoveries: number[] = [];
-  rows.forEach((i: any, idx: number) => {
-    if (i.type !== INTERVAL_TYPE.recovery && i.type !== 'rest') return;
-    const dur = intervalDuration(i);
-    if (dur < 20 || dur > 600) return; // warm-up / cool-down segments are not recoveries
-    if (rows.slice(idx + 1).some((later: any) => later.type === INTERVAL_TYPE.work)) recoveries.push(dur);
-  });
+  const recoveries = betweenRepRecoveries(rows).map(intervalDuration);
 
   return {
     repCount: workReps.length,
@@ -655,6 +674,9 @@ export function auditWalkBreaks(
     lt2Hr: number;
     /** Prescribed recovery windows (e.g. detected interval recoveries). */
     recoveryWindows?: Array<{ from: number; to: number }> | null;
+    allowBriefAerobicBreaks?: boolean;
+    /** Known work reps: elevated HR outside these windows is not a work interruption. */
+    workWindows?: Array<{ from: number; to: number }>;
   }
 ): WalkAudit | null {
   if (!records || records.length < 10) return null;
@@ -755,6 +777,19 @@ export function auditWalkBreaks(
     }
     blockCount++;
 
+    if (opts.workWindows?.length && !opts.workWindows.some(w => b.startSec >= w.from && b.startSec < w.to)) {
+      // Warm-up/cool-down and gaps between reps can still have elevated HR.
+      // HR alone must never place a walk inside a work rep.
+      deliberateWalkSec += b.walkSec;
+      continue;
+    }
+
+    // Brief easy-run breaks can be proactive HR control or route stops.
+    // Low entry HR cannot establish fatigue or unplanned walking.
+    if (opts.allowBriefAerobicBreaks && b.walkSec <= 60 && (hr == null || hr < opts.lt1Hr)) {
+      deliberateWalkSec += b.walkSec;
+      continue;
+    }
     if (hr != null && hr >= opts.lt2Hr) {
       hardWalkSec += b.walkSec;
       correctiveHrs.push(hr);
@@ -789,6 +824,12 @@ export function auditWalkBreaks(
   if (regular.length >= 4) {
     const gaps = regular.slice(1).map((b, i) => b.startSec - (regular[i].startSec + regular[i].walkSec));
     plannedPattern = cvOf(regular.map(b => b.walkSec)) < 0.45 && cvOf(gaps) < 0.3;
+  }
+
+  if (plannedPattern) {
+    deliberateWalkSec += capacityWalkSec;
+    capacityWalkSec = 0;
+    capacityHrs.length = 0;
   }
 
   return {
@@ -1410,7 +1451,14 @@ export function gradeRun(input: RubricInput): RubricResult {
           const len = w.to - w.from;
           return len >= 20 && len <= 600;
         });
-  const walkAudit = auditWalkBreaks(input.records, { lt1Hr: input.lt1Hr, lt2Hr: input.lt2Hr, recoveryWindows });
+  const workWindows = family === 'quality'
+    ? (input.intervals || []).filter((i: any) => i.type === 'work').map((i: any) => {
+        const from = i.start_seconds ?? i.startSeconds;
+        const duration = i.duration_seconds ?? i.durationSeconds;
+        return { from, to: from + duration };
+      }).filter((w: { from: number; to: number }) => Number.isFinite(w.from) && w.to > w.from)
+    : undefined;
+  const walkAudit = auditWalkBreaks(input.records, { lt1Hr: input.lt1Hr, lt2Hr: input.lt2Hr, recoveryWindows, workWindows, allowBriefAerobicBreaks: family === 'aerobic' });
   const driftTarget = driftTargetFor(input.ambientTempC, input.durationMin);
   const pacing = pacingConsistency(input.records, input.splits, input.runType);
   const intensity = intensityAudit(input.records, { lt1Hr: input.lt1Hr });
@@ -1440,6 +1488,7 @@ export function gradeRun(input: RubricInput): RubricResult {
   const focus = pickFocus(factors);
   return {
     family,
+    verdict: sessionVerdict({ family, factors, hasIntensityTelemetry: intensity != null, isFailedWorkout: input.isFailedWorkout, isAccidentalTempo: input.isAccidentalTempo, runType: input.runType }),
     score: Math.max(40, Math.min(98, Math.round(score))),
     factors,
     coveragePct,

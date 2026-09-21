@@ -568,7 +568,7 @@ body {
 .main-content {
   flex: 1;
   padding: 1.5rem 2rem;
-  max-width: 1600px;
+  max-width: 2200px;
   width: 100%;
   margin: 0 auto;
 }
@@ -576,7 +576,7 @@ body {
 /* Browse View 2-column Layout */
 .browse-grid {
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-columns: minmax(20rem, 24rem) minmax(0, 1fr);
   gap: 1.5rem;
   min-height: calc(100vh - 140px);
 }
@@ -741,29 +741,8 @@ body {
   border: 1px dashed rgba(239, 68, 68, 0.5);
 }
 
-.session-rating-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.1rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #f59e0b;
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.28);
-  padding: 0.12rem 0.45rem;
-  border-radius: 999px;
-  line-height: 1;
-}
 
-.session-rating-pill .stars-filled {
-  color: #f59e0b;
-  letter-spacing: 1px;
-}
 
-.session-rating-pill .stars-empty {
-  color: rgba(245, 158, 11, 0.25);
-  letter-spacing: 1px;
-}
 
 .session-card-tags {
   display: flex;
@@ -1286,9 +1265,6 @@ body {
 
 /* The emblem's fixed 4.5rem width fits stars alone; inside the score badge it
    also carries the numeric score, so let it size to content. */
-.coach-score-badge .execution-emblem {
-  width: auto;
-}
 
 .coach-insights-list {
   display: flex;
@@ -1657,42 +1633,12 @@ body {
 .rubric-tiers span.rubric-active:last-child { color: #b87333; }   /* Bronze */
 
 /* ── Execution Emblem (3-tier: Bronze / Silver / Gold) ───────────── */
-.execution-emblem {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  width: 4.5rem;          /* fixed width — all tiers stay identical size */
-  padding: 0.2rem 0;      /* vertical rhythm only, horizontal handled by width */
-  border-radius: 999px;
-  white-space: nowrap;
-  text-align: center;
-}
 
 /* Gold — warm amber gradient, polished */
-.emblem-gold {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0%, rgba(251, 191, 36, 0.12) 100%);
-  border: 1.5px solid rgba(245, 158, 11, 0.6);
-  color: #fbbf24;
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.18);
-}
 
 /* Silver — cool slate gradient */
-.emblem-silver {
-  background: linear-gradient(135deg, rgba(148, 163, 184, 0.18) 0%, rgba(100, 116, 139, 0.1) 100%);
-  border: 1.5px solid rgba(148, 163, 184, 0.45);
-  color: #94a3b8;
-}
 
 /* Bronze — earthy copper tone */
-.emblem-bronze {
-  background: linear-gradient(135deg, rgba(184, 115, 51, 0.18) 0%, rgba(120, 80, 40, 0.1) 100%);
-  border: 1.5px solid rgba(184, 115, 51, 0.45);
-  color: #c8855a;
-}
 
 .sidebar-filter-count {
   font-size: 0.7rem;
@@ -3800,7 +3746,7 @@ body {
     padding: 1.25rem 1.25rem;
   }
   .browse-grid {
-    grid-template-columns: 280px minmax(0, 1fr);
+    grid-template-columns: minmax(18rem, 22rem) minmax(0, 1fr);
     gap: 1rem;
   }
   .sidebar-panel {
@@ -4756,3 +4702,42 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+.session-card-top { gap: 0.5rem; flex-wrap: wrap; }
+.session-stats { flex-wrap: wrap; }
+.session-stats > span { white-space: nowrap; }
+.coach-tone-pill[aria-pressed] { cursor: pointer; font-family: inherit; }
+.coach-tone-pill[aria-pressed="true"] { outline: 2px solid var(--accent-cyan); outline-offset: 2px; }
+
+/* Distinct symbols and text keep session verdicts readable without colour. */
+.session-verdict {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.3rem 0.65rem 0.3rem 0.35rem;
+  border: 1px solid currentColor;
+  border-radius: 0.65rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.25;
+  max-width: 100%;
+}
+.session-verdict-symbol {
+  display: grid;
+  place-items: center;
+  flex: 0 0 1.55rem;
+  height: 1.55rem;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+.session-verdict-label { min-width: 0; }
+.verdict-on_track { color: var(--accent-emerald); background: var(--accent-emerald-glow); }
+.verdict-some_deviation { color: var(--accent-amber); background: var(--accent-amber-glow); }
+.verdict-off_target { color: var(--accent-rose); background: rgba(244, 63, 94, 0.1); }
+.verdict-insufficient_evidence { color: var(--text-muted); background: var(--bg-surface); border-style: dashed; }
+.verdict-some_deviation .session-verdict-symbol { border-radius: 0.35rem; }
+.verdict-off_target .session-verdict-symbol { border-radius: 0.25rem; border-width: 2px; }
+.coach-score-badge { flex-shrink: 0; }
+.coach-header { flex-wrap: wrap; gap: 0.75rem; }

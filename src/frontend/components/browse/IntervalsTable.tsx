@@ -1,5 +1,11 @@
 import React, { useState } from 'react';
 import type { ActivityInterval } from '../../types/api.js';
+import {
+  WORK_SNAP_SECONDS,
+  formatPrescriptionClock,
+  inferWorkoutPrescription,
+  snapSeconds
+} from '../../../shared/prescription.js';
 
 interface IntervalsTableProps {
   intervals: ActivityInterval[];
@@ -26,52 +32,16 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
     activityRunType === 'intervals_vo2' ||
     activityRunType === 'race';
 
-  const snapToGrid = (v: number, grid: number[]): number => {
-    let best = grid[0];
-    let bestD = Math.abs(v - grid[0]);
-    for (const g of grid) {
-      const d = Math.abs(v - g);
-      if (d < bestD) { bestD = d; best = g; }
-    }
-    return best;
-  };
-
-  const fmtPresc = (s: number): string => {
-    const m = Math.floor(s / 60);
-    const r = Math.round(s % 60);
-    return r === 0 ? `${m}:00` : `${m}:${String(r).padStart(2, '0')}`;
-  };
-
-  const median = (vals: number[]): number | null => {
-    if (vals.length === 0) return null;
-    const s = [...vals].sort((a, b) => a - b);
-    return s[Math.floor(s.length / 2)];
-  };
-
-  const workOnlyForPresc = allIntervals.filter((i: ActivityInterval) => i.type === 'work');
-  const firstWorkIdx = workOnlyForPresc.length > 0
-    ? Math.min(...workOnlyForPresc.map((i: ActivityInterval) => i.interval_index))
-    : 0;
-  const lastWorkIdx = workOnlyForPresc.length > 0
-    ? Math.max(...workOnlyForPresc.map((i: ActivityInterval) => i.interval_index))
-    : 0;
-  const recOnlyForPresc = allIntervals.filter((i: ActivityInterval) =>
-    i.type === 'recovery' && i.interval_index > firstWorkIdx && i.interval_index < lastWorkIdx
-  );
-
-  const medWork = median(workOnlyForPresc.map((i: ActivityInterval) => i.duration_seconds).filter((d: number) => d > 0));
-  const medRec = median(recOnlyForPresc.map((i: ActivityInterval) => i.duration_seconds).filter((d: number) => d > 0));
-  const WORK_GRID = [60, 90, 120, 180, 240, 300, 360, 480, 600, 720, 900, 1200, 1800];
-  const REC_GRID = [30, 60, 90, 120, 180, 240, 300];
-
-  const prescLabel = medWork !== null
-    ? (medRec !== null
-      ? `${workOnlyForPresc.length}×${fmtPresc(snapToGrid(medWork, WORK_GRID))} / ${fmtPresc(snapToGrid(medRec, REC_GRID))} rec`
-      : `${workOnlyForPresc.length}×${fmtPresc(snapToGrid(medWork, WORK_GRID))}`)
-    : null;
+  // The prescription hint comes from the shared helper the detector also uses, so
+  // the hint shown here cannot disagree with the value the coach summary is built
+  // from. This table used to round on its own grid instead.
+  const hasWorkReps = allIntervals.some((i: ActivityInterval) => i.type === 'work');
+  const prescLabel = inferWorkoutPrescription(
+    allIntervals.map((i: ActivityInterval) => ({ type: i.type, durationSeconds: i.duration_seconds }))
+  )?.label ?? null;
 
   const snappedWorkFor = (dur: number): number | null =>
-    medWork !== null ? snapToGrid(dur, WORK_GRID) : null;
+    hasWorkReps ? snapSeconds(dur, WORK_SNAP_SECONDS) : null;
 
   return (
     <section className="data-table-card">
@@ -84,7 +54,7 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
             {prescLabel && <span className="workreps-presc">{prescLabel}</span>}
           </span>
           <p style={{ fontSize: '0.76rem', color: '#94a3b8', margin: 0 }}>
-            Durations show raw detection with snapped prescription hint (e.g. 14:03 → 15:00).
+            Durations show raw detection with snapped prescription hint (e.g. 14:03 → 14:00).
             HR Peak is the stimulus; Recovery Drop measures parasympathetic rebound.
           </p>
         </div>
@@ -171,7 +141,7 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
                       {(inv.type === 'work' || inv.type === 'stride') && (() => {
                         const snapped = snappedWorkFor(inv.duration_seconds);
                         return snapped !== null && Math.abs(snapped - inv.duration_seconds) > 20 ? (
-                          <span className="workreps-sub">→ {fmtPresc(snapped)}</span>
+                          <span className="workreps-sub">→ {formatPrescriptionClock(snapped)}</span>
                         ) : null;
                       })()}
                     </td>

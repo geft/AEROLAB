@@ -1,3 +1,4 @@
+import { SessionVerdictBadge } from './SessionVerdictBadge.js';
 import React from 'react';
 import type { Activity } from '../../types/api.js';
 
@@ -13,13 +14,6 @@ const SIDEBAR_FILTER_TAGS = [
   'All', 'Threshold', 'VO2 Max', 'Easy Base', 'Long Run', 'Race', 'Strides', 'Marathon Pace', 'Recovery'
 ];
 
-function scoreToStars(score: number | null | undefined): number {
-  if (score == null) return 0;
-  if (score <= 3) return Math.min(3, Math.max(1, Math.round(score)));
-  if (score >= 85) return 3;
-  if (score >= 70) return 2;
-  return 1;
-}
 
 interface BrowseSidebarProps {
   filteredActivities: ActivitySummary[];
@@ -279,13 +273,6 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
                 : null;
               const distKm = (a.distance_meters / 1000).toFixed(2);
               const paceStr = formatPace(a.avg_pace_sec_km);
-              const stars = scoreToStars(a.effectiveness_score);
-              const tierLabel = stars === 3 ? 'gold' : stars === 2 ? 'silver' : 'bronze';
-              const executionTitle = stars > 0
-                ? (a.effectiveness_score
-                    ? format(t.browse.executionStarsScoredTitle, { stars, score: a.effectiveness_score })
-                    : format(t.browse.executionStarsTitle, { stars }))
-                : '';
               const isRace = a.run_type === 'race' ||
                 (a.tags && (a.tags.includes('Race') || a.tags.includes('race'))) ||
                 /time trial|race/i.test(a.name || '');
@@ -336,19 +323,12 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
                       ))}
                     </div>
                   )}
-                  {(stars > 0 || runOfDayLabel) && (
+                  {(
                     <div className="session-card-footer">
                       {runOfDayLabel && (
                         <span className="session-run-of-day" title={runOfDayLabel}>{runOfDayLabel}</span>
                       )}
-                      {stars > 0 && (
-                        <span
-                          className={`execution-emblem emblem-${tierLabel}`}
-                          title={executionTitle}
-                        >
-                          {'★'.repeat(stars)}{'☆'.repeat(3 - stars)}
-                        </span>
-                      )}
+                      <SessionVerdictBadge verdict={a.verdict} />
                     </div>
                   )}
                 </div>

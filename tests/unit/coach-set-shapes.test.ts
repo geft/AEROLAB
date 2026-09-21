@@ -54,6 +54,19 @@ describe('Interval-set shapes (generalisation)', () => {
     ...extra
   } as any);
 
+  it('excludes warm-up stride recoveries from the reported set recovery', () => {
+    // Warm-up strides carry their own short jog recoveries. They used to qualify
+    // because a work rep merely existed somewhere later, which dragged the set's
+    // recovery from 2:13 down to 1:54 in the coach summary.
+    const rows: any[] = [
+      recovery(1108),
+      { type: 'stride', duration_seconds: 10 }, recovery(105),
+      { type: 'stride', duration_seconds: 10 }, recovery(108),
+      ...buildSet(3, 900, 133)
+    ];
+    expect(describeSet(rows)).toMatchObject({ repCount: 3, medianRepSec: 900, recoverySec: 133 });
+  });
+
   it('describes each common set shape', () => {
     expect(describeSet(buildSet(3, 900, 90))).toMatchObject({ repCount: 3, medianRepSec: 900, shortReps: false, recoverySec: 90 });
     expect(describeSet(buildSet(10, 240, 120))).toMatchObject({ repCount: 10, medianRepSec: 240, shortReps: false });

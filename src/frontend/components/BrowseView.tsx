@@ -15,10 +15,9 @@ import { formatPace as formatPaceUtil } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { BrowseSidebar } from './browse/BrowseSidebar.js';
 import { ActivityDetailHeader } from './browse/ActivityDetailHeader.js';
-import { CoachScoreCard, scoreToStars } from './browse/CoachScoreCard.js';
+import { CoachScoreCard } from './browse/CoachScoreCard.js';
 import { IntervalsTable } from './browse/IntervalsTable.js';
 
-export { scoreToStars };
 
 /** A workout row as used by the browse list. Same shape as the API contract. */
 export type ActivitySummary = Activity;
@@ -112,7 +111,6 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
     return safeActivities[0]?.start_time ? safeActivities[0].start_time.substring(0, 7) : new Date().toISOString().substring(0, 7);
   });
   const [selectedTagFilter, setSelectedTagFilter] = useState<string>('all');
-  const [focusCoreSegment, setFocusCoreSegment] = useState<boolean>(false);
   const [activeSubTab, setActiveSubTab] = useState<'telemetry' | 'splits' | 'strides' | 'coach'>('telemetry');
   const [mobileSubTab, setMobileSubTab] = useState<'list' | 'detail'>('list');
   const [showTagMenu, setShowTagMenu] = useState<boolean>(false);
@@ -311,10 +309,10 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
         if (!data.splits || data.splits.length === 0) {
           setActiveSubTab(prev => (prev === 'splits' ? 'telemetry' : prev));
         }
-        if (data.coachSummary?.effectivenessScore != null && onActivityUpdated) {
+        if (data.coachSummary != null && onActivityUpdated) {
           onActivityUpdated({
             id: selectedActivityId,
-            effectiveness_score: data.coachSummary.effectivenessScore,
+            verdict: data.coachSummary.verdict,
             run_type: data.activity?.run_type,
             name: data.activity?.name,
             tags: data.activity?.tags
@@ -606,7 +604,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                   className={`filter-pill-btn ${activeSubTab === 'strides' ? 'active' : ''}`}
                   onClick={() => setActiveSubTab('strides')}
                 >
-                  {t.browse.tabIntervals} ({detailData.intervals.length})
+                  {t.browse.tabIntervals} ({detailData.intervals.filter(interval => interval.type === 'work' || interval.type === 'stride').length})
                 </button>
               )}
               <button
@@ -624,18 +622,10 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                 <section className="chart-card">
                   <div className="chart-header">
                     <span className="chart-title">Elevation & Telemetry Profile</span>
-                    <button
-                      id="toggle-core-segment-btn"
-                      className={`toggle-segment-btn ${focusCoreSegment ? 'active' : ''}`}
-                      onClick={() => setFocusCoreSegment(!focusCoreSegment)}
-                    >
-                      {focusCoreSegment ? `✓ ${t.browse.showAll}` : t.browse.focusCore}
-                    </button>
                   </div>
 
                   <CanvasRunChart
                     records={detailData.records || []}
-                    focusCoreSegment={focusCoreSegment}
                     theme={theme}
                   />
                 </section>

@@ -1,8 +1,9 @@
+import type { SessionVerdict } from '../../shared/session-verdict.js';
 import { getAthleteHeartRateProfile } from './athlete-profile.js';
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { PauseBreakdown, extractSteadyStateMetrics } from './economy.js';
 import { ZoneDistribution } from './zones.js';
-import { RubricFactor, gradeRun, driftTargetFor, describeSet, intervalDrop, intervalDuration, intervalHr, intervalMaxHr, selectRaceSplits, formatPaceText } from './coach-rubric.js';
+import { RubricFactor, gradeRun, driftTargetFor, describeSet, betweenRepRecoveries, intervalDrop, intervalDuration, intervalHr, intervalMaxHr, selectRaceSplits, formatPaceText } from './coach-rubric.js';
 import { CoachContext, buildContextInsights, loadCoachHistoryContext } from './coach-history.js';
 import { createInsightLog, type CoachInsightTone } from './coach-insight.js';
 
@@ -10,6 +11,7 @@ import { createInsightLog, type CoachInsightTone } from './coach-insight.js';
 export type ScoreFactor = RubricFactor;
 
 export interface CoachSummary {
+  verdict: SessionVerdict;
   headline: string;
   effectivenessScore: number; // 0 - 100
   rating5: number; // 1.0 - 5.0 rating scale
@@ -44,6 +46,7 @@ export interface CoachSummary {
 
 export function generateCoachSummary(params: {
   runType: string;
+  sessionTags?: string[];
   distanceKm: number;
   durationMin: number;
   avgPaceSecKm: number;
@@ -105,6 +108,8 @@ export function generateCoachSummary(params: {
   const hrProfile = resolveHeartRateProfile({ maxHr: params.maxHeartRate, restingHr: params.restingHr, lt1Hr: params.lt1Hr, lt2Hr: params.lt2Hr });
   const { lt1Hr: lt1 } = hrProfile;
 
+  const hasMarathonPaceBlocks = runType === 'marathon_pace' ||
+    (runType === 'long_run' && (params.sessionTags || []).includes('Marathon Pace'));
   const insights = createInsightLog();
 
   // Failed workout alert
@@ -235,16 +240,11 @@ export function generateCoachSummary(params: {
 
       // Recovery structure: reported, never scored — shortening recoveries is a
       // deliberate way to keep heart rate near threshold and extend time in zone.
-      // Only breaks *between* work reps count, and only plausible ones: a
-      // 20-minute "recovery" row is a warm-up segment, and a trailing one is the
-      // cool-down.
+      // betweenRepRecoveries owns the window, so warm-up stride jog-recoveries
+      // cannot be averaged in with the set's real recoveries.
       const allIntervals = params.intervals;
-      const recoveries = allIntervals.filter((i: any, idx: number) =>
-        (i.type === 'recovery' || i.type === 'rest')
-        && intervalDrop(i) > 0
-        && intervalDuration(i) >= 30
-        && intervalDuration(i) <= 600
-        && allIntervals.slice(idx + 1).some((later: any) => later.type === 'work')
+      const recoveries = betweenRepRecoveries(allIntervals).filter((i: any) =>
+        intervalDrop(i) > 0 && intervalDuration(i) >= 30
       );
       if (recoveries.length > 0) {
         const drops = recoveries.map((r: any) => intervalDrop(r));
@@ -361,7 +361,7 @@ export function generateCoachSummary(params: {
   // Weighted execution rubric (replaces the old flat 85-point baseline)
   // ---------------------------------------------------------------------------
   const rubric = gradeRun({
-    runType,
+    runType: hasMarathonPaceBlocks ? 'marathon_pace' : runType,
     isFailedWorkout: !!params.isFailedWorkout,
     steadyHr: effectiveHr || null,
     avgHr,
@@ -404,7 +404,7 @@ export function generateCoachSummary(params: {
         `Turnaround Dips: ${walkAudit.artifactBlockCount} brief cadence dips (up to ${walkAudit.artifactWalkSec}s total, barely any ground covered) were ignored as loop turnarounds rather than counted as walk breaks.`
       );
     }
-    if (deliberateSec >= 30 && walkAudit.intrusiveWalkSec === 0 && walkAudit.capacityWalkSec === 0 && walkAudit.recoveryWalkSec === 0) {
+    if (!hasMarathonPaceBlocks && deliberateSec >= 30 && walkAudit.intrusiveWalkSec === 0 && walkAudit.capacityWalkSec === 0 && walkAudit.recoveryWalkSec === 0) {
       const entryHr = walkAudit.avgPreventiveEntryHr;
       const peakNote = walkAudit.maxEntryHr ? `, peaking at ${walkAudit.maxEntryHr} bpm` : '';
       insights.add(
@@ -412,13 +412,13 @@ export function generateCoachSummary(params: {
         `Walk-Break Strategy: ${walkAudit.blockCount} walk breaks (${walkPct}% of moving time${entryHr ? `, average entry ${entryHr} bpm` : ''}) held heart rate under your ${lt1} bpm LT1 ceiling${peakNote}. That is ceiling discipline, not lost training time.`
       );
     }
-    if (walkAudit.intrusiveWalkSec >= 20) {
+    if (!hasMarathonPaceBlocks && walkAudit.intrusiveWalkSec >= 20) {
       insights.add(
         'negative',
         `Work-Rep Interruption: ${walkAudit.intrusiveWalkSec}s of walking began inside work reps at an average of ${walkAudit.avgCorrectiveEntryHr ?? '—'} bpm (at or above LT1). Walking was the right call at that heart rate, so fix it upstream by easing the opening rep or choosing a route where reps are not interrupted.`
       );
     }
-    if (walkAudit.capacityWalkSec >= 30) {
+    if (!hasMarathonPaceBlocks && walkAudit.capacityWalkSec >= 30) {
       insights.add(
         'negative',
         `Unplanned Walking: ${walkAudit.capacityWalkSec}s of mid-run walking started at about ${walkAudit.avgCapacityEntryHr ?? '—'} bpm — already below your aerobic band and not on a gradient. Worth checking fuelling, sleep and load, or simply whether the route forces stops.`
@@ -508,6 +508,12 @@ export function generateCoachSummary(params: {
     recommendation = 'Focus on leg recovery and adequate protein intake to rebuild fast-twitch muscle fibers.';
   }
 
+  if (hasMarathonPaceBlocks) {
+    headline = 'Marathon-Pace Long Run';
+    recommendation = 'Review the work blocks against your planned marathon pace. The easy-run heart-rate ceiling does not apply to those blocks.';
+    insights.add('neutral', 'Marathon-Pace Context: This session includes marathon-pace work. Complete block boundaries and a planned pace target are needed before judging execution.');
+  }
+
   // Unmeasured rubric factors are reported so a thin telemetry day is visible.
   if (rubric.coveragePct < 100) {
     insights.add('neutral', `Rubric Coverage: ${rubric.coveragePct}% of the grading rubric was measurable for this session, so the execution score is based only on the signals recorded.`);
@@ -515,6 +521,7 @@ export function generateCoachSummary(params: {
 
   return {
     headline,
+    verdict: rubric.verdict,
     effectivenessScore: finalScore,
     rating5,
     stars,
@@ -525,7 +532,7 @@ export function generateCoachSummary(params: {
     rubricCoveragePct: rubric.coveragePct,
     rubricFamily: rubric.family,
     context: params.history ?? null,
-    scoreBreakdown: rubric.factors
+    scoreBreakdown: hasMarathonPaceBlocks ? [] : rubric.factors
   };
 }
 
@@ -557,7 +564,10 @@ export function syncActivityCoachSummary(
     steady_heart_rate: pauseBreakdown.steadyHeartRate ?? activity.steady_heart_rate ?? null
   });
 
+  let sessionTags: string[] = [];
+  try { sessionTags = JSON.parse(activity.tags || '[]'); } catch { /* Older rows can have malformed tags. */ }
   const coachSummary = generateCoachSummary({
+    sessionTags: Array.isArray(sessionTags) ? sessionTags : [],
     runType: overrides?.runType || activity.run_type || 'easy_base',
     distanceKm: (activity.distance_meters || 0) / 1000,
     durationMin: (activity.duration_seconds || 0) / 60,
@@ -592,6 +602,7 @@ export function syncActivityCoachSummary(
   });
 
   const analysis = {
+    verdict: coachSummary.verdict,
     context: coachSummary.context ?? null,
     focusAdvice: coachSummary.focusAdvice ?? null,
     rubricCoveragePct: coachSummary.rubricCoveragePct ?? null,
@@ -649,6 +660,7 @@ export function syncActivityCoachSummary(
       }
       return {
         headline: row.headline,
+        verdict: parsedAnalysis?.verdict ?? coachSummary.verdict,
         effectivenessScore: scoreVal,
         rating5: Number((scoreVal / 20).toFixed(1)),
         stars: starsVal,

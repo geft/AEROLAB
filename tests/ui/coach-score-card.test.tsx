@@ -9,6 +9,7 @@ const summary = {
   headline: 'Productive Zone 2 Aerobic Foundation',
   effectivenessScore: 74,
   stars: 2,
+  verdict: 'some_deviation' as const,
   rubricCoveragePct: 76,
   rubricFamily: 'aerobic',
   focusAdvice: 'Biggest Lever — Aerobic Decoupling: 5.4% cardiac drift was the largest single cost (12 of 30 points lost). Start the opening 2 km 10-15 sec/km slower and add easy volume at or below 138 bpm — capillary density, not speed, is the limiter.',
@@ -50,24 +51,25 @@ const summary = {
 describe('CoachScoreCard weighted rubric UI', () => {
   afterEach(() => cleanup());
 
-  it('shows factor weights, the biggest lever and personal-baseline chips', () => {
+  it('shows a verdict and observations without scores, stars or point weights', () => {
     render(<CoachScoreCard coachSummary={summary} language="en" t={en} />);
 
     // Badge keeps the numeric score
-    expect(screen.getByText('74/100')).toBeTruthy();
+    expect(screen.queryByText('74/100')).toBeNull();
+    expect(screen.getByText('Some deviation')).toBeTruthy();
 
     // Open the transparent breakdown
-    fireEvent.click(screen.getByRole('button', { name: /74\/100/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Some deviation/ }));
 
     // Weighted rubric rows expose the weight behind each factor
-    expect(screen.getByText('+18')).toBeTruthy();
-    expect(Array.from(document.querySelectorAll('.score-factor-max')).map(el => el.textContent)).toEqual([' / 30', ' / 26']);
-    expect(screen.getByText('Focus')).toBeTruthy();
-    expect(screen.getByText(/graded on 76% of the rubric/i)).toBeTruthy();
+    expect(screen.queryByText('+18')).toBeNull();
+    expect(Array.from(document.querySelectorAll('.score-factor-max')).map(el => el.textContent)).toEqual([]);
+    expect(screen.getByText('Session observations')).toBeTruthy();
+    expect(screen.queryByText(/graded on 76% of the rubric/i)).toBeNull();
 
     // Biggest lever + personal baseline blocks
-    expect(screen.getByText('Biggest Lever')).toBeTruthy();
-    expect(screen.getByText(/cardiac drift was the largest single cost/i)).toBeTruthy();
+    expect(screen.queryByText('Biggest Lever')).toBeNull();
+    expect(screen.queryByText(/points lost/i)).toBeNull();
     expect(screen.getByText('Your Baseline')).toBeTruthy();
     expect(screen.getByText('Load 1.4x 28-day average')).toBeTruthy();
     expect(screen.getByText('Economy +6.5% vs 28-day median')).toBeTruthy();
@@ -91,10 +93,11 @@ describe('CoachScoreCard weighted rubric UI', () => {
       />
     );
 
-    expect(screen.getByText('95/100')).toBeTruthy();
+    expect(screen.queryByText('95/100')).toBeNull();
+    expect(screen.getByText('Insufficient evidence')).toBeTruthy();
     expect(screen.queryByText('Biggest Lever')).toBeNull();
     expect(screen.queryByText('Your Baseline')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /95\/100/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Insufficient evidence/ }));
     // Legacy rows have no weight, so no "/ max" is rendered
     expect(document.querySelectorAll('.score-factor-max')).toHaveLength(0);
   });
@@ -133,9 +136,14 @@ describe('CoachScoreCard weighted rubric UI', () => {
       ]);
 
     // Mix strip counts every tone, worst first
-    expect(screen.getByText('Insight mix')).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'Insight mix' })).toBeTruthy();
     expect(Array.from(document.querySelectorAll('.coach-tone-pill')).map(el => el.textContent))
-      .toEqual(['Fix1', 'Watch1', 'Good1', 'Info1']);
+      .toEqual(['All insights', 'Fix1', 'Watch1', 'Good1', 'Info1']);
+    fireEvent.click(screen.getByRole('button', { name: 'Fix1' }));
+    expect(document.querySelectorAll('.coach-insight-item')).toHaveLength(1);
+    expect(document.querySelector('.coach-insight-item.tone-negative')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'All insights' }));
+    expect(document.querySelectorAll('.coach-insight-item')).toHaveLength(4);
   });
 
   it('leaves summaries written before tones existed uncoloured', () => {

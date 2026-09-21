@@ -1,31 +1,26 @@
+import { SessionVerdictBadge } from './SessionVerdictBadge.js';
+import type { SessionVerdict } from '../../../shared/session-verdict.js';
 import React, { useState } from 'react';
 import type { Translations } from '../../i18n/types.js';
 import type { CoachInsightTone } from '../../types/api.js';
-import { ShieldCheck, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext.js';
 import {
   translateCoachHeadline,
   translateCoachInsight,
   translateCoachRecommendation,
-  translateCoachFocusAdvice,
   translateScoreCategory,
   translateScoreLabel,
   translateScoreDescription
 } from '../../i18n/coachTranslator';
 
-export function scoreToStars(score: number | null | undefined): number {
-  if (score == null) return 0;
-  if (score <= 3) return Math.min(3, Math.max(1, Math.round(score)));
-  if (score >= 85) return 3;
-  if (score >= 70) return 2;
-  return 1;
-}
 
 /** Signed display for a delta that is already a number from the API payload. */
 const signed = (value: number) => (value > 0 ? `+${value}` : `${value}`);
 
 interface CoachScoreCardProps {
   coachSummary: {
+    verdict?: SessionVerdict;
     headline?: string;
     stars?: number;
     effectivenessScore?: number;
@@ -70,22 +65,20 @@ export const CoachScoreCard: React.FC<CoachScoreCardProps> = ({
   t
 }) => {
   const [showScoreBreakdown, setShowScoreBreakdown] = useState<boolean>(false);
+  const [toneFilter, setToneFilter] = useState<CoachInsightTone | null>(null);
   const { format } = useTranslation();
 
-  const rawStars = coachSummary.stars ?? scoreToStars(coachSummary.effectivenessScore ?? coachSummary.rating5);
-  const coachStars = Math.max(1, Math.min(3, rawStars > 3 ? (rawStars >= 4 ? 3 : 2) : (rawStars || 1)));
-  const effScore = coachSummary.effectivenessScore;
-  const tierLabel = coachStars === 3 ? 'gold' : coachStars === 2 ? 'silver' : 'bronze';
   const context = coachSummary.context;
-  const coverage = coachSummary.rubricCoveragePct;
 
   // Tone verdicts travel beside the sentences. A length mismatch means the row
   // was written before tones existed, so the list stays plain rather than
   // labelling an insight with a neighbour's verdict.
-  const insights = coachSummary.keyInsights || [];
-  const tones = coachSummary.insightTones?.length === insights.length
-    ? coachSummary.insightTones
-    : [];
+  const rawInsights = coachSummary.keyInsights || [];
+  const rawTones = coachSummary.insightTones?.length === rawInsights.length ? coachSummary.insightTones : [];
+  const visibleInsights = rawInsights.map((text, index) => ({ text, tone: rawTones[index] }))
+    .filter(entry => !entry.text.startsWith('Rubric Coverage:'));
+  const insights = visibleInsights.map(entry => entry.text);
+  const tones = visibleInsights.map(entry => entry.tone);
 
   const toneLabel = (tone: CoachInsightTone): string =>
     tone === 'positive' ? t.browse.coachToneGood
@@ -127,21 +120,18 @@ export const CoachScoreCard: React.FC<CoachScoreCardProps> = ({
         <div className="coach-title-group">
           <span className="coach-tag">{t.browse.coachTag || 'Coach AI'}</span>
           <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-            {translateCoachHeadline(coachSummary.headline || '', language)}
+            {t.browse.coachTextOverrides[coachSummary.headline || ''] ?? translateCoachHeadline(coachSummary.headline || '', language)}
           </h3>
         </div>
         <button
           type="button"
           className="coach-score-badge"
           onClick={() => setShowScoreBreakdown(prev => !prev)}
-          title="Click to toggle full execution score breakdown & grading rubric"
+          title={t.browse.verdictDetails}
+          aria-expanded={showScoreBreakdown}
           style={{ cursor: 'pointer', font: 'inherit', color: 'inherit' }}
         >
-          <ShieldCheck size={16} />
-          <span className={`execution-emblem emblem-${tierLabel}`} style={{ fontSize: '0.85rem', padding: '0.2rem 0.55rem' }}>
-            {'★'.repeat(coachStars)}{'☆'.repeat(Math.max(0, 3 - coachStars))}
-            {effScore ? <span style={{ opacity: 0.75, marginLeft: '0.4rem', fontWeight: 600, fontSize: '0.78rem' }}>{effScore}/100</span> : null}
-          </span>
+          <SessionVerdictBadge verdict={coachSummary.verdict} />
           <ChevronDown
             size={14}
             style={{
@@ -154,82 +144,36 @@ export const CoachScoreCard: React.FC<CoachScoreCardProps> = ({
         </button>
       </div>
 
-      {/* Transparent Execution Score Breakdown & Rubric */}
       {showScoreBreakdown && (
         <div className="score-breakdown-card">
           <div className="score-breakdown-header">
-            <span className="score-breakdown-title">{t.browse.scoreBreakdownTitle}</span>
-            <span className="score-breakdown-total">
-              {t.browse.scoreFinalExecution}: <b>{effScore ?? '—'} / 100</b>
-              {' · '}
-              {coachStars === 3 ? t.browse.medalGold : coachStars === 2 ? t.browse.medalSilver : t.browse.medalBronze}
-            </span>
+            <span className="score-breakdown-title">{t.browse.verdictDetails}</span>
           </div>
-
-          {coverage != null && coverage < 100 && (
-            <p className="score-coverage-note">{format(t.browse.coachScoreCoverage, { pct: coverage })}</p>
-          )}
-
+          <p className="score-coverage-note">{t.browse.verdictExplanation}</p>
           <div className="score-breakdown-factors">
-            {(coachSummary.scoreBreakdown || []).map((factor, fIdx) => {
-              const isPos = factor.points > 0;
-              const isNeg = factor.points < 0;
-              const weight = factor.maxPoints ?? null;
-              const share = weight ? Math.round((factor.points / weight) * 100) : null;
-              return (
-                <div key={fIdx} className={`score-factor-row${factor.isFocus ? ' score-factor-focus' : ''}`}>
-                  <div className="score-factor-main">
-                    <span className="score-factor-cat">
-                      {translateScoreCategory(factor.category, language)}
-                      {factor.isFocus ? <span className="score-factor-focus-tag">{t.browse.coachFocusTag}</span> : null}
-                    </span>
-                    <span className="score-factor-label">{translateScoreLabel(factor.label, language)}</span>
-                    {factor.description && (
-                      <span className="score-factor-desc">{translateScoreDescription(factor.description, language)}</span>
-                    )}
-                    {share != null && (
-                      <span className="score-factor-bar" aria-hidden="true">
-                        <span className="score-factor-bar-fill" style={{ width: `${Math.max(0, Math.min(100, share))}%` }} />
-                      </span>
-                    )}
-                  </div>
-                  <span className={`score-factor-points ${isPos ? 'points-positive' : (isNeg ? 'points-negative' : 'points-neutral')}`}>
-                    {isPos ? `+${factor.points}` : factor.points}
-                    {weight != null ? <span className="score-factor-max"> / {weight}</span> : null}
-                  </span>
+            {(coachSummary.scoreBreakdown || []).map((factor, fIdx) => (
+              <div key={fIdx} className="score-factor-row">
+                <div className="score-factor-main">
+                  <span className="score-factor-cat">{translateScoreCategory(factor.category, language)}</span>
+                  <span className="score-factor-label">{translateScoreLabel(factor.label, language)}</span>
+                  {factor.description && <span className="score-factor-desc">{translateScoreDescription(factor.description, language)}</span>}
                 </div>
-              );
-            })}
-          </div>
-
-          {/* Physiological Grading Rubric (3-tier) */}
-          <div className="score-rubric-legend">
-            <span className="rubric-legend-title">{t.browse.scoreGradingTiers}</span>
-            <div className="rubric-tiers">
-              <span className={coachStars === 3 ? 'rubric-active' : ''}>
-                <b>{t.browse.scoreGoldTier}:</b> {t.browse.scoreGoldDesc}
-              </span>
-              <span className={coachStars === 2 ? 'rubric-active' : ''}>
-                <b>{t.browse.scoreSilverTier}:</b> {t.browse.scoreSilverDesc}
-              </span>
-              <span className={coachStars === 1 ? 'rubric-active' : ''}>
-                <b>{t.browse.scoreBronzeTier}:</b> {t.browse.scoreBronzeDesc}
-              </span>
-            </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
       {/* Tone legend: how many read-outs are strengths, watch-outs or context */}
       {insights.length > 0 && toneCounts.length > 1 && (
-        <div className="coach-insight-mix">
-          <span className="coach-insight-mix-title">{t.browse.coachInsightMix}</span>
+        <div className="coach-insight-mix" role="group" aria-label={t.browse.coachInsightMix}>
+          <button type="button" className="coach-tone-pill" aria-pressed={toneFilter === null} onClick={() => setToneFilter(null)}>{t.browse.coachAllInsights}</button>
           {toneCounts.map(({ tone, count }) => (
-            <span key={tone} className={`coach-tone-pill tone-${tone}`}>
+            <button type="button" key={tone} className={`coach-tone-pill tone-${tone}`} aria-pressed={toneFilter === tone} onClick={() => setToneFilter(current => current === tone ? null : tone)}>
               <span className="coach-tone-dot" aria-hidden="true" />
               {toneLabel(tone)}
               <b>{count}</b>
-            </span>
+            </button>
           ))}
         </div>
       )}
@@ -237,12 +181,13 @@ export const CoachScoreCard: React.FC<CoachScoreCardProps> = ({
       <ul className="coach-insights-list">
         {insights.map((insight, idx) => {
           const tone = tones[idx];
+          if (toneFilter && toneCounts.length > 1 && tone !== toneFilter) return null;
           return (
             <li key={idx} className={`coach-insight-item tone-${tone ?? 'neutral'}`}>
               <span className="coach-insight-bullet" aria-hidden="true">◆</span>
               <span className="coach-insight-text">
                 {tone && <span className={`coach-insight-tag tone-${tone}`}>{toneLabel(tone)}</span>}
-                {translateCoachInsight(insight, language)}
+                {t.browse.coachTextOverrides[insight] ?? translateCoachInsight(insight, language)}
               </span>
             </li>
           );
@@ -261,17 +206,9 @@ export const CoachScoreCard: React.FC<CoachScoreCardProps> = ({
         </div>
       )}
 
-      {/* Biggest lever: the factor that cost the most points, with the fix */}
-      {coachSummary.focusAdvice && (
-        <div className="coach-focus-lever">
-          <span className="coach-focus-tag">{t.browse.coachFocusLever}</span>
-          <p className="coach-focus-text">{translateCoachFocusAdvice(coachSummary.focusAdvice, language)}</p>
-        </div>
-      )}
-
       <div className="coach-recommendation">
         <strong style={{ color: '#06b6d4' }}>{t.browse.nextStep}: </strong>
-        {translateCoachRecommendation(coachSummary.recommendation || '', language)}
+        {t.browse.coachTextOverrides[coachSummary.recommendation || ''] ?? translateCoachRecommendation(coachSummary.recommendation || '', language)}
       </div>
     </section>
   );

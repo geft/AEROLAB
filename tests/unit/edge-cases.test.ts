@@ -111,7 +111,8 @@ describe('Physiological & Sensor Edge Cases Unit Tests', () => {
       const isStride = i >= 300 && i <= 330;
       return createRecord(i, {
         cadence: isStride ? 195 : 162,
-        heartRate: 142 // flat HR, effort detected via cadence & stance time
+        speedMps: isStride ? 6.0 : 2.5,
+        heartRate: 142 // Flat HR still permits strides when speed confirms the burst.
       });
     });
 

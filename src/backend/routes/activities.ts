@@ -1,3 +1,4 @@
+import { parseSessionVerdict } from '../../shared/session-verdict.js';
 import { getAthleteHeartRateProfile } from '../physiology/athlete-profile.js';
 import { getDefaultZones } from '../physiology/zones.js';
 import { Router } from 'express';
@@ -372,7 +373,7 @@ activitiesRouter.get('/', (req, res) => {
         a.weather_temperature_c, a.weather_humidity_pct, a.weather_apparent_temp_c,
         a.weather_condition, a.weather_code, a.weather_fetched_at,
         a.workout_lat, a.workout_lon,
-        cs.effectiveness_score
+        cs.effectiveness_score, cs.analysis_json
       FROM activities a
       LEFT JOIN activity_coach_summaries cs ON a.id = cs.activity_id
     `;
@@ -385,7 +386,11 @@ activitiesRouter.get('/', (req, res) => {
     query += ` ORDER BY a.start_time DESC`;
 
     const activities = db.prepare(query).all(...params);
-    res.json({ activities });
+    res.json({ activities: (activities as any[]).map(({ analysis_json, ...activity }) => {
+      let analysis: any = null;
+      try { analysis = JSON.parse(analysis_json || 'null'); } catch { /* Legacy analysis may be absent. */ }
+      return { ...activity, verdict: parseSessionVerdict(analysis?.verdict) };
+    }) });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -604,6 +609,7 @@ activitiesRouter.get('/:id/coach-summary', (req, res) => {
     res.json({
       coachSummary: {
         headline: coachRow.headline,
+        verdict: parseSessionVerdict(analysis?.verdict),
         effectivenessScore: coachRow.effectiveness_score,
         rating5: Number((coachRow.effectiveness_score / 20).toFixed(1)),
         stars: coachRow.effectiveness_score >= 85 ? 3 : coachRow.effectiveness_score >= 70 ? 2 : 1,

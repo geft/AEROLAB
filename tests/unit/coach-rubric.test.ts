@@ -529,6 +529,29 @@ describe('Walk-break classification', () => {
     expect(edges.capacityWalkSec).toBe(0);
   });
 
+  it('accepts brief low-HR easy-run breaks without inferring fatigue', () => {
+    const audit = auditWalkBreaks(makeRecords([
+      { kind: 'run', sec: 720, hr: 125 },
+      { kind: 'walk', sec: 33, hr: 122 },
+      { kind: 'run', sec: 800, hr: 138 }
+    ]), { ...opts, allowBriefAerobicBreaks: true })!;
+    expect(audit.capacityWalkSec).toBe(0);
+    expect(audit.deliberateWalkSec).toBe(33);
+  });
+
+  it('does not mistake high-HR cooldown walking for a work-rep interruption', () => {
+    const records = makeRecords([
+      { kind: 'run', sec: 300, hr: 170 },
+      { kind: 'walk', sec: 180, hr: 165 },
+      { kind: 'run', sec: 600, hr: 140 }
+    ]);
+    const audit = auditWalkBreaks(records, { ...opts, workWindows: [{ from: 0, to: 300 }] })!;
+    expect(audit.intrusiveWalkSec).toBe(0);
+    expect(audit.deliberateWalkSec).toBe(180);
+    const inside = auditWalkBreaks(records, { ...opts, workWindows: [{ from: 0, to: 600 }] })!;
+    expect(inside.intrusiveWalkSec).toBe(180);
+  });
+
   it('recognises a regular run/walk rhythm as a planned session', () => {
     const segments: Array<{ kind: 'run' | 'walk'; sec: number; hr: number }> = [];
     for (let i = 0; i < 6; i++) {
@@ -538,6 +561,7 @@ describe('Walk-break classification', () => {
     const audit = auditWalkBreaks(makeRecords(segments), opts)!;
     expect(audit.blockCount).toBe(6);
     expect(audit.plannedPattern).toBe(true);
+    expect(audit.capacityWalkSec).toBe(0);
   });
 
   it('returns null when there is no cadence telemetry to judge from', () => {

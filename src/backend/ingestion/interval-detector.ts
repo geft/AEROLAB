@@ -1,5 +1,20 @@
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
+import { inferWorkoutPrescription, type WorkoutPrescription } from '../../shared/prescription.js';
 import { ActivityRecord } from './csv-parser';
+
+// The prescription hint is computed by the shared helper so the run-detail table
+// and the coach summary text can never disagree. Re-exported for existing callers.
+export { inferWorkoutPrescription };
+export type { WorkoutPrescription };
+
+/**
+ * Minimum ground a stride must cover. The floor exists to reject sensor spikes
+ * that cover no distance, so it has to stay below what coarse GPS reports for a
+ * genuine surge (a real 4:00-recovery stride measured 28m), otherwise the stride
+ * is later dropped as a transient work block and its samples are absorbed into
+ * the surrounding recoveries.
+ */
+const STRIDE_MIN_DISTANCE_M = 20;
 
 export interface DetectedInterval {
   intervalIndex: number;
@@ -24,13 +39,6 @@ export interface DetectedInterval {
   hrDrop?: number; // drop in heart rate during recovery
 }
 
-export interface WorkoutPrescription {
-  repCount: number;
-  workSeconds: number;
-  recoverySeconds: number;
-  label: string;
-}
-
 export interface DetectIntervalsOptions {
   isRace?: boolean;
   lt1Hr?: number;
@@ -40,55 +48,10 @@ export interface DetectIntervalsOptions {
 }
 
 /**
- * Infer prescription label from detected intervals (e.g. 3x15:00 / 3:00 rec).
- */
-export function inferWorkoutPrescription(intervals: DetectedInterval[]): WorkoutPrescription | null {
-  const workReps = intervals.filter(i => i.type === 'work');
-  if (workReps.length < 2) return null;
-
-  const durations = workReps.map(r => r.durationSeconds).sort((a, b) => a - b);
-  const medianWorkSec = durations[Math.floor(durations.length / 2)];
-  const isConsistentWork = workReps.every(r => Math.abs(r.durationSeconds - medianWorkSec) <= Math.max(90, medianWorkSec * 0.2));
-
-  if (!isConsistentWork) return null;
-
-  // Round work seconds to nearest standard step (e.g. 60s, 30s)
-  const roundedWork = Math.round(medianWorkSec / 30) * 30;
-
-  // Check recoveries between work reps
-  const recDurs: number[] = [];
-  for (let i = 0; i < intervals.length - 1; i++) {
-    if (intervals[i].type === 'work' && intervals[i + 1].type === 'recovery') {
-      recDurs.push(intervals[i + 1].durationSeconds);
-    }
-  }
-
-  const medianRecSec = recDurs.length > 0
-    ? recDurs.sort((a, b) => a - b)[Math.floor(recDurs.length / 2)]
-    : 0;
-  const roundedRec = Math.round(medianRecSec / 15) * 15;
-
-  const formatMinSec = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = Math.round(sec % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
-
-  const label = `${workReps.length}x${formatMinSec(roundedWork)}${roundedRec > 0 ? ` / ${formatMinSec(roundedRec)} rec` : ''}`;
-
-  return {
-    repCount: workReps.length,
-    workSeconds: roundedWork,
-    recoverySeconds: roundedRec,
-    label
-  };
-}
-
-/**
- * Detects workout intervals (reps, recoveries, strides) using pace-free physiological and biomechanical telemetry:
+ * Detects workout intervals (reps, recoveries, strides) using physiological and biomechanical telemetry:
  * - Cadence & ground contact time (stance time) for kinematic running vs walking/resting
  * - Heart rate relative to athlete maximum / session distribution
- * - Completely avoids using speed or pace to determine effort, ensuring slower and faster athletes are treated identically.
+ * - Strides require sustained speed contrast relative to the runner, not cadence alone.
  */
 export function detectIntervals(
   records: ActivityRecord[],
@@ -216,15 +179,15 @@ export function detectIntervals(
       const durSec = (records[b.endIndex]?.elapsedSeconds ?? 0) - (records[b.startIndex]?.elapsedSeconds ?? 0);
       const blockRecs = records.slice(b.startIndex, b.endIndex + 1);
       const maxSpd = Math.max(...blockRecs.map(r => r?.speedMps ?? 0));
-      const maxCad = Math.max(...blockRecs.map(r => r?.cadence ?? 0));
+      const fastShare = blockRecs.filter(r => (r.speedMps ?? 0) >= strideSpeedThreshold).length / blockRecs.length;
       const _minStance = Math.min(...blockRecs.map(r => (r?.stanceTime && r.stanceTime > 100) ? r.stanceTime : 9999));
       const startDist = blockRecs[0]?.distanceMeters ?? 0;
       const endDist = blockRecs[blockRecs.length - 1]?.distanceMeters ?? startDist;
       const distM = Math.max(0, endDist - startDist);
 
-      // Stride requires short duration, minimum distance (>= 30m) to filter street-crossing flutters,
-      // and either high speed surge or neuromuscular cadence turnover relative to runner
-      if (durSec <= 45 && distM >= 30 && (maxSpd >= strideSpeedThreshold || maxCad >= strideCadThreshold || (maxCad >= baseCad + 8 && maxSpd >= baseSpeed * 1.15))) {
+      // Stride requires short duration, real ground covered and sustained speed
+      // contrast; cadence alone is not evidence of a stride
+      if (durSec <= 45 && distM >= STRIDE_MIN_DISTANCE_M && maxSpd >= strideSpeedThreshold && fastShare >= 0.6) {
         b.type = 'stride';
       } else if (isEasyBaseSession && !hasSpeedContrast && !hasCadenceContrast && durSec < 90) {
         b.type = 'recovery';
@@ -240,7 +203,7 @@ export function detectIntervals(
       let backfilledStart = rawBlocks[i].startIndex;
       while (
         backfilledStart > prevRec.startIndex &&
-        rawBlocks[i].startIndex - backfilledStart < 90 &&
+        (records[rawBlocks[i].startIndex].elapsedSeconds - records[backfilledStart - 1].elapsedSeconds) <= 90 &&
         (records[backfilledStart - 1]?.cadence ?? 0) >= repCad - 6
       ) {
         backfilledStart--;
@@ -367,7 +330,9 @@ export function detectIntervals(
       const startDist = records[b.startIndex]?.distanceMeters ?? 0;
       const endDist = records[b.endIndex]?.distanceMeters ?? startDist;
       const dist = Math.max(0, endDist - startDist);
-      return dur >= 6 && dur <= 45 && dist >= 35;
+      // Same floor as promotion, so a stride can never be promoted and then
+      // silently discarded by validation.
+      return dur >= 6 && dur <= 45 && dist >= STRIDE_MIN_DISTANCE_M;
     }
     if (b.type === 'work') return dur >= 15;
     return dur >= 8;
@@ -390,11 +355,43 @@ export function detectIntervals(
       })
     );
 
+    // A short, much slower segment outside a sustained set is warm-up/cool-down,
+    // even if cadence and residual HR remain high. Preserve fast finishing reps.
+    const sustainedCandidates = workBlocks.filter(b => records[b.endIndex].elapsedSeconds - records[b.startIndex].elapsedSeconds >= 180);
+    const sustainedSpeeds = sustainedCandidates.map(b => {
+      const recs = records.slice(b.startIndex, b.endIndex + 1);
+      return recs.reduce((sum, r) => sum + (r.speedMps ?? 0), 0) / recs.length;
+    }).sort((a, b) => a - b);
+    // Establish the quality set from the fast sustained cluster first. A long
+    // cooldown can itself be a work-shaped block when cadence stays elevated;
+    // including it in the reference would make the cooldown redefine the set.
+    const fastestSustainedSpeed = sustainedSpeeds[sustainedSpeeds.length - 1] ?? 0;
+    const sustained = sustainedCandidates.filter(b => {
+      const recs = records.slice(b.startIndex, b.endIndex + 1);
+      const avgSpeed = recs.reduce((sum, r) => sum + (r.speedMps ?? 0), 0) / recs.length;
+      return fastestSustainedSpeed <= 0 || avgSpeed >= fastestSustainedSpeed * 0.85;
+    });
+    const referenceSpeed = sustained.length > 0
+      ? sustained.reduce((sum, b) => {
+          const recs = records.slice(b.startIndex, b.endIndex + 1);
+          return sum + recs.reduce((inner, r) => inner + (r.speedMps ?? 0), 0) / recs.length;
+        }, 0) / sustained.length
+      : 0;
+    const firstWork = sustained[0]?.startIndex;
+    const lastWork = sustained[sustained.length - 1]?.endIndex;
+
     const pruned: RawBlock[] = [];
     for (const b of validBlocks) {
       if (b.type === 'work') {
         const blockRecs = records.slice(b.startIndex, b.endIndex + 1);
         const avgHr = blockRecs.reduce((sum, r) => sum + (r.heartRate ?? 0), 0) / blockRecs.length;
+        const duration = records[b.endIndex].elapsedSeconds - records[b.startIndex].elapsedSeconds;
+        const avgSpeed = blockRecs.reduce((sum, r) => sum + (r.speedMps ?? 0), 0) / blockRecs.length;
+        const outsideSet = sustained.length >= 2 && (b.endIndex < firstWork || b.startIndex > lastWork);
+        if (outsideSet && referenceSpeed > 0 && avgSpeed < referenceSpeed * 0.85 && avgHr < athleteLt2 - 5) {
+          pruned.push({ ...b, type: 'recovery' });
+          continue;
+        }
         const pruneCeiling = athleteLt1 + 2;
         if (maxRepHr > 130 && avgHr < pruneCeiling) {
           pruned.push({ type: 'recovery', startIndex: b.startIndex, endIndex: b.endIndex });
