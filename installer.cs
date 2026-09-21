@@ -17,6 +17,11 @@ namespace AerolabInstaller
         private Button launchButton;
         private string installDir;
 
+        // Release version reported to Windows' "Apps & features" list. scripts/package-chromium-free.js
+        // rewrites this constant with the real release version at package time, so the uninstall entry
+        // always matches the installer filename; the value below is only a direct-compile fallback.
+        private const string DisplayVersion = "1.1.0";
+
         public InstallerForm()
         {
             Text = "AEROLAB Setup";
@@ -249,7 +254,7 @@ namespace AerolabInstaller
                     if (key != null)
                     {
                         key.SetValue("DisplayName", "AEROLAB");
-                        key.SetValue("DisplayVersion", "1.0.0");
+                        key.SetValue("DisplayVersion", DisplayVersion);
                         key.SetValue("Publisher", "AEROLAB");
                         key.SetValue("InstallLocation", path);
                         key.SetValue("DisplayIcon", iconPath);

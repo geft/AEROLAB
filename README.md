@@ -13,7 +13,7 @@ A local-first, high-performance running analytics platform and dashboard designe
 - **Customizable Typography & Font Scaling**: Smooth 25% font-scaling increments (75%, 100%, 125%, 150%, 175%, 200%)
 - **Period Progress & Training Volume**: Monthly and annual mileage breakdowns, weekly volume cadence, and 5-zone cardiovascular distribution
 - **Calibrated Race Predictions**: Jack Daniels VDOT and Critical Velocity projections for 5K, 10K, Half Marathon, and Marathon based on empirical physiological thresholds
-- **Ultra-Lightweight Standalone Windows App**: 47 MB native Windows installer (`AEROLAB-Setup.exe`) running in isolated App Mode using your existing Chrome or Edge browser (0 MB Chromium bloat)
+- **Ultra-Lightweight Standalone Windows App**: 47 MB native Windows installer (`AEROLAB-Setup-v<version>.exe`, e.g. `AEROLAB-Setup-v1.1.0.exe`) running in isolated App Mode using your existing Chrome or Edge browser (0 MB Chromium bloat)
 
 ---
 
@@ -174,7 +174,7 @@ To build the standalone Windows installer on your machine:
 ```bash
 npm run package:chromium-free
 ```
-This produces a single, self-extracting installer executable in `release/AEROLAB-Setup.exe` (~47 MB) with:
+This produces a single, self-extracting installer executable in `release/AEROLAB-Setup-v<version>.exe` (~47 MB, e.g. `release/AEROLAB-Setup-v1.1.0.exe`) with:
 - Zero Chromium download overhead (uses host Chrome or Edge in App Mode)
 - Native C# launcher (`AEROLAB.exe`, compiled from `launcher.cs` during packaging — it is a build artifact and is **not** tracked in git)
 - Embedded Node runtime and production bundles

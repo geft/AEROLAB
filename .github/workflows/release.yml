@@ -35,10 +35,15 @@ jobs:
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             RELEASE_VER="${GITHUB_REF_NAME#v}"
           else
-            RELEASE_VER="1.0.${{ github.run_number }}"
+            RELEASE_VER="1.1.${{ github.run_number }}"
+          fi
+          if [[ ! "$RELEASE_VER" =~ ^[0-9A-Za-z._-]+$ ]]; then
+            echo "::error::Release tag version '$RELEASE_VER' contains characters that cannot go into the installer filename. Use only [0-9A-Za-z._-]."
+            exit 1
           fi
           echo "Setting package version to $RELEASE_VER"
           npm version "$RELEASE_VER" --no-git-tag-version --allow-same-version
+          echo "RELEASE_VERSION=$RELEASE_VER" >> "$GITHUB_ENV"
 
       - name: Package Chromium-Free Windows Distribution (Zero Terminal)
         run: node scripts/package-chromium-free.js
@@ -46,17 +51,17 @@ jobs:
       - name: Upload Windows Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: AEROLAB-Windows-Installer
-          path: release/AEROLAB-Setup.exe
+          name: AEROLAB-Windows-Installer-${{ env.RELEASE_VERSION }}
+          path: release/AEROLAB-Setup-v${{ env.RELEASE_VERSION }}.exe
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v1.0.{0}', github.run_number) }}
-          files: release/AEROLAB-Setup.exe
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v1.1.{0}', github.run_number) }}
+          files: release/AEROLAB-Setup-v${{ env.RELEASE_VERSION }}.exe
 
           draft: false
           prerelease: false
           generate_release_notes: true
-          name: ${{ startsWith(github.ref, 'refs/tags/') && format('AEROLAB Windows Release {0}', github.ref_name) || format('AEROLAB Windows Build v1.0.{0}', github.run_number) }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && format('AEROLAB Windows Release {0}', github.ref_name) || format('AEROLAB Windows Build v1.1.{0}', github.run_number) }}

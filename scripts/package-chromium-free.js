@@ -27,13 +27,25 @@ console.log('🚀 Packaging Chromium-Free AEROLAB Distribution...');
 execSync('node scripts/build-all.js', { cwd: rootDir, stdio: 'inherit' });
 
 const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'));
+
+// Version resolution order: explicit RELEASE_VERSION (exported by CI) > package.json > newest v-tag.
+// The version ends up in the installer filename, so when CI supplies one it must win outright;
+// otherwise the artifact name could drift from the GitHub Release tag.
 let version = pkg.version || '1.0.0';
-try {
-  const gitTag = execSync('git describe --tags --abbrev=0', { cwd: rootDir, stdio: ['pipe', 'pipe', 'ignore'] }).toString().trim();
-  if (gitTag && gitTag.startsWith('v')) {
-    version = gitTag.replace(/^v/, '');
-  }
-} catch {}
+if (process.env.RELEASE_VERSION) {
+  version = process.env.RELEASE_VERSION;
+} else {
+  try {
+    const gitTag = execSync('git describe --tags --abbrev=0', { cwd: rootDir, stdio: ['pipe', 'pipe', 'ignore'] }).toString().trim();
+    if (gitTag && gitTag.startsWith('v')) {
+      version = gitTag.replace(/^v/, '');
+    }
+  } catch {}
+}
+
+// Keep the version safe to embed in a filename / release asset name.
+version = String(version).trim().replace(/[^0-9A-Za-z._-]/g, '');
+if (!version) version = '1.0.0';
 
 const targetDir = path.join(rootDir, 'release', 'AEROLAB-ChromiumFree');
 const zipFile = path.join(rootDir, 'release', `AEROLAB-Windows-v${version}.zip`);
@@ -181,11 +193,27 @@ if (process.platform === 'win32') {
   const cscPath = 'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe';
   const installerCs = path.join(rootDir, 'installer.cs');
   const icoPath = path.join(rootDir, 'aerolab.ico');
-  const installerExe = path.join(rootDir, 'release', 'AEROLAB-Setup.exe');
+  // The version is part of the installer name so every release artifact is self-identifying.
+  const installerExe = path.join(rootDir, 'release', `AEROLAB-Setup-v${version}.exe`);
 
   if (fs.existsSync(cscPath) && fs.existsSync(installerCs) && fs.existsSync(zipFile)) {
-    console.log('🔨 Compiling AEROLAB-Setup.exe Native Windows Installer...');
-    execSync(`"${cscPath}" /nologo /target:winexe /win32icon:"${icoPath}" /resource:"${zipFile}",payload.zip /out:"${installerExe}" /r:System.Windows.Forms.dll,System.Drawing.dll,System.IO.Compression.dll,System.IO.Compression.FileSystem.dll "${installerCs}"`, { stdio: 'inherit' });
+    // Stamp the real version into the installer source so the Windows "Apps & features"
+    // entry matches the installer filename instead of a stale hardcoded string.
+    const installerSource = fs.readFileSync(installerCs, 'utf8');
+    const versionConstPattern = /(private const string DisplayVersion = ")[^"]*(";)/;
+    if (!versionConstPattern.test(installerSource)) {
+      console.error('❌ Could not find the DisplayVersion constant in installer.cs; aborting so the installed version cannot drift.');
+      process.exit(1);
+    }
+    const generatedInstallerCs = path.join(rootDir, 'release', 'installer.generated.cs');
+    fs.writeFileSync(generatedInstallerCs, installerSource.replace(versionConstPattern, `$1${version}$2`), 'utf8');
+
+    console.log(`🔨 Compiling AEROLAB-Setup-v${version}.exe Native Windows Installer...`);
+    try {
+      execSync(`"${cscPath}" /nologo /target:winexe /win32icon:"${icoPath}" /resource:"${zipFile}",payload.zip /out:"${installerExe}" /r:System.Windows.Forms.dll,System.Drawing.dll,System.IO.Compression.dll,System.IO.Compression.FileSystem.dll "${generatedInstallerCs}"`, { stdio: 'inherit' });
+    } finally {
+      fs.unlinkSync(generatedInstallerCs);
+    }
     
     // Clean up intermediate files so only 1 single installer executable exists in release/
     if (fs.existsSync(zipFile)) {
@@ -202,9 +230,16 @@ if (process.platform === 'win32') {
     if (fs.existsSync(legacyInstaller)) {
       fs.unlinkSync(legacyInstaller);
     }
-    const oldVersionedSetup = path.join(rootDir, 'release', `AEROLAB-Setup-v${version}.exe`);
-    if (fs.existsSync(oldVersionedSetup) && oldVersionedSetup !== installerExe) {
-      fs.unlinkSync(oldVersionedSetup);
+
+    // Remove any stale AEROLAB-Setup*.exe (the old unversioned name or an earlier
+    // version) so exactly one installer — the versioned one just built — remains.
+    for (const entry of fs.readdirSync(path.join(rootDir, 'release'))) {
+      if (/^AEROLAB-Setup.*\.exe$/i.test(entry)) {
+        const stale = path.join(rootDir, 'release', entry);
+        if (stale !== installerExe) {
+          fs.unlinkSync(stale);
+        }
+      }
     }
 
     // Clean up staging directory so ONLY the single installer executable remains in release/

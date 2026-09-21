@@ -1,6 +1,6 @@
 {
   "name": "run-progress",
-  "version": "1.0.13",
+  "version": "1.1.0",
   "description": "Local Running Progress Dashboard with LT1/LT2 and Running Economy Tracking",
   "type": "module",
   "scripts": {
