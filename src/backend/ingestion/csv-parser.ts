@@ -124,6 +124,7 @@ export function parseRunCSV(content: string, filename: string): ParsedCSV {
       if (!tsStr) continue;
 
       const currentMs = new Date(tsStr).getTime();
+      if (!Number.isFinite(currentMs)) continue;
       if (startTimestampMs === 0 && !isNaN(currentMs)) {
         startTimestampMs = currentMs;
       }
@@ -202,13 +203,13 @@ export function parseRunCSV(content: string, filename: string): ParsedCSV {
 function parseNullableFloat(val?: string): number | null {
   if (val === undefined || val === null || val.trim() === '') return null;
   const parsed = parseFloat(val.trim());
-  return isNaN(parsed) ? null : parsed;
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function parseNullableInt(val?: string): number | null {
   if (val === undefined || val === null || val.trim() === '') return null;
   const parsed = parseInt(val.trim(), 10);
-  return isNaN(parsed) ? null : parsed;
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function pathFallbackId(filename: string, dateStr?: string): string {

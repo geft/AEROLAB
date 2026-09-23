@@ -40,7 +40,9 @@ describe('API Error Handling & Dev Diagnostics Integration Tests', () => {
 
   it('does not mount developer routes in a production build', async () => {
     const previous = process.env.NODE_ENV;
+    const previousOverride = process.env.AEROLAB_DEV_TOOLS;
     process.env.NODE_ENV = 'production';
+    process.env.AEROLAB_DEV_TOOLS = '1';
     try {
       const productionApp = createServer();
       const diagnostics = await request(productionApp).get('/api/dev/diagnostics');
@@ -51,6 +53,8 @@ describe('API Error Handling & Dev Diagnostics Integration Tests', () => {
       expect(sandbox.status).toBe(404);
     } finally {
       process.env.NODE_ENV = previous;
+      if (previousOverride === undefined) delete process.env.AEROLAB_DEV_TOOLS;
+      else process.env.AEROLAB_DEV_TOOLS = previousOverride;
     }
   });
 

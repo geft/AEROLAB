@@ -19,12 +19,26 @@ A local-first, high-performance running analytics platform and dashboard designe
 
 ## Architecture & Design Principles
 
-### 1. Single SQLite Database (`data/runs.db`) vs. Multi-DB
+### 1. Single SQLite Database
 AEROLAB uses a **single SQLite database file** operating in **WAL (Write-Ahead Logging)** mode:
 - **Relational Integrity**: Runs, kilometer splits, interval reps, coach summaries, and physiological thresholds are linked by foreign keys and updated in atomic transactions.
 - **Cross-Tab Queries**: The `Browse`, `Progress`, and `Stats` views query the same unified dataset without cross-database coordination or synchronization overhead.
 - **Sub-Millisecond Speed**: Embedded SQLite queries execute locally in < 1 ms.
-- **Zero-Fuss Backup**: Your entire running history is contained in one portable file (`data/runs.db`).
+- **Zero-Fuss Backup**: Your entire running history is contained in one portable SQLite file. Development defaults to `data/runs.db`; the Windows app defaults to `%APPDATA%\aerolab\runs.db`.
+
+### Store the database separately from the app
+
+Open **Settings → Database location** and click **Choose database location**. In the file picker, select an existing `.db` file or enter a new `.db` filename in a folder outside the app. The action button will say **Use this database** for an existing file, or **Copy current database here** for a new file. Copying creates a consistent SQLite snapshot and leaves the original in place. Restart this app to open the selected file.
+
+Each build stores its own database choice. To use the same file in development and the Windows app, select that file independently in each build's Settings. Neither build configures the other. Close both before switching, and avoid running restore or maintenance from both at once.
+
+The development setting can also be changed from this repository with an absolute path to an existing SQLite file:
+
+```powershell
+npm run db:location -- "$env:APPDATA\aerolab\runs.db"
+```
+
+The preferences live in `%APPDATA%\aerolab\development-database-location.json` and `%APPDATA%\aerolab\desktop-database-location.json`. Run `npm run db:location` without a path to see the development location. Selecting an existing file changes which database an app opens; it does not merge histories. A `DATABASE_PATH` environment variable overrides that app's saved preference.
 
 ### 2. Dual Ingestion: Native FIT & CSV Support with Zero Raw Bloat
 AEROLAB supports both native Garmin binary `.fit` files and exported `.csv` files:
@@ -44,11 +58,12 @@ High-frequency 1Hz time-series data is compacted by ~75% before saving to SQLite
 Weather conditions in tropical climates vary dramatically across short distances:
 - Rather than sampling weather at the runner's doorstep (which biases every run to the starting location), AEROLAB trims the warmup (first 5 min / 20%) and cooldown (last 3–5 min / 15%) to calculate the **mathematical geographic centroid** of the core workout segment.
 - This centroid is stored as `workout_lat` and `workout_lon` on the activity, enabling hyper-local weather lookups while keeping home coordinates private.
+- Weather lookup runs only when you press **Fetch ambient weather** on a workout. That action sends the workout centroid and date to Open-Meteo. Imported Garmin temperature remains available as a device sensor reading; an on-wrist reading may be affected by body heat and is not used as ambient temperature in the coach rubric.
 
 ### 5. Local Backup Rotation & Restore
-- **Weekly Auto Backup**: A SQLite snapshot is written to the local backup directory every 7 days on launch, with a rolling retention policy that keeps the 10 most recent files.
+- **Weekly Auto Backup**: A SQLite snapshot is written to the local backup directory every 7 days on launch, with a rolling retention policy that keeps the 5 most recent files.
 - **Manual Snapshot Download**: Download a portable `.db` snapshot at any time via the Settings backup panel (one `.db` file contains the whole history).
-- **Drop-In Restore**: Drag a `.db` snapshot back in to restore. The upload is streamed straight to disk, so snapshot size is bounded by disk space rather than process memory, and a safety backup of the current database is always written before anything is replaced.
+- **Drop-In Restore**: Drag a `.db` snapshot back in to restore. Binary uploads stream to disk with a 256 MB default limit (configurable with `MAX_RESTORE_BYTES`), and a safety backup of the current database is written before anything is replaced.
 - **No Cloud Dependency**: Backups are local-only by design. The database grows roughly 150 KB per run (per-second telemetry), and run data can be re-exported from Garmin at any time, so mirroring it into a personal cloud quota was not worth it.
 
 ---
@@ -146,7 +161,7 @@ npm install
 ```
 
 ### 2. Verify Your Change
-Type-check, lint, and run the full suite (58 test files, 420 automated tests, 100% passing) spanning physiology unit tests, binary/CSV ingestion, API integration, and React UI user flows:
+Type-check, lint, and run the full suite spanning physiology unit tests, binary/CSV ingestion, API integration, and React UI user flows:
 ```bash
 npx tsc --noEmit      # 0 errors
 npm run lint          # ESLint: hardcoded labels, hardcoded run stats, empty catches
@@ -179,6 +194,7 @@ This produces a single, self-extracting installer executable in `release/AEROLAB
 - Native C# launcher (`AEROLAB.exe`, compiled from `launcher.cs` during packaging — it is a build artifact and is **not** tracked in git)
 - Embedded Node runtime and production bundles
 - Desktop shortcut creation on install
+- A random per-launch local session: the launcher opens a one-time bootstrap URL, and the API requires the resulting HttpOnly cookie. Only the app's origin may make browser API requests.
 
 ---
 
@@ -209,7 +225,7 @@ python scripts/batch_ingest.py --dir "C:/path/to/Garmin/Activities" --clean
 ```
 
 ### Method D: Direct Database Portability (`data/runs.db`)
-AEROLAB operates on a **single embedded SQLite WAL database file** (`data/runs.db`). To back up or transfer your running history, simply copy `data/runs.db` or use the **Download Snapshot** button in the backup panel.
+AEROLAB operates on a **single embedded SQLite WAL database file**. Development defaults to `data/runs.db`; the Windows app defaults to `%APPDATA%\aerolab\runs.db`. Settings shows the active location. To back up or transfer your running history, use **Download Snapshot** in the backup panel so the copy includes committed WAL data.
 
 ---
 
@@ -340,10 +356,7 @@ AEROLAB is designed with local-first data isolation:
 2. **Fresh Clone**: When a running partner or family member clones the repository on their own machine, they receive an empty `data/` folder and start with a fresh database on first run.
 3. **Shared PC Setup**:
    - Keep separate folders (e.g. `C:\gemini-projects\run-progress-GJ` and `C:\gemini-projects\run-progress-partner`).
-   - Or configure the `DATABASE_PATH` environment variable in `.env`:
-     ```bash
-     DATABASE_PATH=data/partner_runs.db
-     ```
+   - Or set `DATABASE_PATH` in each process environment to an absolute path. Each build's database location setting is independent.
 
 ---
 

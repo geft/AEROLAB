@@ -126,6 +126,20 @@ describe('Personal baseline comparison', () => {
     expect(buildContextInsights(buildCoachContext([], currentRun))).toEqual([]);
   });
 
+  it('selects the latest run of the same type and similar distance from the previous 30 days', () => {
+    const history: HistoryRow[] = [
+      historyRow({ id: 'different-type', start_time: '2026-09-19 07:00:00', run_type: 'long_run', distance_meters: 12000 }),
+      historyRow({ id: 'too-short', start_time: '2026-09-18 07:00:00', distance_meters: 7000 }),
+      historyRow({ id: 'latest-match', start_time: '2026-09-17 07:00:00', distance_meters: 11000 }),
+      historyRow({ id: 'earlier-match', start_time: '2026-09-10 07:00:00', distance_meters: 12000 }),
+      historyRow({ id: 'too-old', start_time: '2026-08-01 07:00:00', distance_meters: 12000 })
+    ];
+
+    const context = buildCoachContext(history, currentRun);
+    expect(context.lastSimilarRun).toMatchObject({ id: 'latest-match', distanceKm: 11, paceSecKm: 318, heartRate: 139 });
+    expect(buildCoachContext(history.filter(row => row.id !== 'latest-match' && row.id !== 'earlier-match'), currentRun).lastSimilarRun).toBeNull();
+  });
+
   it('excludes activities outside the lookback window and the graded activity itself', () => {
     const history: HistoryRow[] = [
       historyRow({ id: 'old', start_time: '2026-01-05 07:00:00' }),

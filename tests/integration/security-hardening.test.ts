@@ -56,23 +56,23 @@ describe('Security Hardening Integration Tests', () => {
   });
 
   describe('2. CORS Origin Restrictions', () => {
-    it('allows loopback localhost origins with credentials', async () => {
+    it('allows the fixed Vite development origin', async () => {
       const res = await request(app)
         .get('/api/health')
         .set('Origin', 'http://localhost:5173');
 
       expect(res.status).toBe(200);
       expect(res.headers['access-control-allow-origin']).toBe('http://localhost:5173');
-      expect(res.headers['access-control-allow-credentials']).toBe('true');
+      expect(res.headers['access-control-allow-credentials']).toBeUndefined();
     });
 
-    it('allows loopback 127.0.0.1 origins', async () => {
+    it('rejects another localhost port', async () => {
       const res = await request(app)
         .get('/api/health')
         .set('Origin', 'http://127.0.0.1:3000');
 
-      expect(res.status).toBe(200);
-      expect(res.headers['access-control-allow-origin']).toBe('http://127.0.0.1:3000');
+      expect(res.status).toBe(403);
+      expect(res.headers['access-control-allow-origin']).toBeUndefined();
     });
 
     it('blocks non-loopback unauthorized external origins', async () => {
@@ -81,8 +81,8 @@ describe('Security Hardening Integration Tests', () => {
         .set('Origin', 'https://malicious-attacker.com');
 
       // The cors middleware throws an error for disallowed origins
-      expect(res.status).toBe(500);
-      expect(res.text).toContain('Cross-Origin Request Blocked');
+      expect(res.status).toBe(403);
+      expect(res.text).toContain('Origin not authorized');
     });
   });
 

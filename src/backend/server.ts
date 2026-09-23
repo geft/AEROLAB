@@ -1,5 +1,5 @@
 import express from 'express';
-import cors from 'cors';
+import { randomBytes, timingSafeEqual } from 'crypto';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -12,13 +12,24 @@ import { devRouter } from './routes/dev.js';
 import { databaseRouter, checkAndRunScheduledBackup } from './routes/database.js';
 import { requestLogger, globalErrorHandler, logger } from './utils/logger.js';
 import { isDevToolsEnabled } from './utils/dev-mode.js';
+import { getMaintenanceStatus, startMaintenance } from './jobs/maintenance.js';
 
 const currentDir = typeof __dirname !== 'undefined'
   ? __dirname
   : (typeof import.meta !== 'undefined' && import.meta.url ? path.dirname(fileURLToPath(import.meta.url)) : process.cwd());
 
-export function createServer() {
+const launchToken = process.env.AEROLAB_SESSION_TOKEN || (process.env.NODE_ENV === 'production' ? randomBytes(32).toString('hex') : null);
+
+function tokenMatches(actual: string | undefined, expected: string): boolean {
+  if (!actual) return false;
+  const actualBytes = Buffer.from(actual);
+  const expectedBytes = Buffer.from(expected);
+  return actualBytes.length === expectedBytes.length && timingSafeEqual(actualBytes, expectedBytes);
+}
+
+export function createServer(options: { sessionToken?: string } = {}) {
   const app = express();
+  const sessionToken = options.sessionToken ?? launchToken;
 
   // Standard Security Headers
   app.use((_req, res, next) => {
@@ -27,37 +38,64 @@ export function createServer() {
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     next();
   });
+  app.use('/api', (_req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store');
+    next();
+  });
 
-  // Restrict CORS to local development and desktop loopback origins
-  const allowedOrigins = [
-    /^http:\/\/localhost(:\d+)?$/,
-    /^http:\/\/127\.0\.0\.1(:\d+)?$/,
-    /^http:\/\/\[::1\](:\d+)?$/
-  ];
+  // A loopback listener alone does not stop DNS rebinding or another localhost
+  // page from calling the API. Production traffic is same-origin only; Vite's
+  // fixed development origin is the sole cross-origin exception.
+  app.use((req, res, next) => {
+    const host = req.headers.host || '';
+    if (!/^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host)) {
+      return res.status(403).json({ error: 'Invalid local host.' });
+    }
+    const origin = req.headers.origin;
+    const devOrigin = process.env.NODE_ENV !== 'production' &&
+      (origin === 'http://localhost:5173' || origin === 'http://127.0.0.1:5173');
+    if (origin && origin !== `http://${host}` && !devOrigin) {
+      return res.status(403).json({ error: 'Origin not authorized.' });
+    }
+    if (devOrigin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    }
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+    next();
+  });
 
-  app.use(cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (same-origin, Electron, direct curl/testing)
-      if (!origin) return callback(null, true);
-      const isAllowed = allowedOrigins.some(pattern => pattern.test(origin));
-      if (isAllowed) {
-        return callback(null, true);
-      }
-      return callback(new Error('Cross-Origin Request Blocked: Origin not authorized by AEROLAB local security policy.'));
-    },
-    credentials: true
-  }));
+  if (sessionToken) {
+    const sessionCookieToken = randomBytes(32).toString('hex');
+    let bootstrapAvailable = true;
+    app.get(`/bootstrap/${sessionToken}`, (_req, res) => {
+      if (!bootstrapAvailable) return res.sendStatus(404);
+      bootstrapAvailable = false;
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('Referrer-Policy', 'no-referrer');
+      res.cookie('aerolab_session', sessionCookieToken, {
+        httpOnly: true,
+        sameSite: 'strict',
+        path: '/'
+      });
+      res.redirect(302, '/');
+    });
+    app.use('/api', (req, res, next) => {
+      if (req.path === '/health') return next();
+      const cookie = req.headers.cookie?.split(';').map(part => part.trim()).find(part => part.startsWith('aerolab_session='));
+      const value = cookie?.slice('aerolab_session='.length);
+      if (!tokenMatches(value, sessionCookieToken)) return res.status(401).json({ error: 'Local session required.' });
+      next();
+    });
+  }
 
-  // Large-body parsers are scoped to the routes that legitimately accept base64
-  // SQLite snapshots and Garmin "Export All Data" archives. The global parser
-  // stays small so ordinary API calls cannot allocate oversized buffers.
-  // 160 MB accommodates a ~100 MB database plus base64 encoding overhead.
-  const LARGE_UPLOAD_LIMIT = '160mb';
-  app.use(
-    ['/api/database/restore', '/api/ingest/upload'],
-    express.json({ limit: LARGE_UPLOAD_LIMIT })
-  );
-  app.use(express.json({ limit: '50mb' }));
+  // Base64 snapshots and activity imports have separate ceilings. Ordinary
+  // API calls use a much smaller global JSON parser.
+  app.use('/api/database/restore', express.json({ limit: '160mb' }));
+  app.use('/api/ingest/upload', express.json({ limit: '64mb' }));
+  app.use(express.json({ limit: '1mb' }));
   app.use(requestLogger);
 
   // API Routes
@@ -76,6 +114,10 @@ export function createServer() {
   // Health check
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  app.get('/api/system/maintenance', (_req, res) => {
+    res.json(getMaintenanceStatus());
   });
 
   // Graceful shutdown for standalone desktop app mode (loopback only)
@@ -139,16 +181,19 @@ export function listenOnLoopback(app: ReturnType<typeof createServer>, port: num
 // Only listen if executed directly
 if (process.env.NODE_ENV !== 'test') {
   const app = createServer();
-  // Ensure DB initialized
+  // Only schema setup is required before serving requests. Derived data is
+  // computed in a local worker after the listener is ready.
+  process.env.AEROLAB_DEFER_MIGRATIONS = '1';
   const db = getDatabase();
-  try {
-    checkAndRunScheduledBackup(db);
-  } catch (err: any) {
-    logger.warn('server', 'Initial backup check failed', { error: err?.message || String(err) });
-  }
 
   listenOnLoopback(app, PORT, () => {
+    startMaintenance(db.name, () => {
+      void checkAndRunScheduledBackup(db).catch(error => logger.warn('server', 'Initial backup check failed', { error: String(error) }));
+    });
     console.log(`\n🚀 Run Progress API server running at http://localhost:${PORT}`);
+    if (launchToken && !process.env.AEROLAB_SESSION_TOKEN) {
+      console.log(`Open http://127.0.0.1:${PORT}/bootstrap/${launchToken} to start a local session.`);
+    }
     console.log(`📊 Activities: http://localhost:${PORT}/api/activities`);
     console.log(`📈 Thresholds: http://localhost:${PORT}/api/thresholds\n`);
   });

@@ -4741,3 +4741,26 @@ body {
 .verdict-off_target .session-verdict-symbol { border-radius: 0.25rem; border-width: 2px; }
 .coach-score-badge { flex-shrink: 0; }
 .coach-header { flex-wrap: wrap; gap: 0.75rem; }
+.shared-db-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.shared-db-action.shared-db-primary {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
+.shared-db-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

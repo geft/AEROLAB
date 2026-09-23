@@ -18,6 +18,7 @@ import net from 'net';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { randomBytes } from 'crypto';
 import process from 'process';
 import { fileURLToPath } from 'url';
 
@@ -148,17 +149,14 @@ async function main() {
     execSync('node scripts/build-all.js', { cwd: rootDir, stdio: 'inherit' });
   }
 
-  const userDataDir = process.env.APPDATA
-    ? path.join(process.env.APPDATA, 'aerolab')
-    : path.join(os.homedir(), '.aerolab');
-  const dbPath = path.join(userDataDir, 'runs.db');
+  const sessionToken = randomBytes(32).toString('hex');
 
   backendProcess = spawn(process.execPath, [serverCjsPath], {
     cwd: rootDir,
     env: {
       ...process.env,
       PORT: String(port),
-      DATABASE_PATH: dbPath,
+      AEROLAB_SESSION_TOKEN: sessionToken,
       // Mark the packaged desktop engine as a production build so developer
       // routes (/api/dev/*) are never mounted in a shipped installer.
       NODE_ENV: 'production'
@@ -175,8 +173,8 @@ async function main() {
     process.exit(1);
   }
 
-  const appUrl = `http://127.0.0.1:${port}`;
-  console.log(`\x1b[32m✔ AEROLAB engine ready at ${appUrl}\x1b[0m`);
+  const appUrl = `http://127.0.0.1:${port}/bootstrap/${sessionToken}`;
+  console.log(`\x1b[32m✔ AEROLAB engine ready on port ${port}\x1b[0m`);
 
   // Prepare profile directory for isolated app mode
   const profileDir = process.env.APPDATA

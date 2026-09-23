@@ -181,7 +181,7 @@ describe('ProfileView UI Tests', () => {
       expect(patchPayload).toBeTruthy();
       expect(patchPayload.resting_hr).toBe(52);
       expect(patchPayload.dob).toBe('1989-04-15');
-      expect(screen.getByText(/Cardiovascular baselines updated/i)).toBeTruthy();
+      expect(screen.getByText(/Profile saved and workout analysis updated/i)).toBeTruthy();
     });
   });
 });

@@ -1,12 +1,12 @@
 import { ageFromDob } from '../../shared/heart-rate.js';
 import { getAthleteHeartRateProfile, getObservedPeakHeartRate } from '../physiology/athlete-profile.js';
-import { calculateActivityTrainingLoad } from '../physiology/training-load.js';
 export { getObservedPeakHeartRate } from '../physiology/athlete-profile.js';
 export { ageFromDob as calculateAgeFromDob } from '../../shared/heart-rate.js';
 import { Router } from 'express';
 import { getDatabase } from '../db/client.js';
 import { getDefaultZones } from '../physiology/zones.js';
-import { syncAllCoachSummaries } from '../physiology/coach-summary.js';
+import { recomputeProfileDerivedData } from '../physiology/profile-recompute.js';
+import { queueProfileRecompute } from '../jobs/maintenance.js';
 import { getCurrentThresholds } from '../physiology/threshold-tracker.js';
 import { logger } from '../utils/logger.js';
 
@@ -157,6 +157,7 @@ profileRouter.patch('/', (req, res) => {
     }
 
     let syncedActivitiesCount = 0;
+    let syncScheduled = false;
     if (sets.length > 0) {
       sets.push(`updated_at = CURRENT_TIMESTAMP`);
       values.push('primary');
@@ -169,24 +170,13 @@ profileRouter.patch('/', (req, res) => {
         const thresholds = getCurrentThresholds(db);
         db.prepare("UPDATE athlete_profile SET lt1_hr = ?, lt2_hr = ?, lt1_min_hr = ?, lt1_max_hr = ?, z3_start_hr = ?, z4_start_hr = ? WHERE id = 'primary'")
           .run(thresholds.lt1Hr, thresholds.lt2Hr, thresholds.lt1Hr - 1, thresholds.lt1Hr + 1, thresholds.lt1Hr + 1, thresholds.lt2Hr);
-        const hrProfile = getAthleteHeartRateProfile(db);
-        const activities = db.prepare('SELECT id, duration_seconds, avg_heart_rate FROM activities').all() as any[];
-        const selectRecords = db.prepare('SELECT elapsed_seconds, heart_rate FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds');
-        const updateLoad = db.prepare('UPDATE activities SET training_load = ?, z1_seconds = ?, z2_seconds = ?, z3_seconds = ?, z4_seconds = ?, z5_seconds = ? WHERE id = ?');
-        db.transaction(() => {
-          for (const activity of activities) {
-            const load = calculateActivityTrainingLoad(selectRecords.all(activity.id) as any[], hrProfile,
-              { durationSeconds: activity.duration_seconds, avgHeartRate: activity.avg_heart_rate });
-            updateLoad.run(load.trainingLoad, load.zones.z1Seconds, load.zones.z2Seconds, load.zones.z3Seconds, load.zones.z4Seconds, load.zones.z5Seconds, activity.id);
-          }
-        })();
       }
 
-      // Continuously update all coach summaries across all activities using updated profile thresholds
-      try {
-        syncedActivitiesCount = syncAllCoachSummaries(db);
-      } catch (syncErr: any) {
-        logger.error('Profile', 'Non-fatal coach summary sync error during profile update', syncErr);
+      if (process.env.NODE_ENV === 'test') {
+        syncedActivitiesCount = recomputeProfileDerivedData(db, baselineChanged);
+      } else {
+        queueProfileRecompute(db.name, baselineChanged);
+        syncScheduled = true;
       }
     }
 
@@ -197,7 +187,8 @@ profileRouter.patch('/', (req, res) => {
         schedule: updated.schedule_json ? JSON.parse(updated.schedule_json) : null,
         preferences: updated.preferences_json ? JSON.parse(updated.preferences_json) : null
       },
-      syncedActivitiesCount
+      syncedActivitiesCount,
+      syncScheduled
     });
   } catch (err: any) {
     logger.error('Profile', 'PATCH /api/profile failed', err);

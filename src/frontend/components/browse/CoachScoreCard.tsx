@@ -2,9 +2,11 @@ import { SessionVerdictBadge } from './SessionVerdictBadge.js';
 import type { SessionVerdict } from '../../../shared/session-verdict.js';
 import React, { useState } from 'react';
 import type { Translations } from '../../i18n/types.js';
-import type { CoachInsightTone } from '../../types/api.js';
+import type { CoachContext, CoachInsightTone } from '../../types/api.js';
 import { ChevronDown } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext.js';
+import { formatPace } from '../../utils/formatters.js';
+import { selectNotableRunComparison } from '../../utils/coachComparison.js';
 import {
   translateCoachHeadline,
   translateCoachInsight,
@@ -40,20 +42,12 @@ interface CoachScoreCardProps {
     focusAdvice?: string | null;
     rubricCoveragePct?: number | null;
     rubricFamily?: string | null;
-    context?: {
-      windowDays: number;
-      comparableRuns: number;
-      baselineEf: number | null;
-      efDeltaPct: number | null;
-      baselineHrAtPace: number | null;
-      hrAtPaceDeltaBpm: number | null;
-      hrAtPaceSamples: number;
-      decouplingRank: number | null;
-      decouplingSamples: number;
-      longestDistanceKm: number | null;
-      isLongestRun: boolean;
-      acwr: number | null;
-    } | null;
+    context?: Pick<CoachContext,
+      'windowDays' | 'comparableRuns' | 'baselineEf' | 'efDeltaPct' |
+      'baselineHrAtPace' | 'hrAtPaceDeltaBpm' | 'hrAtPaceSamples' |
+      'decouplingRank' | 'decouplingSamples' | 'longestDistanceKm' |
+      'isLongestRun' | 'acwr'> & Partial<Pick<CoachContext,
+      'lastSimilarRun' | 'currentHeartRate' | 'currentPaceSecKm' | 'currentAboveCeilingPct'>> | null;
   };
   language: 'en' | 'zh';
   t: Translations;
@@ -66,17 +60,41 @@ export const CoachScoreCard: React.FC<CoachScoreCardProps> = ({
 }) => {
   const [showScoreBreakdown, setShowScoreBreakdown] = useState<boolean>(false);
   const [toneFilter, setToneFilter] = useState<CoachInsightTone | null>(null);
-  const { format } = useTranslation();
+  const { format, formatDate } = useTranslation();
 
   const context = coachSummary.context;
+  const comparison = selectNotableRunComparison(context);
+  const comparisonDate = comparison ? formatDate(comparison.startTime, { day: 'numeric', month: 'short' }) : '';
+  const comparisonInsight = comparison?.kind === 'intensity'
+    ? format(t.browse.coachCompareIntensity, {
+      date: comparisonDate,
+      previous: comparison.previous.toFixed(1),
+      current: comparison.current.toFixed(1)
+    })
+    : comparison?.kind === 'pace'
+      ? format(comparison.direction === 'faster' ? t.browse.coachComparePaceFaster : t.browse.coachComparePaceSlower, {
+        date: comparisonDate,
+        delta: comparison.secondsPerKm,
+        previous: comparison.previousHr,
+        current: comparison.currentHr
+      })
+      : comparison?.kind === 'heartRate'
+        ? format(comparison.direction === 'lower' ? t.browse.coachCompareHrLower : t.browse.coachCompareHrHigher, {
+          date: comparisonDate,
+          delta: comparison.bpm,
+          previous: formatPace(comparison.previousPace),
+          current: formatPace(comparison.currentPace)
+        })
+        : null;
 
   // Tone verdicts travel beside the sentences. A length mismatch means the row
   // was written before tones existed, so the list stays plain rather than
   // labelling an insight with a neighbour's verdict.
   const rawInsights = coachSummary.keyInsights || [];
   const rawTones = coachSummary.insightTones?.length === rawInsights.length ? coachSummary.insightTones : [];
-  const visibleInsights = rawInsights.map((text, index) => ({ text, tone: rawTones[index] }))
+  const visibleInsights: Array<{ text: string; tone?: CoachInsightTone; localized?: boolean }> = rawInsights.map((text, index) => ({ text, tone: rawTones[index] }))
     .filter(entry => !entry.text.startsWith('Rubric Coverage:'));
+  if (comparisonInsight) visibleInsights.push({ text: comparisonInsight, tone: 'neutral', localized: true });
   const insights = visibleInsights.map(entry => entry.text);
   const tones = visibleInsights.map(entry => entry.tone);
 
@@ -179,15 +197,15 @@ export const CoachScoreCard: React.FC<CoachScoreCardProps> = ({
       )}
 
       <ul className="coach-insights-list">
-        {insights.map((insight, idx) => {
-          const tone = tones[idx];
+        {visibleInsights.map((entry, idx) => {
+          const tone = entry.tone;
           if (toneFilter && toneCounts.length > 1 && tone !== toneFilter) return null;
           return (
             <li key={idx} className={`coach-insight-item tone-${tone ?? 'neutral'}`}>
               <span className="coach-insight-bullet" aria-hidden="true">◆</span>
               <span className="coach-insight-text">
                 {tone && <span className={`coach-insight-tag tone-${tone}`}>{toneLabel(tone)}</span>}
-                {t.browse.coachTextOverrides[insight] ?? translateCoachInsight(insight, language)}
+                {entry.localized ? entry.text : (t.browse.coachTextOverrides[entry.text] ?? translateCoachInsight(entry.text, language))}
               </span>
             </li>
           );

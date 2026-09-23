@@ -71,6 +71,20 @@ export interface Translations {
     devMode: string;
     confidence: string;
   };
+  weather: {
+    ambientTooltip: string;
+    unknownSourceTooltip: string;
+    humidity: string;
+    feelsLike: string;
+    watchSensor: string;
+    refresh: string;
+    available: string;
+    fetching: string;
+    fetch: string;
+    shareNotice: string;
+    garminSensor: string;
+    storedUnverifiedTemp: string;
+  };
   runTypes: {
     easy_base: string;
     threshold_lt2: string;
@@ -112,8 +126,13 @@ export interface Translations {
     verticalOscillation: string;
     verticalRatio: string;
     biomechanicalDynamics: string;
+    dynamicsTitle: string;
     biomechanicalDesc: string;
     gctShort: string;
+    cadenceShort: string;
+    verticalOscLabelShort: string;
+    strideLengthShort: string;
+    verticalRatioShort: string;
     verticalOscShort: string;
     dropOrImportCsv: string;
     noRunsMatchingFilter: string;
@@ -147,6 +166,11 @@ export interface Translations {
     /** Execution emblem tooltip. Tokens: `{stars}` (and `{score}` when scored). */
     /** Weighted-rubric transparency labels. */
     coachBaselineTitle: string;
+    coachCompareIntensity: string;
+    coachComparePaceFaster: string;
+    coachComparePaceSlower: string;
+    coachCompareHrLower: string;
+    coachCompareHrHigher: string;
     coachContextAcwr: string;
     coachContextEconomy: string;
     coachContextHrAtPace: string;
@@ -452,6 +476,8 @@ export interface Translations {
     restingHrRangeError: string;
     restingHrPlaceholder: string;
     maxHrPlaceholder: string;
+    savedRecomputing: string;
+    saved: string;
   };
   upload: {
     title: string;
@@ -511,6 +537,31 @@ export interface Translations {
     saveSettings: string;
     restoreConfirm: string;
     refreshAction: string;
+  };
+  databaseLocation: {
+    title: string;
+    description: string;
+    current: string;
+    nextStart: string;
+    loading: string;
+    chooseFile: string;
+    useExisting: string;
+    copyHere: string;
+    pickerHint: string;
+    existingHint: string;
+    newHint: string;
+    confirmExisting: string;
+    confirmCopy: string;
+    restartNeeded: string;
+    statusFailed: string;
+    selectFailed: string;
+    syncFailed: string;
+    locationChanged: string;
+    overrideActive: string;
+    invalidDatabase: string;
+    invalidFolder: string;
+    maintenanceRunning: string;
+    maintenanceFailed: string;
   };
   onboarding: {
     brandTitle: string;

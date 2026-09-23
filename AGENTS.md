@@ -8,7 +8,7 @@ Canonical rule file for AI agents working in this repository.
 ```bash
 npx tsc --noEmit     # must be 0 errors
 npm run lint         # must be 0 errors (warnings are a tracked backlog)
-npm test             # 60 files / 446 tests, all green
+npm test             # 67 files / 476 tests, all green
 npm run i18n:unused  # must report every dictionary key as referenced
 ```
 
@@ -60,7 +60,8 @@ gh release list / gh release view <tag>
 ## Repo conventions
 
 - Local-first: the app must work fully offline; never require a cloud service.
-- One SQLite database (`data/runs.db`) in WAL mode. Never commit `data/**`,
+- One SQLite database in WAL mode. Development defaults to `data/runs.db`;
+  the database may be selected outside the app in Settings. Never commit `data/**`,
   `*.db`, `dist*/`, `release/`, `coverage/` or any `*.exe` (all gitignored).
 - Line endings are LF everywhere (see `.gitattributes`).
 - Conventional Commits: `feat(scope):`, `fix(scope):`, `chore(scope):`, `test:`.

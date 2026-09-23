@@ -65,4 +65,12 @@ timestamp,heart_rate,cadence,speed,distance,altitude,temperature,vertical_oscill
     expect(r.verticalOscillation).toBeNull();
     expect(r.stanceTime).toBeNull();
   });
+
+  it('does not pass invalid timestamps or infinite sensor values into analysis', () => {
+    const parsed = parseRunCSV(`timestamp,heart_rate,speed,distance\ninvalid,140,3,10\n2026-09-12T12:30:00,Infinity,Infinity,10`, 'invalid.csv');
+    expect(parsed.records).toHaveLength(1);
+    expect(parsed.records[0].heartRate).toBeNull();
+    expect(parsed.records[0].speedMps).toBeNull();
+    expect(Number.isFinite(parsed.records[0].elapsedSeconds)).toBe(true);
+  });
 });

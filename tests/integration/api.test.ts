@@ -1,5 +1,5 @@
 import { seedBenchmarkProfile } from '../fixtures/benchmark-runs.js';
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import request from 'supertest';
 import { createServer } from '../../src/backend/server.js';
 import { getDatabase } from '../../src/backend/db/client.js';
@@ -41,11 +41,17 @@ describe('API Server Integration Tests', () => {
   });
 
   it('GET /api/activities/:id returns deep dive with splits and records', async () => {
-    const res = await request(app).get('/api/activities/bench-easy-60');
-    expect(res.status).toBe(200);
-    expect(res.body.activity).toBeDefined();
-    expect(res.body.splits).toBeDefined();
-    expect(res.body.records.length).toBeGreaterThan(0);
+    const weatherFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Unexpected weather lookup'));
+    try {
+      const res = await request(app).get('/api/activities/bench-easy-60');
+      expect(res.status).toBe(200);
+      expect(res.body.activity).toBeDefined();
+      expect(res.body.splits).toBeDefined();
+      expect(res.body.records.length).toBeGreaterThan(0);
+      expect(weatherFetch).not.toHaveBeenCalled();
+    } finally {
+      weatherFetch.mockRestore();
+    }
   });
 
   it('PATCH /api/activities/:id updates custom title and tags', async () => {
@@ -544,4 +550,3 @@ describe('API Server Integration Tests', () => {
     expect(marathon.distanceMeters).toBe(42195);
   });
 });
-

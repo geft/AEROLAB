@@ -143,7 +143,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
         body: JSON.stringify(payload)
       });
 
-      let resData: Partial<ThresholdsResponse> & Partial<ApiError> & { message?: string } = {};
+      let resData: Partial<ThresholdsResponse> & Partial<ApiError> & { message?: string; syncScheduled?: boolean } = {};
       try {
         resData = await res.json();
       } catch {
@@ -157,7 +157,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
         throw new Error(`[${code}]: ${msg}${details}`);
       }
 
-      setStatusMessage({ type: 'success', text: 'Cardiovascular baselines updated and training models re-synchronized!' });
+      setStatusMessage({ type: 'success', text: resData.syncScheduled ? t.profile.savedRecomputing : t.profile.saved });
       setTimeout(() => setStatusMessage(null), 4000);
     } catch (err) {
       setStatusMessage({ type: 'error', text: errorMessage(err) || '[ERR_PROFILE_UPDATE]: Error updating profile' });

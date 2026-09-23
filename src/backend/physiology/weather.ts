@@ -6,6 +6,11 @@ export interface WeatherData {
   conditionText: string | null;
 }
 
+/** Older rows without a source remain unknown rather than inferred as ambient. */
+export function verifiedAmbientTemperature(activity: { weather_source?: string | null; weather_temperature_c?: number | null }): number | null {
+  return activity.weather_source === 'open-meteo' ? activity.weather_temperature_c ?? null : null;
+}
+
 const WMO_CODES: Record<number, string> = {
   0: 'Clear sky',
   1: 'Mainly clear',
@@ -108,7 +113,8 @@ export async function syncActivityWeather(db: any, activityId: string): Promise<
           weather_apparent_temp_c = ?,
           weather_condition = ?,
           weather_code = ?,
-          weather_fetched_at = CURRENT_TIMESTAMP
+          weather_fetched_at = CURRENT_TIMESTAMP,
+          weather_source = 'open-meteo'
         WHERE id = ?
       `).run(
         weather.temperatureC,
@@ -124,29 +130,4 @@ export async function syncActivityWeather(db: any, activityId: string): Promise<
   }
 
   return weather;
-}
-
-/**
- * Automatically backfills historical microclimate weather for any activity missing weather data.
- */
-export async function syncAllActivitiesWeather(db: any): Promise<number> {
-  try {
-    const unbackfilled = db.prepare(`
-      SELECT id FROM activities 
-      WHERE workout_lat IS NOT NULL 
-        AND workout_lon IS NOT NULL 
-        AND weather_temperature_c IS NULL
-    `).all() as Array<{ id: string }>;
-
-    let count = 0;
-    for (const act of unbackfilled) {
-      const res = await syncActivityWeather(db, act.id);
-      if (res && res.temperatureC !== null) {
-        count++;
-      }
-    }
-    return count;
-  } catch {
-    return 0;
-  }
 }

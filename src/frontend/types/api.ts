@@ -11,62 +11,13 @@ import type { SessionVerdict } from '../../shared/session-verdict.js';
  * return rows largely as-is.
  */
 
-/** A workout row as returned by the list and detail endpoints. */
-export interface Activity {
-  id: string;
-  name: string | null;
-  start_time: string;
-  sport?: string | null;
-  run_type: string | null;
-  auto_run_type?: string | null;
-  distance_meters: number;
-  duration_seconds: number;
-  elapsed_seconds?: number | null;
-  avg_pace_sec_km: number | null;
-  avg_heart_rate: number | null;
-  max_heart_rate?: number | null;
-  avg_cadence: number | null;
-  max_cadence?: number | null;
-  calories?: number | null;
-  elevation_gain_m?: number | null;
-  elevation_loss_m?: number | null;
-  avg_temperature?: number | null;
-  avg_vertical_oscillation?: number | null;
-  avg_stance_time?: number | null;
-  efficiency_factor?: number | null;
-  aerobic_decoupling_pct?: number | null;
-  meters_per_beat?: number | null;
-  estimated_lt1_hr?: number | null;
-  estimated_lt1_pace_sec_km?: number | null;
-  estimated_lt2_hr?: number | null;
-  estimated_lt2_pace_sec_km?: number | null;
-  steady_pace_sec_km?: number | null;
-  steady_heart_rate?: number | null;
-  steady_cadence?: number | null;
-  steady_stance_time?: number | null;
-  pause_duration_seconds?: number | null;
-  walk_duration_seconds?: number | null;
-  walk_distance_meters?: number | null;
-  weather_temperature_c?: number | null;
-  weather_humidity_pct?: number | null;
-  weather_apparent_temp_c?: number | null;
-  weather_condition?: string | null;
-  weather_code?: number | null;
-  weather_fetched_at?: string | null;
-  workout_lat?: number | null;
-  workout_lon?: number | null;
-  tags?: string | null;
-  training_load?: number | null;
-  z1_seconds?: number | null;
-  z2_seconds?: number | null;
-  z3_seconds?: number | null;
-  z4_seconds?: number | null;
-  z5_seconds?: number | null;
-  created_at?: string;
-  /** Present on list payloads, supplied by the coach-summary join. */
-  effectiveness_score?: number | null;
-  verdict?: SessionVerdict;
-}
+/**
+ * Shapes that the backend and the frontend both name — the activity row and the
+ * session verdict — live in `src/shared/` so the two sides cannot drift. They are
+ * re-exported here so components keep importing from one client-side module.
+ */
+export type { Activity } from '../../shared/activity.js';
+import type { Activity } from '../../shared/activity.js';
 
 /**
  * A single kilometre split.
@@ -156,6 +107,16 @@ export interface ScoreFactor {
 export interface CoachContext {
   windowDays: number;
   comparableRuns: number;
+  lastSimilarRun?: {
+    id: string;
+    startTime: string;
+    distanceKm: number;
+    paceSecKm: number;
+    heartRate: number;
+    aboveCeilingPct?: number | null;
+  } | null;
+  currentHeartRate?: number | null;
+  currentAboveCeilingPct?: number | null;
   baselineEf: number | null;
   efDeltaPct: number | null;
   baselineEfSamples: number;
@@ -346,6 +307,8 @@ export interface DatabaseSnapshot {
 }
 
 export interface DatabaseStatus {
+  dbPath: string;
+  startupDbPath?: string;
   sizeMb: string | number;
   activityCount: number;
   snapshots: DatabaseSnapshot[];
@@ -356,6 +319,10 @@ export interface DatabaseStatus {
     backupIntervalDays: number;
     lastBackupAt: string | null;
   };
+}
+
+export interface MaintenanceStatus {
+  status: 'idle' | 'running' | 'complete' | 'failed' | 'interrupted';
 }
 
 /** A single entry in an ingestion response. */
@@ -419,4 +386,3 @@ export interface ApiError {
   details?: unknown;
   timestamp?: string;
 }
-

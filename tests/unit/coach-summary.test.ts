@@ -11,7 +11,7 @@ describe('AI Coach Summary Unit Tests', () => {
       avgHr: 135,
       maxHr: 148,
       cadence: 178,
-      decouplingPct: 1.8,
+      decouplingPct: 1.4,
       efficiencyFactor: 1.25,
       avgTemp: 27,
       groundContactTime: 245,
@@ -19,7 +19,7 @@ describe('AI Coach Summary Unit Tests', () => {
     });
 
     // An easy run is graded on intensity control plus the integrity gate:
-    // 27 °C, steady HR 135 vs a 143 bpm LT1 ceiling => full intensity marks.
+    // Steady HR 135 vs a 143 bpm LT1 ceiling => full intensity marks.
     expect(summary.effectivenessScore).toBe(98);
     expect(summary.headline).toBe('Near-Perfect Aerobic Base Execution');
     expect(summary.rubricFamily).toBe('aerobic');
@@ -36,12 +36,12 @@ describe('AI Coach Summary Unit Tests', () => {
   it('widens the cardiac-drift target for heat and duration instead of grading against 1.5%', () => {
     const cool = generateCoachSummary({
       runType: 'long_run', distanceKm: 14, durationMin: 80, avgPaceSecKm: 345, avgHr: 140,
-      maxHr: 152, cadence: 176, decouplingPct: 4.4, efficiencyFactor: 1.2, avgTemp: 16,
+      maxHr: 152, cadence: 176, decouplingPct: 4.4, efficiencyFactor: 1.2, avgTemp: 16, weatherTempC: 16,
       groundContactTime: 248, elevationGainM: 20
     });
     const hotLong = generateCoachSummary({
       runType: 'long_run', distanceKm: 21, durationMin: 130, avgPaceSecKm: 371, avgHr: 144,
-      maxHr: 158, cadence: 176, decouplingPct: 4.4, efficiencyFactor: 1.2, avgTemp: 31,
+      maxHr: 158, cadence: 176, decouplingPct: 4.4, efficiencyFactor: 1.2, avgTemp: 31, weatherTempC: 31,
       groundContactTime: 248, elevationGainM: 20
     });
 
@@ -53,6 +53,20 @@ describe('AI Coach Summary Unit Tests', () => {
     expect(coolInsight).toContain('1.74%'); // no heat allowance at 16 °C
     expect(hotInsight).toBeDefined();
     expect(hotInsight).toContain('4.44% target'); // 31 °C over 130 min
+  });
+
+  it('does not treat a hot Garmin wrist reading as verified ambient heat', () => {
+    const base = {
+      runType: 'long_run', distanceKm: 18, durationMin: 110, avgPaceSecKm: 360,
+      avgHr: 140, maxHr: 155, cadence: 175, decouplingPct: 3.5,
+      efficiencyFactor: 1.2, groundContactTime: 250, elevationGainM: 10
+    };
+    const wristOnly = generateCoachSummary({ ...base, avgTemp: 35 });
+    const noTemperature = generateCoachSummary({ ...base, avgTemp: null });
+    expect(wristOnly.effectivenessScore).toBe(noTemperature.effectivenessScore);
+    expect(wristOnly.keyInsights.find(i => i.startsWith('Superb cardiovascular')))
+      .toEqual(noTemperature.keyInsights.find(i => i.startsWith('Superb cardiovascular')));
+    expect(wristOnly.keyInsights.some(i => i.includes('Microclimate Weather'))).toBe(false);
   });
 
   it('detects accidental tempo / grey-zone drift on easy runs', () => {
@@ -100,14 +114,16 @@ describe('AI Coach Summary Unit Tests', () => {
       cadence: 175,
       decouplingPct: 3.5, // 3-5% = +4
       efficiencyFactor: 1.20,
-      avgTemp: 32, // High heat >= 30
+      avgTemp: 36, // Wrist reading is not an ambient measurement.
+      weatherTempC: 32,
       groundContactTime: 255,
       elevationGainM: 28 // Significant elevation gain
     });
 
-    const heatInsight = summary.keyInsights.find(i => i.includes('hot conditions'));
+    const heatInsight = summary.keyInsights.find(i => i.includes('Microclimate Weather'));
     expect(heatInsight).toBeDefined();
-    expect(heatInsight).toContain('32°C');
+    expect(heatInsight).toContain('32°C ambient');
+    expect(heatInsight).toContain('Garmin watch sensor: 36°C');
 
     const elevationInsight = summary.keyInsights.find(i => i.includes('Elevation & Ramps'));
     expect(elevationInsight).toBeDefined();
@@ -366,5 +382,3 @@ describe('AI Coach Summary Unit Tests', () => {
     expect(disciplineInsight).toBeDefined();
   });
 });
-
-

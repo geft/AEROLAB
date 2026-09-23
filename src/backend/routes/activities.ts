@@ -371,7 +371,7 @@ activitiesRouter.get('/', (req, res) => {
         a.steady_stance_time, a.pause_duration_seconds, a.walk_duration_seconds,
         a.walk_distance_meters,
         a.weather_temperature_c, a.weather_humidity_pct, a.weather_apparent_temp_c,
-        a.weather_condition, a.weather_code, a.weather_fetched_at,
+        a.weather_condition, a.weather_code, a.weather_fetched_at, a.weather_source,
         a.workout_lat, a.workout_lon,
         cs.effectiveness_score, cs.analysis_json
       FROM activities a
@@ -402,15 +402,9 @@ activitiesRouter.get('/:id', async (req, res) => {
     const db = getDatabase();
     const { id } = req.params;
 
-    let activity = db.prepare('SELECT * FROM activities WHERE id = ?').get(id) as any;
+    const activity = db.prepare('SELECT * FROM activities WHERE id = ?').get(id) as any;
     if (!activity) {
       return res.status(404).json({ error: 'Activity not found' });
-    }
-
-    // Auto-fetch microclimate weather if coordinates exist but weather has not been fetched yet
-    if (activity.weather_temperature_c === null && activity.workout_lat && activity.workout_lon) {
-      await syncActivityWeather(db, id);
-      activity = db.prepare('SELECT * FROM activities WHERE id = ?').get(id) as any;
     }
 
     const splits = db.prepare('SELECT * FROM activity_splits WHERE activity_id = ? ORDER BY split_index ASC').all(id);

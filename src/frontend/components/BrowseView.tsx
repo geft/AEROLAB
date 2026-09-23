@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import type { Activity, ActivitySplit, ActivityInterval, ActivityRecord, ActivityUpdate, CoachSummary } from '../types/api.js';
+import type { Activity, ActivityDetailResponse, ActivityInterval, ActivityUpdate } from '../types/api.js';
+import { getActivityDetail, refreshActivityWeather } from '../api/client.js';
 import type { Translations } from '../i18n/types.js';
 import {
   HeartPulse,
@@ -143,14 +144,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
     setShowTagMenu(false);
   }, [selectedActivityId]);
 
-  const [detailData, setDetailData] = useState<{
-    activity: Activity;
-    splits: ActivitySplit[];
-    intervals: ActivityInterval[];
-    records: ActivityRecord[];
-    coachSummary: CoachSummary | null;
-    heartRateThresholds?: { lt1Hr: number; lt2Hr: number };
-  } | null>(null);
+  const [detailData, setDetailData] = useState<ActivityDetailResponse | null>(null);
   const [loadingDetail, setLoadingDetail] = useState<boolean>(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [retryCounter, setRetryCounter] = useState<number>(0);
@@ -160,20 +154,12 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
     if (!selectedActivityId) return;
     setIsRefreshingWeather(true);
     try {
-      const res = await fetch(`/api/activities/${selectedActivityId}/weather/refresh`, {
-        method: 'POST'
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setDetailData(prev => prev ? {
-          ...prev,
-          activity: {
-            ...prev.activity,
-            ...data.activity
-          },
-          coachSummary: data.coachSummary || prev.coachSummary
-        } : null);
-      }
+      const data = await refreshActivityWeather(selectedActivityId);
+      setDetailData(prev => prev ? {
+        ...prev,
+        activity: { ...prev.activity, ...data.activity },
+        coachSummary: data.coachSummary || prev.coachSummary
+      } : null);
     } catch (err) {
       console.error('Failed to refresh microclimate weather:', err);
     } finally {
@@ -293,14 +279,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
     const controller = new AbortController();
     setLoadingDetail(true);
     setDetailError(null);
-    fetch(`/api/activities/${selectedActivityId}`, { signal: controller.signal })
-      .then(async res => {
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `Server returned error (${res.status})`);
-        }
-        return res.json();
-      })
+    getActivityDetail(selectedActivityId, controller.signal)
       .then(data => {
         setDetailData(data);
         if (!data.intervals || data.intervals.length === 0) {
@@ -685,8 +664,8 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                 splits={detailData.splits || []}
                 overallAvgPace={act.avg_pace_sec_km}
                 overallAvgHr={act.avg_heart_rate}
-                lt1Hr={detailData.heartRateThresholds?.lt1Hr}
-                lt2Hr={detailData.heartRateThresholds?.lt2Hr}
+                lt1Hr={detailData.heartRateThresholds?.lt1Hr ?? undefined}
+                lt2Hr={detailData.heartRateThresholds?.lt2Hr ?? undefined}
                 compact={false}
               />
             )}

@@ -9,10 +9,11 @@
  */
 import fs from 'fs';
 import path from 'path';
+import { getDatabasePath } from '../src/backend/db/path.js';
 import Database from 'better-sqlite3';
 import { realignDatabase } from '../src/backend/db/realign.js';
 
-const dbPath = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'data', 'runs.db');
+const dbPath = getDatabasePath();
 const onlyIds = process.argv.slice(2).filter(a => !a.startsWith('-'));
 
 if (!fs.existsSync(dbPath)) {

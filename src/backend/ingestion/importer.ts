@@ -10,7 +10,6 @@ import { classifyRun } from './classifier.js';
 import { evaluateThresholdUpdate } from '../physiology/threshold-tracker.js';
 import { downsampleRecords } from './downsampler.js';
 import { syncActivityCoachSummary } from '../physiology/coach-summary.js';
-import { syncActivityWeather } from '../physiology/weather.js';
 import { calculateActivityTrainingLoad } from '../physiology/training-load.js';
 
 export interface ImportResult {
@@ -72,6 +71,13 @@ export function importRunContent(
 
     if (!records || records.length === 0) {
       return { status: 'error', error: 'CSV file contains no valid records' };
+    }
+    if (!Number.isFinite(metadata.totalDistanceMeters) || metadata.totalDistanceMeters < 0 ||
+        !Number.isFinite(metadata.totalDurationSeconds) || metadata.totalDurationSeconds < 0 ||
+        records.some(record => !Number.isFinite(record.elapsedSeconds) ||
+          (record.latitude !== null && (record.latitude < -90 || record.latitude > 90)) ||
+          (record.longitude !== null && (record.longitude < -180 || record.longitude > 180)))) {
+      return { status: 'error', error: 'Run contains invalid distance, duration, time, or coordinates' };
     }
 
   // 1. Check for duplicate via hash OR matching activity ID
@@ -402,8 +408,6 @@ export function importRunContent(
   // Continuously populate and persist the AI coach summary into activity_coach_summaries
   syncActivityCoachSummary(db, metadata.id);
 
-  // Automatically fetch microclimate historical weather in the background
-  syncActivityWeather(db, metadata.id).catch(() => {});
 
     return {
       status: 'imported',

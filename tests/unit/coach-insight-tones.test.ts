@@ -31,7 +31,7 @@ const aerobicBase = (overrides: Record<string, unknown> = {}) => generateCoachSu
   avgHr: 135,
   maxHr: 148,
   cadence: 178,
-  decouplingPct: 1.8,
+  decouplingPct: 1.4,
   efficiencyFactor: 1.25,
   avgTemp: 27,
   groundContactTime: 245,

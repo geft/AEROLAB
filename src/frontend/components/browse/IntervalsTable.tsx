@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { ActivityInterval } from '../../types/api.js';
+import { useTranslation } from '../../i18n/LanguageContext.js';
 import {
   WORK_SNAP_SECONDS,
   formatPrescriptionClock,
@@ -20,6 +21,7 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
   formatPace,
   formatTime
 }) => {
+  const { t } = useTranslation();
   const [intervalFilter, setIntervalFilter] = useState<'work_only' | 'all'>('work_only');
 
   const allIntervals = intervals || [];
@@ -100,8 +102,7 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
                 </th>
                 <th>
                   <div className="th-stacked">
-                    <span>Dynamics</span>
-                    <span className="th-sub">Cad · GCT · VO</span>
+                    <span>{t.browse.dynamicsTitle}</span>
                   </div>
                 </th>
                 <th>
@@ -183,18 +184,21 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
                     <td>
                       <span className="workreps-dyn">
                         <span className="workreps-dyn-line">
-                          <span><b>{inv.avg_cadence ?? '—'}</b> <span className="workreps-dyn-label">spm</span></span>
+                          <span><span className="workreps-dyn-label">{t.browse.cadenceShort} </span><b>{inv.avg_cadence ?? '—'}</b> <span className="workreps-dyn-label">spm</span></span>
                           <span>
+                            <span className="workreps-dyn-label">{t.browse.gctShort} </span>
                             <b>{inv.avg_stance_time != null ? Math.round(inv.avg_stance_time) : (inv.min_stance_time != null ? Math.round(inv.min_stance_time) : '—')}</b>
                             <span className="workreps-dyn-label"> ms</span>
                           </span>
                         </span>
                         <span className="workreps-dyn-line">
                           <span>
+                            <span className="workreps-dyn-label">{t.browse.verticalOscLabelShort} </span>
                             <b>{inv.avg_vert_osc != null ? Math.round(Number(inv.avg_vert_osc) < 25 ? Number(inv.avg_vert_osc) * 10 : Number(inv.avg_vert_osc)) : '—'}</b>
                             <span className="workreps-dyn-label"> mm</span>
                           </span>
                           <span>
+                            <span className="workreps-dyn-label">{t.browse.strideLengthShort} </span>
                             <b>{inv.avg_stride_length != null ? Number(inv.avg_stride_length).toFixed(2) : (inv.avg_step_length != null ? Number(inv.avg_step_length * 2).toFixed(2) : '—')}</b>
                             <span className="workreps-dyn-label"> m</span>
                           </span>
@@ -206,7 +210,7 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
                             return (
                               <span>
                                 <b style={{ color: '#38bdf8' }}>{vr.toFixed(1)}%</b>
-                                <span className="workreps-dyn-label"> VR</span>
+                                <span className="workreps-dyn-label"> {t.browse.verticalRatioShort}</span>
                               </span>
                             );
                           })()}

@@ -5,11 +5,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { extractSteadyStateMetrics, calculateEconomy } from '../physiology/economy.js';
 import { syncAllCoachSummaries } from '../physiology/coach-summary.js';
-import { syncAllActivitiesWeather } from '../physiology/weather.js';
 import { calculateActivityTrainingLoad } from '../physiology/training-load.js';
 import { realignDatabase } from './realign.js';
 import { deduplicateRuns } from './deduplicate.js';
 import { logger } from '../utils/logger.js';
+import { getDatabasePath } from './path.js';
+import { createMigrationRunner } from './migrations.js';
 
 const currentDir = typeof __dirname !== 'undefined'
   ? __dirname
@@ -29,7 +30,7 @@ export function getDatabase(dbPath?: string): Database.Database {
     dbInstance = null;
   }
 
-  const targetPath = dbPath || process.env.DATABASE_PATH || path.resolve(process.cwd(), 'data', 'runs.db');
+  const targetPath = dbPath || getDatabasePath();
   dbInstance = openDatabase(targetPath);
   return dbInstance;
 }
@@ -71,6 +72,8 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
     const schemaSql = fs.readFileSync(schemaPath, 'utf8');
     db.exec(schemaSql);
   }
+  const migrations = createMigrationRunner(db);
+  const deferDerivedMigrations = process.env.AEROLAB_DEFER_MIGRATIONS === '1';
 
   // Ensure new columns exist
   try {
@@ -89,6 +92,7 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
     if (!colNames.has('weather_condition')) db.exec("ALTER TABLE activities ADD COLUMN weather_condition TEXT");
     if (!colNames.has('weather_code')) db.exec("ALTER TABLE activities ADD COLUMN weather_code INTEGER");
     if (!colNames.has('weather_fetched_at')) db.exec("ALTER TABLE activities ADD COLUMN weather_fetched_at TEXT");
+    if (!colNames.has('weather_source')) db.exec("ALTER TABLE activities ADD COLUMN weather_source TEXT");
     if (!colNames.has('training_load')) db.exec("ALTER TABLE activities ADD COLUMN training_load REAL");
     if (!colNames.has('z1_seconds')) db.exec("ALTER TABLE activities ADD COLUMN z1_seconds INTEGER DEFAULT 0");
     if (!colNames.has('z2_seconds')) db.exec("ALTER TABLE activities ADD COLUMN z2_seconds INTEGER DEFAULT 0");
@@ -145,7 +149,7 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
   }
 
   // Automatic backfill: compute core centroid for any existing runs missing workout coordinates
-  try {
+  if (!deferDerivedMigrations) migrations.run('centroid-v1', () => {
     const unbackfilled = db.prepare('SELECT id, duration_seconds FROM activities WHERE workout_lat IS NULL').all() as any[];
     for (const act of unbackfilled) {
       const warmupCutoff = Math.min(300, (act.duration_seconds || 0) * 0.2);
@@ -166,12 +170,10 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
         db.prepare('UPDATE activities SET workout_lat = ?, workout_lon = ? WHERE id = ?').run(avgLat, avgLon, act.id);
       }
     }
-  } catch (err) {
-    // Non-fatal if tables are new or empty
-  }
+  });
 
   // Automatic backfill: compute steady state & pause isolation for existing runs
-  try {
+  if (!deferDerivedMigrations) migrations.run('steady-state-v1', () => {
     const unbackfilledSteady = db.prepare('SELECT id FROM activities WHERE steady_pace_sec_km IS NULL OR steady_pace_sec_km < 100').all() as any[];
     for (const act of unbackfilledSteady) {
       const records = db.prepare('SELECT * FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC').all(act.id);
@@ -199,13 +201,11 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
         );
       }
     }
-  } catch (err) {
-    // Non-fatal if table new or empty
-  }
+  });
 
   // Recompute aerobic_decoupling_pct for all activities using the corrected warmup-skipping algorithm.
   // This ensures existing runs pick up the fix without needing re-import.
-  try {
+  if (!deferDerivedMigrations) migrations.run('decoupling-v1', () => {
     const allActivities = db.prepare('SELECT id FROM activities').all() as any[];
     for (const act of allActivities) {
       const records = db.prepare('SELECT * FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC').all(act.id);
@@ -217,9 +217,7 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
         }
       }
     }
-  } catch (err) {
-    // Non-fatal
-  }
+  });
 
   // A fresh profile contains no personal measurements or training history.
   const profileColumns = db.prepare('PRAGMA table_info(athlete_profile)').all() as Array<{ name: string }>;
@@ -280,21 +278,19 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
     }
 
     // Backfill any existing activities not yet in activity_coach_summaries
-    const unsummarized = db.prepare(`
+    const unsummarized = deferDerivedMigrations ? [] : db.prepare(`
       SELECT a.id FROM activities a
       LEFT JOIN activity_coach_summaries s ON a.id = s.activity_id
       WHERE s.id IS NULL
     `).all() as Array<{ id: string }>;
 
-    if (unsummarized.length > 0) {
-      syncAllCoachSummaries(db);
-    }
+    if (!deferDerivedMigrations) migrations.run('coach-summaries-v1', () => {
+      if (unsummarized.length > 0) syncAllCoachSummaries(db);
+    });
 
-    // Automatically backfill microclimate weather for activities missing ambient weather data
-    if (!validateSchema) syncAllActivitiesWeather(db).catch(() => {});
 
     // Automatically backfill training_load and zone duration seconds for existing activities
-    try {
+    if (!deferDerivedMigrations) migrations.run('training-load-v1', () => {
       const unbackfilledLoad = db.prepare('SELECT id, duration_seconds, avg_heart_rate FROM activities WHERE training_load IS NULL').all() as any[];
       if (unbackfilledLoad.length > 0) {
         const hrProfile = getAthleteHeartRateProfile(db);
@@ -326,17 +322,16 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
           );
         }
       }
-    } catch (err: any) {
-      // Backfilling training load is best-effort, but a silent failure used to
-      // leave stale load/zone data with no trace. Log it instead.
-      logger.warn('DB', 'Training-load/zone backfill skipped', { error: err?.message || String(err) });
-    }
+    });
 
-    // Automatic migration: Deduplicate runs imported across different formats (FIT vs CSV)
-    deduplicateRuns(db, (msg) => logger.info('DB', `[dedup] ${msg}`));
-    // Automatic migration: Re-classify and re-detect intervals with updated physiological definitions
-    // (also prunes stale threshold rows, re-syncs profile + coach summaries)
-    realignDatabase(db, { logger: (msg) => logger.info('DB', `[realign] ${msg}`) });
+    // One-time data migration. Recomputing every activity on each open makes
+    // startup and restore proportional to the size of the workout history.
+    if (!deferDerivedMigrations) migrations.run('realign-v1', () => {
+      deduplicateRuns(db, (msg) => logger.info('DB', `[dedup] ${msg}`));
+      const result = realignDatabase(db, { logger: (msg) => logger.info('DB', `[realign] ${msg}`) });
+      if (result.activitiesFailed.length > 0) throw new Error(`${result.activitiesFailed.length} activities failed to realign`);
+      db.pragma('user_version = 1');
+    });
   } catch (err: any) {
     // Migrations are non-fatal so a bad row cannot block startup, but the failure
     // must be visible — this previously swallowed errors silently (see audit).

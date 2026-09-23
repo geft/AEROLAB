@@ -210,6 +210,9 @@ export function convertFitToCsv(
   if (dataSig !== '.FIT') {
     throw new Error('Not a valid FIT file (signature mismatch)');
   }
+  if ((headerSize !== 12 && headerSize !== 14) || headerSize > data.length || dataSize > data.length - headerSize) {
+    throw new Error('Invalid FIT file length');
+  }
 
   const definitions: Record<number, MesgDef> = {};
   const records: any[] = [];

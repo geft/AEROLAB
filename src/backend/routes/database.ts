@@ -5,8 +5,13 @@ import path from 'path';
 import os from 'os';
 import { randomUUID } from 'crypto';
 import Database from 'better-sqlite3';
-import { getDatabase, closeDatabase, openDatabase } from '../db/client.js';
+import { getDatabase } from '../db/client.js';
+import { getDatabasePath, saveDatabasePath } from '../db/path.js';
+import { copyCurrentDatabaseTo, createSnapshot, restoreDatabaseFromFile, validateDatabaseSnapshot } from '../db/storage.js';
 import { logger } from '../utils/logger.js';
+import { startMaintenance } from '../jobs/maintenance.js';
+
+export { restoreDatabaseFromFile, validateDatabaseSnapshot } from '../db/storage.js';
 
 export const databaseRouter = Router();
 
@@ -22,10 +27,10 @@ const MAX_ENCODED_RESTORE_BYTES = 150 * 1024 * 1024;
  * The legacy path sends the database as base64 inside JSON, which inflates the
  * payload by ~33% and needs the whole thing in memory twice (JSON string +
  * decoded buffer). The binary path pipes the request body straight to disk, so
- * the practical limit is disk space rather than RAM. Override with
- * MAX_RESTORE_BYTES if you really need a larger snapshot.
+  * a 256 MB default cap bounds synchronous validation work. Override with
+  * MAX_RESTORE_BYTES if a larger snapshot is required.
  */
-const MAX_BINARY_RESTORE_BYTES = Number(process.env.MAX_RESTORE_BYTES) || 2 * 1024 * 1024 * 1024;
+const MAX_BINARY_RESTORE_BYTES = Number(process.env.MAX_RESTORE_BYTES) || 256 * 1024 * 1024;
 
 /** Every SQLite database file starts with this 16-byte header. */
 const SQLITE_MAGIC = 'SQLite format 3\0';
@@ -89,8 +94,8 @@ export interface BackupSettings {
   lastBackupAt: string | null;
 }
 
-export function getDefaultBackupDir(_db: Database.Database): string {
-  const dbPath = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'data', 'runs.db');
+export function getDefaultBackupDir(db: Database.Database): string {
+  const dbPath = db.name;
   if (dbPath === ':memory:') {
     return path.join(os.tmpdir(), 'aerolab-backups');
   }
@@ -242,6 +247,28 @@ export function selectBackupFolder(): Promise<string | null> {
     .then(folder => folder || runFolderPicker('kdialog', ['--getexistingdirectory', '', '--title', 'Choose AEROLAB backup folder']));
 }
 
+/** Select an existing database or a new filename in the host OS file chooser. */
+export function selectDatabaseFile(): Promise<string | null> {
+  if (process.platform === 'win32') {
+    const script = [
+      'Add-Type -AssemblyName System.Windows.Forms',
+      '$dialog = New-Object System.Windows.Forms.SaveFileDialog',
+      "$dialog.Title = 'Choose database location'",
+      "$dialog.Filter = 'SQLite database (*.db)|*.db|All files (*.*)|*.*'",
+      "$dialog.FileName = 'runs.db'",
+      '$dialog.OverwritePrompt = $false',
+      '$dialog.CheckFileExists = $false',
+      'if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Write($dialog.FileName) }'
+    ].join('; ');
+    return runFolderPicker('powershell.exe', ['-NoProfile', '-STA', '-Command', script]);
+  }
+  if (process.platform === 'darwin') {
+    return runFolderPicker('osascript', ['-e', 'POSIX path of (choose file name with prompt "Choose database location" default name "runs.db")']);
+  }
+  return runFolderPicker('zenity', ['--file-selection', '--save', '--filename=runs.db', '--title=Choose database location'])
+    .then(file => file || runFolderPicker('kdialog', ['--getsavefilename', 'runs.db', '--title', 'Choose database location']));
+}
+
 export async function handleSelectFolder(
   _req: Request,
   res: Response,
@@ -306,8 +333,7 @@ export function createDatabaseBackup(db: Database.Database, targetDirectory?: st
   }
 
   // Online, transactional SQLite snapshot without interrupting active readers/writers
-  const normalized = filePath.replace(/\\/g, '/').replace(/'/g, "''");
-  db.prepare(`VACUUM INTO '${normalized}'`).run();
+  createSnapshot(db, filePath);
 
   const stats = fs.statSync(filePath);
   const createdAt = now.toISOString();
@@ -324,116 +350,6 @@ export function createDatabaseBackup(db: Database.Database, targetDirectory?: st
     sizeBytes: stats.size,
     createdAt
   };
-}
-
-export function validateDatabaseSnapshot(filePath: string): { valid: boolean; activityCount: number; error?: string } {
-  if (!fs.existsSync(filePath)) {
-    return { valid: false, activityCount: 0, error: 'File does not exist' };
-  }
-
-  try {
-    const buffer = Buffer.alloc(16);
-    const fd = fs.openSync(filePath, 'r');
-    fs.readSync(fd, buffer, 0, 16, 0);
-    fs.closeSync(fd);
-
-    if (buffer.toString('utf8', 0, 15) !== 'SQLite format 3') {
-      return { valid: false, activityCount: 0, error: 'File is not a valid SQLite database format' };
-    }
-  } catch (err: any) {
-    return { valid: false, activityCount: 0, error: `Cannot read file header: ${err.message}` };
-  }
-
-  let testDb: Database.Database | null = null;
-  try {
-    testDb = new Database(filePath, { readonly: true, fileMustExist: true });
-    const check = testDb.pragma('integrity_check') as any[];
-    if (!check || check[0]?.integrity_check !== 'ok') {
-      return { valid: false, activityCount: 0, error: 'Database failed SQLite integrity check' };
-    }
-
-    const tables = testDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{ name: string }>;
-    const tableNames = new Set(tables.map(t => t.name));
-    if (!tableNames.has('activities')) {
-      return { valid: false, activityCount: 0, error: 'Database does not contain required "activities" table' };
-    }
-
-    const columns = new Set((testDb.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>).map(c => c.name));
-    if (!['id', 'start_time', 'run_type', 'distance_meters', 'duration_seconds'].every(c => columns.has(c))) {
-      return { valid: false, activityCount: 0, error: 'Incompatible activities schema' };
-    }
-
-    const count = (testDb.prepare('SELECT count(*) as c FROM activities').get() as any)?.c || 0;
-    return { valid: true, activityCount: count };
-  } catch (err: any) {
-    return { valid: false, activityCount: 0, error: err.message || 'Corrupt database file' };
-  } finally {
-    if (testDb) {
-      try { testDb.close(); } catch { /* best-effort cleanup: safe to ignore */ }
-    }
-  }
-}
-
-export function restoreDatabaseFromFile(candidatePath: string): { success: boolean; activityCount: number; safetyBackupPath?: string; error?: string } {
-  const validation = validateDatabaseSnapshot(candidatePath);
-  if (!validation.valid) {
-    return { success: false, activityCount: 0, error: validation.error };
-  }
-
-  const activeDbPath = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'data', 'runs.db');
-
-  if (activeDbPath === ':memory:') {
-    return { success: false, activityCount: 0, error: 'Restore requires a file-backed database' };
-  }
-
-  const targetDir = path.dirname(activeDbPath);
-  fs.mkdirSync(targetDir, { recursive: true });
-  const stagePath = path.join(targetDir, `.restore-stage-${randomUUID()}.db`);
-  const rollbackPath = path.join(targetDir, `.restore-rollback-${randomUUID()}.db`);
-  let safetyBackupPath: string | undefined;
-  let movedOriginal = false;
-  let installedCandidate = false;
-  try {
-    fs.copyFileSync(candidatePath, stagePath);
-    const stagedDb = openDatabase(stagePath, true);
-    stagedDb.close(); // Checkpoint the staged WAL before moving its main file.
-
-    const activeDb = getDatabase();
-    const backupDir = getDefaultBackupDir(activeDb);
-    fs.mkdirSync(backupDir, { recursive: true });
-    safetyBackupPath = path.join(backupDir, `pre-restore-safety-${randomUUID()}.db`);
-    // A failed safety backup must abort the restore before changing the active database.
-    activeDb.prepare(`VACUUM INTO '${safetyBackupPath.replace(/\\/g, '/').replace(/'/g, "''")}'`).run();
-    const checkpoint = activeDb.pragma('wal_checkpoint(TRUNCATE)') as Array<{ busy: number }>;
-    if (checkpoint.some(row => row.busy !== 0)) throw new Error('Database is busy; close other connections before restoring');
-    closeDatabase();
-
-    fs.renameSync(activeDbPath, rollbackPath);
-    movedOriginal = true;
-    fs.renameSync(stagePath, activeDbPath);
-    installedCandidate = true;
-    const newDb = getDatabase(activeDbPath);
-    const newCount = (newDb.prepare('SELECT count(*) as c FROM activities').get() as any).c;
-    // Keep the safety snapshot; the old main file is no longer needed.
-    try { fs.unlinkSync(rollbackPath); } catch { /* best-effort cleanup: safe to ignore */ }
-    return { success: true, activityCount: newCount, safetyBackupPath };
-  } catch (err: any) {
-    if (movedOriginal) {
-      closeDatabase();
-      if (installedCandidate) {
-        for (const suffix of ['', '-wal', '-shm']) {
-          if (fs.existsSync(activeDbPath + suffix)) fs.unlinkSync(activeDbPath + suffix);
-        }
-      }
-      fs.renameSync(rollbackPath, activeDbPath);
-      getDatabase(activeDbPath);
-    }
-    return { success: false, activityCount: 0, safetyBackupPath, error: err.message || 'Restore failed' };
-  } finally {
-    for (const suffix of ['', '-wal', '-shm']) {
-      try { if (fs.existsSync(stagePath + suffix)) fs.unlinkSync(stagePath + suffix); } catch { /* best-effort cleanup: safe to ignore */ }
-    }
-  }
 }
 
 export async function checkAndRunScheduledBackup(db: Database.Database): Promise<boolean> {
@@ -463,7 +379,7 @@ export async function checkAndRunScheduledBackup(db: Database.Database): Promise
 databaseRouter.get('/status', (req: Request, res: Response) => {
   try {
     const db = getDatabase();
-    const dbPath = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'data', 'runs.db');
+    const dbPath = db.name;
     let sizeBytes = 0;
     if (fs.existsSync(dbPath)) {
       sizeBytes = fs.statSync(dbPath).size;
@@ -471,8 +387,7 @@ databaseRouter.get('/status', (req: Request, res: Response) => {
 
     const activityCount = (db.prepare('SELECT count(*) as c FROM activities').get() as any)?.c || 0;
     const settings = getBackupSettings(db);
-    // Prune legacy files as well as files created by the current policy.
-    const backups = pruneBackups(settings.backupDirectory, 5);
+    const backups = listBackups(settings.backupDirectory);
 
     const backupsWithMb = backups.map(b => ({
       ...b,
@@ -481,6 +396,7 @@ databaseRouter.get('/status', (req: Request, res: Response) => {
 
     res.json({
       dbPath,
+      startupDbPath: getDatabasePath(),
       sizeBytes,
       sizeMb: Number((sizeBytes / (1024 * 1024)).toFixed(2)),
       activityCount,
@@ -490,6 +406,52 @@ databaseRouter.get('/status', (req: Request, res: Response) => {
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to retrieve database status' });
+  }
+});
+
+// The selected file becomes active when this build is restarted. Never swap a
+// live SQLite connection, especially while it may have uncheckpointed WAL data.
+databaseRouter.post('/select-database', async (_req: Request, res: Response) => {
+  try {
+    const databasePath = await selectDatabaseFile();
+    res.json({ databasePath, exists: databasePath ? fs.existsSync(databasePath) : false });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to choose database file' });
+  }
+});
+
+databaseRouter.post('/location', async (req: Request, res: Response) => {
+  try {
+    const databasePath = req.body?.databasePath;
+    if (typeof databasePath !== 'string' || !path.isAbsolute(databasePath)) {
+      return res.status(400).json({ error: 'Choose an absolute database file path.' });
+    }
+    const selectedPath = path.normalize(databasePath);
+    if (process.env.DATABASE_PATH && path.resolve(process.env.DATABASE_PATH) !== selectedPath) {
+      return res.status(409).json({ code: 'DATABASE_PATH_OVERRIDE', error: 'DATABASE_PATH environment override is active. Remove it before changing the database location.' });
+    }
+    const exists = fs.existsSync(selectedPath);
+    if (typeof req.body?.expectedExists === 'boolean' && req.body.expectedExists !== exists) {
+      return res.status(409).json({ code: 'LOCATION_CHANGED', error: 'Selected file changed. Choose it again.' });
+    }
+    if (exists) {
+      const validation = validateDatabaseSnapshot(selectedPath);
+      if (!validation.valid) return res.status(400).json({ code: 'INVALID_DATABASE', error: validation.error });
+      const configPath = saveDatabasePath(selectedPath);
+      return res.json({ databasePath: selectedPath, configPath, restartRequired: true, copied: false });
+    }
+    const parent = path.dirname(selectedPath);
+    let validParent = false;
+    try { validParent = isSafeBackupDirectory(parent) && fs.statSync(parent).isDirectory(); } catch { /* unavailable folder */ }
+    if (!validParent) {
+      return res.status(400).json({ code: 'INVALID_FOLDER', error: 'Choose an existing storage folder.' });
+    }
+    const copy = await copyCurrentDatabaseTo(selectedPath);
+    if (!copy.ok) return res.status(copy.code === 'DATABASE_BUSY' || copy.code === 'DESTINATION_EXISTS' ? 409 : 500).json({ code: copy.code, error: copy.error });
+    const configPath = saveDatabasePath(selectedPath);
+    return res.json({ databasePath: selectedPath, configPath, restartRequired: true, copied: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to set database location' });
   }
 });
 
@@ -588,7 +550,7 @@ databaseRouter.get('/download', (req: Request, res: Response) => {
 // Accepts either a raw binary body (application/octet-stream, streamed to disk) or
 // the legacy base64-in-JSON payload.
 databaseRouter.post('/restore', async (req: Request, res: Response) => {
-  const tmpCandidatePath = path.join(os.tmpdir(), `restore-candidate-${Date.now()}.db`);
+  const tmpCandidatePath = path.join(os.tmpdir(), `restore-candidate-${randomUUID()}.db`);
 
   const cleanup = () => {
     try {
@@ -601,6 +563,7 @@ databaseRouter.post('/restore', async (req: Request, res: Response) => {
     if (!result.success) {
       return res.status(422).json({ error: result.error || 'Failed to restore database' });
     }
+    if (process.env.NODE_ENV !== 'test') startMaintenance(getDatabase().name);
     res.json({
       status: 'ok',
       activityCount: result.activityCount,

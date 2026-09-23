@@ -3,9 +3,10 @@ import { getAthleteHeartRateProfile } from './athlete-profile.js';
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { PauseBreakdown, extractSteadyStateMetrics } from './economy.js';
 import { ZoneDistribution } from './zones.js';
-import { RubricFactor, gradeRun, driftTargetFor, describeSet, betweenRepRecoveries, intervalDrop, intervalDuration, intervalHr, intervalMaxHr, selectRaceSplits, formatPaceText } from './coach-rubric.js';
+import { RubricFactor, gradeRun, intensityAudit, driftTargetFor, describeSet, betweenRepRecoveries, intervalDrop, intervalDuration, intervalHr, intervalMaxHr, selectRaceSplits, formatPaceText } from './coach-rubric.js';
 import { CoachContext, buildContextInsights, loadCoachHistoryContext } from './coach-history.js';
 import { createInsightLog, type CoachInsightTone } from './coach-insight.js';
+import { verifiedAmbientTemperature } from './weather.js';
 
 /** One graded line of the weighted execution rubric. */
 export type ScoreFactor = RubricFactor;
@@ -98,6 +99,7 @@ export function generateCoachSummary(params: {
     steadyStanceTime,
     pauseBreakdown
   } = params;
+  const ambientTempC = params.weatherTempC ?? null;
 
   // Use steady-state values when available to avoid pause/stop distortion
   const effectiveCadence = steadyCadence || cadence;
@@ -145,17 +147,17 @@ export function generateCoachSummary(params: {
 
   // Aerobic decoupling / Cardiac Drift insight (applies ONLY to steady continuous aerobic runs)
   const isSteadyAerobic = runType === 'easy_base' || runType === 'long_run' || runType === 'recovery' || runType === 'accidental_tempo';
-  const driftTarget = driftTargetFor(avgTemp ?? null, params.durationMin ?? null);
+  const driftTarget = driftTargetFor(ambientTempC, params.durationMin ?? null);
   if (isSteadyAerobic && decouplingPct !== null) {
     const conditionNote = driftTarget.conditionsAdjusted
-      ? `${avgTemp ? ` ${avgTemp}°C` : ' these conditions'} over ${Math.round(params.durationMin)} min`
+      ? `${ambientTempC !== null ? ` ${ambientTempC}°C` : ' these conditions'} over ${Math.round(params.durationMin)} min`
       : '';
     if (decouplingPct <= driftTarget.fullAtPct) {
       insights.add('positive', `Superb cardiovascular stability with only ${decouplingPct.toFixed(1)}% drift, at or inside the ${driftTarget.fullAtPct}% target that${conditionNote || ' these conditions'} predict. Your aerobic capillary base is working efficiently with zero late-run cardiac fatigue.`);
     } else if (decouplingPct < driftTarget.fullAtPct + 3.0) {
       insights.add('positive', `Solid aerobic discipline. Decoupling was ${decouplingPct.toFixed(1)}%, just above the ${driftTarget.fullAtPct}% working target for${conditionNote || ' these conditions'} but well within the sub-LT1 gold standard threshold (<5%).`);
     } else {
-      insights.add('caution', `Noticeable cardiac drift detected (${decouplingPct.toFixed(1)}% against a ${driftTarget.fullAtPct}% target for${conditionNote || ' these conditions'}). Likely due to thermal strain${avgTemp ? ` (${avgTemp}°C)` : ''}, dehydration, or pacing slightly ahead of current aerobic capacity.`);
+      insights.add('caution', `Noticeable cardiac drift detected (${decouplingPct.toFixed(1)}% against a ${driftTarget.fullAtPct}% target for${conditionNote || ' these conditions'}). Likely due to thermal strain${ambientTempC !== null ? ` (${ambientTempC}°C)` : ''}, dehydration, or pacing slightly ahead of current aerobic capacity.`);
     }
   }
 
@@ -338,8 +340,6 @@ export function generateCoachSummary(params: {
         ? 'High tropical humidity restricts evaporative cooling and directly explains elevated cardiac drift.'
         : 'Microclimate weather verified from local meteorological reanalysis.'
     }`);
-  } else if (avgTemp && avgTemp >= 30) {
-    insights.add('neutral', `Executed in hot conditions (${avgTemp}°C). In high heat, heart rate naturally drifts 4-8 bpm higher; effective aerobic pacing was maintained despite the thermal burden.`);
   }
 
   // Elevation ramp walk check
@@ -373,7 +373,7 @@ export function generateCoachSummary(params: {
     lt2Hr: hrProfile.lt2Hr,
     maxHeartRate: hrProfile.maxHr,
     activityMaxHr: params.maxHr || null,
-    ambientTempC: avgTemp ?? null,
+    ambientTempC,
     durationMin: params.durationMin ?? null,
     pauseBreakdown,
     records: params.records ?? null,
@@ -457,7 +457,7 @@ export function generateCoachSummary(params: {
     } else if (above <= 5) {
       insights.add(
         'caution',
-        `Zone 2 Ceiling Held, High-Zone-2 Creep: you never crossed the ${intensity.lt1Hr} bpm LT1 ceiling, but ${zone2.toFixed(1)}% of your running time sat in the top of Zone 2 (${band} bpm), rising to ${intensity.highZ2SecondHalfPct.toFixed(0)}% in the second half. It is still aerobic, and in ${Math.round(params.avgTemp ?? 0)}°C much of the late creep is heat rather than pace, but sitting just under the ceiling costs recovery — ease the opening kilometres so the whole run sits nearer ${intensity.lt1Hr - 10} bpm.`
+        `Zone 2 Ceiling Held, High-Zone-2 Creep: you never crossed the ${intensity.lt1Hr} bpm LT1 ceiling, but ${zone2.toFixed(1)}% of your running time sat in the top of Zone 2 (${band} bpm), rising to ${intensity.highZ2SecondHalfPct.toFixed(0)}% in the second half. It is still aerobic${ambientTempC !== null && ambientTempC >= 28 ? `, and in ${Math.round(ambientTempC)}°C much of the late creep is heat rather than pace` : ''}, but sitting just under the ceiling costs recovery — ease the opening kilometres so the whole run sits nearer ${intensity.lt1Hr - 10} bpm.`
       );
     } else if (above <= 20) {
       insights.add(
@@ -531,7 +531,10 @@ export function generateCoachSummary(params: {
     focusAdvice: rubric.focusAdvice,
     rubricCoveragePct: rubric.coveragePct,
     rubricFamily: rubric.family,
-    context: params.history ?? null,
+    context: params.history ? {
+      ...params.history,
+      currentAboveCeilingPct: rubric.intensity?.aboveCeilingPct ?? null
+    } : null,
     scoreBreakdown: hasMarathonPaceBlocks ? [] : rubric.factors
   };
 }
@@ -563,6 +566,11 @@ export function syncActivityCoachSummary(
     steady_pace_sec_km: pauseBreakdown.steadyPaceSecKm ?? activity.steady_pace_sec_km ?? null,
     steady_heart_rate: pauseBreakdown.steadyHeartRate ?? activity.steady_heart_rate ?? null
   });
+  if (history?.lastSimilarRun) {
+    const priorRecords = db.prepare('SELECT elapsed_seconds, heart_rate, cadence FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC').all(history.lastSimilarRun.id) as any[];
+    const threshold = resolveHeartRateProfile({ maxHr: maxHeartRate, restingHr, lt1Hr, lt2Hr }).lt1Hr;
+    history.lastSimilarRun.aboveCeilingPct = intensityAudit(priorRecords, { lt1Hr: threshold })?.aboveCeilingPct ?? null;
+  }
 
   let sessionTags: string[] = [];
   try { sessionTags = JSON.parse(activity.tags || '[]'); } catch { /* Older rows can have malformed tags. */ }
@@ -589,7 +597,7 @@ export function syncActivityCoachSummary(
     lt2Hr,
     maxHeartRate,
     restingHr,
-    weatherTempC: activity.weather_temperature_c ?? null,
+    weatherTempC: verifiedAmbientTemperature(activity),
     weatherHumidityPct: activity.weather_humidity_pct ?? null,
     weatherApparentTempC: activity.weather_apparent_temp_c ?? null,
     weatherCondition: activity.weather_condition ?? null,
@@ -703,4 +711,3 @@ export function syncAllCoachSummaries(db: any): number {
   }
   return count;
 }
-

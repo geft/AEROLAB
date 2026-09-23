@@ -17,6 +17,17 @@ export interface CoachContext {
   windowDays: number;
   /** Prior runs of the same run-type family inside the window. */
   comparableRuns: number;
+  /** Most recent run of the same type and similar distance in the prior 30 days. */
+  lastSimilarRun: {
+    id: string;
+    startTime: string;
+    distanceKm: number;
+    paceSecKm: number;
+    heartRate: number;
+    aboveCeilingPct?: number | null;
+  } | null;
+  currentHeartRate: number | null;
+  currentAboveCeilingPct?: number | null;
   baselineEf: number | null;
   efDeltaPct: number | null;
   baselineEfSamples: number;
@@ -68,6 +79,7 @@ export interface CoachContextOptions {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const LAST_SIMILAR_WINDOW_DAYS = 30;
 
 function parseTime(value: string | null | undefined): number | null {
   if (!value) return null;
@@ -113,6 +125,18 @@ export function buildCoachContext(
 
   const family: RunFamily = runFamilyOf(current.runType);
   const comparable = prior.filter(row => runFamilyOf(row.run_type || 'easy_base') === family);
+
+  const lastSimilar = current.distanceKm > 0 && current.steadyPaceSecKm && current.steadyHr
+    ? prior
+        .filter(row => {
+          const distanceKm = (row.distance_meters ?? 0) / 1000;
+          return row.run_type === current.runType &&
+            (parseTime(row.start_time) ?? 0) >= end - LAST_SIMILAR_WINDOW_DAYS * DAY_MS &&
+            distanceKm > 0 && Math.abs(distanceKm - current.distanceKm) / current.distanceKm <= 0.25 &&
+            (paceOf(row) ?? 0) > 0 && (hrOf(row) ?? 0) > 0;
+        })
+        .sort((a, b) => (parseTime(b.start_time) ?? 0) - (parseTime(a.start_time) ?? 0))[0]
+    : null;
 
   // --- Running economy versus the athlete's own 28-day baseline ---
   const efCutoff = end - efBaselineDays * DAY_MS;
@@ -183,6 +207,14 @@ export function buildCoachContext(
   return {
     windowDays,
     comparableRuns: comparable.length,
+    lastSimilarRun: lastSimilar ? {
+      id: lastSimilar.id,
+      startTime: lastSimilar.start_time,
+      distanceKm: round1((lastSimilar.distance_meters ?? 0) / 1000),
+      paceSecKm: paceOf(lastSimilar) as number,
+      heartRate: Math.round(hrOf(lastSimilar) as number)
+    } : null,
+    currentHeartRate: current.steadyHr != null && current.steadyHr > 0 ? Math.round(current.steadyHr) : null,
     baselineEf: baselineEf != null ? round2(baselineEf) : null,
     efDeltaPct,
     baselineEfSamples: recentEf.length,

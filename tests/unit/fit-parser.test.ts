@@ -29,6 +29,14 @@ describe('FIT Parser Unit Tests', () => {
     expect(() => convertFitToCsv(tinyBuffer, 'empty.fit')).toThrow();
   });
 
+  it('rejects a declared record range larger than the actual file', () => {
+    const header = Buffer.alloc(14);
+    header.writeUInt8(14, 0);
+    header.writeUInt32LE(0xffffffff, 4);
+    header.write('.FIT', 8, 'ascii');
+    expect(() => convertFitToCsv(header, 'oversized.fit')).toThrow('Invalid FIT file length');
+  });
+
   it('parses a synthetically constructed valid FIT binary activity', () => {
     // Construct a minimal FIT buffer
     // Garmin Epoch: 1989-12-31 00:00:00 UTC

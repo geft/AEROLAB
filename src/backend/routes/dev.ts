@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import fs from 'fs';
-import path from 'path';
 import { getDatabase } from '../db/client.js';
 import { logger } from '../utils/logger.js';
 
@@ -49,7 +48,7 @@ devRouter.get('/diagnostics', (req: Request, res: Response) => {
     } catch { /* optional query: schema may predate this table */ }
 
     // Database file stats
-    const dbPath = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'data', 'runs.db');
+    const dbPath = db.name;
     let dbSizeBytes = 0;
     if (dbPath !== ':memory:' && fs.existsSync(dbPath)) {
       try {

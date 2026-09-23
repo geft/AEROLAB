@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS activities (
   weather_condition TEXT,
   weather_code INTEGER,
   weather_fetched_at TEXT,
+  weather_source TEXT,
   tags TEXT DEFAULT '[]',
   training_load REAL,
   z1_seconds INTEGER DEFAULT 0,
@@ -193,4 +194,3 @@ CREATE TABLE IF NOT EXISTS activity_coach_summaries (
 );
 
 CREATE INDEX IF NOT EXISTS idx_coach_summaries_activity ON activity_coach_summaries(activity_id);
-

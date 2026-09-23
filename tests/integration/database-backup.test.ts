@@ -146,6 +146,19 @@ describe('Database Backup & Cloud Sync Integration Tests', () => {
     expect(pruneBackups(legacyDir, 5)).toHaveLength(5);
   });
 
+  it('does not delete snapshots when reading database status', async () => {
+    const db = getDatabase();
+    const statusDir = path.join(testDir, 'status-read-test');
+    fs.mkdirSync(statusDir, { recursive: true });
+    for (let i = 0; i < 7; i++) createDatabaseBackup(db, statusDir, 10);
+    await request(app).post('/api/database/settings').send({ backupDirectory: statusDir });
+
+    const status = await request(app).get('/api/database/status');
+    expect(status.status).toBe(200);
+    expect(status.body.snapshots).toHaveLength(7);
+    expect(listBackups(statusDir)).toHaveLength(7);
+  });
+
   it('GET /api/database/download streams a database snapshot as attachment', async () => {
     const res = await request(app).get('/api/database/download');
     expect(res.status).toBe(200);

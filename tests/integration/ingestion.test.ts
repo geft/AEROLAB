@@ -1,5 +1,5 @@
 import { seedBenchmarkProfile } from '../fixtures/benchmark-runs.js';
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -40,24 +40,30 @@ describe('Database Ingestion Pipeline (Integration)', () => {
   });
 
   it('imports activity, computes running economy, and stores splits & records', () => {
-    const res = importRunContent(db, easyCsv, 'bench-easy-60.csv');
-    expect(res.status).toBe('imported');
-    expect(res.activityId).toBe('bench-easy-60');
-    expect(res.runType).toBe('easy_base');
+    const weatherFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Unexpected weather lookup'));
+    try {
+      const res = importRunContent(db, easyCsv, 'bench-easy-60.csv');
+      expect(res.status).toBe('imported');
+      expect(res.activityId).toBe('bench-easy-60');
+      expect(res.runType).toBe('easy_base');
 
-    // Query activities table
-    const activity = db.prepare('SELECT * FROM activities WHERE id = ?').get('bench-easy-60') as any;
-    expect(activity).toBeDefined();
-    expect(activity.name).toBe('Benchmark Easy Aerobic');
-    expect(activity.avg_heart_rate).toBe(138);
-    expect(activity.distance_meters).toBeCloseTo(11880, 0);
-    expect(activity.efficiency_factor).toBeGreaterThan(0);
-    expect(activity.workout_lat).toBeCloseTo(1.345, 2);
-    expect(activity.workout_lon).toBeCloseTo(103.854, 2);
+      // Query activities table
+      const activity = db.prepare('SELECT * FROM activities WHERE id = ?').get('bench-easy-60') as any;
+      expect(activity).toBeDefined();
+      expect(activity.name).toBe('Benchmark Easy Aerobic');
+      expect(activity.avg_heart_rate).toBe(138);
+      expect(activity.distance_meters).toBeCloseTo(11880, 0);
+      expect(activity.efficiency_factor).toBeGreaterThan(0);
+      expect(activity.workout_lat).toBeCloseTo(1.345, 2);
+      expect(activity.workout_lon).toBeCloseTo(103.854, 2);
 
-    // Query records table
-    const recordCount = db.prepare('SELECT COUNT(*) as count FROM activity_records WHERE activity_id = ?').get('bench-easy-60') as any;
-    expect(recordCount.count).toBeGreaterThan(0);
+      // Query records table
+      const recordCount = db.prepare('SELECT COUNT(*) as count FROM activity_records WHERE activity_id = ?').get('bench-easy-60') as any;
+      expect(recordCount.count).toBeGreaterThan(0);
+      expect(weatherFetch).not.toHaveBeenCalled();
+    } finally {
+      weatherFetch.mockRestore();
+    }
   });
 
   it('classifies every benchmark run as documented (living classification benchmark)', () => {
