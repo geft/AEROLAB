@@ -321,6 +321,7 @@ describe('Weighted Execution Rubric', () => {
 
     expect(zoneFactor?.maxPoints).toBe(50);
     expect(zoneFactor?.points).toBe(50);
+    expect(zoneFactor?.description).toMatch(/^14m 59s in Zone 4 /);
     expect(goodHr.score).toBeGreaterThanOrEqual(85);
     expect(goodHr.score).toBeGreaterThan(lowHr.score + 25);
     expect(lowHr.score).toBeLessThan(70);
@@ -575,6 +576,47 @@ describe('Walk-break classification', () => {
     expect(audit.deliberateWalkSec).toBe(180);
     const inside = auditWalkBreaks(records, { ...opts, workWindows: [{ from: 0, to: 600 }] })!;
     expect(inside.intrusiveWalkSec).toBe(180);
+  });
+
+  it.each([
+    ['5K', 1200],
+    ['10K', 2400],
+    ['half marathon', 5400]
+  ])('does not penalise the break between a race warm-up and the %s effort', (_distance, effortSec) => {
+    const records = makeRecords([
+      { kind: 'run', sec: 600, hr: 116 },
+      { kind: 'walk', sec: 133, hr: 108 },
+      { kind: 'run', sec: effortSec, hr: 177 }
+    ]);
+    const race = gradeRun({
+      ...baseAerobic,
+      runType: 'race',
+      records,
+      intervals: [{ type: 'work', start_seconds: 733, duration_seconds: effortSec }]
+    });
+    expect(race.walkAudit?.deliberateWalkSec).toBe(133);
+    expect(race.walkAudit?.capacityWalkSec).toBe(0);
+    expect(race.walkAudit?.intrusiveWalkSec).toBe(0);
+    const completion = race.factors.find(f => f.category === 'Workout Completion');
+    expect(completion?.points).toBe(completion?.maxPoints);
+
+  });
+
+  it('still scores walking inside the detected race effort', () => {
+    const race = gradeRun({
+      ...baseAerobic,
+      runType: 'race',
+      records: makeRecords([
+        { kind: 'run', sec: 600, hr: 116 },
+        { kind: 'run', sec: 1200, hr: 177 },
+        { kind: 'walk', sec: 133, hr: 108 },
+        { kind: 'run', sec: 1200, hr: 177 }
+      ]),
+      intervals: [{ type: 'work', start_seconds: 600, duration_seconds: 2533 }]
+    });
+    expect(race.walkAudit?.intrusiveWalkSec).toBe(133);
+    const completion = race.factors.find(f => f.category === 'Workout Completion');
+    expect(completion?.points).toBeLessThan(completion!.maxPoints);
   });
 
   it('recognises a regular run/walk rhythm as a planned session', () => {

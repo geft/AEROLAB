@@ -62,8 +62,8 @@ describe('ActivityWeatherCard provenance states', () => {
   it('offers the opt-in lookup when the workout has coordinates but no reading', () => {
     const container = renderCard({ workout_lat: 1.3521, workout_lon: 103.8198 });
 
-    expect(container.textContent).toContain('Ambient weather available');
-    expect(container.textContent).toContain('Fetch ambient weather');
+    expect(container.textContent).toContain('Weather available');
+    expect(container.textContent).toContain('Get weather');
   });
 
   it('keeps a stored temperature without provenance out of the ambient state', () => {

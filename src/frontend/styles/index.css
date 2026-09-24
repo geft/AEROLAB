@@ -961,6 +961,11 @@ body {
   color: #e0f2fe;
 }
 
+.weather-chip svg,
+.weather-fetch-btn svg {
+  flex-shrink: 0;
+}
+
 [data-theme="light"] .weather-chip-ambient {
   background: rgba(2, 132, 199, 0.08);
   border: 1px solid rgba(2, 132, 199, 0.25);
@@ -1018,6 +1023,10 @@ body {
   border-radius: 4px;
   font-size: 0.7rem;
   transition: all 0.2s ease;
+}
+
+.weather-fetch-btn {
+  white-space: nowrap;
 }
 
 [data-theme="light"] .weather-refresh-btn,

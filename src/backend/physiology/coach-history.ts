@@ -15,6 +15,7 @@ import { createInsightLog, type CoachInsight } from './coach-insight.js';
 
 export interface CoachContext {
   windowDays: number;
+  runFamily: RunFamily;
   /** Prior runs of the same run-type family inside the window. */
   comparableRuns: number;
   /** Most recent run of the same type and similar distance in the prior 30 days. */
@@ -206,6 +207,7 @@ export function buildCoachContext(
 
   return {
     windowDays,
+    runFamily: family,
     comparableRuns: comparable.length,
     lastSimilarRun: lastSimilar ? {
       id: lastSimilar.id,
@@ -265,7 +267,9 @@ export function buildContextInsights(ctx: CoachContext | null | undefined): Coac
   }
 
   // 3. Heart-rate cost at a comparable pace
-  if (ctx.hrAtPaceDeltaBpm != null && ctx.baselineHrAtPace != null && Math.abs(ctx.hrAtPaceDeltaBpm) >= 2) {
+  // A quality workout's session average mixes work, recovery and late drift.
+  // It cannot support a same-pace heart-rate claim about the work intervals.
+  if (ctx.runFamily === 'aerobic' && ctx.hrAtPaceDeltaBpm != null && ctx.baselineHrAtPace != null && Math.abs(ctx.hrAtPaceDeltaBpm) >= 2) {
     const paceText = ctx.currentPaceSecKm ? formatPaceText(ctx.currentPaceSecKm) : 'this pace';
     if (ctx.hrAtPaceDeltaBpm < 0) {
       insights.add('positive', `Pace-Specific Cost: ${paceText} usually costs you ${ctx.baselineHrAtPace} bpm across ${ctx.hrAtPaceSamples} comparable runs; today you paid ${Math.abs(ctx.hrAtPaceDeltaBpm)} bpm less, a direct sign the aerobic engine is stronger.`);

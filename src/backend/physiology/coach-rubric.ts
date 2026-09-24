@@ -1120,7 +1120,7 @@ function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): RubricFa
       factors.push({
         category: 'Threshold Zone Time', points: Math.round(pts), maxPoints: max,
         label: band(pts / max, 'Sustained Threshold Heart Rate', 'Partial Threshold Exposure', 'Little Threshold Exposure'),
-        description: `${zone.seconds}s in Zone 4 (${zone.lower}-${zone.upper} bpm), ${zone.pct.toFixed(1)}% of observed work-rep time`
+        description: `${Math.floor(zone.seconds / 60)}m ${String(zone.seconds % 60).padStart(2, '0')}s in Zone 4 (${zone.lower}-${zone.upper} bpm), ${zone.pct.toFixed(1)}% of observed work-rep time`
       });
     }
   }
@@ -1499,7 +1499,7 @@ export function gradeRun(input: RubricInput): RubricResult {
           const len = w.to - w.from;
           return len >= 20 && len <= 600;
         });
-  const workWindows = family === 'quality'
+  const workWindows = family !== 'aerobic'
     ? (input.intervals || []).filter((i: any) => i.type === 'work').map((i: any) => {
         const from = i.start_seconds ?? i.startSeconds;
         const duration = i.duration_seconds ?? i.durationSeconds;

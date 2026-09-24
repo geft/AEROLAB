@@ -16,6 +16,18 @@ const expectNoPlaceholders = (text: string) => {
 };
 
 describe('Coach translator — condition-aware copy', () => {
+  it('translates threshold-zone time in minutes and seconds', () => {
+    const description = '34m 52s in Zone 4 (179-188 bpm), 77.5% of observed work-rep time';
+    expect(translateScoreDescription(description, 'zh')).toContain('34 分 52 秒');
+    const insight = translateCoachInsight(
+      `Threshold Heart Rate: ${description}. Time in the threshold zone is the primary measure of this session; pace is supporting context.`,
+      'zh'
+    );
+    expect(insight).toContain('34 分 52 秒');
+    expect(insight).toContain('77.5%');
+    expectNoPlaceholders(insight);
+  });
+
   it('translates the biggest-lever advice with and without a heat-adjusted target', () => {
     const legacy = translateCoachFocusAdvice(legacyAerobicAdvice, 'zh');
     expect(legacy).toContain('最大提升杠杆 — 有氧稳定性');

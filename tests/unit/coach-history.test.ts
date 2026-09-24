@@ -108,6 +108,29 @@ describe('Personal baseline comparison', () => {
     expect(find('Pace-Specific Cost:')?.tone).toBe('caution');
   });
 
+  it('does not call a drifted threshold workout average a pace-specific cost', () => {
+    const history: HistoryRow[] = Array.from({ length: 13 }, (_, i) =>
+      historyRow({
+        id: `threshold-${i}`,
+        start_time: `2026-09-${String(19 - i).padStart(2, '0')} 07:00:00`,
+        run_type: 'threshold_lt2',
+        steady_pace_sec_km: 297,
+        steady_heart_rate: 166
+      })
+    );
+    const context = buildCoachContext(history, {
+      ...currentRun,
+      runType: 'threshold_lt2',
+      steadyPaceSecKm: 297,
+      steadyHr: 170,
+      decouplingPct: 8
+    });
+
+    expect(context.hrAtPaceDeltaBpm).toBe(4);
+    expect(context.runFamily).toBe('quality');
+    expect(buildContextInsights(context).some(i => i.text.startsWith('Pace-Specific Cost:'))).toBe(false);
+  });
+
   it('ignores other run families so a race never sets an easy-run baseline', () => {
     const history: HistoryRow[] = [
       historyRow({ id: 'race-1', start_time: '2026-09-15 07:00:00', run_type: 'race', efficiency_factor: 1.55 }),

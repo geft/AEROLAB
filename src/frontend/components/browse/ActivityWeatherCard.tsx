@@ -91,7 +91,7 @@ export const ActivityWeatherCard: React.FC<ActivityWeatherCardProps> = ({
         </div>
       ) : activity.workout_lat && activity.workout_lon ? (
         <div className="weather-chip weather-chip-ambient">
-          <Cloud size={14} style={{ color: '#38bdf8' }} />
+          <Cloud size={18} style={{ color: '#38bdf8' }} />
           <span>{t.weather.available}</span>
           <button
             className="weather-fetch-btn"
@@ -99,7 +99,7 @@ export const ActivityWeatherCard: React.FC<ActivityWeatherCardProps> = ({
             disabled={isRefreshingWeather}
             title={shareNotice}
           >
-            <RefreshCw size={12} className={isRefreshingWeather ? 'spinning' : ''} />
+            <RefreshCw size={16} className={isRefreshingWeather ? 'spinning' : ''} />
             {isRefreshingWeather ? t.weather.fetching : t.weather.fetch}
           </button>
           <span className="weather-watch-sensor">{shareNotice}</span>
