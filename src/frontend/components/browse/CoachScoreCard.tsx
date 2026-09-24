@@ -136,7 +136,7 @@ export const CoachScoreCard: React.FC<CoachScoreCardProps> = ({
     <section className="coach-summary-card">
       <div className="coach-header">
         <div className="coach-title-group">
-          <span className="coach-tag">{t.browse.coachTag || 'Coach AI'}</span>
+          <span className="coach-tag">{t.browse.coachTag}</span>
           <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
             {t.browse.coachTextOverrides[coachSummary.headline || ''] ?? translateCoachHeadline(coachSummary.headline || '', language)}
           </h3>

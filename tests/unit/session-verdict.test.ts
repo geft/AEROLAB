@@ -30,13 +30,22 @@ describe('Session verdicts', () => {
     expect(sessionVerdict({ ...base, isAccidentalTempo: true })).toBe('off_target');
   });
   it('requires interval structure and intensity evidence for quality sessions', () => {
-    const quality = { ...base, family: 'quality' as const, runType: 'threshold_lt2', factors: [
+    const quality = { ...base, family: 'quality' as const, runType: 'intervals_vo2', factors: [
       factor('Pacing Discipline', 'On-Target Intensity Control'), factor('Interval Execution', 'Laser Rep Consistency')
     ] };
     expect(sessionVerdict(quality)).toBe('on_track');
     expect(sessionVerdict({ ...quality, factors: quality.factors.slice(0, 1) })).toBe('insufficient_evidence');
     expect(sessionVerdict({ ...quality, factors: [...quality.factors, factor('Rep-to-Rep Fatigue', 'Slight Late-Rep Fade')] })).toBe('some_deviation');
     expect(sessionVerdict({ ...quality, factors: [...quality.factors, factor('Rep-to-Rep Fatigue', 'Late-Rep Collapse')] })).toBe('off_target');
+  });
+  it('uses threshold-zone exposure as the primary threshold verdict', () => {
+    const threshold = { ...base, family: 'quality' as const, runType: 'threshold_lt2', factors: [
+      factor('Threshold Zone Time', 'Sustained Threshold Heart Rate'),
+      factor('Rep-to-Rep Fatigue', 'Late-Rep Collapse')
+    ] };
+    expect(sessionVerdict(threshold)).toBe('on_track');
+    expect(sessionVerdict({ ...threshold, factors: [factor('Threshold Zone Time', 'Partial Threshold Exposure')] })).toBe('some_deviation');
+    expect(sessionVerdict({ ...threshold, factors: [factor('Threshold Zone Time', 'Little Threshold Exposure')] })).toBe('off_target');
   });
   it('does not equate a conservatively run race with failure', () => {
     expect(sessionVerdict({ ...base, family: 'race', runType: 'race', factors: [

@@ -187,7 +187,8 @@ describe('AI Coach Summary Unit Tests', () => {
       groundContactTime: 235
     });
 
-    expect(thresholdSummary.headline).toBe('High-Quality Lactate Clearance Stimulus');
+    expect(thresholdSummary.headline).toBe('Threshold Zone Not Verified');
+    expect(thresholdSummary.verdict).toBe('insufficient_evidence');
     expect(thresholdSummary.recommendation).toContain('48 hours of recovery');
 
     const vo2Summary = generateCoachSummary({

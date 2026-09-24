@@ -112,6 +112,7 @@ export interface Translations {
     tabIntervals: string;
     tabSplits: string;
     tabCoach: string;
+    exportCsv: string;
     steadyPace: string;
     steadyHr: string;
     efficiencyFactor: string;
@@ -765,8 +766,10 @@ export interface Translations {
     generic: string;
     invalidMaxHr: string;
     invalidRestingHr: string;
+    invalidProfileInput: string;
     profileSaveFailed: string;
     invalidTags: string;
+    invalidActivityInput: string;
     noFieldsToUpdate: string;
     activityNotFound: string;
     profileNotFound: string;

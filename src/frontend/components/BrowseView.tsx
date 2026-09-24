@@ -543,6 +543,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
             {/* Overview Header Card */}
             <ActivityDetailHeader
               act={act}
+              records={detailData.records}
               getDisplayTitle={getDisplayTitle}
               formatPace={formatPace}
               formatTime={formatTime}
@@ -680,7 +681,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               />
             )}
 
-            {/* SUBTAB 3: AI Coach Debrief */}
+            {/* SUBTAB 3: Session Analysis */}
             {activeSubTab === 'coach' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 {detailData.coachSummary && (

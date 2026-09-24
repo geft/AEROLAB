@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import type { Activity, ActivityUpdate } from '../../types/api.js';
+import type { Activity, ActivityRecord, ActivityUpdate } from '../../types/api.js';
 
 import type { DisplayTitleFn } from '../BrowseView.js';
 import type { Translations } from '../../i18n/types.js';
-import { Edit2, Tag, Plus, X, Check, ShieldCheck } from 'lucide-react';
+import { Edit2, Tag, Plus, X, Check, ShieldCheck, Download } from 'lucide-react';
 import { ActivityWeatherCard } from './ActivityWeatherCard';
 import { translateTag } from '../../i18n/tagTranslator';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { patchActivity } from '../../api/client.js';
+import { downloadSessionCsv } from '../../utils/sessionCsv.js';
 
 const COMMON_TAG_PRESETS = [
   'Easy Base', 'Long Run', 'Recovery', 'Threshold', 'VO2 Max',
@@ -16,6 +17,7 @@ const COMMON_TAG_PRESETS = [
 
 interface ActivityDetailHeaderProps {
   act: Activity;
+  records: ActivityRecord[];
   getDisplayTitle: DisplayTitleFn;
   formatPace: (secKm: number | null) => string;
   formatTime: (sec: number) => string;
@@ -31,6 +33,7 @@ interface ActivityDetailHeaderProps {
 
 export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
   act,
+  records,
   getDisplayTitle,
   formatPace,
   formatTime,
@@ -144,6 +147,16 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
             <span>•</span>
             <span>{formatDate(act.start_time, { hour: '2-digit', minute: '2-digit', hour12: false })} ({getTimeOfDay(act.start_time)})</span>
           </div>
+
+          <button
+            type="button"
+            onClick={() => downloadSessionCsv(act, records)}
+            className="filter-pill-btn"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.65rem' }}
+          >
+            <Download size={14} />
+            {t.browse.exportCsv}
+          </button>
 
           {/* Dynamic Multi-Tags Row */}
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.65rem' }}>

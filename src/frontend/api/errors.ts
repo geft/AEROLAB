@@ -21,10 +21,14 @@ export function apiErrorMessage(t: Translations, err: unknown, fallback: string)
       return t.apiErrors.invalidMaxHr;
     case 'ERR_INVALID_RESTING_HR':
       return t.apiErrors.invalidRestingHr;
+    case 'ERR_INVALID_PROFILE_INPUT':
+      return t.apiErrors.invalidProfileInput;
     case 'ERR_PROFILE_SAVE_FAILED':
       return t.apiErrors.profileSaveFailed;
     case 'ERR_INVALID_TAGS':
       return t.apiErrors.invalidTags;
+    case 'ERR_INVALID_ACTIVITY_INPUT':
+      return t.apiErrors.invalidActivityInput;
     case 'ERR_NO_FIELDS_TO_UPDATE':
       return t.apiErrors.noFieldsToUpdate;
     case 'ERR_ACTIVITY_NOT_FOUND':

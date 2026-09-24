@@ -33,7 +33,7 @@ describe('Session-drift reporting in the debrief', () => {
     expect(drift).toBeDefined();
     expect(drift).toContain('ran as a VO2 session rather than threshold');
     expect(drift).toContain('177 bpm LT2 anchor'); // names the anchor it exceeded
-    const intensity = summary.scoreBreakdown.find(f => f.category === 'Pacing Discipline')!;
+    const intensity = summary.scoreBreakdown.find(f => f.category === 'Threshold Heart Rate')!;
     expect(intensity.label).toBe('Drifted Into VO2 Territory');
   });
 

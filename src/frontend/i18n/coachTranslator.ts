@@ -1,6 +1,6 @@
 /**
- * Physiological Coach AI Translation Service
- * Translates AI-generated coach headlines, key insights, recommendations, and execution score rubric factors into Chinese.
+ * Session analysis translation service
+ * Translates session-analysis headlines, insights, recommendations, and rubric factors into Chinese.
  */
 
 export function translateCoachHeadline(headline: string, lang: string): string {
@@ -18,7 +18,8 @@ export function translateCoachHeadline(headline: string, lang: string): string {
     'All-Out Benchmark / Masterful Race Execution': '全力基准测试 / 完美的比赛执行',
     'All-Out Benchmark Effort (Erratic Pacing)': '全力基准测试（配速波动）',
     'Strong Aerobic Adaptation Session': '高效有氧适应训练',
-    'Threshold Stimulus with Compromised Execution': '阈值刺激达成但执行质量不足'
+    'Threshold Stimulus with Compromised Execution': '阈值刺激达成但执行质量不足',
+    'Threshold Zone Not Verified': '阈值心率区间未能核实'
   };
 
   return mapping[headline.trim()] || headline;
@@ -66,6 +67,14 @@ export function translateCoachRecommendation(recommendation: string, lang: strin
 
 export function translateCoachInsight(insight: string, lang: string): string {
   if (lang !== 'zh' || !insight) return insight;
+
+  if (insight.startsWith('Threshold Heart Rate:')) {
+    return insight
+      .replace(/^Threshold Heart Rate: (\d+)s in Zone 4 \((\d+)-(\d+) bpm\), ([\d.]+)% of observed work-rep time\. Time in the threshold zone is the primary measure of this session; pace is supporting context\.$/,
+        '阈值心率：工作间歇中有 $1 秒位于第 4 区（$2-$3 bpm），占有效时间的 $4%。阈值区间时长是本次训练的主要评价依据，配速仅作辅助参考。')
+      .replace('Threshold Heart Rate: Work-rep heart-rate coverage was insufficient to verify time in the threshold zone. This session cannot earn a gold threshold grade from pace alone.',
+        '阈值心率：工作间歇的心率数据不足，无法核实阈值区间时长。仅凭配速不能获得金级阈值训练评价。');
+  }
 
   // 1. Traffic & Walk Break Isolation
   if (insight.startsWith('Traffic & Walk Break Isolation:')) {
@@ -453,6 +462,8 @@ export function translateScoreCategory(cat: string, lang: string): string {
     'Cardiovascular Stimulus': '心血管刺激',
     'Autonomic Recovery': '自主神经恢复',
     'Pacing Discipline': '配速自律',
+    'Threshold Zone Time': '阈值心率区间时长',
+    'Threshold Heart Rate': '阈值心率控制',
     'Pacing Consistency': '配速一致性',
     'Race Pacing Execution': '比赛配速执行',
     'Race Finish Execution': '比赛后程执行',
@@ -503,6 +514,9 @@ export function translateScoreLabel(label: string, lang: string): string {
     'Normal Recovery Kinetics': '恢复动力学正常',
     'Blunted Recovery Response': '恢复反应迟钝',
     'On-Target Intensity Control': '强度控制精准',
+    'Sustained Threshold Heart Rate': '持续保持阈值心率',
+    'Partial Threshold Exposure': '部分达到阈值心率',
+    'Little Threshold Exposure': '阈值心率时长不足',
     'Drifted Into VO2 Territory': '漂移至 VO2 强度区间',
     'Grey-Zone Intensity Drift': '强度漂移至灰色地带',
     'Overreaching Intensity': '强度过高',
@@ -531,6 +545,7 @@ export function translateScoreDescription(description: string, lang: string): st
   if (lang !== 'zh' || !description) return description;
 
   const rules: Array<[RegExp, string | ((substring: string, ...args: string[]) => string)]> = [
+    [/^(\d+)s in Zone 4 \((\d+)-(\d+) bpm\), ([\d.]+)% of observed work-rep time$/, '工作间歇中有 $1 秒位于第 4 区（$2-$3 bpm），占有效心率时间的 $4%'],
     [/^([\d.]+)% cardiac drift \(([\d.]+)% or lower earns full marks\)$/, '$1% 心率漂移（≤$2% 可获满分）'],
     [
       /^([\d.]+)% above the (\d+) bpm LT1 ceiling \(first half: ([\d.]+)%\) · ([\d.]+)% in the top of Zone 2 \(([\d-]+) bpm\)$/,
@@ -606,6 +621,10 @@ export function translateCoachFocusAdvice(advice: string, lang: string): string 
   if (lang !== 'zh' || !advice) return advice;
 
   const rules: Array<[RegExp, string | ((substring: string, ...args: string[]) => string)]> = [
+    [/^Biggest Lever — Threshold Zone Time: ([\d.]+)% of observed work-rep time was in Zone 4 \((\d+)-(\d+) bpm\) \((\d+) of (\d+) points lost\)\..*$/,
+      '最大提升重点 — 阈值心率区间时长：工作间歇中有 $1% 位于第 4 区（$2-$3 bpm），损失 $4 / $5 分。以心率维持阈值强度，配速只用于辅助控制。'],
+    [/^Biggest Lever — Threshold Heart Rate: work-rep heart rate missed the (\d+) bpm LT2 anchor \((\d+) of (\d+) points lost\)\..*$/,
+      '最大提升重点 — 阈值心率控制：工作间歇心率未贴近 $1 bpm 的 LT2 参考值，损失 $2 / $3 分。调整强度以保持阈值心率，不要追逐配速目标。'],
     [
       /^Biggest Lever — Aerobic Intensity: you never crossed the (\d+) bpm LT1 ceiling, but ([\d.]+)% of your running time sat in the top of Zone 2 \(([\d-]+) bpm\) \((\d+) of (\d+) points lost\)\..*$/,
       (_m, lt1, zone2, band, lost, max) =>
@@ -703,4 +722,3 @@ export function translateCalibrationNote(note: string, _lang?: string): string {
 export function translateActivityName(name: string, _lang?: string): string {
   return name;
 }
-

@@ -372,6 +372,7 @@ export function generateCoachSummary(params: {
     lt1Hr: lt1,
     lt2Hr: hrProfile.lt2Hr,
     maxHeartRate: hrProfile.maxHr,
+    restingHr: hrProfile.restingHr,
     activityMaxHr: params.maxHr || null,
     ambientTempC,
     durationMin: params.durationMin ?? null,
@@ -382,6 +383,14 @@ export function generateCoachSummary(params: {
   });
 
   const finalScore = rubric.score;
+  if (runType === 'threshold_lt2') {
+    const zoneFactor = rubric.factors.find(factor => factor.category === 'Threshold Zone Time');
+    if (zoneFactor) {
+      insights.add(zoneFactor.points >= 40 ? 'positive' : 'caution', `Threshold Heart Rate: ${zoneFactor.description}. Time in the threshold zone is the primary measure of this session; pace is supporting context.`);
+    } else {
+      insights.add('caution', 'Threshold Heart Rate: Work-rep heart-rate coverage was insufficient to verify time in the threshold zone. This session cannot earn a gold threshold grade from pace alone.');
+    }
+  }
   // 3-tier star system: 1 = Bronze (<70), 2 = Silver (70-84), 3 = Gold (>=85)
   const stars = finalScore >= 85 ? 3 : finalScore >= 70 ? 2 : 1;
   const rating5 = Number(((finalScore / 20)).toFixed(1));
@@ -501,7 +510,9 @@ export function generateCoachSummary(params: {
       ? 'Your aerobic system is absorbing current volume smoothly. Ready for a progressive tempo or threshold stimulus.'
       : 'Maintain easy efforts at this heart rate cap to reinforce mitochondrial density.';
   } else if (runType === 'threshold_lt2') {
-    headline = finalScore >= 75 ? 'High-Quality Lactate Clearance Stimulus' : 'Threshold Stimulus with Compromised Execution';
+    headline = !rubric.factors.some(factor => factor.category === 'Threshold Zone Time')
+      ? 'Threshold Zone Not Verified'
+      : finalScore >= 85 ? 'High-Quality Lactate Clearance Stimulus' : 'Threshold Stimulus with Compromised Execution';
     recommendation = 'Allow 48 hours of recovery or easy aerobic jogging before your next quality interval day.';
   } else if (runType === 'intervals_vo2') {
     headline = finalScore >= 90 ? 'Masterful VO2 Max Interval Execution' : 'Sharp High-Velocity Neuromuscular Stimulus';

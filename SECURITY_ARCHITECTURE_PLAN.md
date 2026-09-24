@@ -104,6 +104,16 @@ Next delivery step: finish item 4's ingestion and database-row typing. The
 database storage service is already in `src/backend/db/storage.ts`; the route
 and frontend client migrations are complete.
 
+Latest item 4 progress: activity list/detail/update and profile read/update now
+validate their core SQLite rows through `src/backend/db/rows.ts`; profile and
+activity PATCH bodies reject unknown or malformed fields before service calls.
+Missing activity updates return `ERR_ACTIVITY_NOT_FOUND`, and the new input
+codes resolve through both UI dictionaries. CSV metadata rejects invalid dates
+and non-finite or negative summary metrics before persistence. Focused boundary
+tests cover malformed rows, requests, and CSV metadata. The remaining row casts
+in progress, volume, coach summary, and threshold queries still need typed
+conversions before item 4 can be marked complete.
+
 ## Delivery gates
 
 - Make each numbered item a reviewable change with a data-migration note when persistent data changes.

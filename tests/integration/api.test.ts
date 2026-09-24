@@ -167,12 +167,12 @@ describe('API Server Integration Tests', () => {
     expect(patchRes.body.coachSummary).toBeDefined();
     // A steady aerobic run re-labelled as threshold scores poorly on the quality
     // rubric (no rep structure, no LT2 stimulus), and the headline says so.
-    expect(patchRes.body.coachSummary.headline).toBe('Threshold Stimulus with Compromised Execution');
+    expect(patchRes.body.coachSummary.headline).toBe('Threshold Zone Not Verified');
     expect(patchRes.body.coachSummary.rubricFamily).toBe('quality');
 
     // Confirm the row in activity_coach_summaries was updated
     const row = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get('bench-easy-60') as any;
-    expect(row.headline).toBe('Threshold Stimulus with Compromised Execution');
+    expect(row.headline).toBe('Threshold Zone Not Verified');
     expect(row.recommendation).toContain('48 hours of recovery');
 
     // Revert back to easy_base
@@ -511,6 +511,50 @@ describe('API Server Integration Tests', () => {
 
     expect(res.status).toBe(422);
     expect(res.body.error).toContain('CSV file contains no valid records');
+  });
+
+  it('POST /api/ingest/upload preserves Garmin CSV metadata comments', async () => {
+    const content = `# Garmin Run Export — Parsed for AI Analysis
+# Activity: Threshold
+# Activity ID: garmin-commented-csv
+# Date: 2026-09-24 19:02:28
+# Total Distance (m): 1000
+# Total Duration (s): 300
+timestamp,heart_rate,cadence (spm),enhanced_speed,distance
+2026-09-24T19:02:28.000,140,170,3.2,0
+2026-09-24T19:07:28.000,155,175,3.2,1000`;
+    const res = await request(app)
+      .post('/api/ingest/upload')
+      .send({ content, filename: 'threshold.csv' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.result.status).toBe('imported');
+    expect(res.body.result.activityId).toBe('garmin-commented-csv');
+  });
+
+  it('stores every telemetry sample with one workout coordinate for new imports', async () => {
+    const rows = Array.from({ length: 120 }, (_, index) =>
+      `${new Date(Date.UTC(2026, 8, 25, 12, 0, index)).toISOString()},145,170,3,${index * 3},${index === 0 ? 1.0 : 1.3},${index === 0 ? 103.0 : 103.8}`
+    );
+    const content = [
+      '# Activity ID: full-telemetry-import',
+      '# Date: 2026-09-25T12:00:00.000Z',
+      '# Total Distance (m): 357',
+      '# Total Duration (s): 119',
+      'timestamp,heart_rate,cadence,speed,distance,position_lat,position_long',
+      ...rows
+    ].join('\n');
+    const res = await request(app)
+      .post('/api/ingest/upload')
+      .send({ content, filename: 'full-telemetry.csv' });
+
+    expect(res.status).toBe(200);
+    const stored = getDatabase().prepare(
+      'SELECT lat, lon FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds'
+    ).all('full-telemetry-import') as Array<{ lat: number; lon: number }>;
+    expect(stored).toHaveLength(rows.length);
+    expect(stored[0]).toEqual({ lat: 1.3, lon: 103.8 });
+    expect(stored.slice(1).every(record => record.lat === null && record.lon === null)).toBe(true);
   });
 
   it('GET /api/activities/training-load returns training status, acute/chronic load and optimal tunnel', async () => {

@@ -8,7 +8,6 @@ import { calculateEconomy, calculateKmSplits } from '../physiology/economy.js';
 import { detectIntervals } from './interval-detector.js';
 import { classifyRun } from './classifier.js';
 import { evaluateThresholdUpdate } from '../physiology/threshold-tracker.js';
-import { downsampleRecords } from './downsampler.js';
 import { syncActivityCoachSummary } from '../physiology/coach-summary.js';
 import { calculateActivityTrainingLoad } from '../physiology/training-load.js';
 
@@ -379,9 +378,10 @@ export function importRunContent(
       );
     }
 
-    // Time-series records: apply smart downsampling to drastically compact storage
-    const compactedRecords = downsampleRecords(records, intervals);
-    for (const r of compactedRecords) {
+    // Keep every telemetry sample. The workout centroid is enough for weather;
+    // store it once so a CSV export can still be reimported with that location.
+    for (let index = 0; index < records.length; index++) {
+      const r = records[index];
       insertRecord.run(
         metadata.id,
         r.timestamp,
@@ -391,8 +391,8 @@ export function importRunContent(
         r.speedMps,
         r.distanceMeters,
         r.altitudeMeters,
-        r.latitude,
-        r.longitude,
+        index === 0 ? workoutLat : null,
+        index === 0 ? workoutLon : null,
         r.temperature,
         r.verticalOscillation,
         r.stanceTime

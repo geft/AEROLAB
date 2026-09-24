@@ -64,18 +64,30 @@ export function parseRunCSV(content: string, filename: string): ParsedCSV {
 
   const id = rawMeta['Activity ID'] || pathFallbackId(filename, rawMeta['Date']);
   const name = rawMeta['Activity'] || 'Run';
-  const date = rawMeta['Date'] || new Date().toISOString();
+  const suppliedDate = rawMeta['Date'];
+  if (suppliedDate && !Number.isFinite(Date.parse(suppliedDate))) {
+    throw new Error('Invalid activity date in CSV metadata');
+  }
+  const date = suppliedDate || new Date().toISOString();
   const sport = rawMeta['Sport'] || 'running';
-  const totalDistanceMeters = parseFloat(rawMeta['Total Distance (m)'] || '0');
-  const totalDurationSeconds = parseFloat(rawMeta['Total Duration (s)'] || '0');
-  const totalElapsedSeconds = parseFloat(rawMeta['Total Elapsed Time (s)'] || rawMeta['Total Duration (s)'] || '0');
-  const avgHeartRate = parseInt(rawMeta['Avg Heart Rate (bpm)'] || '0', 10);
-  const maxHeartRate = parseInt(rawMeta['Max Heart Rate (bpm)'] || '0', 10);
-  const avgCadence = parseInt(rawMeta['Avg Cadence (spm)'] || '0', 10);
-  const maxCadence = parseInt(rawMeta['Max Cadence (spm)'] || '0', 10);
-  const calories = parseInt(rawMeta['Calories'] || '0', 10);
-  const totalAscentMeters = parseFloat(rawMeta['Total Ascent (m)'] || '0');
-  const totalDescentMeters = parseFloat(rawMeta['Total Descent (m)'] || '0');
+  const metric = (key: string, integer = false): number => {
+    const raw = rawMeta[key];
+    if (raw === undefined || raw === '') return 0;
+    const parsed = integer ? Number.parseInt(raw, 10) : Number.parseFloat(raw);
+    if (!Number.isFinite(parsed) || parsed < 0) throw new Error(`Invalid ${key} in CSV metadata`);
+    return parsed;
+  };
+  const totalDistanceMeters = metric('Total Distance (m)');
+  const totalDurationSeconds = metric('Total Duration (s)');
+  const totalElapsedSeconds = rawMeta['Total Elapsed Time (s)']
+    ? metric('Total Elapsed Time (s)') : totalDurationSeconds;
+  const avgHeartRate = metric('Avg Heart Rate (bpm)', true);
+  const maxHeartRate = metric('Max Heart Rate (bpm)', true);
+  const avgCadence = metric('Avg Cadence (spm)', true);
+  const maxCadence = metric('Max Cadence (spm)', true);
+  const calories = metric('Calories', true);
+  const totalAscentMeters = metric('Total Ascent (m)');
+  const totalDescentMeters = metric('Total Descent (m)');
 
   const metadata: ActivityMetadata = {
     id,

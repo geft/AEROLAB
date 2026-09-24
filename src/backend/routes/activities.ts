@@ -8,6 +8,7 @@ import {
   getTrainingLoadService,
   getVolumeService,
   listActivitiesService,
+  parseActivityUpdate,
   refreshActivityWeatherService,
   updateActivityService,
 } from '../services/activity-service.js';
@@ -84,8 +85,9 @@ activitiesRouter.get('/:id', async (req, res) => {
 // PATCH /api/activities/:id - manual override for run_type or notes
 activitiesRouter.patch('/:id', (req, res) => {
   try {
-    const { run_type, name, tags } = req.body;
-    const result = updateActivityService(getDatabase(), req.params.id, { run_type, name, tags });
+    const input = parseActivityUpdate(req.body);
+    if (!input) return res.status(400).json({ code: 'ERR_INVALID_ACTIVITY_INPUT', error: 'Invalid activity update' });
+    const result = updateActivityService(getDatabase(), req.params.id, input);
     if (!result.ok) {
       return res.status(result.status).json({ code: result.code, error: result.error });
     }

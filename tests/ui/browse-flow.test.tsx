@@ -142,7 +142,7 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     expect(screen.getByText('1.25')).toBeTruthy();
   });
 
-  it('navigates through subtabs: Strides & Intervals, then AI Coach', async () => {
+  it('navigates through subtabs: Strides & Intervals, then Analysis', async () => {
     render(
       <BrowseView
         activities={mockActivities}
@@ -166,8 +166,8 @@ describe('BrowseView User Flow & Navigation Tests', () => {
       expect(screen.getByText('195')).toBeTruthy(); // Cadence of interval
     });
 
-    // Switch to the AI Coach subtab
-    const coachTabBtn = screen.getByRole('button', { name: /ai coach/i });
+    // Switch to the Analysis subtab
+    const coachTabBtn = screen.getByRole('button', { name: /analysis/i });
     fireEvent.click(coachTabBtn);
 
     await waitFor(() => {
@@ -563,5 +563,4 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     });
   });
 });
-
 

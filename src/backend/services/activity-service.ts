@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { activityFromRow } from '../db/rows.js';
 import { parseSessionVerdict } from '../../shared/session-verdict.js';
 import type { Activity } from '../../shared/activity.js';
 import type { BestEffortsReport } from '../../shared/best-efforts.js';
@@ -380,19 +381,25 @@ export function listActivitiesService(db: Database.Database, typeFilter?: string
 
   const activities = db.prepare(query).all(...params);
   return {
-    activities: (activities as any[]).map(({ analysis_json, ...activity }) => {
-      let analysis: any = null;
-      try { analysis = JSON.parse(analysis_json || 'null'); } catch { /* Legacy analysis may be absent. */ }
-      return { ...activity, verdict: parseSessionVerdict(analysis?.verdict) };
-    }) as Activity[]
+    activities: activities.map(value => {
+      const row = value as Record<string, unknown>;
+      const { analysis_json, ...activity } = row;
+      let analysis: Record<string, unknown> | null = null;
+      try {
+        const parsed: unknown = JSON.parse(typeof analysis_json === 'string' ? analysis_json : 'null');
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) analysis = parsed as Record<string, unknown>;
+      } catch { /* Legacy analysis may be absent. */ }
+      return { ...activityFromRow(activity), verdict: parseSessionVerdict(analysis?.verdict) };
+    })
   };
 }
 
 
 /** GET /api/activities/:id - deep dive into individual run */
 export function getActivityDetailService(db: Database.Database, id: string): ActivityDetailResponse | null {
-  const activity = db.prepare('SELECT * FROM activities WHERE id = ?').get(id) as any;
-  if (!activity) return null;
+  const activityRow = db.prepare('SELECT * FROM activities WHERE id = ?').get(id);
+  if (!activityRow) return null;
+  const activity = activityFromRow(activityRow);
 
   const splits = db.prepare('SELECT * FROM activity_splits WHERE activity_id = ? ORDER BY split_index ASC').all(id);
   const intervals = db.prepare('SELECT * FROM activity_intervals WHERE activity_id = ? ORDER BY interval_index ASC').all(id);
@@ -449,22 +456,22 @@ export function getActivityDetailService(db: Database.Database, id: string): Act
 
   // Generate, persist, and retrieve from activity_coach_summaries table
   const coachSummary = syncActivityCoachSummary(db, id) || generateCoachSummary({
-    runType: (activity as any).run_type || 'easy_base',
-    distanceKm: ((activity as any).distance_meters || 0) / 1000,
-    durationMin: ((activity as any).duration_seconds || 0) / 60,
-    avgPaceSecKm: (activity as any).avg_pace_sec_km || 0,
-    avgHr: (activity as any).avg_heart_rate || 0,
-    maxHr: (activity as any).max_heart_rate || 0,
-    cadence: (activity as any).avg_cadence || 0,
-    decouplingPct: (activity as any).aerobic_decoupling_pct ?? null,
-    efficiencyFactor: (activity as any).efficiency_factor ?? null,
-    avgTemp: (activity as any).avg_temperature ?? null,
-    groundContactTime: (activity as any).avg_stance_time ?? null,
-    elevationGainM: (activity as any).elevation_gain_m ?? null,
-    steadyPaceSecKm: pauseBreakdown.steadyPaceSecKm || (activity as any).steady_pace_sec_km || null,
-    steadyHr: pauseBreakdown.steadyHeartRate || (activity as any).steady_heart_rate || null,
-    steadyCadence: pauseBreakdown.steadyCadence || (activity as any).steady_cadence || null,
-    steadyStanceTime: pauseBreakdown.steadyStanceTimeMs || (activity as any).steady_stance_time || null,
+    runType: activity.run_type || 'easy_base',
+    distanceKm: activity.distance_meters / 1000,
+    durationMin: activity.duration_seconds / 60,
+    avgPaceSecKm: activity.avg_pace_sec_km || 0,
+    avgHr: activity.avg_heart_rate || 0,
+    maxHr: activity.max_heart_rate || 0,
+    cadence: activity.avg_cadence || 0,
+    decouplingPct: activity.aerobic_decoupling_pct ?? null,
+    efficiencyFactor: activity.efficiency_factor ?? null,
+    avgTemp: activity.avg_temperature ?? null,
+    groundContactTime: activity.avg_stance_time ?? null,
+    elevationGainM: activity.elevation_gain_m ?? null,
+    steadyPaceSecKm: pauseBreakdown.steadyPaceSecKm || activity.steady_pace_sec_km || null,
+    steadyHr: pauseBreakdown.steadyHeartRate || activity.steady_heart_rate || null,
+    steadyCadence: pauseBreakdown.steadyCadence || activity.steady_cadence || null,
+    steadyStanceTime: pauseBreakdown.steadyStanceTimeMs || activity.steady_stance_time || null,
     pauseBreakdown,
     lt1Hr,
     lt2Hr,
@@ -475,11 +482,11 @@ export function getActivityDetailService(db: Database.Database, id: string): Act
 
   return {
     activity: {
-      ...(activity as any),
-      steady_pace_sec_km: pauseBreakdown.steadyPaceSecKm || (activity as any).steady_pace_sec_km,
-      steady_heart_rate: pauseBreakdown.steadyHeartRate || (activity as any).steady_heart_rate,
-      steady_cadence: pauseBreakdown.steadyCadence || (activity as any).steady_cadence,
-      steady_stance_time: pauseBreakdown.steadyStanceTimeMs || (activity as any).steady_stance_time,
+      ...activity,
+      steady_pace_sec_km: pauseBreakdown.steadyPaceSecKm || activity.steady_pace_sec_km,
+      steady_heart_rate: pauseBreakdown.steadyHeartRate || activity.steady_heart_rate,
+      steady_cadence: pauseBreakdown.steadyCadence || activity.steady_cadence,
+      steady_stance_time: pauseBreakdown.steadyStanceTimeMs || activity.steady_stance_time,
       pause_duration_seconds: pauseBreakdown.stopDurationSeconds,
       walk_duration_seconds: pauseBreakdown.walkDurationSeconds,
       walk_distance_meters: pauseBreakdown.walkDistanceMeters
@@ -540,9 +547,10 @@ export function getActivityCoachSummaryService(db: Database.Database, id: string
 export async function refreshActivityWeatherService(db: Database.Database, id: string): Promise<WeatherRefreshResponse | null> {
   const weather = await syncActivityWeather(db, id);
   if (!weather) return null;
-  const updated = db.prepare('SELECT * FROM activities WHERE id = ?').get(id) as any;
+  const updated = db.prepare('SELECT * FROM activities WHERE id = ?').get(id);
+  if (!updated) return null;
   const coachSummary = syncActivityCoachSummary(db, id);
-  return { activity: updated, weather, coachSummary };
+  return { activity: activityFromRow(updated), weather, coachSummary };
 }
 
 export interface UpdateActivityInput {
@@ -553,14 +561,14 @@ export interface UpdateActivityInput {
 
 export type UpdateActivityResult =
   | { ok: true; response: ActivityPatchResponse }
-  | { ok: false; status: 400; code: 'ERR_INVALID_TAGS' | 'ERR_NO_FIELDS_TO_UPDATE'; error: string };
+  | { ok: false; status: 400 | 404; code: 'ERR_INVALID_TAGS' | 'ERR_NO_FIELDS_TO_UPDATE' | 'ERR_ACTIVITY_NOT_FOUND'; error: string };
 
 /** PATCH /api/activities/:id - manual override for run_type or notes */
 export function updateActivityService(db: Database.Database, id: string, input: UpdateActivityInput): UpdateActivityResult {
   const { run_type, name, tags } = input;
 
   const updates: string[] = [];
-  const params: any[] = [];
+  const params: string[] = [];
 
   if (run_type) {
     updates.push('run_type = ?');
@@ -583,7 +591,7 @@ export function updateActivityService(db: Database.Database, id: string, input: 
       }
     }
 
-    const invalidTags = tagList.filter(t => !ALLOWED_TAGS.includes(t));
+    const invalidTags = tagList.filter(t => typeof t !== 'string' || !ALLOWED_TAGS.includes(t));
     if (invalidTags.length > 0) {
       return {
         ok: false,
@@ -601,6 +609,10 @@ export function updateActivityService(db: Database.Database, id: string, input: 
     return { ok: false, status: 400, code: 'ERR_NO_FIELDS_TO_UPDATE', error: 'No fields to update' };
   }
 
+  if (!db.prepare('SELECT 1 FROM activities WHERE id = ?').get(id)) {
+    return { ok: false, status: 404, code: 'ERR_ACTIVITY_NOT_FOUND', error: 'Activity not found' };
+  }
+
   params.push(id);
   db.prepare(`UPDATE activities SET ${updates.join(', ')} WHERE id = ?`).run(...params);
 
@@ -608,5 +620,16 @@ export function updateActivityService(db: Database.Database, id: string, input: 
   const coachSummary = syncActivityCoachSummary(db, id, run_type ? { runType: run_type } : undefined);
 
   const updated = db.prepare('SELECT * FROM activities WHERE id = ?').get(id);
-  return { ok: true, response: { activity: updated as Activity, coachSummary } };
+  return { ok: true, response: { activity: activityFromRow(updated), coachSummary } };
+}
+
+export function parseActivityUpdate(value: unknown): UpdateActivityInput | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (Object.keys(row).some(key => !['run_type', 'name', 'tags'].includes(key))) return null;
+  if (row.run_type !== undefined && typeof row.run_type !== 'string') return null;
+  if (row.name !== undefined && typeof row.name !== 'string') return null;
+  if (row.tags !== undefined && typeof row.tags !== 'string' &&
+      (!Array.isArray(row.tags) || !row.tags.every(tag => typeof tag === 'string'))) return null;
+  return row as UpdateActivityInput;
 }

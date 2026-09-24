@@ -1,6 +1,7 @@
 import { sessionVerdict } from './session-verdict.js';
 import type { SessionVerdict } from '../../shared/session-verdict.js';
 import { PauseBreakdown } from './economy.js';
+import { getDefaultZones } from './zones.js';
 
 /**
  * AEROLAB Physiological Execution Rubric
@@ -44,6 +45,7 @@ export interface RubricInput {
   lt1Hr: number;
   lt2Hr: number;
   maxHeartRate: number;
+  restingHr?: number | null;
   activityMaxHr: number | null;
   /** Ambient temperature for the session, so heat load can be priced in. */
   ambientTempC?: number | null;
@@ -1079,9 +1081,49 @@ function gradeAerobic(input: RubricInput, walkAudit: WalkAudit | null, intensity
 // ---------------------------------------------------------------------------
 // Quality family: threshold, VO2 max, tempo, strides
 // ---------------------------------------------------------------------------
+function thresholdZoneShare(input: RubricInput): { pct: number; seconds: number; lower: number; upper: number } | null {
+  const workWindows = (input.intervals || [])
+    .filter((rep: any) => rep.type === INTERVAL_TYPE.work)
+    .map((rep: any) => ({ from: rep.start_seconds ?? rep.startSeconds, to: (rep.start_seconds ?? rep.startSeconds) + intervalDuration(rep) }))
+    .filter((window: { from: number; to: number }) => Number.isFinite(window.from) && window.to > window.from);
+  if (workWindows.length === 0 || !input.records || input.records.length < 10) return null;
+  const [lower, upper] = getDefaultZones(input.maxHeartRate, input.lt1Hr, input.lt2Hr, input.restingHr ?? undefined).z4;
+  let observed = 0;
+  let inZone = 0;
+  const records = input.records;
+  for (let index = 0; index < records.length - 1; index++) {
+    const record = records[index];
+    const time = record.elapsed_seconds ?? record.elapsedSeconds;
+    const nextTime = records[index + 1].elapsed_seconds ?? records[index + 1].elapsedSeconds;
+    const hr = record.heart_rate ?? record.heartRate;
+    if (!Number.isFinite(time) || !Number.isFinite(nextTime) || !Number.isFinite(hr) || hr <= 40) continue;
+    for (const window of workWindows) {
+      const seconds = Math.max(0, Math.min(nextTime, window.to, time + 15) - Math.max(time, window.from));
+      observed += seconds;
+      if (hr >= lower && hr <= upper) inZone += seconds;
+    }
+  }
+  if (observed < 60) return null;
+  return { pct: (inZone / observed) * 100, seconds: Math.round(inZone), lower, upper };
+}
+
 function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): RubricFactor[] {
   const factors: RubricFactor[] = [];
+  const isThreshold = input.runType === 'threshold_lt2';
   const workReps = (input.intervals || []).filter((i: any) => i.type === INTERVAL_TYPE.work);
+
+  if (isThreshold) {
+    const zone = thresholdZoneShare(input);
+    if (zone) {
+      const max = 50;
+      const pts = curve(max, zone.pct, 70, 10);
+      factors.push({
+        category: 'Threshold Zone Time', points: Math.round(pts), maxPoints: max,
+        label: band(pts / max, 'Sustained Threshold Heart Rate', 'Partial Threshold Exposure', 'Little Threshold Exposure'),
+        description: `${zone.seconds}s in Zone 4 (${zone.lower}-${zone.upper} bpm), ${zone.pct.toFixed(1)}% of observed work-rep time`
+      });
+    }
+  }
 
   // 1. Interval structure consistency — 22 pts
   const durations = workReps.map(intervalDuration).filter((d: number) => d > 0);
@@ -1089,7 +1131,7 @@ function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): RubricFa
   // Stride-length reps are too short for duration consistency to mean anything.
   const repsLongEnough = (describeSet(input.intervals)?.medianRepSec ?? 0) >= 20;
   if (durationStats && repsLongEnough) {
-    const max = 22;
+    const max = isThreshold ? 10 : 22;
     const cvPct = durationStats.cv * 100;
     const pts = curve(max, cvPct, 6, 25);
     factors.push({
@@ -1103,7 +1145,7 @@ function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): RubricFa
 
   // 2. Cardiovascular stimulus (peak work HR as a share of HRmax) — 20 pts
   const peakHr = Math.max(0, ...workReps.map(intervalMaxHr), input.activityMaxHr || 0);
-  if (peakHr > 0 && input.maxHeartRate > 0) {
+  if (!isThreshold && peakHr > 0 && input.maxHeartRate > 0) {
     const max = 20;
     const pctMax = (peakHr / input.maxHeartRate) * 100;
     const pts = curve(max, pctMax, 90, 75);
@@ -1131,12 +1173,12 @@ function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): RubricFa
     : 0;
   const anchorHr = usePeak && peakWorkHr > 0 ? peakWorkHr : avgWorkHr;
   if (anchorHr > 0) {
-    const max = 20;
+    const max = isThreshold ? 15 : 20;
     const pts = intensityControlPoints(max, anchorHr, input.lt2Hr, input.maxHeartRate, vo2Target);
     const overshootBpm = anchorHr - input.lt2Hr;
     const driftedIntoVo2 = !vo2Target && overshootBpm >= 12;
     factors.push({
-      category: 'Pacing Discipline',
+      category: isThreshold ? 'Threshold Heart Rate' : 'Pacing Discipline',
       points: Math.round(pts),
       maxPoints: max,
       label: driftedIntoVo2
@@ -1149,7 +1191,7 @@ function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): RubricFa
   }
 
   // 3. Form & efficiency: turnover and ground contact hold up under fatigue — 16 pts
-  const turnover = turnoverFactor(input, 16);
+  const turnover = turnoverFactor(input, isThreshold ? 5 : 16);
   if (turnover) factors.push(turnover);
 
   // 4. Set fatigue: did the last work rep match the first? Tolerances scale with
@@ -1157,7 +1199,7 @@ function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): RubricFa
   // their average rise regardless of execution).
   const fatigue = setFatigueDetail(input);
   if (fatigue.paceFadePct != null || (fatigue.gradeHr && fatigue.hrClimbPct != null)) {
-    const max = 12;
+    const max = isThreshold ? 10 : 12;
     const pts = curve(max, fatigue.fatiguePct, fatigue.tolerancePct, fatigue.zeroPct);
 
     const detail: string[] = [];
@@ -1350,6 +1392,12 @@ function buildFocusAdvice(factor: RubricFactor, input: RubricInput, walkAudit: W
   const workReps = (input.intervals || []).filter((i: any) => i.type === INTERVAL_TYPE.work);
 
   switch (factor.category) {
+    case 'Threshold Zone Time': {
+      const zone = thresholdZoneShare(input);
+      return `${prefix}${zone ? `${zone.pct.toFixed(1)}% of observed work-rep time was in Zone 4 (${zone.lower}-${zone.upper} bpm)` : 'threshold-zone time could not be measured'}${tail}. Let heart rate settle into the threshold band during work reps; use pace only to help hold that effort.`;
+    }
+    case 'Threshold Heart Rate':
+      return `${prefix}work-rep heart rate missed the ${input.lt2Hr} bpm LT2 anchor${tail}. Adjust effort to keep the work near threshold rather than chasing a pace target.`;
     case 'Aerobic Decoupling': {
       const target = driftTargetFor(input.ambientTempC, input.durationMin);
       const targetNote = target.conditionsAdjusted
@@ -1485,10 +1533,19 @@ export function gradeRun(input: RubricInput): RubricResult {
   if (input.isAccidentalTempo) score = Math.min(score, 69);
   if (input.isFailedWorkout) score = Math.min(score, 60);
 
+  // A threshold session cannot earn Gold without observed time in the target
+  // heart-rate zone, regardless of how even its pace or rep structure looked.
+  const thresholdZone = input.runType === 'threshold_lt2' ? thresholdZoneShare(input) : null;
+  if (input.runType === 'threshold_lt2' && (!thresholdZone || thresholdZone.pct < 60)) {
+    score = Math.min(score, 84);
+  }
+
   const focus = pickFocus(factors);
   return {
     family,
-    verdict: sessionVerdict({ family, factors, hasIntensityTelemetry: intensity != null, isFailedWorkout: input.isFailedWorkout, isAccidentalTempo: input.isAccidentalTempo, runType: input.runType }),
+    verdict: input.runType === 'threshold_lt2' && !thresholdZone
+      ? 'insufficient_evidence'
+      : sessionVerdict({ family, factors, hasIntensityTelemetry: intensity != null, isFailedWorkout: input.isFailedWorkout, isAccidentalTempo: input.isAccidentalTempo, runType: input.runType }),
     score: Math.max(40, Math.min(98, Math.round(score))),
     factors,
     coveragePct,

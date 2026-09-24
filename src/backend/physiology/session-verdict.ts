@@ -11,6 +11,9 @@ const findings: Record<string, Exclude<SessionVerdict, 'insufficient_evidence'>>
   'Grey-Zone Intensity Drift': 'some_deviation',
   'Overreaching Intensity': 'off_target',
   'Drifted Into VO2 Territory': 'off_target',
+  'Sustained Threshold Heart Rate': 'on_track',
+  'Partial Threshold Exposure': 'some_deviation',
+  'Little Threshold Exposure': 'off_target',
   'Laser Rep Consistency': 'on_track',
   'Disciplined Interval Structure': 'on_track',
   'High Rep Variance Across Set': 'some_deviation',
@@ -45,14 +48,15 @@ export function sessionVerdict(input: {
   if (input.isFailedWorkout || input.isAccidentalTempo) return 'off_target';
   // These session types need a dedicated target model; LT2 is not their target.
   if (['strides', 'tempo', 'marathon_pace'].includes(input.runType)) return 'insufficient_evidence';
-  const primary = input.family === 'aerobic' ? ['Aerobic Intensity']
+  const primary = input.runType === 'threshold_lt2' ? ['Threshold Zone Time']
+    : input.family === 'aerobic' ? ['Aerobic Intensity']
     : input.family === 'quality' ? ['Pacing Discipline', 'Interval Execution']
       : ['Race Pacing Execution', 'Race Finish Execution'];
   if (input.family === 'aerobic' && !input.hasIntensityTelemetry) return 'insufficient_evidence';
   if (!primary.every(category => input.factors.some(f => f.category === category && findings[f.label]))) {
     return 'insufficient_evidence';
   }
-  const relevant = new Set([...primary, 'Workout Completion', ...(input.family === 'quality' ? ['Rep-to-Rep Fatigue'] : [])]);
+  const relevant = new Set([...primary, 'Workout Completion', ...(input.family === 'quality' && input.runType !== 'threshold_lt2' ? ['Rep-to-Rep Fatigue'] : [])]);
   const verdicts = input.factors.filter(f => relevant.has(f.category)).map(f => findings[f.label]);
   if (verdicts.includes('off_target')) return 'off_target';
   if (verdicts.includes('some_deviation')) return 'some_deviation';

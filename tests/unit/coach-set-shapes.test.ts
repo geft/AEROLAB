@@ -81,7 +81,7 @@ describe('Interval-set shapes (generalisation)', () => {
     const fatigue = graded.factors.find(f => f.category === 'Rep-to-Rep Fatigue')!;
     expect(fatigue.points).toBe(fatigue.maxPoints);
     expect(fatigue.description).toContain('drift allowed for the set length');
-    expect(graded.score).toBeGreaterThanOrEqual(95);
+    expect(graded.score).toBeLessThanOrEqual(84); // No per-record zone evidence.
   });
 
   it('still fails a long set that genuinely decays', () => {
@@ -105,7 +105,7 @@ describe('Interval-set shapes (generalisation)', () => {
     const fatigue = shortSteady.factors.find(f => f.category === 'Rep-to-Rep Fatigue')!;
     expect(fatigue.points).toBe(fatigue.maxPoints);
     expect(fatigue.description).toContain('not graded: short reps carry HR lag');
-    expect(shortSteady.score).toBeGreaterThanOrEqual(95);
+    expect(shortSteady.score).toBeLessThanOrEqual(84); // No per-record zone evidence.
 
     // The same shape with the pace collapsing is caught on pace alone
     const shortFading = gradeSet(shortRows(3));
@@ -137,7 +137,7 @@ describe('Interval-set shapes (generalisation)', () => {
     const rows = buildSet(12, 60, 60).map(r => (r.type === 'work' ? { ...r, avg_heart_rate: 182, max_heart_rate: 190 } : r));
 
     const asThreshold = gradeSet(rows);
-    const thresholdIntensity = asThreshold.factors.find(f => f.category === 'Pacing Discipline')!;
+    const thresholdIntensity = asThreshold.factors.find(f => f.category === 'Threshold Heart Rate')!;
     expect(thresholdIntensity.label).toBe('Drifted Into VO2 Territory');
     expect(thresholdIntensity.points).toBeLessThan(thresholdIntensity.maxPoints * 0.7);
 
@@ -157,7 +157,7 @@ describe('Interval-set shapes (generalisation)', () => {
       { type: 'recovery', duration_seconds: 120, hr_drop: 40 },
       { type: 'work', duration_seconds: 900, avg_heart_rate: 194, max_heart_rate: 200, avg_pace_sec_km: 250 }
     ]);
-    const intensity = drifted.factors.find(f => f.category === 'Pacing Discipline')!;
+    const intensity = drifted.factors.find(f => f.category === 'Threshold Heart Rate')!;
     expect(intensity.label).toBe('Drifted Into VO2 Territory');
     expect(intensity.description).toContain('average work HR');
   });
@@ -168,11 +168,11 @@ describe('Interval-set shapes (generalisation)', () => {
     const short = gradeSet(buildSet(12, 60, 60));
     for (const graded of [long, many, short]) {
       const byCategory = Object.fromEntries(graded.factors.map(f => [f.category, f.maxPoints]));
-      expect(byCategory['Interval Execution']).toBe(22);
-      expect(byCategory['Cardiovascular Stimulus']).toBe(20);
-      expect(byCategory['Pacing Discipline']).toBe(20);
-      expect(byCategory['Running Turnover']).toBe(16);
-      expect(byCategory['Rep-to-Rep Fatigue']).toBe(12);
+      expect(byCategory['Interval Execution']).toBe(10);
+      expect(byCategory['Cardiovascular Stimulus']).toBeUndefined();
+      expect(byCategory['Threshold Heart Rate']).toBe(15);
+      expect(byCategory['Running Turnover']).toBe(5);
+      expect(byCategory['Rep-to-Rep Fatigue']).toBe(10);
       expect(graded.factors.reduce((a, f) => a + f.maxPoints, 0)).toBeLessThanOrEqual(100);
       expect(graded.score).toBeGreaterThanOrEqual(0);
     }

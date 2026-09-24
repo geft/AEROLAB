@@ -71,7 +71,9 @@ ingestRouter.post('/upload', (req, res) => {
       } else {
         // Probe if string is base64-encoded FIT binary or base64-encoded CSV
         try {
-          if (!rawBase64.startsWith('Activity') && !rawBase64.startsWith('timestamp') && !rawBase64.startsWith('time') && !rawBase64.startsWith('Date')) {
+          // Only decode actual base64. Garmin CSV exports can start with '#'
+          // metadata, and decoding that plain text can accidentally look like CSV.
+          if (/^[A-Za-z0-9+/]+={0,2}$/.test(rawBase64.replace(/\s/g, ''))) {
             const probe = Buffer.from(rawBase64.slice(0, 64), 'base64');
             if (isFitBuffer(probe)) {
               isFit = true;
@@ -131,4 +133,3 @@ ingestRouter.post('/upload', (req, res) => {
     res.status(500).json({ error: err.message || 'Server error during ingestion', filename });
   }
 });
-

@@ -282,7 +282,9 @@ describe('Weighted Execution Rubric', () => {
       ]
     });
     expect(shortRecoveries.factors.some(f => f.category === 'Autonomic Recovery')).toBe(false);
-    expect(shortRecoveries.score).toBeGreaterThanOrEqual(95);
+    // Without per-record HR, threshold-zone exposure cannot be certified.
+    expect(shortRecoveries.score).toBeLessThanOrEqual(84);
+    expect(shortRecoveries.verdict).toBe('insufficient_evidence');
 
     // Long recoveries with a big drop must not score better for that reason alone
     const longRecoveries = gradeRun({
@@ -299,6 +301,29 @@ describe('Weighted Execution Rubric', () => {
       ]
     });
     expect(Math.abs(longRecoveries.score - shortRecoveries.score)).toBeLessThanOrEqual(1);
+  });
+
+  it('makes threshold-zone time decisive while treating rep pace as secondary', () => {
+    const intervals = [
+      { type: 'work', start_seconds: 0, duration_seconds: 300, avg_heart_rate: 175, max_heart_rate: 180, avg_pace_sec_km: 250 },
+      { type: 'recovery', start_seconds: 300, duration_seconds: 60 },
+      { type: 'work', start_seconds: 360, duration_seconds: 300, avg_heart_rate: 175, max_heart_rate: 180, avg_pace_sec_km: 265 },
+      { type: 'recovery', start_seconds: 660, duration_seconds: 60 },
+      { type: 'work', start_seconds: 720, duration_seconds: 300, avg_heart_rate: 175, max_heart_rate: 180, avg_pace_sec_km: 280 }
+    ];
+    const records = Array.from({ length: 1020 }, (_, second) => ({
+      elapsed_seconds: second, heart_rate: 175, cadence: 178, speed_mps: 3.5,
+      distance_m: second * 3.5, altitude_m: 20
+    }));
+    const goodHr = gradeRun({ ...baseAerobic, runType: 'threshold_lt2', intervals, records });
+    const lowHr = gradeRun({ ...baseAerobic, runType: 'threshold_lt2', intervals, records: records.map(record => ({ ...record, heart_rate: 150 })) });
+    const zoneFactor = goodHr.factors.find(factor => factor.category === 'Threshold Zone Time');
+
+    expect(zoneFactor?.maxPoints).toBe(50);
+    expect(zoneFactor?.points).toBe(50);
+    expect(goodHr.score).toBeGreaterThanOrEqual(85);
+    expect(goodHr.score).toBeGreaterThan(lowHr.score + 25);
+    expect(lowHr.score).toBeLessThan(70);
   });
 
   it('penalises late-rep pace collapse in a quality session', () => {

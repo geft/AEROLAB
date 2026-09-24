@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { profileFromRow } from '../db/rows.js';
 import { ageFromDob } from '../../shared/heart-rate.js';
 import type { ProfileResponse, ProfilePatchResponse } from '../../shared/profile.js';
 import { getAthleteHeartRateProfile, getObservedPeakHeartRate } from '../physiology/athlete-profile.js';
@@ -13,8 +14,9 @@ export { getObservedPeakHeartRate };
 
 /** GET /api/profile - athlete profile and calculated HRR zones reflecting current LT1/LT2 */
 export function getProfileService(db: Database.Database): ProfileResponse | null {
-  const profile = db.prepare('SELECT * FROM athlete_profile WHERE id = ?').get('primary') as any;
-  if (!profile) return null;
+  const row = db.prepare('SELECT * FROM athlete_profile WHERE id = ?').get('primary');
+  if (!row) return null;
+  const profile = profileFromRow(row);
 
   const hasRequiredBaselines = Boolean(profile.dob && profile.resting_hr);
   const isConfigured = profile.is_configured === 1 && hasRequiredBaselines;
@@ -41,9 +43,9 @@ export function getProfileService(db: Database.Database): ProfileResponse | null
       ...profile,
       age: dynamicAge || null,
       is_configured: isConfigured ? 1 : 0,
-      max_hr: hrProfile.hasBaseline ? effectiveMaxHr : profile.max_hr,
-      schedule: profile.schedule_json ? JSON.parse(profile.schedule_json) : null,
-      preferences: profile.preferences_json ? JSON.parse(profile.preferences_json) : null
+      max_hr: hrProfile.hasBaseline ? effectiveMaxHr : profile.max_hr ?? null,
+      schedule: typeof profile.schedule_json === 'string' ? JSON.parse(profile.schedule_json) : null,
+      preferences: typeof profile.preferences_json === 'string' ? JSON.parse(profile.preferences_json) : null
     },
     currentThresholds: hrProfile.hasBaseline ? currentThresholds : null,
     zones: hrProfile.hasBaseline ? zones : null,
@@ -56,7 +58,38 @@ export function getProfileService(db: Database.Database): ProfileResponse | null
 }
 
 export interface UpdateProfileInput {
-  [key: string]: unknown;
+  name?: string; gender?: string; age?: number; dob?: string;
+  height_cm?: number; weight_kg?: number; resting_hr?: number; max_hr?: number;
+  is_max_hr_estimated?: boolean | 0 | 1; hr_metric?: string; vo2_max?: number;
+  goal_marathon?: string; upcoming_benchmark?: string; pb_5k?: string; pb_hm?: string;
+  shoe_threshold?: string; shoe_easy?: string; shoe_retired?: string;
+  location?: string; favorite_route?: string; is_configured?: boolean | 0 | 1;
+  opt_out_max_hr?: boolean; schedule?: unknown; preferences?: unknown;
+}
+
+const textFields = new Set(['name', 'gender', 'dob', 'hr_metric', 'goal_marathon', 'upcoming_benchmark', 'pb_5k', 'pb_hm', 'shoe_threshold', 'shoe_easy', 'shoe_retired', 'location', 'favorite_route']);
+const numberFields = new Set(['age', 'height_cm', 'weight_kg', 'resting_hr', 'max_hr', 'vo2_max']);
+const flagFields = new Set(['is_max_hr_estimated', 'is_configured', 'opt_out_max_hr']);
+
+export function parseProfileUpdate(value: unknown): UpdateProfileInput | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const result: Record<string, unknown> = {};
+  for (const [key, field] of Object.entries(value)) {
+    if (textFields.has(key)) {
+      if (field !== null && typeof field !== 'string') return null;
+    } else if (numberFields.has(key)) {
+      if (key === 'resting_hr' && field === null) return null;
+      if (field !== null && (typeof field !== 'number' || !Number.isFinite(field))) return null;
+    } else if (flagFields.has(key)) {
+      if (field !== true && field !== false && field !== 0 && field !== 1) return null;
+    } else if (key === 'schedule' || key === 'preferences') {
+      if (field !== null && (typeof field !== 'object' || Array.isArray(field))) return null;
+    } else {
+      return null;
+    }
+    result[key] = field;
+  }
+  return result as UpdateProfileInput;
 }
 
 export type UpdateProfileResult =
@@ -65,7 +98,7 @@ export type UpdateProfileResult =
 
 /** PATCH /api/profile - update athlete profile */
 export function updateProfileService(db: Database.Database, rawUpdates: UpdateProfileInput): UpdateProfileResult {
-  const updates: any = { ...rawUpdates };
+  const updates: Record<string, unknown> = { ...rawUpdates };
 
   const allowedFields = [
     'name', 'gender', 'age', 'dob', 'height_cm', 'weight_kg', 'resting_hr', 'max_hr',
@@ -75,15 +108,16 @@ export function updateProfileService(db: Database.Database, rawUpdates: UpdatePr
     'favorite_route', 'is_configured'
   ];
 
-  const existing = db.prepare('SELECT * FROM athlete_profile WHERE id = ?').get('primary') as any;
+  const existingRow = db.prepare('SELECT * FROM athlete_profile WHERE id = ?').get('primary');
+  const existing = existingRow ? profileFromRow(existingRow) : null;
 
   // Dynamically derive age from DOB if DOB is provided
   let ageVal: number;
   if (updates.dob) {
-    ageVal = ageFromDob(updates.dob, Number(updates.age) || Number(existing?.age) || 0);
+    ageVal = ageFromDob(String(updates.dob), Number(updates.age) || Number(existing?.age) || 0);
     updates.age = ageVal;
   } else {
-    ageVal = Number(updates.age) || ageFromDob(existing?.dob, Number(existing?.age) || 0);
+    ageVal = Number(updates.age) || ageFromDob(typeof existing?.dob === 'string' ? existing.dob : null, Number(existing?.age) || 0);
   }
 
   const tanakaMax = ageVal > 0 ? Math.round(208 - 0.7 * ageVal) : null;
@@ -130,12 +164,12 @@ export function updateProfileService(db: Database.Database, rawUpdates: UpdatePr
   }
 
   const sets: string[] = [];
-  const values: any[] = [];
+  const values: Array<string | number | null> = [];
 
   for (const [key, val] of Object.entries(updates)) {
     if (allowedFields.includes(key)) {
       sets.push(`${key} = ?`);
-      values.push(val);
+      values.push(val === null ? null : typeof val === 'boolean' ? Number(val) : val as string | number);
     } else if (key === 'schedule') {
       sets.push(`schedule_json = ?`);
       values.push(JSON.stringify(val));
@@ -169,14 +203,16 @@ export function updateProfileService(db: Database.Database, rawUpdates: UpdatePr
     }
   }
 
-  const updated = db.prepare('SELECT * FROM athlete_profile WHERE id = ?').get('primary') as any;
+  const updatedRow = db.prepare('SELECT * FROM athlete_profile WHERE id = ?').get('primary');
+  if (!updatedRow) throw new Error('Profile not found after update');
+  const updated = profileFromRow(updatedRow);
   return {
     ok: true,
     response: {
       profile: {
         ...updated,
-        schedule: updated?.schedule_json ? JSON.parse(updated.schedule_json) : null,
-        preferences: updated?.preferences_json ? JSON.parse(updated.preferences_json) : null
+        schedule: typeof updated.schedule_json === 'string' ? JSON.parse(updated.schedule_json) : null,
+        preferences: typeof updated.preferences_json === 'string' ? JSON.parse(updated.preferences_json) : null
       },
       syncedActivitiesCount,
       syncScheduled
