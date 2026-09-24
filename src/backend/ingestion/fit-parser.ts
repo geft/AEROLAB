@@ -129,7 +129,26 @@ interface MesgDef {
   arch: number;
 }
 
-function readField(view: DataView, offset: number, baseType: number, size: number, arch: number): any {
+/** Numeric fields decoded from a FIT message before CSV normalization. */
+interface FitDecodedMessage {
+  [field: string]: number | undefined;
+  rawTimestamp?: number;
+  timestamp?: number;
+  localTimestamp?: number;
+  serialNumber?: number;
+  timeCreated?: number;
+  sport?: number;
+  sub_sport?: number;
+  start_time?: number;
+  total_distance?: number;
+  total_timer_time?: number;
+  total_elapsed_time?: number;
+  avg_heart_rate?: number;
+  max_heart_rate?: number;
+  avg_cadence?: number;
+}
+
+function readField(view: DataView, offset: number, baseType: number, size: number, arch: number): number | string | null {
   const isLe = arch === 0;
   const typeKey = baseType & 0x1f;
   try {
@@ -168,7 +187,7 @@ function readField(view: DataView, offset: number, baseType: number, size: numbe
   }
 }
 
-function isInvalid(val: any, baseType: number): boolean {
+function isInvalid(val: number, baseType: number): boolean {
   const typeKey = baseType & 0x1f;
   if (typeKey === 0x00 || typeKey === 0x02 || typeKey === 0x0d) return val === 0xff;
   if (typeKey === 0x01) return val === 0x7f;
@@ -215,10 +234,10 @@ export function convertFitToCsv(
   }
 
   const definitions: Record<number, MesgDef> = {};
-  const records: any[] = [];
-  let session: any = null;
-  let activityMsg: any = null;
-  let fileIdMsg: any = null;
+  const records: FitDecodedMessage[] = [];
+  let session: FitDecodedMessage | null = null;
+  let activityMsg: FitDecodedMessage | null = null;
+  let fileIdMsg: FitDecodedMessage | null = null;
 
   let offset = headerSize;
   const end = headerSize + dataSize;
@@ -300,14 +319,14 @@ export function convertFitToCsv(
     }
   }
 
-  function readData(dataOffset: number, def: MesgDef, compressedTs: number | null) {
+  function readData(dataOffset: number, def: MesgDef, compressedTs: number | null): FitDecodedMessage {
     const fieldMap = def.globalMesgNum === 20 ? RECORD_FIELDS : def.globalMesgNum === 18 ? SESSION_FIELDS : null;
-    const msg: any = {};
+    const msg: FitDecodedMessage = {};
     let fOffset = dataOffset;
 
     for (const f of def.fields) {
       const raw = readField(view, fOffset, f.baseType, f.size, def.arch);
-      if (raw !== null && !isInvalid(raw, f.baseType)) {
+      if (typeof raw === 'number' && Number.isFinite(raw) && !isInvalid(raw, f.baseType)) {
         if (f.fieldDefNum === 253) {
           msg.rawTimestamp = raw;
         }
@@ -389,9 +408,9 @@ export function convertFitToCsv(
     return d.toISOString().replace('Z', '');
   }
 
-  const startDateLocal = session?.start_time
-    ? formatLocalDate(session.start_time)
-    : formatLocalDate(records[0].timestamp);
+  const startTimestamp = session?.start_time ?? records.find(record => record.timestamp !== undefined)?.timestamp;
+  if (startTimestamp === undefined) throw new Error('FIT run has no valid start timestamp');
+  const startDateLocal = formatLocalDate(startTimestamp);
 
   // Deterministic Activity ID
   const actId =

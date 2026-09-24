@@ -50,12 +50,11 @@ in `tests/unit/{activity-service,api-client}.test.ts`.
 ### 1. Tighten the ingestion and row boundaries
 
 `src/backend/ingestion/csv-parser.ts` already defines parsed metadata and
-records, but `fit-parser.ts` still uses `any` for decoded messages and
-`src/backend/services/{activity,profile,thresholds}-service.ts` still cast
-database rows through `any`. Define the raw FIT record, normalized record and
-database row shapes, validate untrusted fields at entry, and use explicit
-conversions to the existing shared API response contracts. Keep the current
-wire format and local SQLite model.
+records; `fit-parser.ts` now types decoded numeric messages and requires a
+valid start timestamp. `src/backend/services/{activity,profile,thresholds}-service.ts`
+still cast database rows through `any`. Define database row shapes, validate
+untrusted values at entry, and use explicit conversions to the existing shared
+API response contracts. Keep the current wire format and local SQLite model.
 
 ### 2. Tighten request inputs and failure mapping
 
