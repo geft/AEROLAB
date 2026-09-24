@@ -5,6 +5,7 @@ import { formatPace } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { TrainingLoadCard } from './TrainingLoadCard.js';
 import { BestEffortsCard } from './BestEffortsCard.js';
+import { getProgressHistory, getThresholds, getVolume } from '../api/client.js';
 
 export const StatsView: React.FC = () => {
   const { t, format } = useTranslation();
@@ -26,8 +27,7 @@ export const StatsView: React.FC = () => {
   const [isMarginGuideOpen, setIsMarginGuideOpen] = useState<boolean>(false);
 
   useEffect(() => {
-    fetch('/api/thresholds')
-      .then(res => res.json())
+    getThresholds()
       .then(resData => {
         setData(resData);
         setLoading(false);
@@ -37,8 +37,7 @@ export const StatsView: React.FC = () => {
         setLoading(false);
       });
 
-    fetch('/api/activities/progress-history')
-      .then(res => res.json())
+    getProgressHistory()
       .then(hist => {
         if (hist.months) {
           setAvailableMonths(hist.months);
@@ -49,12 +48,10 @@ export const StatsView: React.FC = () => {
 
   useEffect(() => {
     setLoadingVolume(true);
-    let url = `/api/activities/volume?period=${volumePeriod}`;
-    if (volumePeriod === 'month' && selectedMonth !== 'all') {
-      url += `&month=${selectedMonth}`;
-    }
-    fetch(url)
-      .then(res => res.json())
+    getVolume({
+      period: volumePeriod,
+      ...(volumePeriod === 'month' && selectedMonth !== 'all' ? { month: selectedMonth } : {})
+    })
       .then(vData => {
         setVolumeData(vData);
         setLoadingVolume(false);

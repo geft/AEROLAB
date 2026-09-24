@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { errorMessage } from '../utils/errors.js';
-import type { ServerLogEntry } from '../types/api.js';
+import { ApiRequestError, getDevDiagnostics, simulateDevError } from '../api/client.js';
+import { apiErrorMessage } from '../api/errors.js';
+import type { ServerDiagnostics } from '../types/api.js';
 import { Terminal, Database, Activity, AlertTriangle, RefreshCw, X, ShieldAlert, Cpu, Trash2 } from 'lucide-react';
 import { clientLogger, ClientLogEntry } from '../utils/clientLogger';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -9,39 +11,6 @@ interface DevDiagnosticsDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   theme?: 'dark' | 'light';
-}
-
-interface ServerDiagnostics {
-  status: string;
-  timestamp: string;
-  system: {
-    nodeVersion: string;
-    platform: string;
-    uptimeSeconds: number;
-    memoryMb: {
-      heapUsed: number;
-      heapTotal: number;
-      rss: number;
-    };
-  };
-  db: {
-    path: string;
-    sizeMb: number;
-    activityCount: number;
-    intervalCount: number;
-    splitCount: number;
-    recordCount: number;
-  };
-  athlete: {
-    configured: boolean;
-    dob?: string;
-    restingHr?: number;
-    maxHr?: number;
-    lt1Hr?: number;
-    lt2Hr?: number;
-    baselineEconomyEf?: number;
-  };
-  logs: ServerLogEntry[];
 }
 
 export const DevDiagnosticsDrawer: React.FC<DevDiagnosticsDrawerProps> = ({
@@ -71,14 +40,10 @@ export const DevDiagnosticsDrawer: React.FC<DevDiagnosticsDrawerProps> = ({
     try {
       setLoadingServer(true);
       setServerError(null);
-      const res = await fetch('/api/dev/diagnostics');
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: Failed to fetch server diagnostics`);
-      }
-      const data = await res.json();
+      const data = await getDevDiagnostics();
       setServerDiag(data);
     } catch (err) {
-      setServerError(errorMessage(err) || 'Error fetching server diagnostics');
+      setServerError(apiErrorMessage(t, err, t.apiErrors.devDiagnosticsFailed));
     } finally {
       setLoadingServer(false);
     }
@@ -93,18 +58,16 @@ export const DevDiagnosticsDrawer: React.FC<DevDiagnosticsDrawerProps> = ({
   const handleSimulateApiError = async () => {
     try {
       setSimulatingError(true);
-      const res = await fetch('/api/dev/test-error', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await simulateDevError({
           code: 'ERR_SIMULATED_TEST',
           message: 'Dev Mode simulated API 400 test error'
-        })
       });
-      const errJson = await res.json();
-      clientLogger.recordApiCall('/api/dev/test-error', 'POST', res.status, 25, errJson.error);
     } catch (err) {
-      clientLogger.error('DEV_SANDBOX', 'Simulated network test exception', err);
+      if (err instanceof ApiRequestError) {
+        clientLogger.recordApiCall('/api/dev/test-error', 'POST', err.status, 25, err.message);
+      } else {
+        clientLogger.error('DEV_SANDBOX', 'Simulated network test exception', err);
+      }
     } finally {
       setSimulatingError(false);
     }

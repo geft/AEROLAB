@@ -5,6 +5,8 @@ import {
   CheckCircle2, AlertCircle, FolderSync, Check
 } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
+import { backupDatabase, getDatabaseStatus, restoreDatabase, restoreDatabaseSnapshot, saveBackupSettings, selectBackupFolder } from '../api/client.js';
+import { apiErrorMessage } from '../api/errors.js';
 
 export interface BackupManagementPanelProps {
   onRestoreComplete?: () => void;
@@ -29,9 +31,8 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
 
   const fetchDbStatus = async () => {
     try {
-      const res = await fetch('/api/database/status');
-      if (res.ok) {
-        const data = await res.json();
+      {
+        const data = await getDatabaseStatus();
         setDbStatus(data);
         if (data.settings) {
           setAutoBackupEnabled(Boolean(data.settings.autoBackupEnabled));
@@ -56,21 +57,16 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
     setIsRestoring(true);
     setRestoreMessage(null);
     try {
-      const res = await fetch('/api/database/restore-snapshot', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename })
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setRestoreMessage({ type: 'success', text: format(t.backup.restoreSuccessWithCount, { count: data.activityCount }) });
+      const data = await restoreDatabaseSnapshot(filename);
+      if (data.success) {
+        setRestoreMessage({ type: 'success', text: format(t.backup.restoreSuccessWithCount, { count: data.activityCount ?? 0 }) });
         fetchDbStatus();
         if (onRestoreComplete) onRestoreComplete();
       } else {
-        setRestoreMessage({ type: 'error', text: data.error || t.backup.restoreFailed });
+        setRestoreMessage({ type: 'error', text: t.backup.restoreFailed });
       }
-    } catch {
-      setRestoreMessage({ type: 'error', text: t.backup.restoreFailed });
+    } catch (err) {
+      setRestoreMessage({ type: 'error', text: apiErrorMessage(t, err, t.backup.restoreFailed) });
     } finally {
       setIsRestoring(false);
     }
@@ -84,24 +80,19 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
     try {
       // Raw binary body: the server streams it to disk, so a large snapshot is no
       // longer rejected by the JSON body limit.
-      const res = await fetch('/api/database/restore', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/octet-stream' },
-        body: file
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.status === 'ok') {
+      const data = await restoreDatabase(file);
+      if (data.status === 'ok') {
         setRestoreMessage({
           type: 'success',
-          text: format(t.backup.restoreSuccessWithCount, { count: data.activityCount })
+          text: format(t.backup.restoreSuccessWithCount, { count: data.activityCount ?? 0 })
         });
         fetchDbStatus();
         if (onRestoreComplete) onRestoreComplete();
       } else {
-        setRestoreMessage({ type: 'error', text: data.error || t.backup.restoreFailed });
+        setRestoreMessage({ type: 'error', text: t.backup.restoreFailed });
       }
-    } catch {
-      setRestoreMessage({ type: 'error', text: t.backup.restoreFailed });
+    } catch (err) {
+      setRestoreMessage({ type: 'error', text: apiErrorMessage(t, err, t.backup.restoreFailed) });
     } finally {
       setIsRestoring(false);
       if (restoreFileInputRef.current) restoreFileInputRef.current.value = '';
@@ -112,25 +103,15 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
     setIsBackingUp(true);
     setBackupStatusMessage(null);
     try {
-      const selectedDirectory = backupDirectory.trim();
-      const res = await fetch('/api/database/backup', {
-        method: 'POST',
-        ...(selectedDirectory
-          ? {
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ targetDirectory: selectedDirectory })
-            }
-          : {})
-      });
-      const data = await res.json();
-      if (res.ok && data.status === 'ok') {
+      const data = await backupDatabase(backupDirectory);
+      if (data.status === 'ok') {
         setBackupStatusMessage({ type: 'success', text: t.backup.backupSuccess });
         fetchDbStatus();
       } else {
-        setBackupStatusMessage({ type: 'error', text: data.error || t.backup.backupFailed });
+        setBackupStatusMessage({ type: 'error', text: t.backup.backupFailed });
       }
-    } catch {
-      setBackupStatusMessage({ type: 'error', text: t.backup.backupFailed });
+    } catch (err) {
+      setBackupStatusMessage({ type: 'error', text: apiErrorMessage(t, err, t.backup.backupFailed) });
     } finally {
       setIsBackingUp(false);
     }
@@ -138,31 +119,22 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
 
   const handleSaveBackupSettings = async () => {
     try {
-      const res = await fetch('/api/database/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ autoBackupEnabled, backupDirectory })
-      });
-      if (res.ok) {
-        setBackupStatusMessage({ type: 'success', text: t.backup.settingsSaved });
-        fetchDbStatus();
-      }
-    } catch {
-      setBackupStatusMessage({ type: 'error', text: 'Failed to save backup settings.' });
+      await saveBackupSettings({ autoBackupEnabled, backupDirectory });
+      setBackupStatusMessage({ type: 'success', text: t.backup.settingsSaved });
+      fetchDbStatus();
+    } catch (err) {
+      setBackupStatusMessage({ type: 'error', text: apiErrorMessage(t, err, t.backup.backupFailed) });
     }
   };
 
   const handleSelectDirectory = async () => {
     try {
-      const res = await fetch('/api/database/select-folder', { method: 'POST' });
-      const data = await res.json();
-      if (res.ok && data.folder) {
+      const data = await selectBackupFolder();
+      if (data.folder) {
         setBackupDirectory(data.folder);
-      } else if (!res.ok) {
-        setBackupStatusMessage({ type: 'error', text: data.error || t.backup.folderSelectionFailed });
       }
-    } catch {
-      setBackupStatusMessage({ type: 'error', text: t.backup.folderSelectionFailed });
+    } catch (err) {
+      setBackupStatusMessage({ type: 'error', text: apiErrorMessage(t, err, t.backup.folderSelectionFailed) });
     }
   };
 

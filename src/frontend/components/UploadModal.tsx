@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { errorMessage } from '../utils/errors.js';
+import { uploadActivity } from '../api/client.js';
+import { apiErrorMessage } from '../api/errors.js';
 import { UploadCloud, CheckCircle, AlertCircle, X, Files } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
 
@@ -103,61 +104,49 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           content = await file.text();
         }
 
-        const res = await fetch('/api/ingest/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content,
-            filename: file.name,
-            force: effectiveOverwrite,
-            overwrite: effectiveOverwrite
-          })
+        const data = await uploadActivity({
+          content,
+          filename: file.name,
+          force: effectiveOverwrite,
+          overwrite: effectiveOverwrite
         });
 
-        const data = await res.json();
-        if (res.ok && data.result) {
-          if (data.result.status === 'imported') {
-            imported++;
-            if (validFiles.length === 1 && data.result.activityId) {
-              singleActivityId = data.result.activityId;
-            }
-          } else if (data.result.status === 'skipped' || data.result.status === 'skipped_duplicate') {
-            skipped++;
-            if (validFiles.length === 1 && data.result.activityId) {
-              singleActivityId = data.result.activityId;
-            }
-            if (data.result.reason === 'non_run') {
-              skippedNonRun++;
-            }
-            skippedDetails.push({
-              filename: file.name,
-              reason: data.result.message || 'Already imported'
-            });
-          } else if (data.result.status === 'skipped_non_run') {
-            skippedNonRun++;
-            skippedDetails.push({
-              filename: file.name,
-              reason: data.result.message || 'Non-run activity ignored'
-            });
-          } else {
-            errors++;
-            errorDetails.push({
-              filename: file.name,
-              error: data.result.error || data.result.reason || 'Import failed'
-            });
+        const result = data.result;
+        if (result.status === 'imported') {
+          imported++;
+          if (validFiles.length === 1 && result.activityId) {
+            singleActivityId = result.activityId;
           }
+        } else if (result.status === 'skipped' || result.status === 'skipped_duplicate') {
+          skipped++;
+          if (validFiles.length === 1 && result.activityId) {
+            singleActivityId = result.activityId;
+          }
+          if (result.reason === 'non_run') {
+            skippedNonRun++;
+          }
+          skippedDetails.push({
+            filename: file.name,
+            reason: result.message || t.upload.alreadyInDatabase
+          });
+        } else if (result.status === 'skipped_non_run') {
+          skippedNonRun++;
+          skippedDetails.push({
+            filename: file.name,
+            reason: result.message || t.upload.nonRunCard
+          });
         } else {
           errors++;
           errorDetails.push({
             filename: file.name,
-            error: data.error || 'Server error'
+            error: t.upload.importFailed
           });
         }
       } catch (err) {
         errors++;
         errorDetails.push({
           filename: file.name,
-          error: errorMessage(err) || 'Network error'
+          error: apiErrorMessage(t, err, t.upload.importFailed)
         });
       }
     }

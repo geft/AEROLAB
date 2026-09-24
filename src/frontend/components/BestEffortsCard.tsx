@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Trophy, Medal } from 'lucide-react';
 import { formatPace } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
+import { getBestEfforts } from '../api/client.js';
 
 export interface BestEffortRecord {
   targetId: string;
@@ -36,8 +37,7 @@ export const BestEffortsCard: React.FC = () => {
   const currentYear = new Date().getFullYear();
 
   useEffect(() => {
-    fetch('/api/activities/best-efforts')
-      .then(res => res.json())
+    getBestEfforts()
       .then(json => {
         setData(json);
         setLoading(false);

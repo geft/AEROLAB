@@ -1,6 +1,7 @@
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
-import { errorMessage } from '../utils/errors.js';
-import type { ApiError, ThresholdsResponse } from '../types/api.js';
+import type { ThresholdsResponse } from '../types/api.js';
+import { getProfile, updateProfile } from '../api/client.js';
+import { apiErrorMessage } from '../api/errors.js';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Heart, Zap, Save, CheckCircle, AlertCircle,
   Activity, Flame, Calendar
@@ -46,8 +47,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
   const fetchProfile = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/profile');
-      const data = await res.json();
+      const data = await getProfile();
       if (data.profile) {
         const rawDob = data.profile.dob ? String(data.profile.dob).trim() : '';
         setDob(/^\d{4}-\d{2}$/.test(rawDob) ? `${rawDob}-15` : rawDob);
@@ -71,7 +71,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
       }
     } catch (err) {
       console.error('Failed to load profile:', err);
-      setStatusMessage({ type: 'error', text: 'Failed to load athlete profile.' });
+      setStatusMessage({ type: 'error', text: apiErrorMessage(t, err, t.profile.loadFailed) });
     } finally {
       setLoading(false);
     }
@@ -137,30 +137,12 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
         opt_out_max_hr: isAutoMaxHr
       };
 
-      const res = await fetch('/api/profile', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      let resData: Partial<ThresholdsResponse> & Partial<ApiError> & { message?: string; syncScheduled?: boolean } = {};
-      try {
-        resData = await res.json();
-      } catch {
-        // non-json response
-      }
-
-      if (!res.ok) {
-        const code = resData.code || `ERR_HTTP_${res.status}`;
-        const msg = resData.error || resData.message || res.statusText || 'Failed to save profile';
-        const details = resData.details ? ` (${resData.details})` : '';
-        throw new Error(`[${code}]: ${msg}${details}`);
-      }
+      const resData = await updateProfile(payload);
 
       setStatusMessage({ type: 'success', text: resData.syncScheduled ? t.profile.savedRecomputing : t.profile.saved });
       setTimeout(() => setStatusMessage(null), 4000);
     } catch (err) {
-      setStatusMessage({ type: 'error', text: errorMessage(err) || '[ERR_PROFILE_UPDATE]: Error updating profile' });
+      setStatusMessage({ type: 'error', text: apiErrorMessage(t, err, t.profile.saveFailed) });
     } finally {
       setSaving(false);
     }

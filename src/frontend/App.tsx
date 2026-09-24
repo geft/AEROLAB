@@ -6,6 +6,7 @@ import { Footer } from './components/Footer';
 import { Terminal } from 'lucide-react';
 import { clientLogger } from './utils/clientLogger';
 import { useTranslation } from './i18n/LanguageContext';
+import { getProfile, listActivities } from './api/client.js';
 
 // Code-split secondary views, modals, and heavy drawers for instant first paint
 const ProgressView = lazy(() => import('./components/ProgressView').then(m => ({ default: m.ProgressView })));
@@ -67,16 +68,12 @@ export const App: React.FC = () => {
 
   const checkProfileConfigured = async () => {
     try {
-      const res = await fetch('/api/profile');
-      if (res.ok) {
-        const data = await res.json();
+      {
+        const data = await getProfile();
         const p = data?.profile;
         const configured = data?.isConfigured === true && p?.is_configured !== 0 && !!p?.resting_hr && (!!p?.dob || !!p?.age);
         setIsConfigured(configured);
         localStorage.setItem('aerolab_profile_configured', String(configured));
-      } else {
-        const cached = localStorage.getItem('aerolab_profile_configured');
-        setIsConfigured(cached === 'true');
       }
     } catch (err) {
       console.error('Failed to check profile configuration status:', err);
@@ -88,10 +85,8 @@ export const App: React.FC = () => {
   const fetchActivities = async (preferredSelectedId?: string) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/activities');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      const list = Array.isArray(data) ? data : (data?.activities || []);
+      const data = await listActivities();
+      const list = data.activities;
       setActivities(list);
       if (preferredSelectedId) {
         setSelectedActivityId(preferredSelectedId);

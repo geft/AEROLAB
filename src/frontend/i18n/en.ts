@@ -414,7 +414,9 @@ export const en: Translations = {
     restingHrPlaceholder: 'e.g. 55 bpm',
     maxHrPlaceholder: 'e.g. 185 bpm',
     savedRecomputing: 'Profile saved. Workout analysis is updating in the background.',
-    saved: 'Profile saved and workout analysis updated.'
+    saved: 'Profile saved and workout analysis updated.',
+    loadFailed: 'Failed to load the athlete profile.',
+    saveFailed: 'Failed to save the athlete profile.'
   },
   upload: {
     title: 'Import Garmin Runs (FIT or CSV)',
@@ -435,6 +437,7 @@ export const en: Translations = {
     batchWarnings: 'Batch Ingestion Completed with Warnings',
     batchFailed: 'Batch Ingestion Failed',
     fitCsvOnly: 'Please upload .fit or .csv file(s) exported from your Garmin device or run-parser.',
+    importFailed: 'Import failed.',
     dupTip: '💡 Tip: This activity already exists in the database. Enable the "Overwrite / re-calculate" option to replace it.',
     skippedFiles: {
       one: 'ℹ️ {count} file was skipped because the workout already exists in your database. Click "Retry with Overwrite" below if you wish to re-calculate and overwrite existing data.',
@@ -525,6 +528,7 @@ export const en: Translations = {
     restoreDbCardDesc: 'If you have an existing runs.db or backup file, drop it here to restore all activities and profile data.',
     dropDbPrompt: 'Click or drop .db backup file here',
     restoreSuccessToast: 'Data restored successfully! Launching dashboard…',
+    saveFailed: 'Could not save your profile. Please try again.',
     localSecurityNote: 'All workouts and health metrics are stored locally in offline SQLite. Complete data privacy guaranteed.'
   },
   footer: {
@@ -683,5 +687,20 @@ export const en: Translations = {
     steadyCalibrationRun: 'Steady source run',
     loadMoreCalibrations: 'Load More Estimates (+10) • Showing {shown} of {total}',
     showAllFiltered: 'Show All ({count})'
+  },
+  apiErrors: {
+    generic: 'The request could not be completed. Please try again.',
+    invalidMaxHr: 'Maximum heart rate must be a number between 100 and 240 bpm.',
+    invalidRestingHr: 'Resting heart rate must be a number between 30 and 120 bpm.',
+    profileSaveFailed: 'The athlete profile could not be saved.',
+    invalidTags: 'One or more tags are not recognised.',
+    noFieldsToUpdate: 'There was nothing to update.',
+    activityNotFound: 'That workout could not be found.',
+    profileNotFound: 'The athlete profile could not be found.',
+    coachSummaryNotFound: 'No coach summary is available for this workout.',
+    invalidResponse: 'The local server returned an unexpected response.',
+    noGps: 'This workout has no GPS data.',
+    zipUnsupported: 'ZIP archives are not supported. Please upload a FIT or CSV file.',
+    devDiagnosticsFailed: 'Server diagnostics could not be loaded.'
   }
 };

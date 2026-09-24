@@ -8,6 +8,7 @@ import { VdotGuideModal } from './VdotGuideModal';
 import { formatPace, formatDate } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { translateCalibrationNote, translateActivityName } from '../i18n/coachTranslator.js';
+import { getThresholds } from '../api/client.js';
 
 interface ThresholdData {
   latest: {
@@ -39,10 +40,11 @@ export const ProgressView: React.FC = () => {
   const [visibleHistoryCount, setVisibleHistoryCount] = useState<number>(10);
 
   useEffect(() => {
-    fetch('/api/thresholds')
-      .then(res => res.json())
+    getThresholds()
       .then(resData => {
-        setData(resData);
+        // The route always returns `latest`; the view's stricter local shape
+        // mirrors that guarantee rather than the optional contract field.
+        setData(resData as unknown as ThresholdData);
         setLoading(false);
       })
       .catch(err => {

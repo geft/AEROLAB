@@ -104,6 +104,7 @@ describe('SettingsView & Header Tab Navigation Tests', () => {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({
+            dbPath: 'C:\\data\\runs.db',
             settings: { autoBackupEnabled: true, backupDirectory: 'C:\\backup' },
             snapshots: []
           })
@@ -127,6 +128,7 @@ describe('SettingsView & Header Tab Navigation Tests', () => {
     );
 
     const backupButton = await screen.findByRole('button', { name: /Backup Now to Folder/i });
+    await waitFor(() => expect((screen.getByDisplayValue('C:\\backup') as HTMLInputElement).value).toBe('C:\\backup'));
     fireEvent.click(backupButton);
 
     await waitFor(() => {

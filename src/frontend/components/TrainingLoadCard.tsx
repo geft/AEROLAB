@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, Flame, ShieldAlert, CheckCircle2, TrendingUp, HelpCircle, X } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
+import { getTrainingLoad } from '../api/client.js';
 
 export interface DayLoadPoint {
   date: string;
@@ -37,8 +38,7 @@ export const TrainingLoadCard: React.FC = () => {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/activities/training-load?days=${days}`)
-      .then(res => res.json())
+    getTrainingLoad(days)
       .then(json => {
         if (json.trainingStatus) {
           setData(json.trainingStatus);

@@ -1,24 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import type { CalibrationHistoryItem } from '../types/api.js';
+import type { ProgressPeriodSummary, ProgressHistoryResponse } from '../types/api.js';
 import { Calendar, TrendingUp, Award, LayoutGrid, List, History } from 'lucide-react';
 import { formatPace } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
+import { getProgressHistory } from '../api/client.js';
 
-export interface PeriodSummary {
-  period: string; // "2026-09" or "2026"
-  label: string; // "Sep 2026" or "2026 Season"
-  runCount: number;
-  totalDistanceKm: number;
-  totalDurationHours: number;
-  totalElevationM?: number;
-  avgEfficiencyFactor: number | null;
-  avgPaceSecKm: number | null;
-  avgHeartRate: number | null;
-  zone2Hours?: number;
-  zone2Pct?: number;
-  activeMonths?: number;
-  calibrations?: CalibrationHistoryItem[];
-}
+/** One monthly or yearly bucket of the progress history. */
+export type PeriodSummary = ProgressPeriodSummary;
 
 export const PeriodProgressView: React.FC = () => {
   const { t, format, plural, formatDate } = useTranslation();
@@ -35,7 +23,7 @@ export const PeriodProgressView: React.FC = () => {
     return p.label;
   };
 
-  const [data, setData] = useState<{ months: PeriodSummary[]; years: PeriodSummary[] } | null>(null);
+  const [data, setData] = useState<ProgressHistoryResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [activePeriodType, setActivePeriodType] = useState<'month' | 'year'>('month');
   const [runTypeFilter, setRunTypeFilter] = useState<'all' | 'easy' | 'threshold'>('all');
@@ -45,8 +33,7 @@ export const PeriodProgressView: React.FC = () => {
   const [visibleCardCount, setVisibleCardCount] = useState<number>(3);
 
   useEffect(() => {
-    fetch(`/api/activities/progress-history?run_type=${runTypeFilter}`)
-      .then(res => res.json())
+    getProgressHistory(runTypeFilter)
       .then(resData => {
         setData(resData);
         setLoading(false);

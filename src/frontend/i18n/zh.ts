@@ -424,7 +424,9 @@ export const zh: Translations = {
     restingHrPlaceholder: '例如 55 bpm',
     maxHrPlaceholder: '例如 185 bpm',
     savedRecomputing: '档案已保存，训练分析正在后台更新。',
-    saved: '档案与训练分析已更新。'
+    saved: '档案与训练分析已更新。',
+    loadFailed: '无法加载跑者档案。',
+    saveFailed: '无法保存跑者档案。'
   },
   upload: {
     title: '导入 Garmin 跑步记录 (FIT 或 CSV)',
@@ -445,6 +447,7 @@ export const zh: Translations = {
     batchWarnings: '批量导入完成（包含警告）',
     batchFailed: '批量导入失败',
     fitCsvOnly: '请上传从 Garmin 导出的 .fit 或 .csv 跑步数据文件。',
+    importFailed: '导入失败。',
     dupTip: '💡 提示：该训练已存在于数据库中。勾选“强制覆盖并重新计算”选项以替换。',
     skippedFiles: {
       one: 'ℹ️ 已跳过 {count} 个已有训练记录。如需重新计算并覆盖，请点击下方的“强制覆盖并重试”。',
@@ -535,6 +538,7 @@ export const zh: Translations = {
     restoreDbCardDesc: '如果已有之前的 runs.db 或备份文件，拖拽至此处可直接还原全部活动和个人档案。',
     dropDbPrompt: '点击或拖拽 .db 备份文件至此处',
     restoreSuccessToast: '数据已成功恢复！正在跳转看板…',
+    saveFailed: '无法保存你的档案，请重试。',
     localSecurityNote: '所有运动与健康数据均采用 SQLite 纯本地离线加密存储，绝不泄露隐私。'
   },
   footer: {
@@ -711,5 +715,20 @@ export const zh: Translations = {
     steadyCalibrationRun: '平稳跑步来源',
     loadMoreCalibrations: '加载更多估算 (+10) · 已显示 {shown} / {total} 条记录',
     showAllFiltered: '显示当前筛选全部 ({count})'
+  },
+  apiErrors: {
+    generic: '请求未能完成，请重试。',
+    invalidMaxHr: '最大心率必须是 100 到 240 bpm 之间的数值。',
+    invalidRestingHr: '静息心率必须是 30 到 120 bpm 之间的数值。',
+    profileSaveFailed: '无法保存跑者档案。',
+    invalidTags: '有一个或多个标签无法识别。',
+    noFieldsToUpdate: '没有需要更新的内容。',
+    activityNotFound: '找不到该训练记录。',
+    profileNotFound: '找不到跑者档案。',
+    coachSummaryNotFound: '该训练暂无教练总结。',
+    invalidResponse: '本地服务器返回了意外的响应。',
+    noGps: '该训练没有 GPS 数据。',
+    zipUnsupported: '不支持 ZIP 压缩包，请上传 FIT 或 CSV 文件。',
+    devDiagnosticsFailed: '无法加载服务器诊断信息。'
   }
 };

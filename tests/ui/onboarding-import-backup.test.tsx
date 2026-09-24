@@ -146,7 +146,7 @@ describe('Onboarding & Profile Backup / Import UI Component Tests', () => {
     fireEvent.change(fileInput, { target: { files: [file] } });
 
     await waitFor(() => {
-      expect(screen.getByText(/Invalid or corrupt SQLite database file/i)).toBeTruthy();
+      expect(screen.getByText(/request could not be completed/i)).toBeTruthy();
     });
 
     expect(onCompleted).not.toHaveBeenCalled();

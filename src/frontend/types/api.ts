@@ -19,6 +19,8 @@ import type { SessionVerdict } from '../../shared/session-verdict.js';
 export type { Activity } from '../../shared/activity.js';
 import type { Activity } from '../../shared/activity.js';
 
+
+
 /**
  * A single kilometre split.
  *
@@ -385,4 +387,169 @@ export interface ApiError {
   code?: string;
   details?: unknown;
   timestamp?: string;
+}
+
+/** A profile patch body. The route validates and ignores unknown keys. */
+export type ProfileUpdateInput = Record<string, unknown>;
+
+/** A detected observed peak heart rate from a real hard effort. */
+export interface ObservedPeakHeartRate {
+  peakHr: number;
+  activityId: string;
+  activityName: string;
+  activityDate: string;
+  runType: string;
+}
+
+/** The athlete_profile row as returned by the profile endpoints. */
+export interface AthleteProfile {
+  id?: string;
+  name?: string | null;
+  gender?: string | null;
+  age?: number | null;
+  dob?: string | null;
+  height_cm?: number | null;
+  weight_kg?: number | null;
+  resting_hr?: number | null;
+  max_hr?: number | null;
+  is_max_hr_estimated?: number | boolean | null;
+  is_configured?: number | boolean | null;
+  [key: string]: unknown;
+}
+
+/** GET /api/profile */
+export interface ProfileResponse {
+  profile: AthleteProfile | null;
+  currentThresholds?: ThresholdsResponse['currentThresholds'];
+  zones?: ThresholdsResponse['zones'];
+  observedPeakHr?: ObservedPeakHeartRate | null;
+  tanakaMaxHr?: number | null;
+  effectiveMaxHr?: number | null;
+  maxHrSource?: string;
+  isConfigured?: boolean;
+}
+
+/** PATCH /api/profile */
+export interface ProfilePatchResponse {
+  profile: AthleteProfile;
+  syncedActivitiesCount?: number;
+  syncScheduled?: boolean;
+}
+
+/** One day of the training-load timeline. */
+export interface DayLoadPoint {
+  date: string;
+  dailyLoad: number;
+  acuteLoad: number;
+  chronicLoad: number;
+  optimalMin: number;
+  optimalMax: number;
+  acwr: number;
+}
+
+/** The computed training status shown by the training-load card. */
+export interface TrainingStatusData {
+  currentAcuteLoad: number;
+  currentChronicLoad: number;
+  acwr: number;
+  status: 'optimal' | 'recovery' | 'overreaching' | 'very_high' | 'maintaining' | 'establishing';
+  statusLabel: string;
+  statusDescription: string;
+  optimalRange: { min: number; max: number };
+  last7DaysLoad: number;
+  timeline: DayLoadPoint[];
+}
+
+/** GET /api/activities/training-load */
+export interface TrainingLoadResponse {
+  trainingStatus: TrainingStatusData;
+}
+
+/** One monthly or yearly bucket of GET /api/activities/progress-history. */
+export interface ProgressPeriodSummary {
+  period: string;
+  label: string;
+  runCount: number;
+  totalDistanceKm: number;
+  totalDurationHours: number;
+  totalElevationM?: number;
+  avgEfficiencyFactor: number | null;
+  avgPaceSecKm: number | null;
+  avgHeartRate: number | null;
+  zone2Hours?: number;
+  zone2Pct?: number;
+  activeMonths?: number;
+  calibrations?: CalibrationHistoryItem[];
+}
+
+/** GET /api/activities/progress-history */
+export interface ProgressHistoryResponse {
+  months: ProgressPeriodSummary[];
+  years: ProgressPeriodSummary[];
+}
+
+/** PATCH /api/activities/:id */
+export interface ActivityPatchResponse {
+  activity: Activity;
+  coachSummary: CoachSummary | null;
+}
+
+/** A partial activity patch body for PATCH /api/activities/:id. */
+export interface ActivityPatchInput {
+  run_type?: string;
+  name?: string;
+  tags?: string[];
+}
+
+/** One item in a batch ingestion response. */
+export interface UploadResult {
+  status: 'imported' | 'skipped' | 'skipped_duplicate' | 'skipped_non_run' | 'error' | (string & {});
+  activityId?: string;
+  reason?: string;
+  message?: string;
+  error?: string;
+  name?: string;
+}
+
+/** POST /api/ingest/upload */
+export interface UploadResponse {
+  result: UploadResult;
+}
+
+/** POST /api/database/restore */
+export interface RestoreDatabaseResponse {
+  status: 'ok';
+  activityCount?: number;
+  safetyBackupPath?: string;
+}
+
+/** POST /api/database/restore-snapshot */
+export interface RestoreSnapshotResponse {
+  success: boolean;
+  activityCount?: number;
+}
+
+/** POST /api/database/backup */
+export interface DatabaseBackupInfo {
+  filePath?: string;
+  filename: string;
+  sizeBytes: number;
+  createdAt?: string;
+}
+
+export interface BackupResponse {
+  status: 'ok';
+  backup: DatabaseBackupInfo;
+}
+
+/** POST /api/database/settings */
+export interface BackupSettingsResponse {
+  status: 'ok';
+  settings: DatabaseStatus['settings'];
+}
+
+/** POST /api/database/select-folder */
+export interface SelectFolderResponse {
+  folder: string | null;
+  cancelled?: boolean;
 }

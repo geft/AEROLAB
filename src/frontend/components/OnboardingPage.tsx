@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { errorMessage } from '../utils/errors.js';
+import { getProfile, restoreDatabase, updateProfile } from '../api/client.js';
+import { apiErrorMessage } from '../api/errors.js';
 import {
   ShieldCheck,
   Activity,
@@ -43,14 +44,12 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
   // an unconfigured row only holds schema placeholder values, and showing those
   // as if the athlete had entered them is exactly how invalid profiles happen.
   useEffect(() => {
-    fetch('/api/profile')
-      .then(async res => {
-        if (!res.ok) return;
-        const data = await res.json();
+    getProfile()
+      .then(data => {
         const p = data?.profile;
         const isReady = Boolean(data?.isConfigured && p?.is_configured === 1 && p?.dob && p?.resting_hr);
         setHasExistingData(isReady);
-        if (!isReady) {
+        if (!isReady || !p) {
           localStorage.removeItem('aerolab_profile_configured');
           return;
         }
@@ -117,23 +116,12 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
       // untouched selector never overwrites a previously saved value.
       if (gender) payload.gender = gender;
 
-      const res = await fetch('/api/profile', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        const code = errJson?.code || `ERR_HTTP_${res.status}`;
-        const msg = errJson?.error || errJson?.message || res.statusText || 'Failed to save profile';
-        throw new Error(`[${code}]: ${msg}`);
-      }
+      await updateProfile(payload);
 
       localStorage.setItem('aerolab_profile_configured', 'true');
       onCompleted();
     } catch (err) {
-      setError(errorMessage(err) || '[ERR_UNKNOWN]: Something went wrong. Please try again.');
+      setError(apiErrorMessage(t, err, t.onboarding.saveFailed));
     } finally {
       setSaving(false);
     }
@@ -149,16 +137,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
     try {
       // Send the file as a raw binary body: no base64 inflation and the server
       // streams it to disk, so size is no longer limited by process memory.
-      const res = await fetch('/api/database/restore', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/octet-stream' },
-        body: file
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || t.backup.restoreFailed);
-      }
+      await restoreDatabase(file);
 
       setRestoreSuccess(t.onboarding.restoreSuccessToast);
       localStorage.setItem('aerolab_profile_configured', 'true');
@@ -166,7 +145,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
         onCompleted();
       }, 1200);
     } catch (err) {
-      setError(errorMessage(err) || t.backup.restoreFailed);
+      setError(apiErrorMessage(t, err, t.backup.restoreFailed));
     } finally {
       setIsRestoring(false);
     }

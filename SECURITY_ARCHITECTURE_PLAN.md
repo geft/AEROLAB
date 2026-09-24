@@ -85,8 +85,8 @@ This plan separates protections already implemented from the remaining architect
 ## Progress log
 
 Current working tree, verified together: `npx tsc --noEmit` 0 errors,
-`npm run lint` 0 errors (131 warnings remain in the tracked backlog),
-`npm test` 67 files / 476 tests green, `npm run i18n:unused` reports all 618
+`npm run lint -- --quiet` 0 errors (warnings remain in the tracked backlog),
+`npm test` 69 files / 482 tests green, `npm run i18n:unused` reports all 635
 dictionary keys referenced. Both smoke modes pass against real backends:
 `node scripts/smoke-packaged.js --dev` (tsx development entry) and
 `npm run smoke:packaged` (bundled `dist-backend/server.cjs`).
@@ -96,13 +96,13 @@ dictionary keys referenced. Both smoke modes pass against real backends:
 | 1. Explicit, recoverable migrations | Mostly done | `src/backend/db/migrations.ts`: named checkpoints in `schema_migrations`, one transaction per migration, a `VACUUM INTO` safety snapshot before the first data-rewriting change, and `user_version >= 1` preserved as the legacy marker; `tests/unit/migrations.test.ts`. Remaining: the idempotent `ALTER TABLE` column additions still live inline in `src/backend/db/client.ts` and re-run on every open instead of being checkpointed. |
 | 2. Storage service apart from routes | Done | `src/backend/db/storage.ts` owns snapshot, validate, copy and restore plus the one-operation-at-a-time guard; `src/backend/routes/database.ts` keeps input validation and stable error codes (`INVALID_DATABASE`, `INVALID_FOLDER`, `LOCATION_CHANGED`, `DATABASE_PATH_OVERRIDE`) that `DatabaseLocation.tsx` maps to dictionary copy; `tests/integration/database-location.test.ts`, `tests/integration/database-backup.test.ts`. |
 | 3. Derived work off the request path | Done | `src/backend/jobs/maintenance.ts` runs one worker at a time, queues a profile recompute rather than starting a second writer, and persists status to `maintenance-status.json` (a stale `running` reads back as `interrupted`, so the next launch retries); schema setup stays synchronous in `getDatabase()` behind `AEROLAB_DEFER_MIGRATIONS=1`; `GET /api/system/maintenance` and the `DatabaseLocation` progress copy surface it; the development entry bundles the worker on startup so `.ts` imports resolve inside worker threads. |
-| 4. Typed domain and API boundaries | In progress | `src/shared/activity.ts` is the single activity contract (re-exported by `src/frontend/types/api.ts`), `src/frontend/api/client.ts` gives typed responses, stable error codes and request cancellation, and the database-location and activity-detail slices use it (`DatabaseLocation.tsx`, `BrowseView.tsx`). Remaining: extract the activity and backup services out of `routes/activities.ts` and `routes/database.ts` so routes stop importing `physiology/*`, then move the remaining direct `fetch` call sites (profile, stats, progress, upload, onboarding, tags) onto the client. |
+| 4. Typed domain and API boundaries | In progress | `src/backend/services/{activity,profile,thresholds}-service.ts` now own the queries and physiological calculations; their routes no longer import `physiology/*`. All frontend API calls go through `src/frontend/api/client.ts`, with coded errors resolved through bilingual copy. Shared response shapes and focused client/service tests cover these slices. Remaining: replace loose database-row and FIT parser `any` values with validated raw/normalized/row conversions, and tighten service request inputs and result mappings before declaring the boundary fully typed. |
 | 5. Weather provenance | Done | `activities.weather_source` records Open-Meteo fetches; `verifiedAmbientTemperature()` keeps unknown legacy rows out of heat scoring; `ActivityWeatherCard` renders verified ambient, device-only, both and unverified-stored states from dictionary copy; `tests/unit/weather-provenance.test.ts` and `tests/ui/weather-card.test.tsx` cover device-only, ambient-only, both, neither and the legacy unverified row; import and startup still make no weather request. |
 | 6. Docs and release alignment | Done | README documents the Settings database-location flow, per-build preferences, `npm run db:location`, the 5-snapshot rotation and the 256 MB restore limit; `AGENTS.md` no longer claims `data/runs.db` is the only location; `scripts/smoke-packaged.js` launches the built backend with a temporary profile and database, asserts session gating (401, then a bootstrap cookie), the opened database path, the startup and profile maintenance jobs, absent developer routes in production, and a clean shutdown. |
 
-Next delivery step: finish item 4 by extracting the activity and backup service
-slices out of the routes, then move the remaining direct `fetch` calls onto the
-typed client.
+Next delivery step: finish item 4's ingestion and database-row typing. The
+database storage service is already in `src/backend/db/storage.ts`; the route
+and frontend client migrations are complete.
 
 ## Delivery gates
 

@@ -131,7 +131,7 @@ describe('UploadModal Multi-File UI Component Tests', () => {
       expect(screen.getByText(/batch ingestion failed/i)).toBeTruthy();
       expect(screen.getByText(/error details/i)).toBeTruthy();
       expect(screen.getByText(/failed_run\.csv/i)).toBeTruthy();
-      expect(screen.getByText(/unique constraint failed: activities\.id/i)).toBeTruthy();
+      expect(screen.getByText(/request could not be completed/i)).toBeTruthy();
       expect(screen.getByText(/retry with overwrite/i)).toBeTruthy();
     });
 

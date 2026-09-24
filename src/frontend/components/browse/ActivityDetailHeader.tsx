@@ -7,6 +7,7 @@ import { Edit2, Tag, Plus, X, Check, ShieldCheck } from 'lucide-react';
 import { ActivityWeatherCard } from './ActivityWeatherCard';
 import { translateTag } from '../../i18n/tagTranslator';
 import { useTranslation } from '../../i18n/LanguageContext';
+import { patchActivity } from '../../api/client.js';
 
 const COMMON_TAG_PRESETS = [
   'Easy Base', 'Long Run', 'Recovery', 'Threshold', 'VO2 Max',
@@ -61,14 +62,8 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
 
   const handleUpdateTags = async (tags: string[]) => {
     try {
-      const res = await fetch(`/api/activities/${act.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tags })
-      });
-      if (res.ok) {
-        onActivityUpdated?.({ id: act.id, tags: JSON.stringify(tags) });
-      }
+      await patchActivity(act.id, { tags });
+      onActivityUpdated?.({ id: act.id, tags: JSON.stringify(tags) });
     } catch (err) {
       console.error('Failed to update tags:', err);
     }
@@ -113,15 +108,9 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
               <button
                 onClick={async () => {
                   try {
-                    const res = await fetch(`/api/activities/${act.id}`, {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ name: customTitle })
-                    });
-                    if (res.ok) {
-                      onActivityUpdated?.({ id: act.id, name: customTitle });
-                      setIsEditingTitle(false);
-                    }
+                    await patchActivity(act.id, { name: customTitle });
+                    onActivityUpdated?.({ id: act.id, name: customTitle });
+                    setIsEditingTitle(false);
                   } catch (err) {
                     console.error('Failed to update title:', err);
                   }

@@ -478,6 +478,10 @@ export interface Translations {
     maxHrPlaceholder: string;
     savedRecomputing: string;
     saved: string;
+    /** Shown when GET /api/profile fails. */
+    loadFailed: string;
+    /** Fallback when PATCH /api/profile fails with an unmapped code. */
+    saveFailed: string;
   };
   upload: {
     title: string;
@@ -498,6 +502,8 @@ export interface Translations {
     batchWarnings: string;
     batchFailed: string;
     fitCsvOnly: string;
+    /** Fallback per-file error when an upload fails with an unmapped code. */
+    importFailed: string;
     dupTip: string;
     /** Plural copy for the number of skipped duplicate files. */
     skippedFiles: PluralForms;
@@ -586,6 +592,8 @@ export interface Translations {
     restoreDbCardDesc: string;
     dropDbPrompt: string;
     restoreSuccessToast: string;
+    /** Fallback when the initial profile save fails with an unmapped code. */
+    saveFailed: string;
     localSecurityNote: string;
   };
   footer: {
@@ -747,5 +755,25 @@ export interface Translations {
     /** Templates with a `{shown}` and `{total}` token. */
     loadMoreCalibrations: string;
     showAllFiltered: string;
+  };
+  /**
+   * Copy for stable API error codes (`ApiRequestError.code`), selected by
+   * `apiErrorMessage()` so no component renders the raw server message.
+   */
+  apiErrors: {
+    /** Generic HTTP failure / network error (`ERR_API`). */
+    generic: string;
+    invalidMaxHr: string;
+    invalidRestingHr: string;
+    profileSaveFailed: string;
+    invalidTags: string;
+    noFieldsToUpdate: string;
+    activityNotFound: string;
+    profileNotFound: string;
+    coachSummaryNotFound: string;
+    invalidResponse: string;
+    noGps: string;
+    zipUnsupported: string;
+    devDiagnosticsFailed: string;
   };
 }
