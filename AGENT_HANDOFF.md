@@ -6,38 +6,33 @@ changing anything here.
 
 ## Current state
 
-Branch `main`. The task list in the plan's progress log is authoritative. The
-remaining open item is **item 4 (typed domain and API boundaries)**, partially
-done.
+Branch `main`. The task list in the plan's progress log is authoritative. Items
+1 and 4 are complete for the remaining work recorded in the prior handoff.
 
-Verification as of this handoff - run all four before committing:
+Verification for the latest migration and row-boundary delivery (2026-09-25):
 
 ```bash
 npx tsc --noEmit     # 0 errors
 npm run lint         # 0 errors (warnings are a tracked backlog)
-npm test             # 69 files / 482 tests, all green
-npm run i18n:unused  # all 635 dictionary keys referenced
+# focused tests: 7 files / 49 tests, all green
+npm run i18n:unused  # all 651 dictionary keys referenced
 ```
 
-Both smoke modes pass against real backends:
-
-```bash
-node scripts/smoke-packaged.js --dev   # tsx development entry (bundles the worker on startup)
-npm run build:all && npm run smoke:packaged
-```
+The full test suite and packaged smoke modes were not rerun for this delivery.
+Earlier smoke results are retained in the plan's progress log.
 
 ## Done
 
 | Plan item | State |
 | --- | --- |
-| 1. Explicit, recoverable migrations | Mostly done - `src/backend/db/migrations.ts`; remaining: move the idempotent `ALTER TABLE` column list out of `src/backend/db/client.ts` into checkpointed migrations |
+| 1. Explicit, recoverable migrations | Done - essential schema column additions and legacy `notes` removal run under `schema-columns-v1` in `src/backend/db/client.ts` |
 | 2. Storage service apart from routes | Done - `src/backend/db/storage.ts`, `src/backend/db/path.ts` |
 | 3. Derived work off the request path | Done - `src/backend/jobs/maintenance.ts`, `maintenance-worker.ts` |
-| 4. Typed domain and API boundaries | In progress - service extraction and frontend client migration are complete; ingestion and row typing remain |
+| 4. Typed domain and API boundaries | Done for the planned slices - parser, request, activity, progress, volume, coach-summary, and threshold rows use validated conversions |
 | 5. Weather provenance | Done - `weather_source`, `verifiedAmbientTemperature()`, weather card states |
 | 6. Docs and release alignment | Done - README, `AGENTS.md`, `scripts/smoke-packaged.js` |
 
-## Next task: finish item 4
+## Latest delivery: items 1 and 4
 
 The service extraction and frontend fetch migration described in the earlier
 handoff are complete. `src/backend/routes/{activities,profile,thresholds}.ts`
@@ -47,27 +42,29 @@ cancellation, network failures, and stable codes. UI errors use
 `src/frontend/api/errors.ts` and the bilingual dictionaries. Focused tests live
 in `tests/unit/{activity-service,api-client}.test.ts`.
 
-### 1. Tighten the ingestion and row boundaries
+### Completed: checkpointed schema additions and query row boundaries
 
-`src/backend/ingestion/csv-parser.ts` already defines parsed metadata and
-records; `fit-parser.ts` now types decoded numeric messages and requires a
-valid start timestamp. `src/backend/services/{activity,profile,thresholds}-service.ts`
-still cast database rows through `any`. Define database row shapes, validate
-untrusted values at entry, and use explicit conversions to the existing shared
-API response contracts. Keep the current wire format and local SQLite model.
+`src/backend/db/client.ts` now applies old-schema column additions and the
+legacy `notes` drop once under `schema-columns-v1`. Progress, volume,
+coach-summary, activity-detail, and threshold queries validate SQLite values
+before aggregation, persisted-summary mapping, or threshold calculations. The
+current wire format and local SQLite model are preserved.
 
-### 2. Tighten request inputs and failure mapping
+### Completed: request and failure boundaries
 
-`ProfileUpdateInput` is still a loose `Record<string, unknown>`, and the
-service accepts arbitrary body properties before filtering. Give route inputs
-explicit shapes and validate them before service calls. Check response
-mapping for missing activities and malformed rows. Keep every user-visible
-failure in the dictionaries through `ApiRequestError.code`.
+Profile and activity PATCH inputs reject unknown or malformed fields before
+service calls. Missing activity updates return `ERR_ACTIVITY_NOT_FOUND`, and
+user-visible failures resolve through bilingual dictionary copy via stable
+error codes.
+
+Focused tests cover the migration checkpoint and malformed progress, volume,
+coach-summary, and threshold query rows. The plan progress log records the
+verification run and current 651-key translation check.
 
 ### 3. Close the loop
 
-Update the progress log in `SECURITY_ARCHITECTURE_PLAN.md` when the remaining
-type boundaries are verified, and add focused parser/row tests.
+The progress log in `SECURITY_ARCHITECTURE_PLAN.md` is current. Before any
+commit, run the four verification commands required by `AGENTS.md`.
 
 ## Tooling gotchas (learned the hard way)
 

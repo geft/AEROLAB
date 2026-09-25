@@ -102,7 +102,7 @@ describe('Coach translator — condition-aware copy', () => {
       .toContain('无逐秒采样数据');
 
     const discipline = translateCoachInsight(
-      'Aerobic Intensity Discipline: only 0.7% of your running time sat above the 153 bpm LT1 ceiling (0.0% of it in the first half), so this stayed an aerobic session throughout. That control — not pace — is what an easy day is for.',
+      'Aerobic Intensity Discipline: only 0.7% of your running time sat above the 153 bpm LT1 ceiling (0.0% of it in the first half), so this stayed an aerobic session throughout. That’s the point of an easy day: keep the effort easy, whatever the pace.',
       'zh'
     );
     expect(discipline).toContain('有氧强度纪律');

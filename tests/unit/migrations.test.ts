@@ -4,6 +4,7 @@ import os from 'os';
 import path from 'path';
 import Database from 'better-sqlite3';
 import { createMigrationRunner } from '../../src/backend/db/migrations.js';
+import { openDatabase } from '../../src/backend/db/client.js';
 
 describe('named database migrations', () => {
   const roots: string[] = [];
@@ -38,5 +39,32 @@ describe('named database migrations', () => {
     const runner = createMigrationRunner(db);
     expect(runner.run('centroid-v1', () => { throw new Error('already complete'); })).toBe(true);
     db.close();
+  });
+
+  it('checkpoints legacy column additions and does not rerun them on reopen', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aerolab-schema-migration-'));
+    roots.push(root);
+    const file = path.join(root, 'legacy.db');
+    const legacy = new Database(file);
+    legacy.exec("CREATE TABLE activities (id TEXT PRIMARY KEY, start_time TEXT NOT NULL, run_type TEXT, notes TEXT)");
+    legacy.close();
+
+    const previousDefer = process.env.AEROLAB_DEFER_MIGRATIONS;
+    process.env.AEROLAB_DEFER_MIGRATIONS = '1';
+    try {
+      const first = openDatabase(file);
+      const firstColumns = first.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>;
+      expect(firstColumns.some(column => column.name === 'weather_source')).toBe(true);
+      expect(firstColumns.some(column => column.name === 'notes')).toBe(false);
+      expect(first.prepare("SELECT 1 FROM schema_migrations WHERE name = 'schema-columns-v1'").get()).toBeTruthy();
+      first.close();
+
+      const reopened = openDatabase(file);
+      expect(reopened.prepare("SELECT count(*) AS count FROM schema_migrations WHERE name = 'schema-columns-v1'").get()).toEqual({ count: 1 });
+      reopened.close();
+    } finally {
+      if (previousDefer === undefined) delete process.env.AEROLAB_DEFER_MIGRATIONS;
+      else process.env.AEROLAB_DEFER_MIGRATIONS = previousDefer;
+    }
   });
 });

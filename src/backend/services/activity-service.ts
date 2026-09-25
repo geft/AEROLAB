@@ -1,7 +1,6 @@
 import Database from 'better-sqlite3';
-import { activityFromRow } from '../db/rows.js';
+import { activityFromRow, activityIntervalFromRow, activityRecordFromRow, activitySplitFromRow, coachSummaryFromRow, heartRateRecordFromRow, objectRow, progressActivityFromRow, volumeActivityFromRow } from '../db/rows.js';
 import { parseSessionVerdict } from '../../shared/session-verdict.js';
-import type { Activity } from '../../shared/activity.js';
 import type { BestEffortsReport } from '../../shared/best-efforts.js';
 import type { TrainingLoadResponse } from '../../shared/training-load.js';
 import type {
@@ -53,7 +52,7 @@ export function getVolumeService(db: Database.Database, query: VolumeQuery): Vol
   const boundaries = getDefaultZones(maxHr, lt1Hr, lt2Hr, restingHr);
 
   let sql = `SELECT id, start_time, distance_meters, duration_seconds, elevation_gain_m, efficiency_factor, run_type, training_load, z1_seconds, z2_seconds, z3_seconds, z4_seconds, z5_seconds FROM activities WHERE 1=1`;
-  const params: any[] = [];
+  const params: Array<string | number> = [];
 
   if (targetMonth) {
     sql += ` AND start_time LIKE ?`;
@@ -70,14 +69,16 @@ export function getVolumeService(db: Database.Database, query: VolumeQuery): Vol
   }
 
   sql += ` ORDER BY start_time DESC`;
-  let acts = db.prepare(sql).all(...params) as any[];
+  let acts = db.prepare(sql).all(...params).map(volumeActivityFromRow);
 
   // Fallback if period=month returned 0 activities because dataset is historical
   if (acts.length === 0 && !targetMonth && !targetYear && period === 'month') {
-    const latestAct = db.prepare('SELECT start_time FROM activities ORDER BY start_time DESC LIMIT 1').get() as any;
-    if (latestAct?.start_time) {
+    const latestValue: unknown = db.prepare('SELECT start_time FROM activities ORDER BY start_time DESC LIMIT 1').get();
+    if (latestValue) {
+      const latestAct = latestValue as { start_time?: unknown };
+      if (typeof latestAct.start_time !== 'string') throw new Error('Invalid activities.start_time');
       const fallbackMonth = latestAct.start_time.substring(0, 7);
-      acts = db.prepare(`SELECT id, start_time, distance_meters, duration_seconds, elevation_gain_m, efficiency_factor, run_type, training_load, z1_seconds, z2_seconds, z3_seconds, z4_seconds, z5_seconds FROM activities WHERE start_time LIKE ? ORDER BY start_time DESC`).all(`${fallbackMonth}%`) as any[];
+      acts = db.prepare(`SELECT id, start_time, distance_meters, duration_seconds, elevation_gain_m, efficiency_factor, run_type, training_load, z1_seconds, z2_seconds, z3_seconds, z4_seconds, z5_seconds FROM activities WHERE start_time LIKE ? ORDER BY start_time DESC`).all(`${fallbackMonth}%`).map(volumeActivityFromRow);
     }
   }
 
@@ -105,7 +106,7 @@ export function getVolumeService(db: Database.Database, query: VolumeQuery): Vol
     // Fast path: precalculated zone durations from activities table
     const hasPrecomputedZones =
       typeof a.z2_seconds === 'number' &&
-      (a.z1_seconds > 0 || a.z2_seconds > 0 || a.z3_seconds > 0 || a.z4_seconds > 0 || a.z5_seconds > 0);
+      ((a.z1_seconds ?? 0) > 0 || a.z2_seconds > 0 || (a.z3_seconds ?? 0) > 0 || (a.z4_seconds ?? 0) > 0 || (a.z5_seconds ?? 0) > 0);
 
     if (hasPrecomputedZones) {
       z1z2Sec += (a.z1_seconds || 0) + (a.z2_seconds || 0);
@@ -113,7 +114,7 @@ export function getVolumeService(db: Database.Database, query: VolumeQuery): Vol
       z4Sec += (a.z4_seconds || 0);
       z5Sec += (a.z5_seconds || 0);
     } else {
-      const recs = recStmt.all(a.id) as any[];
+      const recs = recStmt.all(a.id).map(heartRateRecordFromRow);
       for (let i = 1; i < recs.length; i++) {
         const dt = Math.max(0, Math.min(10, recs[i].elapsed_seconds - recs[i - 1].elapsed_seconds));
         const hr = recs[i].heart_rate;
@@ -186,7 +187,7 @@ export function getProgressHistoryService(db: Database.Database, runTypeFilter: 
     FROM activities
     WHERE 1=1
   `;
-  const params: any[] = [];
+  const params: Array<string | number> = [];
 
   if (runTypeFilter === 'easy') {
     actQuery += ` AND (run_type = 'easy_base' OR run_type = 'long_run')`;
@@ -197,7 +198,7 @@ export function getProgressHistoryService(db: Database.Database, runTypeFilter: 
   actQuery += ` ORDER BY start_time ASC`;
 
   // Fetch activities in chronological order
-  const acts = db.prepare(actQuery).all(...params) as any[];
+  const acts = db.prepare(actQuery).all(...params).map(progressActivityFromRow);
 
   // Fetch all threshold calibrations
   const thresholds = db.prepare(`
@@ -205,11 +206,29 @@ export function getProgressHistoryService(db: Database.Database, runTypeFilter: 
     FROM physiological_thresholds p
     LEFT JOIN activities a ON p.source_activity_id = a.id
     ORDER BY p.effective_date ASC
-  `).all() as any[];
+  `).all().map(value => {
+    const row = objectRow(value, 'physiological_thresholds');
+    if (typeof row.effective_date !== 'string' || row.effective_date.length === 0) throw new Error('Invalid physiological_thresholds.effective_date');
+    for (const key of ['id', 'lt1_hr', 'lt1_pace_sec_km', 'lt2_hr', 'lt2_pace_sec_km', 'baseline_economy_ef', 'confidence', 'distance_meters', 'duration_seconds']) {
+      const field = row[key];
+      if (field != null && (typeof field !== 'number' || !Number.isFinite(field))) throw new Error(`Invalid physiological_thresholds.${key}`);
+    }
+    for (const key of ['source_activity_id', 'activity_name', 'notes']) {
+      if (row[key] != null && typeof row[key] !== 'string') throw new Error(`Invalid physiological_thresholds.${key}`);
+    }
+    if (row.is_estimated != null && typeof row.is_estimated !== 'boolean' && row.is_estimated !== 0 && row.is_estimated !== 1) throw new Error('Invalid physiological_thresholds.is_estimated');
+    return { ...row, effective_date: row.effective_date };
+  });
 
   // Group activities by Month (YYYY-MM) and Year (YYYY)
-  const monthMap = new Map<string, any>();
-  const yearMap = new Map<string, any>();
+  const monthMap = new Map<string, {
+    period: string; label: string; type: 'month'; runCount: number; totalDistanceM: number; totalDurationSec: number; totalElevationM: number;
+    efSum: number; efCount: number; paceSum: number; paceCount: number; hrSum: number; hrCount: number; z2Sec: number; totalHrSec: number; runs: string[];
+  }>();
+  const yearMap = new Map<string, {
+    period: string; label: string; type: 'year'; runCount: number; totalDistanceM: number; totalDurationSec: number; totalElevationM: number;
+    efSum: number; efCount: number; paceSum: number; paceCount: number; hrSum: number; hrCount: number; activeMonthsSet: Set<string>; runs: string[];
+  }>();
 
   for (const a of acts) {
     const dateStr = a.start_time || '';
@@ -288,7 +307,7 @@ export function getProgressHistoryService(db: Database.Database, runTypeFilter: 
     y.runs.push(a.id);
 
     // Heart rate zone 2 accumulation
-    const recs = db.prepare('SELECT elapsed_seconds, heart_rate FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC').all(a.id) as any[];
+    const recs = db.prepare('SELECT elapsed_seconds, heart_rate FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC').all(a.id).map(heartRateRecordFromRow);
     for (let i = 1; i < recs.length; i++) {
       const dt = Math.max(0, Math.min(10, recs[i].elapsed_seconds - recs[i - 1].elapsed_seconds));
       const hr = recs[i].heart_rate;
@@ -372,7 +391,7 @@ export function listActivitiesService(db: Database.Database, typeFilter?: string
     LEFT JOIN activity_coach_summaries cs ON a.id = cs.activity_id
   `;
 
-  const params: any[] = [];
+  const params: Array<string | number> = [];
   if (typeFilter) {
     query += ` WHERE a.run_type = ?`;
     params.push(typeFilter);
@@ -401,9 +420,9 @@ export function getActivityDetailService(db: Database.Database, id: string): Act
   if (!activityRow) return null;
   const activity = activityFromRow(activityRow);
 
-  const splits = db.prepare('SELECT * FROM activity_splits WHERE activity_id = ? ORDER BY split_index ASC').all(id);
-  const intervals = db.prepare('SELECT * FROM activity_intervals WHERE activity_id = ? ORDER BY interval_index ASC').all(id);
-  const rawRecords = db.prepare('SELECT * FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC').all(id) as any[];
+  const splits = db.prepare('SELECT * FROM activity_splits WHERE activity_id = ? ORDER BY split_index ASC').all(id).map(activitySplitFromRow);
+  const intervals = db.prepare('SELECT * FROM activity_intervals WHERE activity_id = ? ORDER BY interval_index ASC').all(id).map(activityIntervalFromRow);
+  const rawRecords = db.prepare('SELECT * FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC').all(id).map(activityRecordFromRow);
 
   // Auto-repair flat or corrupted speed telemetry (e.g. FIT records where speed was saved as static cumulative average)
   const records = [...rawRecords];
@@ -491,8 +510,8 @@ export function getActivityDetailService(db: Database.Database, id: string): Act
       walk_duration_seconds: pauseBreakdown.walkDurationSeconds,
       walk_distance_meters: pauseBreakdown.walkDistanceMeters
     },
-    splits: splits as any,
-    intervals: intervals as any,
+    splits,
+    intervals,
     records,
     coachSummary: (coachSummary as ActivityCoachSummary) || null,
     heartRateThresholds: { lt1Hr, lt2Hr },
@@ -503,19 +522,30 @@ export function getActivityDetailService(db: Database.Database, id: string): Act
 
 /** GET /api/activities/:id/coach-summary - retrieve persistent coach summary from table */
 export function getActivityCoachSummaryService(db: Database.Database, id: string): CoachSummaryResponse | null {
-  let coachRow = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get(id) as any;
-  if (!coachRow) {
+  let coachRowValue: unknown = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get(id);
+  if (!coachRowValue) {
     syncActivityCoachSummary(db, id);
-    coachRow = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get(id) as any;
+    coachRowValue = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get(id);
   }
-  if (!coachRow) return null;
+  if (!coachRowValue) return null;
+  const coachRow = coachSummaryFromRow(coachRowValue);
 
-  let analysis: any = null;
+  let analysis: Record<string, unknown> | null = null;
   try {
-    analysis = coachRow.analysis_json ? JSON.parse(coachRow.analysis_json) : null;
+    const parsed: unknown = coachRow.analysis_json ? JSON.parse(coachRow.analysis_json) : null;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) analysis = parsed as Record<string, unknown>;
   } catch {
     analysis = null;
   }
+  const parseArray = (json: string | null): unknown[] => {
+    if (!json) return [];
+    try { const parsed: unknown = JSON.parse(json); return Array.isArray(parsed) ? parsed : []; }
+    catch { return []; }
+  };
+  const parseStringArray = (json: string): string[] => {
+    const parsed = parseArray(json);
+    return parsed.every(value => typeof value === 'string') ? parsed : [];
+  };
 
   return {
     coachSummary: {
@@ -524,9 +554,9 @@ export function getActivityCoachSummaryService(db: Database.Database, id: string
       effectivenessScore: coachRow.effectiveness_score,
       rating5: Number((coachRow.effectiveness_score / 20).toFixed(1)),
       stars: coachRow.effectiveness_score >= 85 ? 3 : coachRow.effectiveness_score >= 70 ? 2 : 1,
-      scoreBreakdown: coachRow.score_breakdown_json ? JSON.parse(coachRow.score_breakdown_json) : [],
-      keyInsights: JSON.parse(coachRow.key_insights_json || '[]'),
-      insightTones: coachRow.insight_tones_json ? JSON.parse(coachRow.insight_tones_json) : [],
+      scoreBreakdown: parseArray(coachRow.score_breakdown_json),
+      keyInsights: parseStringArray(coachRow.key_insights_json),
+      insightTones: parseArray(coachRow.insight_tones_json),
       recommendation: coachRow.recommendation,
       focusAdvice: analysis?.focusAdvice ?? null,
       rubricCoveragePct: analysis?.rubricCoveragePct ?? null,
@@ -538,7 +568,7 @@ export function getActivityCoachSummaryService(db: Database.Database, id: string
       steadyHeartRate: coachRow.steady_heart_rate,
       steadyCadence: coachRow.steady_cadence,
       steadyStanceTime: coachRow.steady_stance_time,
-      pauseBreakdown: coachRow.pause_breakdown_json ? JSON.parse(coachRow.pause_breakdown_json) : null
+      pauseBreakdown: coachRow.pause_breakdown_json ? (() => { try { return JSON.parse(coachRow.pause_breakdown_json); } catch { return null; } })() : null
     }
   };
 }

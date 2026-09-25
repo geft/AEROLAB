@@ -96,6 +96,7 @@ describe('Audit security and data integrity regressions', () => {
     const candidatePath = donor();
     const candidate = new Database(candidatePath);
     candidate.exec('ALTER TABLE activities DROP COLUMN z1_seconds');
+    candidate.prepare("DELETE FROM schema_migrations WHERE name = 'schema-columns-v1'").run();
     candidate.close();
     const result = restoreDatabaseFromFile(candidatePath);
     expect(result.success).toBe(true);

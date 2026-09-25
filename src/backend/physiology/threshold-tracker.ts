@@ -1,6 +1,6 @@
 import { getAthleteHeartRateProfile } from './athlete-profile.js';
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
-import { rollingThreshold } from '../../shared/threshold-trend.js';
+import { rollingThreshold, type ThresholdObservation } from '../../shared/threshold-trend.js';
 import Database from 'better-sqlite3';
 import { ActivityMetadata, ActivityRecord } from '../ingestion/csv-parser';
 import { EconomyMetrics } from './economy';
@@ -31,6 +31,40 @@ export interface CruisingBlock {
   avgHr: number;
   avgPaceSecKm: number;
   decouplingPct: number;
+}
+
+function dbRow(value: unknown, table: string): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`Invalid ${table} row`);
+  return value as Record<string, unknown>;
+}
+function dbNumber(row: Record<string, unknown>, key: string, table: string, nullable = false): number | null {
+  const value = row[key];
+  if (nullable && value == null) return null;
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error(`Invalid ${table}.${key}`);
+  return value;
+}
+function dbText(row: Record<string, unknown>, key: string, table: string): string {
+  const value = row[key];
+  if (typeof value !== 'string' || value.length === 0) throw new Error(`Invalid ${table}.${key}`);
+  return value;
+}
+function thresholdObservations(values: unknown[], table: string): ThresholdObservation[] {
+  return values.map(value => {
+    const row = dbRow(value, table);
+    return {
+      hr: dbNumber(row, 'hr', table)!, pace: dbNumber(row, 'pace', table, true),
+      confidence: dbNumber(row, 'confidence', table)!, effective_date: dbText(row, 'effective_date', table)
+    };
+  });
+}
+
+function profileRange(value: unknown): { lt1_min_hr: number | null; lt1_max_hr: number | null } | null {
+  if (value == null) return null;
+  const row = dbRow(value, 'athlete_profile');
+  return {
+    lt1_min_hr: dbNumber(row, 'lt1_min_hr', 'athlete_profile', true),
+    lt1_max_hr: dbNumber(row, 'lt1_max_hr', 'athlete_profile', true)
+  };
 }
 
 export function findAerobicCruisingBlock(
@@ -216,11 +250,15 @@ export function evaluateThresholdUpdate(
   let baselineLt1Hr = profile.lt1Hr;
   // Compare to a prior, recent calibration, never to this run's stale row or
   // a future calibration during chronological replay. Normalize mixed date formats.
-  const prior = db.prepare(`SELECT lt1_hr, lt1_pace_sec_km FROM physiological_thresholds
+  const priorValue: unknown = db.prepare(`SELECT lt1_hr, lt1_pace_sec_km FROM physiological_thresholds
     WHERE lt1_hr IS NOT NULL AND lt1_pace_sec_km IS NOT NULL
       AND julianday(effective_date) < julianday(?)
       AND julianday(effective_date) >= julianday(?, '-45 days')
-    ORDER BY julianday(effective_date) DESC, id DESC LIMIT 1`).get(runDate, runDate) as any;
+    ORDER BY julianday(effective_date) DESC, id DESC LIMIT 1`).get(runDate, runDate);
+  const prior = priorValue == null ? null : (() => {
+    const row = dbRow(priorValue, 'physiological_thresholds');
+    return { lt1_hr: dbNumber(row, 'lt1_hr', 'physiological_thresholds')!, lt1_pace_sec_km: dbNumber(row, 'lt1_pace_sec_km', 'physiological_thresholds')! };
+  })();
   if (prior) {
     baselineLt1Hr = prior.lt1_hr;
     recentBaselineLt1Pace = prior.lt1_pace_sec_km;
@@ -240,7 +278,17 @@ export function evaluateThresholdUpdate(
         FROM activity_splits
         WHERE activity_id = ?
         ORDER BY split_index ASC
-      `).all(activityId) as SplitRow[];
+      `).all(activityId).map(value => {
+        const row = dbRow(value, 'activity_splits');
+        return {
+          split_index: dbNumber(row, 'split_index', 'activity_splits')!,
+          distance_meters: dbNumber(row, 'distance_meters', 'activity_splits')!,
+          duration_seconds: dbNumber(row, 'duration_seconds', 'activity_splits')!,
+          avg_pace_sec_km: dbNumber(row, 'avg_pace_sec_km', 'activity_splits')!,
+          avg_heart_rate: dbNumber(row, 'avg_heart_rate', 'activity_splits')!,
+          elevation_change_m: dbNumber(row, 'elevation_change_m', 'activity_splits', true) ?? undefined
+        };
+      });
     } catch { /* optional query: schema may predate this table */ }
 
     lt1Confidence = 0.88;
@@ -293,8 +341,8 @@ export function evaluateThresholdUpdate(
   // 2. LT1 pace must always be slower than LT2 threshold pace.
   let knownLt2Pace: number | null = null;
   try {
-    const lt2Row = db.prepare('SELECT lt2_pace_sec_km FROM physiological_thresholds WHERE lt2_pace_sec_km IS NOT NULL AND julianday(effective_date) < julianday(?) ORDER BY julianday(effective_date) DESC LIMIT 1').get(runDate) as any;
-    if (lt2Row?.lt2_pace_sec_km) knownLt2Pace = lt2Row.lt2_pace_sec_km;
+    const lt2Value: unknown = db.prepare('SELECT lt2_pace_sec_km FROM physiological_thresholds WHERE lt2_pace_sec_km IS NOT NULL AND julianday(effective_date) < julianday(?) ORDER BY julianday(effective_date) DESC LIMIT 1').get(runDate);
+    if (lt2Value != null) knownLt2Pace = dbNumber(dbRow(lt2Value, 'physiological_thresholds'), 'lt2_pace_sec_km', 'physiological_thresholds');
   } catch { /* optional query: schema may predate this table */ }
 
   if (estimatedLt1Pace !== null) {
@@ -312,11 +360,21 @@ export function evaluateThresholdUpdate(
   // compensates for cardiac ramp lag, and scores confidence continuously based on rest continuity.
   let lt2Confidence = 0.85;
   if (profile.hasBaseline && runType === 'threshold_lt2') {
-    let workInvs: any[] = [];
+    let workInvs: Array<{ interval_index: number; start_seconds: number; duration_seconds: number; distance_meters: number | null; avg_heart_rate: number | null; avg_pace_sec_km: number | null }> = [];
     try {
       workInvs = db.prepare(
         "SELECT interval_index, start_seconds, duration_seconds, distance_meters, avg_heart_rate, avg_pace_sec_km FROM activity_intervals WHERE activity_id = ? AND type = 'work' ORDER BY interval_index ASC"
-      ).all(activityId) as any[];
+      ).all(activityId).map(value => {
+        const row = dbRow(value, 'activity_intervals');
+        return {
+          interval_index: dbNumber(row, 'interval_index', 'activity_intervals')!,
+          start_seconds: dbNumber(row, 'start_seconds', 'activity_intervals')!,
+          duration_seconds: dbNumber(row, 'duration_seconds', 'activity_intervals')!,
+          distance_meters: dbNumber(row, 'distance_meters', 'activity_intervals', true),
+          avg_heart_rate: dbNumber(row, 'avg_heart_rate', 'activity_intervals', true),
+          avg_pace_sec_km: dbNumber(row, 'avg_pace_sec_km', 'activity_intervals', true)
+        };
+      });
     } catch { /* optional query: schema may predate this table */ }
 
     // Screen effort against the independent athlete baseline, not the previous
@@ -331,14 +389,17 @@ export function evaluateThresholdUpdate(
       && i.start_seconds + i.duration_seconds <= 3600);
 
     if (qualifiedWork.length > 0) {
-      let interRepRecs: any[] = [];
+      let interRepRecs: Array<{ duration_seconds: number; hr_drop: number | null }> = [];
       if (workInvs.length >= 2) {
         try {
           const firstIdx = qualifiedWork[0].interval_index;
           const lastIdx = qualifiedWork[qualifiedWork.length - 1].interval_index;
           interRepRecs = db.prepare(
             "SELECT duration_seconds, hr_drop FROM activity_intervals WHERE activity_id = ? AND type = 'recovery' AND interval_index > ? AND interval_index < ? ORDER BY interval_index ASC"
-          ).all(activityId, firstIdx, lastIdx) as any[];
+          ).all(activityId, firstIdx, lastIdx).map(value => {
+            const row = dbRow(value, 'activity_intervals');
+            return { duration_seconds: dbNumber(row, 'duration_seconds', 'activity_intervals')!, hr_drop: dbNumber(row, 'hr_drop', 'activity_intervals', true) };
+          });
         } catch { /* optional query: schema may predate this table */ }
       }
 
@@ -364,25 +425,28 @@ export function evaluateThresholdUpdate(
         const previousHrTime = evalHrWeighted;
 
         // Fetch records if available
-        let repRecs: any[] = [];
+        let repRecs: Array<{ elapsed_seconds: number; speed_mps: number | null; heart_rate: number | null }> = [];
         try {
           repRecs = db.prepare(
             "SELECT elapsed_seconds, speed_mps, heart_rate FROM activity_records WHERE activity_id = ? AND elapsed_seconds >= ? AND elapsed_seconds <= ? ORDER BY elapsed_seconds ASC"
-          ).all(activityId, inv.start_seconds, inv.start_seconds + durToTake) as any[];
+          ).all(activityId, inv.start_seconds, inv.start_seconds + durToTake).map(value => {
+            const row = dbRow(value, 'activity_records');
+            return { elapsed_seconds: dbNumber(row, 'elapsed_seconds', 'activity_records')!, speed_mps: dbNumber(row, 'speed_mps', 'activity_records', true), heart_rate: dbNumber(row, 'heart_rate', 'activity_records', true) };
+          });
         } catch { /* optional query: schema may predate this table */ }
 
         if (repRecs.length >= 30) {
           // 1. Pace: strip initial acceleration ramp if starting from walk/stop (< 2.2 m/s)
           const startsFromSlow = (repRecs[0]?.speed_mps ?? 0) < 2.2;
           const paceSkipSec = startsFromSlow ? Math.min(12, Math.floor(durToTake * 0.1)) : 0;
-          const paceRecs = repRecs.filter(r => r.elapsed_seconds >= inv.start_seconds + paceSkipSec && r.speed_mps > 1.5);
+          const paceRecs = repRecs.filter(r => r.elapsed_seconds >= inv.start_seconds + paceSkipSec && r.speed_mps !== null && r.speed_mps > 1.5);
           const repAvgSpeed = paceRecs.length > 0
-            ? paceRecs.reduce((s, r) => s + r.speed_mps, 0) / paceRecs.length
-            : (inv.distance_meters / (inv.duration_seconds || 1));
+            ? paceRecs.reduce((s, r) => s + r.speed_mps!, 0) / paceRecs.length
+            : ((inv.distance_meters ?? 0) / (inv.duration_seconds || 1));
 
           // 2. HR: strip initial cardiac lag (60-90s) if rep >= 300s
           const tRamp = inv.duration_seconds >= 300 ? Math.min(90, Math.max(45, Math.round(avgRestDrop * 1.5))) : 0;
-          const hrRecs = repRecs.filter(r => r.elapsed_seconds >= inv.start_seconds + tRamp && r.heart_rate > 100);
+          const hrRecs = repRecs.filter(r => r.elapsed_seconds >= inv.start_seconds + tRamp && r.heart_rate !== null && r.heart_rate > 100);
           // A single long rep can provide the entire calibration. Check its
           // internal efficiency decline too, after the cardiac ramp, using
           // elapsed-time weighting rather than the number of samples.
@@ -391,7 +455,7 @@ export function evaluateThresholdUpdate(
           const halves = [{ distance: 0, beats: 0, duration: 0 }, { distance: 0, beats: 0, duration: 0 }];
           for (let r = 1; r < repRecs.length; r++) {
             const a = repRecs[r - 1], b = repRecs[r];
-            if (b.elapsed_seconds - a.elapsed_seconds > 15 || b.heart_rate <= 40 || b.speed_mps <= 0) continue;
+            if (b.elapsed_seconds - a.elapsed_seconds > 15 || b.heart_rate === null || b.speed_mps === null || b.heart_rate <= 40 || b.speed_mps <= 0) continue;
             for (let half = 0; half < 2; half++) {
               const from = Math.max(a.elapsed_seconds, half === 0 ? steadyStart : midpoint);
               const to = Math.min(b.elapsed_seconds, half === 0 ? midpoint : inv.start_seconds + durToTake);
@@ -407,8 +471,8 @@ export function evaluateThresholdUpdate(
             if (secondEf < firstEf * 0.95) withinRepDrift = true;
           }
           const repAvgHr = hrRecs.length > 0
-            ? hrRecs.reduce((s, r) => s + r.heart_rate, 0) / hrRecs.length
-            : inv.avg_heart_rate;
+            ? hrRecs.reduce((s, r) => s + r.heart_rate!, 0) / hrRecs.length
+            : (inv.avg_heart_rate ?? 0);
 
           evalDur += durToTake;
           evalDist += repAvgSpeed * durToTake;
@@ -419,8 +483,8 @@ export function evaluateThresholdUpdate(
             ? Math.min(5, 0.5 * avgRestDrop * (Math.min(120, avgRestDrop * 1.8) / inv.duration_seconds))
             : 0;
           evalDur += durToTake;
-          evalDist += (durToTake / (inv.duration_seconds || 1)) * inv.distance_meters;
-          evalHrWeighted += (inv.avg_heart_rate + hrComp) * durToTake;
+          evalDist += (durToTake / (inv.duration_seconds || 1)) * (inv.distance_meters ?? 0);
+          evalHrWeighted += ((inv.avg_heart_rate ?? 0) + hrComp) * durToTake;
         }
         if (durToTake >= 300) {
           workEfficiencies.push((evalDist - previousDistance) * 60 / (evalHrWeighted - previousHrTime));
@@ -501,8 +565,9 @@ export function evaluateThresholdUpdate(
       AND start_time >= datetime(?, '-30 days')
       AND start_time <= datetime(?)
   `);
-  const row = past30DaysQuery.get(runDate, runDate) as { avg_ef: number | null } | undefined;
-  const baselineEconomyEf = row?.avg_ef ? Number(row.avg_ef.toFixed(4)) : economy.efficiencyFactor;
+  const rowValue: unknown = past30DaysQuery.get(runDate, runDate);
+  const avgEf = rowValue == null ? null : dbNumber(dbRow(rowValue, 'activities aggregate'), 'avg_ef', 'activities aggregate', true);
+  const baselineEconomyEf = avgEf ? Number(avgEf.toFixed(4)) : economy.efficiencyFactor;
 
   // 4. Save to physiological_thresholds if new candidate detected
   const isLt2Candidate = runType === 'threshold_lt2' && estimatedLt2Pace !== null;
@@ -552,13 +617,13 @@ export function evaluateThresholdUpdate(
     try {
       const rolling = computeRollingThresholds(db, runDate);
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: Array<string | number> = [];
       if (rolling.lt1Hr) {
         updates.push('lt1_hr = ?');
         params.push(rolling.lt1Hr);
         // Preserve an explicitly configured working range when present. The
         // range is intentionally steadier than the rolling point estimate.
-        const range = db.prepare("SELECT lt1_min_hr, lt1_max_hr FROM athlete_profile WHERE id = 'primary'").get() as { lt1_min_hr?: number | null; lt1_max_hr?: number | null } | undefined;
+        const range = profileRange(db.prepare("SELECT lt1_min_hr, lt1_max_hr FROM athlete_profile WHERE id = 'primary'").get());
         const minHr = range?.lt1_min_hr ?? rolling.lt1Hr - 1;
         const maxHr = range?.lt1_max_hr ?? rolling.lt1Hr + 1;
         updates.push('z3_start_hr = ?');
@@ -612,9 +677,9 @@ export function computeRollingThresholds(
 } {
   const refDateStr = asOfDate || new Date().toISOString();
   // 1. Fetch recent LT1 calibrations (up to 5 in last 45 days, or last 3 if none in 45 days)
-  let lt1Rows: any[] = [];
+  let lt1Rows: ThresholdObservation[] = [];
   try {
-    lt1Rows = db.prepare(`
+    lt1Rows = thresholdObservations(db.prepare(`
       SELECT lt1_hr as hr, lt1_pace_sec_km as pace, confidence, effective_date
       FROM physiological_thresholds
       WHERE lt1_hr IS NOT NULL
@@ -622,24 +687,24 @@ export function computeRollingThresholds(
         AND julianday(effective_date) >= julianday(?, '-45 days')
       ORDER BY julianday(effective_date) DESC, id DESC
       LIMIT 5
-    `).all(refDateStr, refDateStr) as any[];
+    `).all(refDateStr, refDateStr), 'physiological_thresholds');
 
     if (lt1Rows.length === 0) {
-      lt1Rows = db.prepare(`
+      lt1Rows = thresholdObservations(db.prepare(`
         SELECT lt1_hr as hr, lt1_pace_sec_km as pace, confidence, effective_date
         FROM physiological_thresholds
         WHERE lt1_hr IS NOT NULL
           AND julianday(effective_date) <= julianday(?)
         ORDER BY julianday(effective_date) DESC, id DESC
         LIMIT 3
-      `).all(refDateStr) as any[];
+      `).all(refDateStr), 'physiological_thresholds');
     }
   } catch { /* optional query: schema may predate this table */ }
 
   // 2. Fetch recent LT2 calibrations (up to 5 in last 45 days, or last 3 if none in 45 days)
-  let lt2Rows: any[] = [];
+  let lt2Rows: ThresholdObservation[] = [];
   try {
-    lt2Rows = db.prepare(`
+    lt2Rows = thresholdObservations(db.prepare(`
       SELECT lt2_hr as hr, lt2_pace_sec_km as pace, confidence, effective_date
       FROM physiological_thresholds
       WHERE lt2_hr IS NOT NULL
@@ -647,17 +712,17 @@ export function computeRollingThresholds(
         AND julianday(effective_date) >= julianday(?, '-45 days')
       ORDER BY julianday(effective_date) DESC, id DESC
       LIMIT 5
-    `).all(refDateStr, refDateStr) as any[];
+    `).all(refDateStr, refDateStr), 'physiological_thresholds');
 
     if (lt2Rows.length === 0) {
-      lt2Rows = db.prepare(`
+      lt2Rows = thresholdObservations(db.prepare(`
         SELECT lt2_hr as hr, lt2_pace_sec_km as pace, confidence, effective_date
         FROM physiological_thresholds
         WHERE lt2_hr IS NOT NULL
           AND julianday(effective_date) <= julianday(?)
         ORDER BY julianday(effective_date) DESC, id DESC
         LIMIT 3
-      `).all(refDateStr) as any[];
+      `).all(refDateStr), 'physiological_thresholds');
     }
   } catch { /* optional query: schema may predate this table */ }
 
@@ -683,27 +748,29 @@ export function computeRollingThresholds(
  */
 export function getLatestBaselineEconomyEf(db: Database.Database): number | null {
   try {
-    const lt1Row = db.prepare(`
+    const lt1Value: unknown = db.prepare(`
       SELECT baseline_economy_ef
       FROM physiological_thresholds
       WHERE baseline_economy_ef IS NOT NULL AND lt1_hr IS NOT NULL
       ORDER BY effective_date DESC, id DESC
       LIMIT 1
-    `).get() as { baseline_economy_ef: number } | undefined;
+    `).get();
+    const lt1Ef = lt1Value == null ? null : dbNumber(dbRow(lt1Value, 'physiological_thresholds'), 'baseline_economy_ef', 'physiological_thresholds', true);
 
-    if (lt1Row?.baseline_economy_ef != null) {
-      return Number(lt1Row.baseline_economy_ef);
+    if (lt1Ef != null) {
+      return lt1Ef;
     }
 
-    const anyRow = db.prepare(`
+    const anyValue: unknown = db.prepare(`
       SELECT baseline_economy_ef
       FROM physiological_thresholds
       WHERE baseline_economy_ef IS NOT NULL
       ORDER BY effective_date DESC, id DESC
       LIMIT 1
-    `).get() as { baseline_economy_ef: number } | undefined;
+    `).get();
+    const anyEf = anyValue == null ? null : dbNumber(dbRow(anyValue, 'physiological_thresholds'), 'baseline_economy_ef', 'physiological_thresholds', true);
 
-    return anyRow?.baseline_economy_ef != null ? Number(anyRow.baseline_economy_ef) : null;
+    return anyEf;
   } catch {
     return null;
   }
@@ -722,7 +789,7 @@ export function getCurrentThresholds(db: Database.Database): {
 } {
   try {
     const profile = getAthleteHeartRateProfile(db);
-    const profileRange = db.prepare("SELECT lt1_min_hr, lt1_max_hr FROM athlete_profile WHERE id = 'primary'").get() as { lt1_min_hr?: number | null; lt1_max_hr?: number | null } | undefined;
+    const profileRangeRow = profileRange(db.prepare("SELECT lt1_min_hr, lt1_max_hr FROM athlete_profile WHERE id = 'primary'").get());
     const rolling = computeRollingThresholds(db);
     const { lt1Hr, lt2Hr } = resolveHeartRateProfile({ ...profile,
       lt1Hr: rolling.lt1Hr ?? profile.lt1Hr, lt2Hr: rolling.lt2Hr ?? profile.lt2Hr });
@@ -733,9 +800,9 @@ export function getCurrentThresholds(db: Database.Database): {
       : 0.5;
 
     const latestDate = rolling.lastLt2Date || rolling.lastLt1Date || null;
-    const storedRange = profileRange?.lt1_min_hr != null && profileRange?.lt1_max_hr != null
-      && profileRange.lt1_min_hr <= profileRange.lt1_max_hr
-      ? [profileRange.lt1_min_hr, profileRange.lt1_max_hr] as [number, number]
+    const storedRange = profileRangeRow?.lt1_min_hr != null && profileRangeRow?.lt1_max_hr != null
+      && profileRangeRow.lt1_min_hr <= profileRangeRow.lt1_max_hr
+      ? [profileRangeRow.lt1_min_hr, profileRangeRow.lt1_max_hr] as [number, number]
       : [lt1Hr - 1, lt1Hr + 1] as [number, number];
 
     return {

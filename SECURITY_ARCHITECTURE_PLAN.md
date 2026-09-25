@@ -84,35 +84,43 @@ This plan separates protections already implemented from the remaining architect
 
 ## Progress log
 
-Current working tree, verified together: `npx tsc --noEmit` 0 errors,
+Earlier foundation verification: `npx tsc --noEmit` 0 errors,
 `npm run lint -- --quiet` 0 errors (warnings remain in the tracked backlog),
-`npm test` 69 files / 482 tests green, `npm run i18n:unused` reports all 635
-dictionary keys referenced. Both smoke modes pass against real backends:
+`npm test` 69 files / 482 tests green, and `npm run i18n:unused` reported all
+635 dictionary keys referenced at that time. Both smoke modes passed against
+real backends during that earlier delivery:
 `node scripts/smoke-packaged.js --dev` (tsx development entry) and
 `npm run smoke:packaged` (bundled `dist-backend/server.cjs`).
 
 | Item | Status | Evidence |
 | --- | --- | --- |
-| 1. Explicit, recoverable migrations | Mostly done | `src/backend/db/migrations.ts`: named checkpoints in `schema_migrations`, one transaction per migration, a `VACUUM INTO` safety snapshot before the first data-rewriting change, and `user_version >= 1` preserved as the legacy marker; `tests/unit/migrations.test.ts`. Remaining: the idempotent `ALTER TABLE` column additions still live inline in `src/backend/db/client.ts` and re-run on every open instead of being checkpointed. |
+| 1. Explicit, recoverable migrations | Done | `src/backend/db/migrations.ts` checkpoints named migrations in `schema_migrations`, wraps each in a transaction, snapshots before data rewrites, and preserves `user_version >= 1` as the legacy marker. `src/backend/db/client.ts` now runs essential column additions and the legacy `notes` removal under the `schema-columns-v1` checkpoint. `tests/unit/migrations.test.ts` verifies migration rollback/retry and that legacy schema additions are applied once and survive reopen. |
 | 2. Storage service apart from routes | Done | `src/backend/db/storage.ts` owns snapshot, validate, copy and restore plus the one-operation-at-a-time guard; `src/backend/routes/database.ts` keeps input validation and stable error codes (`INVALID_DATABASE`, `INVALID_FOLDER`, `LOCATION_CHANGED`, `DATABASE_PATH_OVERRIDE`) that `DatabaseLocation.tsx` maps to dictionary copy; `tests/integration/database-location.test.ts`, `tests/integration/database-backup.test.ts`. |
 | 3. Derived work off the request path | Done | `src/backend/jobs/maintenance.ts` runs one worker at a time, queues a profile recompute rather than starting a second writer, and persists status to `maintenance-status.json` (a stale `running` reads back as `interrupted`, so the next launch retries); schema setup stays synchronous in `getDatabase()` behind `AEROLAB_DEFER_MIGRATIONS=1`; `GET /api/system/maintenance` and the `DatabaseLocation` progress copy surface it; the development entry bundles the worker on startup so `.ts` imports resolve inside worker threads. |
-| 4. Typed domain and API boundaries | In progress | `src/backend/services/{activity,profile,thresholds}-service.ts` now own the queries and physiological calculations; their routes no longer import `physiology/*`. All frontend API calls go through `src/frontend/api/client.ts`, with coded errors resolved through bilingual copy. Shared response shapes and focused client/service tests cover these slices. FIT decoded messages now have numeric fields and reject invalid or missing start timestamps. Remaining: replace loose database-row `any` values with validated row conversions, and tighten service request inputs and result mappings before declaring the boundary fully typed. |
+| 4. Typed domain and API boundaries | Done | Service request inputs and mappings are validated. `src/backend/db/rows.ts` converts activity, progress, volume, heart-rate, telemetry, profile, and persisted coach-summary rows. Progress and volume services, coach-summary synchronization, threshold history/tracker queries, and activity detail now validate SQLite values before calculations or API responses. Focused tests cover malformed rows in migration, progress, volume, coach-summary, and threshold paths. |
 | 5. Weather provenance | Done | `activities.weather_source` records Open-Meteo fetches; `verifiedAmbientTemperature()` keeps unknown legacy rows out of heat scoring; `ActivityWeatherCard` renders verified ambient, device-only, both and unverified-stored states from dictionary copy; `tests/unit/weather-provenance.test.ts` and `tests/ui/weather-card.test.tsx` cover device-only, ambient-only, both, neither and the legacy unverified row; import and startup still make no weather request. |
 | 6. Docs and release alignment | Done | README documents the Settings database-location flow, per-build preferences, `npm run db:location`, the 5-snapshot rotation and the 256 MB restore limit; `AGENTS.md` no longer claims `data/runs.db` is the only location; `scripts/smoke-packaged.js` launches the built backend with a temporary profile and database, asserts session gating (401, then a bootstrap cookie), the opened database path, the startup and profile maintenance jobs, absent developer routes in production, and a clean shutdown. |
 
-Next delivery step: finish item 4's ingestion and database-row typing. The
-database storage service is already in `src/backend/db/storage.ts`; the route
-and frontend client migrations are complete.
+Latest delivery step: complete item 1's checkpointed column migration and
+item 4's requested row-boundary conversions. The database storage service is
+already in `src/backend/db/storage.ts`; the route and frontend client
+migrations are complete.
 
-Latest item 4 progress: activity list/detail/update and profile read/update now
-validate their core SQLite rows through `src/backend/db/rows.ts`; profile and
-activity PATCH bodies reject unknown or malformed fields before service calls.
-Missing activity updates return `ERR_ACTIVITY_NOT_FOUND`, and the new input
-codes resolve through both UI dictionaries. CSV metadata rejects invalid dates
-and non-finite or negative summary metrics before persistence. Focused boundary
-tests cover malformed rows, requests, and CSV metadata. The remaining row casts
-in progress, volume, coach summary, and threshold queries still need typed
-conversions before item 4 can be marked complete.
+Latest item 4 progress: activity list/detail/update and profile read/update
+validate core rows through `src/backend/db/rows.ts`; profile and activity PATCH
+bodies reject unknown or malformed fields before service calls. Missing
+activity updates return `ERR_ACTIVITY_NOT_FOUND`, and the input codes resolve
+through both UI dictionaries. CSV metadata rejects invalid dates and
+non-finite or negative summary metrics before persistence. Progress, volume,
+coach-summary, and threshold queries now validate returned SQLite values
+before aggregation, persisted-summary mapping, and threshold calculations.
+
+Verification for this delivery (2026-09-25): `npx tsc --noEmit` passes;
+focused tests passed (7 files / 49 tests, covering migrations, row converters,
+progress, volume, coach summaries, and thresholds); `npm run i18n:unused`
+reports all 651 dictionary keys referenced. `npm run lint` passed with zero
+errors; warnings remain a tracked backlog. The full test suite and packaged
+smoke modes were not rerun for this delivery.
 
 ## Delivery gates
 

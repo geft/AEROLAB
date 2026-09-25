@@ -247,7 +247,7 @@ export interface ThresholdsResponse {
   zones?: Record<string, [number, number]> | null;
   predictions: Array<{
     distanceName: string;
-    predictedTimeSeconds: number;
+    timeSeconds: number;
     predictedPaceSecKm?: number;
     timeFormatted?: string;
     paceFormatted?: string;

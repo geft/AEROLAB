@@ -23,7 +23,8 @@ describe('StatsView UI Tests', () => {
       z4: [167, 188],
       z5: [189, 203]
     },
-    history: []
+    history: [],
+    predictions: [{ distanceName: '5K', timeSeconds: 1305, timeFormatted: '21:45', paceFormatted: '4:21/km' }]
   };
 
   const mockProgressHistory = {
@@ -75,6 +76,9 @@ describe('StatsView UI Tests', () => {
             ok: true,
             json: () => Promise.resolve(mockVolumeMonth)
           });
+        }
+        if (url.includes('/api/profile')) {
+          return Promise.resolve({ ok: true, json: () => Promise.resolve({ profile: { age: 40, gender: 'Male' } }) });
         }
         return Promise.reject(new Error(`Unhandled fetch url: ${url}`));
       })
@@ -192,5 +196,20 @@ describe('StatsView UI Tests', () => {
     await waitFor(() => {
       expect(screen.queryByText('Aerobic Turnpoint Margin Guide')).toBeNull();
     });
+  });
+
+  it('opens a compact demographic benchmark popup on hover', async () => {
+    render(<StatsView />);
+    const button = await screen.findByRole('button', { name: 'Compare 5K with peers' });
+    fireEvent.mouseEnter(button);
+    await waitFor(() => {
+      expect(screen.getByText('Male · age 40')).toBeDefined();
+      expect(screen.getByText(/Estimated race time: 21:45 · Intermediate tier/)).toBeDefined();
+      expect(screen.getByText(/50–80% of peers would be slower/)).toBeDefined();
+      expect(screen.getByText('Approximate race time ranges by tier:')).toBeDefined();
+      expect(screen.getByText(/benchmarks add no weather adjustment/i)).toBeDefined();
+    });
+    fireEvent.mouseLeave(button);
+    await waitFor(() => expect(screen.queryByText('Male · age 40')).toBeNull());
   });
 });

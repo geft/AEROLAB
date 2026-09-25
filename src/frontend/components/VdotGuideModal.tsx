@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Award, Zap, CheckCircle } from 'lucide-react';
+import { X, Award, Zap, CheckCircle, Target } from 'lucide-react';
 import { formatPace } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 
@@ -39,7 +39,8 @@ export const VdotGuideModal: React.FC<VdotGuideModalProps> = ({
       equivHalf: '1:55:00 – 2:21:00',
       equivMarathon: '3:58:00 – 4:51:00',
       badgeColor: '#64748b',
-      isCurrent: currentVdot != null && currentVdot >= 35 && currentVdot < 45
+      isCurrent: currentVdot != null && currentVdot >= 35 && currentVdot < 45,
+      isTarget: false
     },
     {
       range: '45 – 54',
@@ -48,7 +49,8 @@ export const VdotGuideModal: React.FC<VdotGuideModalProps> = ({
       equivHalf: '1:36:00 – 1:54:00',
       equivMarathon: '3:20:00 – 3:56:00',
       badgeColor: '#06b6d4',
-      isCurrent: currentVdot != null && currentVdot >= 45 && currentVdot < 55
+      isCurrent: currentVdot != null && currentVdot >= 45 && currentVdot < 55,
+      isTarget: currentVdot != null && currentVdot >= 35 && currentVdot < 45
     },
     {
       range: '55 – 64',
@@ -57,7 +59,8 @@ export const VdotGuideModal: React.FC<VdotGuideModalProps> = ({
       equivHalf: '1:21:00 – 1:35:00',
       equivMarathon: '2:50:00 – 3:19:00',
       badgeColor: '#10b981',
-      isCurrent: currentVdot != null && currentVdot >= 55 && currentVdot < 65
+      isCurrent: currentVdot != null && currentVdot >= 55 && currentVdot < 65,
+      isTarget: currentVdot != null && currentVdot >= 45 && currentVdot < 55
     },
     {
       range: '65 – 74',
@@ -66,7 +69,8 @@ export const VdotGuideModal: React.FC<VdotGuideModalProps> = ({
       equivHalf: '1:10:00 – 1:20:00',
       equivMarathon: '2:27:00 – 2:49:00',
       badgeColor: '#f59e0b',
-      isCurrent: currentVdot != null && currentVdot >= 65 && currentVdot < 75
+      isCurrent: currentVdot != null && currentVdot >= 65 && currentVdot < 75,
+      isTarget: currentVdot != null && currentVdot >= 55 && currentVdot < 65
     },
     {
       range: '75 – 85+',
@@ -75,7 +79,8 @@ export const VdotGuideModal: React.FC<VdotGuideModalProps> = ({
       equivHalf: t.vdotGuide.equivSub108,
       equivMarathon: t.vdotGuide.equivSub224,
       badgeColor: '#8b5cf6',
-      isCurrent: currentVdot != null && currentVdot >= 75 && currentVdot < 100
+      isCurrent: currentVdot != null && currentVdot >= 75 && currentVdot < 100,
+      isTarget: currentVdot != null && currentVdot >= 65 && currentVdot < 75
     }
   ];
 
@@ -130,7 +135,7 @@ export const VdotGuideModal: React.FC<VdotGuideModalProps> = ({
               {tiers.map(tier => (
                 <div
                   key={tier.range}
-                  className={`economy-tier-card ${tier.isCurrent ? 'tier-current' : ''}`}
+                  className={`economy-tier-card ${tier.isCurrent ? 'tier-current' : ''} ${tier.isTarget ? 'tier-target' : ''}`}
                   style={tier.isCurrent ? { borderColor: 'rgba(139, 92, 246, 0.5)', background: 'rgba(139, 92, 246, 0.06)' } : {}}
                 >
                   <div className="tier-header">
@@ -143,11 +148,18 @@ export const VdotGuideModal: React.FC<VdotGuideModalProps> = ({
                       </span>
                     </div>
 
-                    {tier.isCurrent && (
-                      <span className="tier-tag current" style={{ borderColor: 'rgba(139, 92, 246, 0.4)', background: 'rgba(139, 92, 246, 0.15)', color: '#c084fc' }}>
-                        <CheckCircle size={11} style={{ marginRight: 3 }} /> {t.vdotGuide.yourCurrentLevel} ({currentVdot ?? '—'})
-                      </span>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      {tier.isCurrent && (
+                        <span className="tier-tag current" style={{ borderColor: 'rgba(139, 92, 246, 0.4)', background: 'rgba(139, 92, 246, 0.15)', color: '#c084fc' }}>
+                          <CheckCircle size={11} style={{ marginRight: 3 }} /> {t.vdotGuide.yourCurrentLevel} ({currentVdot ?? '—'})
+                        </span>
+                      )}
+                      {tier.isTarget && (
+                        <span className="tier-tag target">
+                          <Target size={11} style={{ marginRight: 3 }} /> {t.economyGuide.nextTarget}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="tier-desc" style={{ marginTop: '0.35rem', color: 'var(--text-secondary)' }}>

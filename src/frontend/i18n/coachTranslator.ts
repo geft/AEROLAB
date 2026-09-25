@@ -299,7 +299,7 @@ export function translateCoachInsight(insight: string, lang: string): string {
   if (insight.startsWith('Aerobic Intensity Discipline:')) {
     return insight.replace(
       /^Aerobic Intensity Discipline: only ([\d.]+)% of your running time sat above the (\d+) bpm LT1 ceiling \(([\d.]+)% of it in the first half\), so this stayed an aerobic session throughout\..*$/,
-      '有氧强度纪律：跑动时间中仅 $1% 超过 $2 bpm 的 LT1 上限（其中 $3% 出现在前半程），因此全程都保持在有氧区间。这种控制——而不是配速——正是轻松跑的目的。'
+      '有氧强度纪律：跑动时间中仅 $1% 超过 $2 bpm 的 LT1 上限（其中 $3% 出现在前半程），因此全程都保持在有氧区间。轻松跑的目的就是保持轻松，不必追求特定配速。'
     );
   }
 

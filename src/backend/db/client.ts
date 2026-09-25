@@ -75,78 +75,43 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
   const migrations = createMigrationRunner(db);
   const deferDerivedMigrations = process.env.AEROLAB_DEFER_MIGRATIONS === '1';
 
-  // Ensure new columns exist
-  try {
-    const cols = db.prepare("PRAGMA table_info(activities)").all() as Array<{ name: string }>;
-    const colNames = new Set(cols.map(c => c.name));
-    if (!colNames.has('steady_pace_sec_km')) db.exec("ALTER TABLE activities ADD COLUMN steady_pace_sec_km REAL");
-    if (!colNames.has('steady_heart_rate')) db.exec("ALTER TABLE activities ADD COLUMN steady_heart_rate INTEGER");
-    if (!colNames.has('steady_cadence')) db.exec("ALTER TABLE activities ADD COLUMN steady_cadence INTEGER");
-    if (!colNames.has('steady_stance_time')) db.exec("ALTER TABLE activities ADD COLUMN steady_stance_time REAL");
-    if (!colNames.has('pause_duration_seconds')) db.exec("ALTER TABLE activities ADD COLUMN pause_duration_seconds REAL DEFAULT 0");
-    if (!colNames.has('walk_duration_seconds')) db.exec("ALTER TABLE activities ADD COLUMN walk_duration_seconds REAL DEFAULT 0");
-    if (!colNames.has('walk_distance_meters')) db.exec("ALTER TABLE activities ADD COLUMN walk_distance_meters REAL DEFAULT 0");
-    if (!colNames.has('weather_temperature_c')) db.exec("ALTER TABLE activities ADD COLUMN weather_temperature_c REAL");
-    if (!colNames.has('weather_humidity_pct')) db.exec("ALTER TABLE activities ADD COLUMN weather_humidity_pct INTEGER");
-    if (!colNames.has('weather_apparent_temp_c')) db.exec("ALTER TABLE activities ADD COLUMN weather_apparent_temp_c REAL");
-    if (!colNames.has('weather_condition')) db.exec("ALTER TABLE activities ADD COLUMN weather_condition TEXT");
-    if (!colNames.has('weather_code')) db.exec("ALTER TABLE activities ADD COLUMN weather_code INTEGER");
-    if (!colNames.has('weather_fetched_at')) db.exec("ALTER TABLE activities ADD COLUMN weather_fetched_at TEXT");
-    if (!colNames.has('weather_source')) db.exec("ALTER TABLE activities ADD COLUMN weather_source TEXT");
-    if (!colNames.has('training_load')) db.exec("ALTER TABLE activities ADD COLUMN training_load REAL");
-    if (!colNames.has('z1_seconds')) db.exec("ALTER TABLE activities ADD COLUMN z1_seconds INTEGER DEFAULT 0");
-    if (!colNames.has('z2_seconds')) db.exec("ALTER TABLE activities ADD COLUMN z2_seconds INTEGER DEFAULT 0");
-    if (!colNames.has('z3_seconds')) db.exec("ALTER TABLE activities ADD COLUMN z3_seconds INTEGER DEFAULT 0");
-    if (!colNames.has('z4_seconds')) db.exec("ALTER TABLE activities ADD COLUMN z4_seconds INTEGER DEFAULT 0");
-    if (!colNames.has('z5_seconds')) db.exec("ALTER TABLE activities ADD COLUMN z5_seconds INTEGER DEFAULT 0");
-
-    // Notes were removed as a feature, so drop the column rather than leave a
-    // write-only field that nothing displays.
-    if (colNames.has('notes')) db.exec('ALTER TABLE activities DROP COLUMN notes');
-  } catch (err) {
-    // Non-fatal if table not created yet
-  }
-
-  // Ensure activity_intervals columns exist (CREATE TABLE IF NOT EXISTS won't add new columns)
-  try {
-    const intCols = db.prepare("PRAGMA table_info(activity_intervals)").all() as Array<{ name: string }>;
-    const intColNames = new Set(intCols.map(c => c.name));
-    if (!intColNames.has('peak_cadence')) db.exec("ALTER TABLE activity_intervals ADD COLUMN peak_cadence INTEGER");
-    if (!intColNames.has('peak_speed_mps')) db.exec("ALTER TABLE activity_intervals ADD COLUMN peak_speed_mps REAL");
-    if (!intColNames.has('peak_pace_sec_km')) db.exec("ALTER TABLE activity_intervals ADD COLUMN peak_pace_sec_km REAL");
-    if (!intColNames.has('min_stance_time')) db.exec("ALTER TABLE activity_intervals ADD COLUMN min_stance_time REAL");
-    if (!intColNames.has('hr_drop')) db.exec("ALTER TABLE activity_intervals ADD COLUMN hr_drop INTEGER");
-    if (!intColNames.has('avg_vert_osc')) db.exec("ALTER TABLE activity_intervals ADD COLUMN avg_vert_osc REAL");
-    if (!intColNames.has('avg_stance_time')) db.exec("ALTER TABLE activity_intervals ADD COLUMN avg_stance_time REAL");
-    if (!intColNames.has('avg_step_length')) db.exec("ALTER TABLE activity_intervals ADD COLUMN avg_step_length REAL");
-    if (!intColNames.has('avg_stride_length')) db.exec("ALTER TABLE activity_intervals ADD COLUMN avg_stride_length REAL");
-    if (!intColNames.has('avg_vert_ratio')) db.exec("ALTER TABLE activity_intervals ADD COLUMN avg_vert_ratio REAL");
-  } catch (err) {
-    // Non-fatal if table not created yet
-  }
-
-  // Ensure activity_splits biomechanics columns exist
-  try {
-    const splitCols = db.prepare("PRAGMA table_info(activity_splits)").all() as Array<{ name: string }>;
-    const splitColNames = new Set(splitCols.map(c => c.name));
-    if (!splitColNames.has('avg_cadence')) db.exec("ALTER TABLE activity_splits ADD COLUMN avg_cadence INTEGER");
-    if (!splitColNames.has('avg_stance_time')) db.exec("ALTER TABLE activity_splits ADD COLUMN avg_stance_time REAL");
-    if (!splitColNames.has('avg_vert_osc')) db.exec("ALTER TABLE activity_splits ADD COLUMN avg_vert_osc REAL");
-    if (!splitColNames.has('avg_vert_ratio')) db.exec("ALTER TABLE activity_splits ADD COLUMN avg_vert_ratio REAL");
-  } catch (err) {
-    // Non-fatal if table not created yet
-  }
-
-  // Ensure athlete_profile columns exist
-  try {
-    const profCols = db.prepare("PRAGMA table_info(athlete_profile)").all() as Array<{ name: string }>;
-    const profColNames = new Set(profCols.map(c => c.name));
-    if (!profColNames.has('is_configured')) db.exec("ALTER TABLE athlete_profile ADD COLUMN is_configured INTEGER DEFAULT 0");
-    if (!profColNames.has('gender')) db.exec("ALTER TABLE athlete_profile ADD COLUMN gender TEXT DEFAULT 'Prefer not to say'");
-    if (!profColNames.has('is_max_hr_estimated')) db.exec("ALTER TABLE athlete_profile ADD COLUMN is_max_hr_estimated INTEGER DEFAULT 0");
-  } catch (err) {
-    // Non-fatal
-  }
+  // Essential schema upgrades are checkpointed separately from derived-data work.
+  migrations.run('schema-columns-v1', () => {
+    const addMissing = (table: string, columns: Array<[string, string]>): void => {
+      const existing = new Set((db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map(column => column.name));
+      for (const [name, definition] of columns) {
+        if (!existing.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
+      }
+    };
+    addMissing('activities', [
+      ['steady_pace_sec_km', 'REAL'], ['steady_heart_rate', 'INTEGER'], ['steady_cadence', 'INTEGER'],
+      ['steady_stance_time', 'REAL'], ['pause_duration_seconds', 'REAL DEFAULT 0'],
+      ['walk_duration_seconds', 'REAL DEFAULT 0'], ['walk_distance_meters', 'REAL DEFAULT 0'],
+      ['weather_temperature_c', 'REAL'], ['weather_humidity_pct', 'INTEGER'], ['weather_apparent_temp_c', 'REAL'],
+      ['weather_condition', 'TEXT'], ['weather_code', 'INTEGER'], ['weather_fetched_at', 'TEXT'],
+      ['weather_source', 'TEXT'], ['training_load', 'REAL'], ['z1_seconds', 'INTEGER DEFAULT 0'],
+      ['z2_seconds', 'INTEGER DEFAULT 0'], ['z3_seconds', 'INTEGER DEFAULT 0'],
+      ['z4_seconds', 'INTEGER DEFAULT 0'], ['z5_seconds', 'INTEGER DEFAULT 0']
+    ]);
+    addMissing('activity_intervals', [
+      ['peak_cadence', 'INTEGER'], ['peak_speed_mps', 'REAL'], ['peak_pace_sec_km', 'REAL'],
+      ['min_stance_time', 'REAL'], ['hr_drop', 'INTEGER'], ['avg_vert_osc', 'REAL'],
+      ['avg_stance_time', 'REAL'], ['avg_step_length', 'REAL'], ['avg_stride_length', 'REAL'], ['avg_vert_ratio', 'REAL']
+    ]);
+    addMissing('activity_splits', [
+      ['avg_cadence', 'INTEGER'], ['avg_stance_time', 'REAL'], ['avg_vert_osc', 'REAL'], ['avg_vert_ratio', 'REAL']
+    ]);
+    addMissing('athlete_profile', [
+      ['is_configured', 'INTEGER DEFAULT 0'], ['gender', "TEXT DEFAULT 'Prefer not to say'"],
+      ['is_max_hr_estimated', 'INTEGER DEFAULT 0'], ['lt1_hr', 'INTEGER'], ['lt2_hr', 'INTEGER'],
+      ['lt1_min_hr', 'INTEGER'], ['lt1_max_hr', 'INTEGER'], ['name', "TEXT DEFAULT 'Runner'"]
+    ]);
+    addMissing('activity_coach_summaries', [
+      ['score_breakdown_json', 'TEXT'], ['analysis_json', 'TEXT'], ['insight_tones_json', 'TEXT']
+    ]);
+    const activityColumns = new Set((db.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>).map(column => column.name));
+    if (activityColumns.has('notes')) db.exec('ALTER TABLE activities DROP COLUMN notes');
+  });
 
   // Automatic backfill: compute core centroid for any existing runs missing workout coordinates
   if (!deferDerivedMigrations) migrations.run('centroid-v1', () => {
@@ -220,13 +185,6 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
   });
 
   // A fresh profile contains no personal measurements or training history.
-  const profileColumns = db.prepare('PRAGMA table_info(athlete_profile)').all() as Array<{ name: string }>;
-  const profileColumnNames = new Set(profileColumns.map(c => c.name));
-  for (const column of ['lt1_hr', 'lt2_hr', 'lt1_min_hr', 'lt1_max_hr']) {
-    if (!profileColumnNames.has(column)) db.exec(`ALTER TABLE athlete_profile ADD COLUMN ${column} INTEGER`);
-  }
-  if (!profileColumnNames.has('name')) db.exec("ALTER TABLE athlete_profile ADD COLUMN name TEXT DEFAULT 'Runner'");
-  if (!profileColumnNames.has('gender')) db.exec("ALTER TABLE athlete_profile ADD COLUMN gender TEXT DEFAULT 'Prefer not to say'");
   if (!db.prepare("SELECT id FROM athlete_profile WHERE id = 'primary'").get()) {
     // Explicit nulls also override personal DEFAULT clauses in older schemas.
     db.prepare(`INSERT INTO athlete_profile (id, age, dob, height_cm, weight_kg, resting_hr, max_hr,
@@ -259,23 +217,6 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
       );
       CREATE INDEX IF NOT EXISTS idx_coach_summaries_activity ON activity_coach_summaries(activity_id);
     `);
-
-    // Ensure score_breakdown_json exists on older databases
-    const coachCols = db.prepare("PRAGMA table_info(activity_coach_summaries)").all() as Array<{ name: string }>;
-    const coachColNames = new Set(coachCols.map(c => c.name));
-    if (!coachColNames.has('score_breakdown_json')) {
-      db.exec("ALTER TABLE activity_coach_summaries ADD COLUMN score_breakdown_json TEXT");
-    }
-    // Persisted personal-baseline analysis (context, focus lever, rubric coverage)
-    if (!coachColNames.has('analysis_json')) {
-      db.exec("ALTER TABLE activity_coach_summaries ADD COLUMN analysis_json TEXT");
-    }
-    // Per-insight verdicts ('positive' | 'caution' | 'negative' | 'neutral') that
-    // let the debrief list be colour-coded at a glance. Older rows stay NULL and
-    // are upgraded the next time their summary is synced.
-    if (!coachColNames.has('insight_tones_json')) {
-      db.exec("ALTER TABLE activity_coach_summaries ADD COLUMN insight_tones_json TEXT");
-    }
 
     // Backfill any existing activities not yet in activity_coach_summaries
     const unsummarized = deferDerivedMigrations ? [] : db.prepare(`

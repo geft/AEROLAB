@@ -1898,6 +1898,90 @@ body {
   color: var(--accent-cyan);
 }
 
+.prediction-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.prediction-help-anchor {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.prediction-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.prediction-help:hover,
+.prediction-help:focus-visible {
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+}
+
+.prediction-benchmark {
+  position: absolute;
+  z-index: 30;
+  top: 100%;
+  right: 0;
+  width: min(18rem, calc(100vw - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.8rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-card);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+@media (min-width: 700px) {
+  .prediction-item:first-child .prediction-benchmark {
+    left: 0;
+    right: auto;
+  }
+}
+
+.prediction-benchmark strong {
+  color: var(--text-primary);
+}
+
+.prediction-benchmark-rows {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.prediction-benchmark-rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.prediction-benchmark-current {
+  color: var(--accent-cyan);
+  font-weight: 700;
+}
+
+.prediction-benchmark-note {
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
 .prediction-time {
   font-family: var(--font-heading);
   font-size: 1.6rem;
@@ -2217,7 +2301,14 @@ body {
   border: 1px solid rgba(16, 185, 129, 0.3);
   margin-top: 0.25rem;
   width: fit-content;
-  white-space: nowrap;
+  max-width: 100%;
+  box-sizing: border-box;
+  white-space: normal;
+  line-height: 1.3;
+}
+
+.threshold-marker-badge > svg {
+  flex: 0 0 auto;
 }
 
 .threshold-marker-badge.amber {
@@ -2833,11 +2924,20 @@ body {
 }
 
 .tier-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: 0.5rem;
+}
+
+.tier-header > :first-child {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.tier-header > :last-child {
+  min-width: 0;
+  justify-self: end;
 }
 
 .tier-range-badge {
@@ -2850,12 +2950,19 @@ body {
 }
 
 .tier-tag {
+  max-width: 100%;
   font-size: 0.68rem;
   font-weight: 700;
   padding: 0.15rem 0.45rem;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.tier-tag svg {
+  flex: 0 0 auto;
 }
 
 .tier-tag.current {
@@ -2879,6 +2986,161 @@ body {
   font-size: 0.75rem;
   color: var(--text-muted);
   line-height: 1.4;
+}
+
+.turnpoint-tier-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.turnpoint-tier-card {
+  --tier-color: #06b6d4;
+  padding: 0.75rem;
+  border: 1px solid rgba(6, 182, 212, 0.25);
+  border-radius: 8px;
+  background: rgba(6, 182, 212, 0.08);
+}
+
+.turnpoint-tier-card.elite {
+  --tier-color: #10b981;
+  border-color: rgba(16, 185, 129, 0.25);
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.turnpoint-tier-card.well {
+  --tier-color: #06b6d4;
+}
+
+.turnpoint-tier-card.developing {
+  --tier-color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.25);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.turnpoint-tier-card.tier-current {
+  border-width: 2px;
+}
+
+.turnpoint-tier-card.tier-target {
+  border-color: rgba(16, 185, 129, 0.65);
+  box-shadow: inset 3px 0 0 rgba(16, 185, 129, 0.75);
+}
+
+.turnpoint-tier-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(7rem, 9rem);
+  align-items: start;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.turnpoint-tier-title {
+  min-width: 0;
+  color: var(--tier-color);
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.turnpoint-tier-badge {
+  color: var(--tier-color);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.turnpoint-tier-card.tier-target .turnpoint-tier-badge {
+  color: #10b981;
+}
+
+.turnpoint-tier-desc {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.turnpoint-current-card {
+  padding: 0.85rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-surface);
+}
+
+.turnpoint-current-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.turnpoint-current-header h4 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+.turnpoint-current-badge {
+  max-width: 100%;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  border-radius: 999px;
+  background: rgba(6, 182, 212, 0.12);
+  color: #38bdf8;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.turnpoint-current-badge.optimal {
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.turnpoint-current-badge.base {
+  border-color: rgba(245, 158, 11, 0.3);
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+}
+
+.turnpoint-current-value {
+  margin-top: 0.45rem;
+  color: var(--text-primary);
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.turnpoint-current-desc {
+  margin: 0.25rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 520px) {
+  .tier-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tier-header > :last-child {
+    justify-self: start;
+  }
+
+  .turnpoint-tier-header {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.2rem;
+  }
+
+  .turnpoint-tier-badge {
+    text-align: left;
+  }
 }
 
 .economy-gains-banner {

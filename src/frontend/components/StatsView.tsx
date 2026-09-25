@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import type { ThresholdsResponse, VolumeData } from '../types/api.js';
 import { Target, Zap, Calendar, HelpCircle, X } from 'lucide-react';
-import { formatPace } from '../utils/formatters.js';
+import { formatDuration, formatPace } from '../utils/formatters.js';
+import { raceBenchmarkFor, RACE_BENCHMARK_LEVELS } from '../utils/raceBenchmarks.js';
+import { classifyTurnpointMargin, estimateTurnpointGapSeconds } from '../utils/turnpointMargin.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { TrainingLoadCard } from './TrainingLoadCard.js';
 import { BestEffortsCard } from './BestEffortsCard.js';
-import { getProgressHistory, getThresholds, getVolume } from '../api/client.js';
+import { getProfile, getProgressHistory, getThresholds, getVolume } from '../api/client.js';
 
 export const StatsView: React.FC = () => {
   const { t, format } = useTranslation();
@@ -25,6 +27,16 @@ export const StatsView: React.FC = () => {
   const [volumeData, setVolumeData] = useState<VolumeData | null>(null);
   const [loadingVolume, setLoadingVolume] = useState<boolean>(false);
   const [isMarginGuideOpen, setIsMarginGuideOpen] = useState<boolean>(false);
+  const [demographics, setDemographics] = useState<{ age: number | null; gender: string | null } | null>(null);
+  const [openPredictionInfo, setOpenPredictionInfo] = useState<string | null>(null);
+
+  const benchmarkLabels = [
+    t.stats.benchmarkBeginner,
+    t.stats.benchmarkNovice,
+    t.stats.benchmarkIntermediate,
+    t.stats.benchmarkAdvanced,
+    t.stats.benchmarkElite
+  ];
 
   useEffect(() => {
     getThresholds()
@@ -44,6 +56,10 @@ export const StatsView: React.FC = () => {
         }
       })
       .catch(() => {});
+
+    getProfile()
+      .then(response => setDemographics({ age: response.profile?.age ?? null, gender: response.profile?.gender ?? null }))
+      .catch(() => setDemographics(null));
   }, []);
 
   useEffect(() => {
@@ -72,7 +88,17 @@ export const StatsView: React.FC = () => {
 
   const lt1 = data.latest?.lt1;
   const lt2 = data.latest?.lt2;
+  const lt1PaceSecKm = lt1?.lt1_pace_sec_km;
+  const lt2PaceSecKm = lt2?.lt2_pace_sec_km;
   const lt1Hr = data.currentThresholds?.lt1Hr ?? lt1?.lt1_hr ?? '—';
+  const hasTurnpointPaces = lt1PaceSecKm != null && lt2PaceSecKm != null;
+  const estimatedGapSeconds = estimateTurnpointGapSeconds(lt1PaceSecKm);
+  const turnpointGapSeconds = lt1PaceSecKm != null && lt2PaceSecKm != null
+    ? Math.round(lt1PaceSecKm - lt2PaceSecKm)
+    : estimatedGapSeconds;
+  const turnpointIsMeasured = lt1PaceSecKm != null && lt2PaceSecKm != null && !lt2?.is_estimated;
+  const turnpointCategory = turnpointGapSeconds !== null ? classifyTurnpointMargin(turnpointGapSeconds) : null;
+  const turnpointTier = turnpointIsMeasured ? turnpointCategory : null;
 
   const getLocalizedPeriodLabel = (label: string | undefined): string => {
     if (!label) return t.stats.volumeTitle;
@@ -276,13 +302,70 @@ export const StatsView: React.FC = () => {
         </div>
 
         <div className="predictions-grid">
-          {data.predictions?.map((pred: ThresholdsResponse['predictions'][number]) => (
-            <div key={pred.distanceName} className="prediction-item">
-              <span className="prediction-distance">{formatDistanceName(pred.distanceName)}</span>
-              <div className="prediction-time">{pred.timeFormatted}</div>
-              <span className="prediction-pace">{t.stats.predictedPace}: {pred.paceFormatted}</span>
-            </div>
-          ))}
+          {data.predictions?.map((pred: ThresholdsResponse['predictions'][number]) => {
+            const benchmark = raceBenchmarkFor(pred.distanceName, pred.timeSeconds, demographics?.age, demographics?.gender);
+            const infoOpen = openPredictionInfo === pred.distanceName;
+            const levelIndex = RACE_BENCHMARK_LEVELS.indexOf(benchmark?.achievedLevel ?? 'beginner');
+            return (
+              <div key={pred.distanceName} className="prediction-item">
+                <div className="prediction-heading">
+                  <span className="prediction-distance">{formatDistanceName(pred.distanceName)}</span>
+                  <div
+                    className="prediction-help-anchor"
+                    onMouseEnter={() => setOpenPredictionInfo(pred.distanceName)}
+                    onMouseLeave={() => setOpenPredictionInfo(null)}
+                    onFocus={() => setOpenPredictionInfo(pred.distanceName)}
+                    onBlur={event => {
+                      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpenPredictionInfo(null);
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="prediction-help"
+                      aria-label={format(t.stats.predictionCompare, { distance: formatDistanceName(pred.distanceName) })}
+                      aria-expanded={infoOpen}
+                    >
+                      <HelpCircle size={18} />
+                    </button>
+                    {infoOpen && (
+                      <div className="prediction-benchmark" role="tooltip">
+                        {benchmark ? (
+                          <>
+                            <strong>{format(t.stats.predictionGroup, {
+                              age: benchmark.age,
+                              gender: benchmark.sex === 'Male' ? t.stats.predictionMale : t.stats.predictionFemale
+                            })}</strong>
+                            <span>{benchmark.achievedLevel
+                              ? format(t.stats.predictionLevel, {
+                                  time: pred.timeFormatted ?? formatDuration(pred.timeSeconds),
+                                  level: benchmarkLabels[levelIndex] ?? benchmark.achievedLevel,
+                                  low: benchmark.levels[levelIndex].percentileFasterThan,
+                                  high: benchmark.levels[levelIndex + 1]?.percentileFasterThan ?? 100
+                                })
+                              : format(t.stats.predictionBelow, { time: pred.timeFormatted ?? formatDuration(pred.timeSeconds) })}</span>
+                            <strong>{t.stats.predictionTierRanges}</strong>
+                            <div className="prediction-benchmark-rows">
+                              {benchmark.levels.map((row, index) => (
+                                <div key={row.level} className={row.level === benchmark.achievedLevel ? 'prediction-benchmark-current' : ''}>
+                                  <span>{benchmarkLabels[index]}</span>
+                                  <span>{benchmark.levels[index + 1]
+                                    ? `${formatDuration(benchmark.levels[index + 1].timeSeconds)}–${formatDuration(row.timeSeconds)}`
+                                    : format(t.stats.predictionFasterThanCutoff, { time: formatDuration(row.timeSeconds) })}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        ) : <span>{t.stats.predictionProfileNeeded}</span>}
+                        <span className="prediction-benchmark-note">{t.stats.predictionWeatherNote}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="prediction-time">{pred.timeFormatted}</div>
+                <span className="prediction-pace">{t.stats.predictedPace}: {pred.paceFormatted}</span>
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -323,9 +406,9 @@ export const StatsView: React.FC = () => {
 
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem', flexWrap: 'wrap', margin: '0.4rem 0' }}>
             <div className="goal-stat-highlight" style={{ color: '#06b6d4', fontSize: '1.4rem' }}>
-              {lt1 && lt2 && lt1.lt1_pace_sec_km && lt2.lt2_pace_sec_km 
-                ? format(t.stats.gapSeconds, { seconds: Math.round(lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km) })
-                : (lt1?.lt1_pace_sec_km ? format(t.stats.estGapSeconds, { seconds: Math.round(lt1.lt1_pace_sec_km * 0.14) }) : '--')}
+              {turnpointGapSeconds !== null
+                ? format(turnpointIsMeasured ? t.stats.gapSeconds : t.stats.estGapSeconds, { seconds: turnpointGapSeconds })
+                : '--'}
             </div>
             {lt1?.lt1_pace_sec_km && lt2?.lt2_pace_sec_km && (
               <span
@@ -334,15 +417,15 @@ export const StatsView: React.FC = () => {
                   fontWeight: 700,
                   padding: '0.2rem 0.55rem',
                   borderRadius: 6,
-                  color: (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km <= 50) ? '#10b981' : (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km <= 70) ? '#06b6d4' : '#f59e0b',
-                  background: (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km <= 50) ? 'rgba(16, 185, 129, 0.15)' : (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km <= 70) ? 'rgba(6, 182, 212, 0.15)' : 'rgba(245, 158, 11, 0.15)'
+                  color: turnpointCategory === 'optimal' ? '#10b981' : turnpointCategory === 'well' ? '#06b6d4' : '#f59e0b',
+                  background: turnpointCategory === 'optimal' ? 'rgba(16, 185, 129, 0.15)' : turnpointCategory === 'well' ? 'rgba(6, 182, 212, 0.15)' : 'rgba(245, 158, 11, 0.15)'
                 }}
               >
                 {lt2.is_estimated
                   ? t.stats.turnpointEstimatedFromLt1
-                  : (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km <= 50)
+                  : turnpointCategory === 'optimal'
                     ? t.stats.turnpointOptimalAnchor
-                    : (lt1.lt1_pace_sec_km - lt2.lt2_pace_sec_km <= 70)
+                    : turnpointCategory === 'well'
                       ? t.stats.turnpointWellConditioned
                       : t.stats.turnpointBaseOpportunity}
               </span>
@@ -400,37 +483,65 @@ export const StatsView: React.FC = () => {
                 <h4 style={{ color: 'var(--text-primary)', margin: '0 0 0.6rem 0', fontSize: '0.88rem' }}>
                   {t.stats.turnpointStandardsTitle}
                 </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                  <div style={{ padding: '0.75rem', borderRadius: 8, background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-                      <span style={{ fontWeight: 700, fontSize: '0.84rem', color: '#10b981' }}>{t.stats.turnpointTierEliteTitle}</span>
-                      <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 600 }}>{t.stats.turnpointTierEliteBadge}</span>
+                <div className="turnpoint-tier-list">
+                  <div className={`turnpoint-tier-card elite ${turnpointTier === 'optimal' ? 'tier-current' : ''} ${turnpointTier === 'well' ? 'tier-target' : ''}`}>
+                    <div className="turnpoint-tier-header">
+                      <span className="turnpoint-tier-title">{t.stats.turnpointTierEliteTitle}</span>
+                      <span className="turnpoint-tier-badge">{turnpointTier === 'well' ? t.economyGuide.nextTarget : t.stats.turnpointTierEliteBadge}</span>
                     </div>
-                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    <p className="turnpoint-tier-desc">
                       {t.stats.turnpointTierEliteDesc}
                     </p>
                   </div>
 
-                  <div style={{ padding: '0.75rem', borderRadius: 8, background: 'rgba(6, 182, 212, 0.08)', border: '1px solid rgba(6, 182, 212, 0.25)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-                      <span style={{ fontWeight: 700, fontSize: '0.84rem', color: '#06b6d4' }}>{t.stats.turnpointTierWellTitle}</span>
-                      <span style={{ fontSize: '0.72rem', color: '#06b6d4', fontWeight: 600 }}>{t.stats.turnpointTierWellBadge}</span>
+                  <div className={`turnpoint-tier-card well ${turnpointTier === 'well' ? 'tier-current' : ''} ${turnpointTier === 'base' ? 'tier-target' : ''}`}>
+                    <div className="turnpoint-tier-header">
+                      <span className="turnpoint-tier-title">{t.stats.turnpointTierWellTitle}</span>
+                      <span className="turnpoint-tier-badge">{turnpointTier === 'base' ? t.economyGuide.nextTarget : t.stats.turnpointTierWellBadge}</span>
                     </div>
-                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    <p className="turnpoint-tier-desc">
                       {t.stats.turnpointTierWellDesc}
                     </p>
                   </div>
 
-                  <div style={{ padding: '0.75rem', borderRadius: 8, background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-                      <span style={{ fontWeight: 700, fontSize: '0.84rem', color: '#f59e0b' }}>{t.stats.turnpointTierDevTitle}</span>
-                      <span style={{ fontSize: '0.72rem', color: '#f59e0b', fontWeight: 600 }}>{t.stats.turnpointTierDevBadge}</span>
+                  <div className={`turnpoint-tier-card developing ${turnpointTier === 'base' ? 'tier-current' : ''}`}>
+                    <div className="turnpoint-tier-header">
+                      <span className="turnpoint-tier-title">{t.stats.turnpointTierDevTitle}</span>
+                      <span className="turnpoint-tier-badge">{t.stats.turnpointTierDevBadge}</span>
                     </div>
-                    <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    <p className="turnpoint-tier-desc">
                       {t.stats.turnpointTierDevDesc}
                     </p>
                   </div>
                 </div>
+              </div>
+
+              <div className="turnpoint-current-card">
+                <div className="turnpoint-current-header">
+                  <h4>{t.stats.turnpointCurrentTitle}</h4>
+                  {turnpointGapSeconds !== null && (
+                    <span className={`turnpoint-current-badge ${turnpointTier ?? 'estimated'}`}>
+                      {turnpointTier === 'optimal' ? t.stats.turnpointOptimalAnchor
+                        : turnpointTier === 'well' ? t.stats.turnpointWellConditioned
+                          : turnpointTier === 'base' ? t.stats.turnpointBaseOpportunity
+                            : t.stats.turnpointEstimatedFromLt1}
+                    </span>
+                  )}
+                </div>
+                <div className="turnpoint-current-value">
+                  {turnpointGapSeconds !== null
+                    ? format(turnpointIsMeasured ? t.stats.gapSeconds : t.stats.estGapSeconds, { seconds: turnpointGapSeconds })
+                    : t.stats.notCalibrated}
+                </div>
+                {lt1PaceSecKm != null && lt2PaceSecKm != null && (
+                  <p className="turnpoint-current-desc">
+                    {format(t.stats.paceGapCalc, {
+                      easy: formatPace(lt1PaceSecKm),
+                      threshold: formatPace(lt2PaceSecKm),
+                      estimated: lt2?.is_estimated ? t.stats.estimatedSuffix : ''
+                    })}
+                  </p>
+                )}
               </div>
 
               {/* Your Current Status & Training Direction */}
@@ -467,4 +578,3 @@ export const StatsView: React.FC = () => {
     </div>
   );
 };
-
