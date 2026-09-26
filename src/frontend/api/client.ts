@@ -240,6 +240,11 @@ export function deleteDatabaseSnapshot(filename: string): Promise<{ status: 'ok'
   });
 }
 
+/** POST /api/database/open-backup-folder — reveal the configured local snapshot folder. */
+export function openBackupFolder(): Promise<{ status: 'ok' }> {
+  return requestJson('/api/database/open-backup-folder', { method: 'POST' });
+}
+
 /** POST /api/database/settings — persist the manual backup directory. */
 export function saveBackupSettings(settings: { backupDirectory?: string }): Promise<BackupSettingsResponse> {
   return requestJson('/api/database/settings', {

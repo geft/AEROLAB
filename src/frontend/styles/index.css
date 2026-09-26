@@ -5489,12 +5489,65 @@ body {
   text-align: center;
 }
 
-.snapshot-row-deploy {
+.backup-snapshot-header-actions {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.backup-open-folder-button,
+.backup-refresh-button,
+.snapshot-row-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   gap: 0.35rem;
-  max-width: min(32rem, 42vw);
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.backup-open-folder-button {
+  color: var(--accent-cyan);
+  border-color: color-mix(in srgb, var(--accent-cyan) 32%, var(--border-subtle));
+}
+
+.backup-refresh-button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.backup-open-folder-button:disabled,
+.snapshot-row-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.backup-snapshot-actions {
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  align-items: center;
+  justify-content: end;
+  gap: 0.35rem;
+}
+
+.backup-snapshot-actions .snapshot-deploy-button {
+  grid-column: 1 / -1;
+  justify-self: end;
+}
+
+.snapshot-row-action-danger {
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.1);
 }
 
 .snapshot-deploy-button {
@@ -5520,43 +5573,131 @@ body {
   animation: snapshot-deploy-spin 1s linear infinite;
 }
 
-.snapshot-deploy-result,
-.snapshot-deploy-error {
+.snapshot-deploy-details-row > td {
+  padding: 0.65rem 0.75rem 0.8rem !important;
+  border-bottom: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-card) 58%, transparent);
+  white-space: normal !important;
+}
+
+.snapshot-deploy-stepper {
   display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  margin: 0;
-  font-size: 0.68rem;
-  line-height: 1.5;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-surface);
+}
+
+.snapshot-deploy-stepper.is-failed {
+  border-color: color-mix(in srgb, #f87171 45%, var(--border-subtle));
+}
+
+.snapshot-deploy-stepper-header {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  font-size: 0.75rem;
+}
+
+.snapshot-deploy-provider {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.snapshot-deploy-current-phase {
+  color: var(--text-secondary);
+}
+
+.snapshot-deploy-complete-text,
+.snapshot-deploy-error-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.snapshot-deploy-complete-text {
+  color: var(--accent-emerald);
+}
+
+.snapshot-deploy-error-text {
+  color: #f87171;
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.snapshot-deploy-result {
-  color: #34d399;
-}
-
-.snapshot-deploy-error {
-  color: #f87171;
-}
-
-.snapshot-deploy-progress {
-  color: var(--text-secondary);
-  font-size: 0.68rem;
-  line-height: 1.5;
-  text-align: right;
-}
-
-.snapshot-deploy-progress p {
+.snapshot-deploy-steps {
+  display: flex;
+  align-items: flex-start;
+  list-style: none;
   margin: 0;
+  padding: 0;
 }
 
-.snapshot-deploy-progress p + p {
-  margin-top: 0.2rem;
+.snapshot-deploy-steps li {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
   color: var(--text-muted);
+  font-size: 0.65rem;
+  text-align: center;
 }
 
-.snapshot-row-deploy .snapshot-deploy-result {
-  color: var(--accent-emerald);
+.snapshot-deploy-steps li + li::before {
+  position: absolute;
+  top: 0.58rem;
+  right: calc(50% + 0.85rem);
+  left: calc(-50% + 0.85rem);
+  height: 1px;
+  background: var(--border-subtle);
+  content: '';
+}
+
+.snapshot-deploy-steps li.is-done + li::before,
+.snapshot-deploy-steps li.is-active + li::before {
+  background: var(--accent-cyan);
+}
+
+.snapshot-deploy-step-marker {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 1.2rem;
+  height: 1.2rem;
+  place-items: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 0.62rem;
+}
+
+.snapshot-deploy-steps li.is-done .snapshot-deploy-step-marker,
+.snapshot-deploy-steps li.is-active .snapshot-deploy-step-marker {
+  border-color: var(--accent-cyan);
+  background: color-mix(in srgb, var(--accent-cyan) 18%, var(--bg-surface));
+  color: var(--accent-cyan);
+}
+
+.snapshot-deploy-steps li.is-done {
+  color: var(--text-secondary);
+}
+
+.snapshot-deploy-steps li.is-active {
+  color: var(--accent-cyan);
+  font-weight: 700;
+}
+
+.snapshot-deploy-terminal-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.7rem;
 }
 
 .snapshot-deploy-open {

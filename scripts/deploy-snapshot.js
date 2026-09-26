@@ -100,8 +100,10 @@ try {
     'Vercel deployment',
     { cwd: deploymentRoot }
   );
-  const deploymentUrls = [...`${deployment.stdout}\n${deployment.stderr}`.matchAll(/https?:\/\/[^\s"'<>]+\.vercel\.app/gi)];
-  const deploymentUrl = deploymentUrls.at(-1)?.[0];
+  const cliOutput = `${deployment.stdout}\n${deployment.stderr}`.replace(/\u001b\[[0-9;]*m/g, '');
+  const productionAlias = [...cliOutput.matchAll(/(?:Production|Aliased):\s*(https?:\/\/[^\s"'<>]+)/gi)].at(-1)?.[1];
+  const deploymentUrls = [...cliOutput.matchAll(/https?:\/\/[^\s"'<>]+\.vercel\.app/gi)];
+  const deploymentUrl = productionAlias || deploymentUrls.at(-1)?.[0];
   if (!deploymentUrl) throw new Error('Vercel deployment succeeded but did not return a deployment URL. Check the Vercel CLI output.');
   console.log(`SNAPSHOT_DEPLOYMENT_URL=${deploymentUrl}`);
 } catch (error) {

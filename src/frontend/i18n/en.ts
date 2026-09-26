@@ -18,6 +18,17 @@ export const en: Translations = {
       complete: 'Deployment complete.',
       failed: 'Deployment failed.'
     },
+    deploySteps: {
+      checking: 'Check',
+      login: 'Sign in',
+      linking: 'Link project',
+      exporting: 'Export',
+      validating: 'Validate',
+      building: 'Build',
+      deploying: 'Deploy',
+      complete: 'Done'
+    },
+    deployStepsLabel: 'Vercel deployment steps',
     deploySuccess: 'Snapshot deployed successfully.',
     deployOpen: 'Open',
     deployFailed: 'Snapshot deployment failed.',
@@ -538,7 +549,6 @@ export const en: Translations = {
     tableSize: 'Size',
     tableAction: 'Action',
     rollback: 'Rollback',
-    downloadAction: 'Download',
     deleteAction: 'Delete',
     deleteSnapshotConfirm: 'Permanently delete {filename}? This only removes this local backup file.',
     deleteSnapshotSuccess: 'Snapshot deleted.',
@@ -546,7 +556,8 @@ export const en: Translations = {
     deletingSnapshot: 'Deleting…',
     saveSettings: 'Save Folder',
     restoreConfirm: 'Are you sure you want to restore? This will replace current database activities.',
-    refreshAction: 'Refresh'
+    refreshAction: 'Refresh',
+    openFolderAction: 'Open folder'
   },
   databaseLocation: {
     title: 'Database location',

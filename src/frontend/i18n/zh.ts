@@ -18,6 +18,17 @@ export const zh: Translations = {
       complete: '部署完成。',
       failed: '部署失败。'
     },
+    deploySteps: {
+      checking: '检查',
+      login: '登录',
+      linking: '关联项目',
+      exporting: '导出',
+      validating: '验证',
+      building: '构建',
+      deploying: '部署',
+      complete: '完成'
+    },
+    deployStepsLabel: 'Vercel 部署步骤',
     deploySuccess: '快照部署成功。',
     deployOpen: '打开',
     deployFailed: '快照部署失败。',
@@ -548,7 +559,6 @@ export const zh: Translations = {
     tableSize: '文件大小',
     tableAction: '操作',
     rollback: '回滚',
-    downloadAction: '下载',
     deleteAction: '删除',
     deleteSnapshotConfirm: '永久删除 {filename}？此操作只会删除这个本地备份文件。',
     deleteSnapshotSuccess: '快照已删除。',
@@ -556,7 +566,8 @@ export const zh: Translations = {
     deletingSnapshot: '正在删除…',
     saveSettings: '保存目录',
     restoreConfirm: '确定要恢复数据库快照吗？这将替换当前的所有活动记录。',
-    refreshAction: '刷新'
+    refreshAction: '刷新',
+    openFolderAction: '打开文件夹'
   },
   databaseLocation: {
     title: '数据库位置',

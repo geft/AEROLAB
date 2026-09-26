@@ -54,6 +54,17 @@ export interface Translations {
       complete: string;
       failed: string;
     };
+    deploySteps: {
+      checking: string;
+      login: string;
+      linking: string;
+      exporting: string;
+      validating: string;
+      building: string;
+      deploying: string;
+      complete: string;
+    };
+    deployStepsLabel: string;
     deploySuccess: string;
     deployOpen: string;
     deployFailed: string;
@@ -602,7 +613,6 @@ export interface Translations {
     tableSize: string;
     tableAction: string;
     rollback: string;
-    downloadAction: string;
     deleteAction: string;
     deleteSnapshotConfirm: string;
     deleteSnapshotSuccess: string;
@@ -611,6 +621,7 @@ export interface Translations {
     saveSettings: string;
     restoreConfirm: string;
     refreshAction: string;
+    openFolderAction: string;
   };
   databaseLocation: {
     title: string;

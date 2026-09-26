@@ -462,6 +462,38 @@ databaseRouter.post('/snapshots/delete', (req: Request, res: Response) => {
   }
 });
 
+// POST /api/database/open-backup-folder — reveal the configured local snapshot folder.
+databaseRouter.post('/open-backup-folder', async (_req: Request, res: Response) => {
+  try {
+    const db = getDatabase();
+    const directory = path.resolve(getBackupSettings(db).backupDirectory);
+    if (!isSafeBackupDirectory(directory)) {
+      return res.status(400).json({ error: 'The configured snapshot folder is invalid.' });
+    }
+    fs.mkdirSync(directory, { recursive: true });
+    if (!fs.statSync(directory).isDirectory()) {
+      return res.status(400).json({ error: 'The configured snapshot path is not a folder.' });
+    }
+
+    const [command, args] = process.platform === 'win32'
+      ? ['explorer.exe', [directory]]
+      : process.platform === 'darwin'
+        ? ['open', [directory]]
+        : ['xdg-open', [directory]];
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(command, args, { detached: true, stdio: 'ignore', windowsHide: true });
+      child.once('error', reject);
+      child.once('spawn', () => {
+        child.unref();
+        resolve();
+      });
+    });
+    res.json({ status: 'ok' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Could not open the snapshot folder.' });
+  }
+});
+
 // POST /api/database/settings
 databaseRouter.post('/settings', (req: Request, res: Response) => {
   try {

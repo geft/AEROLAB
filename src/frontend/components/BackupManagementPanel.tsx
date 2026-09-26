@@ -1,14 +1,139 @@
-import React, { Suspense, useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { DatabaseStatus, DatabaseSnapshot } from '../types/api.js';
 import {
-  HardDrive, Download, FileUp, RefreshCw,
-  CheckCircle2, AlertCircle, FolderSync, Check
+  HardDrive, Download, FileUp, RefreshCw, FolderOpen,
+  CheckCircle2, AlertCircle, FolderSync, Check, CloudUpload,
+  LoaderCircle, TriangleAlert
 } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
-import { backupDatabase, deleteDatabaseSnapshot, getDatabaseStatus, restoreDatabase, restoreDatabaseSnapshot, saveBackupSettings, selectBackupFolder } from '../api/client.js';
+import {
+  ApiRequestError, backupDatabase, deleteDatabaseSnapshot, deploySnapshotToVercel,
+  getDatabaseStatus, getSnapshotDeploymentStatus, restoreDatabase, restoreDatabaseSnapshot,
+  saveBackupSettings, selectBackupFolder, openBackupFolder,
+  type SnapshotDeploymentPhase
+} from '../api/client.js';
 import { apiErrorMessage } from '../api/errors.js';
 
-const SnapshotDeploymentPanel = React.lazy(() => import('./SnapshotDeploymentPanel.js').then(module => ({ default: module.SnapshotDeploymentPanel })));
+const DEPLOYMENT_STEPS: Exclude<SnapshotDeploymentPhase, 'failed'>[] = [
+  'checking', 'login', 'linking', 'exporting', 'validating', 'building', 'deploying', 'complete'
+];
+
+interface SnapshotHistoryRowProps {
+  snapshot: DatabaseSnapshot;
+  isRestoring: boolean;
+  deletingFilename: string | null;
+  onRestore: (filename: string) => void;
+  onDelete: (filename: string) => void;
+}
+
+const SnapshotHistoryRow: React.FC<SnapshotHistoryRowProps> = ({
+  snapshot, isRestoring, deletingFilename, onRestore, onDelete
+}) => {
+  const { t, format } = useTranslation();
+  const [deploying, setDeploying] = useState(false);
+  const [deployment, setDeployment] = useState<{
+    phase: SnapshotDeploymentPhase;
+    deploymentUrl?: string;
+    error?: string;
+  } | null>(null);
+
+  const handleDeploy = async () => {
+    if (!window.confirm(format(t.snapshot.deployProtectionConfirmation, { filename: snapshot.filename }))) return;
+    setDeploying(true);
+    setDeployment({ phase: 'checking' });
+    try {
+      const { jobId } = await deploySnapshotToVercel(snapshot.filename);
+      while (true) {
+        const status = await getSnapshotDeploymentStatus(jobId);
+        if (status.phase === 'complete' && status.deploymentUrl) {
+          setDeployment({ phase: 'complete', deploymentUrl: status.deploymentUrl });
+          break;
+        }
+        if (status.phase === 'failed') {
+          setDeployment({ phase: 'failed', error: status.error || t.snapshot.deployFailed });
+          break;
+        }
+        setDeployment({ phase: status.phase });
+        await new Promise(resolve => setTimeout(resolve, 1200));
+      }
+    } catch (err) {
+      const error = err instanceof ApiRequestError && err.code === 'ERR_SNAPSHOT_NOT_FOUND'
+        ? t.snapshot.deploySnapshotMissing
+        : `${t.snapshot.deployFailed} ${err instanceof Error ? err.message : ''}`.trim();
+      setDeployment({ phase: 'failed', error });
+    } finally {
+      setDeploying(false);
+    }
+  };
+
+  const sizeMb = snapshot.sizeMb ?? (snapshot.sizeBytes ? (snapshot.sizeBytes / (1024 * 1024)).toFixed(2) : '0.00');
+  const activeStep = deployment && deployment.phase !== 'failed' ? DEPLOYMENT_STEPS.indexOf(deployment.phase) : -1;
+
+  return (
+    <>
+      <tr className="backup-snapshot-row" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+        <td style={{ padding: '0.65rem 0.75rem', color: 'var(--text-primary)', fontFamily: 'monospace' }}>{snapshot.filename}</td>
+        <td style={{ padding: '0.65rem 0.75rem', color: 'var(--text-secondary)' }}>{new Date(snapshot.createdAt).toLocaleString()}</td>
+        <td style={{ padding: '0.65rem 0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{sizeMb} MB</td>
+        <td style={{ padding: '0.5rem 0.75rem' }}>
+          <div className="backup-snapshot-actions">
+            <button type="button" className="snapshot-deploy-button" onClick={() => void handleDeploy()} disabled={deploying}>
+              {deploying
+                ? <LoaderCircle size={14} className="snapshot-deploy-spinner" aria-hidden="true" />
+                : <CloudUpload size={14} aria-hidden="true" />}
+              {deploying ? t.snapshot.deploying : t.snapshot.deployRowButton}
+            </button>
+            <button type="button" className="snapshot-row-action" onClick={() => onRestore(snapshot.filename)} disabled={isRestoring}>
+              {isRestoring ? t.backup.restoring : t.backup.rollback}
+            </button>
+            <button
+              type="button"
+              className="snapshot-row-action snapshot-row-action-danger"
+              onClick={() => onDelete(snapshot.filename)}
+              disabled={deletingFilename !== null}
+            >
+              {deletingFilename === snapshot.filename ? t.backup.deletingSnapshot : t.backup.deleteAction}
+            </button>
+          </div>
+        </td>
+      </tr>
+      {deployment && (
+        <tr className="snapshot-deploy-details-row">
+          <td colSpan={4}>
+            <div className={`snapshot-deploy-stepper${deployment.phase === 'failed' ? ' is-failed' : ''}`}>
+              <div className="snapshot-deploy-stepper-header">
+                <span className="snapshot-deploy-provider">Vercel</span>
+                {deployment.phase === 'failed' ? (
+                  <span className="snapshot-deploy-error-text" role="alert"><TriangleAlert size={14} aria-hidden="true" />{deployment.error}</span>
+                ) : deployment.phase === 'complete' ? (
+                  <span className="snapshot-deploy-complete-text" role="status"><CheckCircle2 size={14} aria-hidden="true" />{t.snapshot.deploySuccess}</span>
+                ) : (
+                  <span className="snapshot-deploy-current-phase" role="status">{t.snapshot.deployPhases[deployment.phase]}</span>
+                )}
+                {deployment.phase === 'complete' && deployment.deploymentUrl && (
+                  <a className="snapshot-deploy-open" href={deployment.deploymentUrl} target="_blank" rel="noreferrer">{t.snapshot.deployOpen}</a>
+                )}
+              </div>
+              {deployment.phase !== 'failed' && (
+                <ol className="snapshot-deploy-steps" aria-label={t.snapshot.deployStepsLabel}>
+                  {DEPLOYMENT_STEPS.map((step, index) => (
+                    <li key={step} className={index < activeStep ? 'is-done' : index === activeStep ? 'is-active' : ''}>
+                      <span className="snapshot-deploy-step-marker">{index < activeStep ? <Check size={11} aria-hidden="true" /> : index + 1}</span>
+                      <span>{t.snapshot.deploySteps[step]}</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {(deployment.phase === 'login' || deployment.phase === 'linking') && (
+                <p className="snapshot-deploy-terminal-hint">{t.snapshot.deploySetupTerminalHint}</p>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+};
 
 export interface BackupManagementPanelProps {
   onRestoreComplete?: () => void;
@@ -24,6 +149,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
   const [dbStatus, setDbStatus] = useState<DatabaseStatus | null>(null);
   const [backupDirectory, setBackupDirectory] = useState('');
   const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isOpeningSnapshotFolder, setIsOpeningSnapshotFolder] = useState(false);
   const [backupStatusMessage, setBackupStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [isRestoring, setIsRestoring] = useState(false);
@@ -50,6 +176,21 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
 
   const handleDownloadSnapshot = () => {
     window.open('/api/database/download', '_blank');
+  };
+
+  const handleOpenSnapshotFolder = async () => {
+    setIsOpeningSnapshotFolder(true);
+    try {
+      await openBackupFolder();
+      setBackupStatusMessage(null);
+    } catch (err) {
+      setBackupStatusMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : t.backup.folderSelectionFailed
+      });
+    } finally {
+      setIsOpeningSnapshotFolder(false);
+    }
   };
 
 
@@ -384,10 +525,16 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>({t.backup.retentionPolicy})</span>
             ) : null}
           </div>
-          <button type="button" onClick={fetchDbStatus} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem' }}>
-            <RefreshCw size={12} />
-            <span>{t.backup.refreshAction}</span>
-          </button>
+          <div className="backup-snapshot-header-actions">
+            <button type="button" className="backup-open-folder-button" onClick={() => void handleOpenSnapshotFolder()} disabled={isOpeningSnapshotFolder}>
+              <FolderOpen size={13} />
+              <span>{t.backup.openFolderAction}</span>
+            </button>
+            <button type="button" className="backup-refresh-button" onClick={fetchDbStatus}>
+              <RefreshCw size={12} />
+              <span>{t.backup.refreshAction}</span>
+            </button>
+          </div>
         </div>
 
         {(() => {
@@ -426,73 +573,16 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {snapshots.map((s: DatabaseSnapshot) => {
-                    const sizeMb = s.sizeMb ?? (s.sizeBytes ? (s.sizeBytes / (1024 * 1024)).toFixed(2) : '0.00');
-                    return (
-                      <tr key={s.filename} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                        <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-primary)', fontFamily: 'monospace' }}>{s.filename}</td>
-                        <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-secondary)' }}>{new Date(s.createdAt).toLocaleString()}</td>
-                        <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-secondary)' }}>{sizeMb} MB</td>
-                        <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>
-                          <div style={{ display: 'inline-flex', gap: '0.4rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                            {SnapshotDeploymentPanel && (
-                              <Suspense fallback={null}>
-                                <SnapshotDeploymentPanel filename={s.filename} />
-                              </Suspense>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => handleRestoreFromSnapshot(s.filename)}
-                              disabled={isRestoring}
-                              style={{
-                                background: 'rgba(239, 68, 68, 0.12)',
-                                color: '#f87171',
-                                border: '1px solid rgba(239, 68, 68, 0.3)',
-                                borderRadius: 4,
-                                padding: '0.2rem 0.5rem',
-                                fontSize: '0.72rem',
-                                fontWeight: 600,
-                                cursor: isRestoring ? 'wait' : 'pointer'
-                              }}
-                            >
-                              {t.backup.rollback || 'Rollback'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => window.open(`/api/database/download?filename=${encodeURIComponent(s.filename)}`, '_blank')}
-                              style={{
-                                background: 'var(--bg-card)',
-                                color: 'var(--text-secondary)',
-                                border: '1px solid var(--border-subtle)',
-                                borderRadius: 4,
-                                padding: '0.2rem 0.5rem',
-                                fontSize: '0.72rem',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              {t.backup.downloadAction || 'Download'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void handleDeleteSnapshot(s.filename)}
-                              disabled={deletingFilename !== null}
-                              style={{
-                                background: 'rgba(239, 68, 68, 0.12)',
-                                color: '#f87171',
-                                border: '1px solid rgba(239, 68, 68, 0.3)',
-                                borderRadius: 4,
-                                padding: '0.2rem 0.5rem',
-                                fontSize: '0.72rem',
-                                cursor: deletingFilename ? 'wait' : 'pointer'
-                              }}
-                            >
-                              {deletingFilename === s.filename ? t.backup.deletingSnapshot : t.backup.deleteAction}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {snapshots.map((snapshot: DatabaseSnapshot) => (
+                    <SnapshotHistoryRow
+                      key={snapshot.filename}
+                      snapshot={snapshot}
+                      isRestoring={isRestoring}
+                      deletingFilename={deletingFilename}
+                      onRestore={filename => void handleRestoreFromSnapshot(filename)}
+                      onDelete={filename => void handleDeleteSnapshot(filename)}
+                    />
+                  ))}
                 </tbody>
               </table>
             </div>
