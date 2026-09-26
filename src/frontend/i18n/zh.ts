@@ -3,12 +3,24 @@ import { Translations } from './types';
 export const zh: Translations = {
   snapshot: {
     generatedAt: '快照导出时间：{date}',
-    deployRowButton: '部署此快照',
-    deployProtectionConfirmation: '将 {filename} 部署到 aerolab-snapshot？我已确认 Vercel Authentication 已保护所有部署。此操作会将所选快照中的跑步记录、遥测数据、训练指标和个人阈值发送到 Vercel。',
+    deployRowButton: '部署到 Vercel',
+    deployProtectionConfirmation: '将 {filename} 部署到 Vercel？你可以在设置时选择项目。此操作会将所选快照中的跑步记录、遥测数据、训练指标和个人阈值发送到 Vercel。请确认项目已启用部署保护。',
     deploying: '正在部署…',
+    deploySetupTerminalHint: '已打开 Vercel 终端。请完成登录并选择要部署到的现有项目，之后应用会自动继续部署。',
+    deployPhases: {
+      checking: '正在检查 Vercel 登录状态…',
+      login: '请在终端窗口中登录 Vercel…',
+      linking: '正在将此工作区关联到所选 Vercel 项目…',
+      exporting: '正在导出所选快照…',
+      validating: '正在验证快照数据…',
+      building: '正在构建只读查看器…',
+      deploying: '正在上传受保护的部署…',
+      complete: '部署完成。',
+      failed: '部署失败。'
+    },
     deploySuccess: '快照部署成功。',
+    deployOpen: '打开',
     deployFailed: '快照部署失败。',
-    deployNeedsLink: '请先使用 `npx vercel link --project aerolab-snapshot` 将此工作区关联到 aerolab-snapshot 项目。',
     deploySnapshotMissing: '此本地快照已不存在，请刷新列表后重试。'
   },
   nav: {

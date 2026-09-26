@@ -25,7 +25,7 @@ const activityFields = new Set([
   'estimated_lt2_hr', 'estimated_lt2_pace_sec_km', 'steady_pace_sec_km', 'steady_heart_rate',
   'steady_cadence', 'steady_stance_time', 'pause_duration_seconds', 'walk_duration_seconds',
   'walk_distance_meters', 'weather_temperature_c', 'weather_humidity_pct', 'weather_apparent_temp_c',
-  'weather_pm25_ug_m3', 'weather_condition', 'weather_code', 'weather_fetched_at', 'weather_source', 'tags', 'training_load',
+  'weather_pm25_ug_m3', 'weather_pm25_source', 'weather_condition', 'weather_code', 'weather_fetched_at', 'weather_source', 'tags', 'training_load',
   'z1_seconds', 'z2_seconds', 'z3_seconds', 'z4_seconds', 'z5_seconds', 'effectiveness_score', 'verdict'
 ]);
 const recordFields = new Set([
@@ -139,7 +139,9 @@ export function validateSnapshot(value: unknown): asserts value is Record<string
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+const isBundledCli = process.env.AEROLAB_EXPORT_SNAPSHOT_CLI === '1';
+const sourceUrl = typeof import.meta !== 'undefined' ? import.meta.url : undefined;
+if (isBundledCli || (sourceUrl && process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(sourceUrl))) {
   try {
     const args = process.argv.slice(2);
     let databasePath: string | undefined = process.env.AEROLAB_SNAPSHOT_DATABASE_PATH

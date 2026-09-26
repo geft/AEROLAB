@@ -372,6 +372,9 @@ export function getProgressHistoryService(db: Database.Database, runTypeFilter: 
 
 /** GET /api/activities - list all runs */
 export function listActivitiesService(db: Database.Database, typeFilter?: string): ActivityListResponse {
+  const activityColumns = new Set((db.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>).map(column => column.name));
+  const pm25ValueColumn = activityColumns.has('weather_pm25_ug_m3') ? 'a.weather_pm25_ug_m3' : 'NULL AS weather_pm25_ug_m3';
+  const pm25SourceColumn = activityColumns.has('weather_pm25_source') ? 'a.weather_pm25_source' : 'NULL AS weather_pm25_source';
   let query = `
     SELECT
       a.id, a.start_time, a.name, a.run_type, a.auto_run_type,
@@ -384,8 +387,8 @@ export function listActivitiesService(db: Database.Database, typeFilter?: string
       a.steady_stance_time, a.pause_duration_seconds, a.walk_duration_seconds,
       a.walk_distance_meters,
       a.weather_temperature_c, a.weather_humidity_pct, a.weather_apparent_temp_c,
-      a.weather_pm25_ug_m3,
-      a.weather_pm25_source,
+      ${pm25ValueColumn},
+      ${pm25SourceColumn},
       a.weather_condition, a.weather_code, a.weather_fetched_at, a.weather_source,
       a.workout_lat, a.workout_lon,
       cs.effectiveness_score, cs.analysis_json

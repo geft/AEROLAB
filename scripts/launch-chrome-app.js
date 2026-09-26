@@ -157,6 +157,8 @@ async function main() {
       ...process.env,
       PORT: String(port),
       AEROLAB_SESSION_TOKEN: sessionToken,
+      AEROLAB_APP_ROOT: rootDir,
+      AEROLAB_DEPLOYMENT_HOME: path.join(process.env.APPDATA || os.homedir(), 'AEROLAB', 'Vercel'),
       // Mark the packaged desktop engine as a production build so developer
       // routes (/api/dev/*) are never mounted in a shipped installer.
       NODE_ENV: 'production'

@@ -107,15 +107,36 @@ if (fs.existsSync(sourceNode)) {
   process.exit(1);
 }
 
+const npmPackageSource = path.join(path.dirname(sourceNode), 'node_modules', 'npm');
+if (!fs.existsSync(npmPackageSource)) {
+  console.error(`❌ Could not locate npm runtime at ${npmPackageSource}; it is required for the in-app Vercel deployment flow.`);
+  process.exit(1);
+}
+console.log('📦 Bundling npm for the in-app Vercel deployment flow...');
+copyRecursive(npmPackageSource, path.join(targetDir, 'bin', 'node_modules', 'npm'));
+
 // 3. Copy dist, dist-backend, scripts
 copyRecursive(path.join(rootDir, 'dist'), path.join(targetDir, 'dist'));
 copyRecursive(path.join(rootDir, 'dist-backend'), path.join(targetDir, 'dist-backend'));
+copyRecursive(path.join(rootDir, 'dist-snapshot-template'), path.join(targetDir, 'dist-snapshot-template'));
 
 const scriptsDest = path.join(targetDir, 'scripts');
 fs.mkdirSync(scriptsDest, { recursive: true });
 fs.copyFileSync(
   path.join(rootDir, 'scripts', 'launch-chrome-app.js'),
   path.join(scriptsDest, 'launch-chrome-app.js')
+);
+fs.copyFileSync(
+  path.join(rootDir, 'scripts', 'vercel-connect.js'),
+  path.join(scriptsDest, 'vercel-connect.js')
+);
+fs.copyFileSync(
+  path.join(rootDir, 'scripts', 'deploy-snapshot.js'),
+  path.join(scriptsDest, 'deploy-snapshot.js')
+);
+fs.copyFileSync(
+  path.join(rootDir, 'scripts', 'vercel-cli.js'),
+  path.join(scriptsDest, 'vercel-cli.js')
 );
 
 // 4. Copy essential production node_modules
@@ -167,7 +188,8 @@ OPTIONAL:
 
 REQUIREMENTS:
 - Google Chrome or Microsoft Edge (pre-installed on modern Windows).
-- Zero external dependencies: Node.js runtime is pre-packaged and self-contained!
+- Node.js runtime and npm are pre-packaged. Vercel deployment is optional and
+  downloads the Vercel CLI on first use, so it requires an internet connection.
 
 ZERO CHROMIUM FOOTPRINT:
 This version leverages your existing browser in standalone
@@ -261,4 +283,3 @@ if (process.platform === 'win32') {
     }
   }
 }
-

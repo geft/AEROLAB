@@ -1,33 +1,188 @@
 import { Router, Request, Response } from 'express';
 import { spawn } from 'child_process';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
+import { randomUUID } from 'crypto';
 import { getDatabase } from '../db/client.js';
 import { getBackupSettings, listBackups } from './database.js';
 import { logger } from '../utils/logger.js';
-import { isDevToolsEnabled } from '../utils/dev-mode.js';
 
 export const devRouter = Router();
+export const snapshotDeploymentRouter = Router();
 
-let snapshotDeploymentRunning = false;
+type SnapshotDeploymentPhase = 'checking' | 'login' | 'linking' | 'exporting' | 'validating' | 'building' | 'deploying' | 'complete' | 'failed';
 
-devRouter.post('/snapshot-deploy', (req: Request, res: Response) => {
-  // Snapshot export/build/deploy can take several minutes on a first run.
-  res.setTimeout(0);
-  if (!isDevToolsEnabled()) return res.sendStatus(404);
-  if (snapshotDeploymentRunning) {
+interface SnapshotDeploymentJob {
+  id: string;
+  phase: SnapshotDeploymentPhase;
+  deploymentUrl: string | null;
+  error: string | null;
+}
+
+let snapshotDeploymentJob: SnapshotDeploymentJob | null = null;
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+function isVercelProjectLinked(linkPath: string): boolean {
+  try {
+    const link = JSON.parse(fs.readFileSync(linkPath, 'utf8')) as { projectId?: unknown; orgId?: unknown };
+    return typeof link.projectId === 'string' && link.projectId.length > 0
+      && typeof link.orgId === 'string' && link.orgId.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function runVercelCli(args: string[], cwd: string, timeoutMs = 20_000): Promise<{ code: number | null; output: string }> {
+  const npmCli = path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+  const useBundledNpm = fs.existsSync(npmCli);
+  const command = useBundledNpm ? process.execPath : (process.platform === 'win32' ? 'npx.cmd' : 'npx');
+  const commandArgs = useBundledNpm
+    ? [npmCli, 'exec', '--yes', '--package=vercel', '--', 'vercel', ...args]
+    : ['--yes', 'vercel', ...args];
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, commandArgs, {
+      cwd,
+      windowsHide: true,
+      shell: process.platform === 'win32' && /\.(cmd|bat)$/i.test(command),
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    let output = '';
+    const collect = (chunk: Buffer) => { output = `${output}${chunk.toString('utf8')}`.slice(-4_000); };
+    const timer = setTimeout(() => child.kill(), timeoutMs);
+    child.stdout.on('data', collect);
+    child.stderr.on('data', collect);
+    child.on('error', error => { clearTimeout(timer); reject(error); });
+    child.on('close', code => { clearTimeout(timer); resolve({ code, output }); });
+  });
+}
+
+function quotePowerShell(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+function vercelTerminalEnvironment(): NodeJS.ProcessEnv {
+  const allowed = [
+    'SystemRoot', 'WINDIR', 'PATH', 'PATHEXT', 'ComSpec', 'USERPROFILE', 'APPDATA',
+    'LOCALAPPDATA', 'TEMP', 'TMP', 'HOMEDRIVE', 'HOMEPATH', 'USERNAME', 'USERDOMAIN',
+    'PROCESSOR_ARCHITECTURE', 'PSModulePath', 'NPM_CONFIG_PREFIX', 'VERCEL_TELEMETRY_DISABLED'
+  ];
+  return Object.fromEntries(allowed.flatMap(key => process.env[key] ? [[key, process.env[key]!]] : []));
+}
+
+async function launchVercelSetupTerminal(appRoot: string, deploymentRoot: string, statusPath: string, needsLogin: boolean): Promise<void> {
+  if (process.platform !== 'win32') {
+    throw new Error('Automatic Vercel sign-in currently opens a Windows terminal. Run Vercel setup in the deployment terminal, then retry.');
+  }
+  const scriptPath = path.join(appRoot, 'scripts', 'vercel-connect.js');
+  const mode = needsLogin ? 'login-and-link' : 'link';
+  const argumentLine = `"${scriptPath}" "${statusPath}" ${mode}`;
+  const powershell = `Start-Process -FilePath ${quotePowerShell(process.execPath)} -ArgumentList ${quotePowerShell(argumentLine)} -WorkingDirectory ${quotePowerShell(deploymentRoot)}`;
+  const encoded = Buffer.from(powershell, 'utf16le').toString('base64');
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn('powershell.exe', ['-NoProfile', '-EncodedCommand', encoded], {
+      windowsHide: true,
+      stdio: 'ignore',
+      env: vercelTerminalEnvironment()
+    });
+    child.on('error', reject);
+    child.on('close', code => code === 0 ? resolve() : reject(new Error('Could not open the Vercel setup terminal.')));
+  });
+}
+
+async function waitForVercelSetup(job: SnapshotDeploymentJob, statusPath: string, linkPath: string): Promise<void> {
+  const deadline = Date.now() + 12 * 60_000;
+  while (Date.now() < deadline) {
+    let marker = '';
+    try { marker = fs.readFileSync(statusPath, 'utf8').trim(); } catch { /* The terminal has not written its first status yet. */ }
+    if (marker === 'login') job.phase = 'login';
+    else if (marker === 'linking') job.phase = 'linking';
+    else if (marker === 'login-failed') throw new Error('Vercel sign-in did not finish successfully. Check the Vercel terminal window, then retry.');
+    else if (marker === 'link-failed') throw new Error('The project could not be linked. Check the Vercel terminal window and choose the intended Vercel project.');
+    else if (marker === 'linked') {
+      if (!isVercelProjectLinked(linkPath)) throw new Error('Vercel finished linking, but no valid project link was saved.');
+      return;
+    }
+    await sleep(900);
+  }
+  throw new Error('Vercel setup timed out. Finish or close the Vercel terminal window, then retry.');
+}
+
+async function startSnapshotDeployment(job: SnapshotDeploymentJob, databasePath: string, appRoot: string, deploymentRoot: string): Promise<void> {
+  try {
+    fs.mkdirSync(deploymentRoot, { recursive: true });
+    job.phase = 'checking';
+    const whoami = await runVercelCli(['whoami'], deploymentRoot, 120_000);
+    const linkPath = path.join(deploymentRoot, '.vercel', 'project.json');
+    const needsLogin = whoami.code !== 0;
+    if (needsLogin || !isVercelProjectLinked(linkPath)) {
+      job.phase = needsLogin ? 'login' : 'linking';
+      const setupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aerolab-vercel-setup-'));
+      const statusPath = path.join(setupDir, 'status.txt');
+      let terminalLaunched = false;
+      try {
+        await launchVercelSetupTerminal(appRoot, deploymentRoot, statusPath, needsLogin);
+        terminalLaunched = true;
+        await waitForVercelSetup(job, statusPath, linkPath);
+      } finally {
+        let marker = '';
+        try { marker = fs.readFileSync(statusPath, 'utf8').trim(); } catch { /* Setup may not have started. */ }
+        if (!terminalLaunched || ['linked', 'login-failed', 'link-failed'].includes(marker)) {
+          fs.rmSync(setupDir, { recursive: true, force: true });
+        }
+      }
+    }
+
+    const child = spawn(process.execPath, [path.join(appRoot, 'scripts', 'deploy-snapshot.js')], {
+      cwd: deploymentRoot,
+      env: { ...process.env, AEROLAB_APP_ROOT: appRoot, AEROLAB_DEPLOYMENT_HOME: deploymentRoot, AEROLAB_SNAPSHOT_DATABASE_PATH: databasePath },
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    let output = '';
+    const appendOutput = (chunk: Buffer) => {
+      const text = chunk.toString('utf8');
+      output = `${output}${text}`.slice(-16_000);
+      const phase = output.match(/SNAPSHOT_PHASE=(exporting|validating|building|deploying)/g)?.at(-1)?.split('=')[1] as SnapshotDeploymentPhase | undefined;
+      if (phase) job.phase = phase;
+    };
+    child.stdout.on('data', appendOutput);
+    child.stderr.on('data', appendOutput);
+    child.on('error', error => {
+      job.phase = 'failed';
+      job.error = error.message;
+      logger.error('SNAPSHOT_DEPLOY', `Unable to start snapshot deployment: ${error.message}`);
+    });
+    await new Promise<void>(resolve => child.on('close', code => {
+      const deploymentUrl = [...output.matchAll(/https?:\/\/[^\s"'<>]+\.vercel\.app/gi)].at(-1)?.[0] ?? null;
+      if (code !== 0 || !deploymentUrl) {
+        const ansiEscape = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
+        const details = output.replace(ansiEscape, '').trim().slice(-2_000);
+        job.phase = 'failed';
+        job.error = details || 'Snapshot deployment failed without additional output.';
+        logger.error('SNAPSHOT_DEPLOY', job.error);
+      } else {
+        job.phase = 'complete';
+        job.deploymentUrl = deploymentUrl;
+        logger.info('SNAPSHOT_DEPLOY', `Snapshot deployed to ${deploymentUrl}`);
+      }
+      resolve();
+    }));
+  } catch (error) {
+    job.phase = 'failed';
+    job.error = error instanceof Error ? error.message : String(error);
+    logger.error('SNAPSHOT_DEPLOY', job.error);
+  }
+}
+
+snapshotDeploymentRouter.post('/', async (req: Request, res: Response) => {
+  if (snapshotDeploymentJob && !['complete', 'failed'].includes(snapshotDeploymentJob.phase)) {
     return res.status(409).json({ error: 'A snapshot deployment is already running.', code: 'ERR_SNAPSHOT_DEPLOY_IN_PROGRESS' });
   }
 
-  const projectRoot = process.cwd();
-  const linkPath = path.join(projectRoot, '.vercel', 'project.json');
-  if (!fs.existsSync(linkPath)) {
-    return res.status(409).json({
-      error: 'This checkout is not linked to a Vercel project.',
-      code: 'ERR_VERCEL_PROJECT_NOT_LINKED'
-    });
-  }
-
+  const appRoot = process.env.AEROLAB_APP_ROOT || process.cwd();
+  const deploymentRoot = process.env.AEROLAB_DEPLOYMENT_HOME || process.cwd();
   const filename = req.body?.filename;
   if (typeof filename !== 'string' || path.basename(filename) !== filename
     || !/^runs-[a-zA-Z0-9._-]+\.db$/.test(filename)) {
@@ -44,61 +199,18 @@ devRouter.post('/snapshot-deploy', (req: Request, res: Response) => {
     return res.status(404).json({ error: 'That local snapshot no longer exists. Refresh the list and retry.', code: 'ERR_SNAPSHOT_NOT_FOUND' });
   }
 
-  try {
-    const projectLink = JSON.parse(fs.readFileSync(linkPath, 'utf8')) as {
-      projectId?: unknown;
-      orgId?: unknown;
-      projectName?: unknown;
-    };
-    if (typeof projectLink.projectId !== 'string' || typeof projectLink.orgId !== 'string'
-      || projectLink.projectName !== 'aerolab-snapshot') {
-      return res.status(409).json({
-        error: 'This checkout must be linked to the aerolab-snapshot Vercel project before deploying.',
-        code: 'ERR_VERCEL_PROJECT_LINK_INVALID'
-      });
-    }
-  } catch {
-    return res.status(409).json({
-      error: 'This checkout must be linked to the aerolab-snapshot Vercel project before deploying.',
-      code: 'ERR_VERCEL_PROJECT_LINK_INVALID'
-    });
+  const job: SnapshotDeploymentJob = { id: randomUUID(), phase: 'checking', deploymentUrl: null, error: null };
+  snapshotDeploymentJob = job;
+  res.status(202).json({ jobId: job.id });
+  void startSnapshotDeployment(job, selectedSnapshot.filePath, appRoot, deploymentRoot);
+});
+
+snapshotDeploymentRouter.get('/:jobId', (req: Request, res: Response) => {
+  if (!snapshotDeploymentJob || snapshotDeploymentJob.id !== req.params.jobId) {
+    return res.status(404).json({ error: 'Snapshot deployment job not found.', code: 'ERR_SNAPSHOT_DEPLOY_JOB_NOT_FOUND' });
   }
-
-  snapshotDeploymentRunning = true;
-  const child = spawn(process.execPath, [path.join(projectRoot, 'scripts', 'deploy-snapshot.js')], {
-    cwd: projectRoot,
-    env: { ...process.env, AEROLAB_SNAPSHOT_DATABASE_PATH: selectedSnapshot.filePath },
-    windowsHide: true,
-    stdio: ['ignore', 'pipe', 'pipe']
-  });
-  let output = '';
-  const appendOutput = (chunk: Buffer) => {
-    output = `${output}${chunk.toString('utf8')}`.slice(-16_000);
-  };
-  child.stdout.on('data', appendOutput);
-  child.stderr.on('data', appendOutput);
-  child.on('error', error => {
-    snapshotDeploymentRunning = false;
-    logger.error('DEV_SNAPSHOT_DEPLOY', `Unable to start snapshot deployment: ${error.message}`);
-    if (!res.headersSent) res.status(500).json({ error: error.message, code: 'ERR_SNAPSHOT_DEPLOY_START' });
-  });
-  child.on('close', code => {
-    snapshotDeploymentRunning = false;
-    const deploymentUrl = [...output.matchAll(/https?:\/\/[^\s"'<>]+\.vercel\.app/gi)].at(-1)?.[0] ?? null;
-    if (code !== 0 || !deploymentUrl) {
-      const ansiEscape = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
-      const details = output.replace(ansiEscape, '').trim().slice(-2_000);
-      const message = details || 'Snapshot deployment command failed without additional output.';
-      logger.error('DEV_SNAPSHOT_DEPLOY', message);
-      if (!res.headersSent) {
-        return res.status(500).json({ error: message, code: 'ERR_SNAPSHOT_DEPLOY_FAILED' });
-      }
-      return;
-    }
-
-    logger.info('DEV_SNAPSHOT_DEPLOY', `Snapshot deployed to ${deploymentUrl}`);
-    if (!res.headersSent) res.json({ deploymentUrl });
-  });
+  const { id, phase, deploymentUrl, error } = snapshotDeploymentJob;
+  res.json({ jobId: id, phase, deploymentUrl, error });
 });
 
 devRouter.get('/diagnostics', (req: Request, res: Response) => {

@@ -42,9 +42,21 @@ export interface Translations {
     deployRowButton: string;
     deployProtectionConfirmation: string;
     deploying: string;
+    deploySetupTerminalHint: string;
+    deployPhases: {
+      checking: string;
+      login: string;
+      linking: string;
+      exporting: string;
+      validating: string;
+      building: string;
+      deploying: string;
+      complete: string;
+      failed: string;
+    };
     deploySuccess: string;
+    deployOpen: string;
     deployFailed: string;
-    deployNeedsLink: string;
     deploySnapshotMissing: string;
   };
   nav: {

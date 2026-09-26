@@ -5,6 +5,7 @@ node_modules/
 # Production build
 dist/
 dist-snapshot/
+dist-snapshot-template/
 dist-backend/
 snapshot-data/
 public/snapshot.json
@@ -57,3 +58,6 @@ npm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+
+.vercel
+.env*

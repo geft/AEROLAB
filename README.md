@@ -455,18 +455,21 @@ only fetches `/snapshot.json`; its write functions fail locally without sending
 requests. Local browser preferences remain in that browser's storage.
 
 For manual deployment, first enable Vercel Authentication for **All Deployments**
-in the project, then link this checkout and deploy only the built static folder:
+in the target project, then link this checkout to that project and deploy only
+the built static folder:
 
 ```bash
-npx vercel link --project aerolab-snapshot
-npx vercel deploy dist-snapshot --prod
+npx vercel link
+npx vercel deploy dist-snapshot --prod --project <linked-project-id>
 ```
 
 In development, each row in **Settings → Local Snapshots & Rollback** has a
 **Deploy this snapshot** action. The confirmation names the selected backup and
-states what data will be sent. After confirming Vercel Authentication protects
-**All Deployments**, the app exports from that exact `.db` file, validates and
-builds the read-only viewer, and deploys it to the linked `aerolab-snapshot`
-project. The project link is checked before uploading. The row action and API
-endpoint are omitted from production builds; Vercel CLI login and the project
-link are still required.
+states what data will be sent. On first use, the app opens an interactive local
+terminal to sign in with Vercel CLI and link this checkout to an existing Vercel
+project; choose the right team and project if Vercel asks. The app then
+exports from that exact `.db` file, validates it, prepares the packaged static
+viewer, and deploys it to the linked project. Vercel credentials stay in the
+CLI's local user configuration. The snapshot deployment action is available in
+development and packaged desktop builds; diagnostics and test-error routes
+remain development-only.

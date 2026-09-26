@@ -14,9 +14,13 @@ if (!fs.existsSync('dist-backend')) {
 }
 execSync('npx esbuild src/backend/server.ts --bundle --platform=node --format=cjs --external:better-sqlite3 --define:import.meta.url="undefined" --log-override:empty-import-meta=silent --outfile=dist-backend/server.cjs', { stdio: 'inherit' });
 execSync('npx esbuild src/backend/jobs/maintenance-worker.ts --bundle --platform=node --format=cjs --external:better-sqlite3 --outfile=dist-backend/maintenance-worker.cjs', { stdio: 'inherit' });
+execSync('npx esbuild scripts/export-snapshot.ts --bundle --platform=node --format=cjs --external:better-sqlite3 --define:import.meta.url="undefined" --log-override:empty-import-meta=silent --outfile=dist-backend/export-snapshot.cjs', { stdio: 'inherit' });
 
 console.log('📋 Copying Database Schema...');
 fs.copyFileSync('src/backend/db/schema.sql', 'dist-backend/schema.sql');
+
+console.log('🖼️ Building static snapshot viewer template...');
+execSync('npx vite build --mode snapshot-template', { stdio: 'inherit' });
 
 if (process.platform === 'win32') {
   const cscPath = 'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe';

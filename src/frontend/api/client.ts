@@ -35,12 +35,23 @@ export async function getSnapshotMetadata(): Promise<{ generatedAt: string }> {
   throw new ApiRequestError(400, 'ERR_WRONG_TARGET', 'Snapshot metadata is only available in the snapshot build.');
 }
 
-export async function deploySnapshotToVercel(filename: string): Promise<{ deploymentUrl: string | null }> {
-  return requestJson<{ deploymentUrl: string | null }>('/api/dev/snapshot-deploy', {
+export type SnapshotDeploymentPhase = 'checking' | 'login' | 'linking' | 'exporting' | 'validating' | 'building' | 'deploying' | 'complete' | 'failed';
+
+export async function deploySnapshotToVercel(filename: string): Promise<{ jobId: string }> {
+  return requestJson<{ jobId: string }>('/api/snapshot-deploy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ filename })
   });
+}
+
+export function getSnapshotDeploymentStatus(jobId: string): Promise<{
+  jobId: string;
+  phase: SnapshotDeploymentPhase;
+  deploymentUrl: string | null;
+  error: string | null;
+}> {
+  return requestJson(`/api/snapshot-deploy/${encodeURIComponent(jobId)}`);
 }
 
 async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {

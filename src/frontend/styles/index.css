@@ -5539,8 +5539,41 @@ body {
   color: #f87171;
 }
 
+.snapshot-deploy-progress {
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+  line-height: 1.5;
+  text-align: right;
+}
+
+.snapshot-deploy-progress p {
+  margin: 0;
+}
+
+.snapshot-deploy-progress p + p {
+  margin-top: 0.2rem;
+  color: var(--text-muted);
+}
+
 .snapshot-row-deploy .snapshot-deploy-result {
   color: var(--accent-emerald);
+}
+
+.snapshot-deploy-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--accent-emerald) 45%, var(--border-subtle));
+  border-radius: 4px;
+  color: var(--accent-emerald);
+  text-decoration: none;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.snapshot-deploy-open:hover {
+  background: color-mix(in srgb, var(--accent-emerald) 12%, transparent);
 }
 
 @keyframes snapshot-deploy-spin {

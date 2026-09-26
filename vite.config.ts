@@ -5,7 +5,7 @@ import path from 'node:path';
 export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
-    ...(mode === 'snapshot' ? [{
+    ...(mode.startsWith('snapshot') ? [{
       name: 'snapshot-api-client',
       enforce: 'pre' as const,
       resolveId(source: string) {
@@ -15,9 +15,14 @@ export default defineConfig(({ mode }) => ({
     }] : [])
   ],
   define: {
-    'import.meta.env.VITE_AEROLAB_TARGET': JSON.stringify(mode === 'snapshot' ? 'snapshot' : 'desktop')
+    'import.meta.env.VITE_AEROLAB_TARGET': JSON.stringify(mode.startsWith('snapshot') ? 'snapshot' : 'desktop')
   },
-  build: mode === 'snapshot' ? { outDir: 'dist-snapshot', emptyOutDir: true } : undefined,
+  ...(mode === 'snapshot-template' ? { publicDir: false } : {}),
+  build: mode === 'snapshot'
+    ? { outDir: 'dist-snapshot', emptyOutDir: true }
+    : mode === 'snapshot-template'
+      ? { outDir: 'dist-snapshot-template', emptyOutDir: true }
+      : undefined,
   server: {
     port: 5173,
     proxy: {

@@ -122,6 +122,11 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
     if (!existing.has('weather_pm25_ug_m3')) db.exec('ALTER TABLE activities ADD COLUMN weather_pm25_ug_m3 REAL');
   });
 
+  migrations.run('weather-pm25-source-v1', () => {
+    const existing = new Set((db.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>).map(column => column.name));
+    if (!existing.has('weather_pm25_source')) db.exec('ALTER TABLE activities ADD COLUMN weather_pm25_source TEXT');
+  });
+
   // Automatic backfill: compute core centroid for any existing runs missing workout coordinates
   if (!deferDerivedMigrations) migrations.run('centroid-v1', () => {
     const unbackfilled = db.prepare('SELECT id, duration_seconds FROM activities WHERE workout_lat IS NULL').all() as any[];

@@ -8,9 +8,7 @@ import { useTranslation } from '../i18n/LanguageContext.js';
 import { backupDatabase, deleteDatabaseSnapshot, getDatabaseStatus, restoreDatabase, restoreDatabaseSnapshot, saveBackupSettings, selectBackupFolder } from '../api/client.js';
 import { apiErrorMessage } from '../api/errors.js';
 
-const SnapshotDeploymentPanel = import.meta.env.DEV
-  ? React.lazy(() => import('./SnapshotDeploymentPanel.js').then(module => ({ default: module.SnapshotDeploymentPanel })))
-  : null;
+const SnapshotDeploymentPanel = React.lazy(() => import('./SnapshotDeploymentPanel.js').then(module => ({ default: module.SnapshotDeploymentPanel })));
 
 export interface BackupManagementPanelProps {
   onRestoreComplete?: () => void;

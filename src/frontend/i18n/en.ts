@@ -3,12 +3,24 @@ import { Translations } from './types';
 export const en: Translations = {
   snapshot: {
     generatedAt: 'Snapshot exported {date}',
-    deployRowButton: 'Deploy this snapshot',
-    deployProtectionConfirmation: 'Deploy {filename} to aerolab-snapshot? I verified Vercel Authentication protects All Deployments. This sends the selected snapshot’s run activities, telemetry, training metrics, and profile thresholds to Vercel.',
+    deployRowButton: 'Deploy to Vercel',
+    deployProtectionConfirmation: 'Deploy {filename} to Vercel? You can choose the project during setup. This sends the selected snapshot’s run activities, telemetry, training metrics, and profile thresholds to Vercel. Make sure deployment protection is enabled for the project.',
     deploying: 'Deploying…',
+    deploySetupTerminalHint: 'A Vercel terminal has opened. Finish sign-in and choose the existing project to deploy to; deployment will continue automatically.',
+    deployPhases: {
+      checking: 'Checking Vercel sign-in…',
+      login: 'Sign in to Vercel in the terminal window…',
+      linking: 'Linking this checkout to the selected Vercel project…',
+      exporting: 'Exporting the selected snapshot…',
+      validating: 'Validating snapshot data…',
+      building: 'Building the read-only viewer…',
+      deploying: 'Uploading the protected deployment…',
+      complete: 'Deployment complete.',
+      failed: 'Deployment failed.'
+    },
     deploySuccess: 'Snapshot deployed successfully.',
+    deployOpen: 'Open',
     deployFailed: 'Snapshot deployment failed.',
-    deployNeedsLink: 'Link this checkout to the aerolab-snapshot Vercel project first with `npx vercel link --project aerolab-snapshot`.',
     deploySnapshotMissing: 'That local snapshot no longer exists. Refresh the list and retry.'
   },
   nav: {

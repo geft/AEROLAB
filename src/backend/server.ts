@@ -8,7 +8,7 @@ import { activitiesRouter } from './routes/activities.js';
 import { thresholdsRouter } from './routes/thresholds.js';
 import { ingestRouter } from './routes/ingest.js';
 import { profileRouter } from './routes/profile.js';
-import { devRouter } from './routes/dev.js';
+import { devRouter, snapshotDeploymentRouter } from './routes/dev.js';
 import { databaseRouter } from './routes/database.js';
 import { requestLogger, globalErrorHandler } from './utils/logger.js';
 import { isDevToolsEnabled } from './utils/dev-mode.js';
@@ -103,6 +103,7 @@ export function createServer(options: { sessionToken?: string } = {}) {
   app.use('/api/thresholds', thresholdsRouter);
   app.use('/api/ingest', ingestRouter);
   app.use('/api/profile', profileRouter);
+  app.use('/api/snapshot-deploy', snapshotDeploymentRouter);
   // Developer diagnostics are a development-only surface. In a production build
   // this router is never mounted, so /api/dev/* falls through to the API 404
   // handler and no internal telemetry is reachable from a shipped installer.
