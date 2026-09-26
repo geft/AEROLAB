@@ -29,7 +29,7 @@ interface SnapshotHistoryRowProps {
 const SnapshotHistoryRow: React.FC<SnapshotHistoryRowProps> = ({
   snapshot, isRestoring, deletingFilename, onRestore, onDelete
 }) => {
-  const { t, format } = useTranslation();
+  const { t, format, formatDate } = useTranslation();
   const [deploying, setDeploying] = useState(false);
   const [deployment, setDeployment] = useState<{
     phase: SnapshotDeploymentPhase;
@@ -72,10 +72,10 @@ const SnapshotHistoryRow: React.FC<SnapshotHistoryRowProps> = ({
   return (
     <>
       <tr className="backup-snapshot-row" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-        <td style={{ padding: '0.65rem 0.75rem', color: 'var(--text-primary)', fontFamily: 'monospace' }}>{snapshot.filename}</td>
-        <td style={{ padding: '0.65rem 0.75rem', color: 'var(--text-secondary)' }}>{new Date(snapshot.createdAt).toLocaleString()}</td>
-        <td style={{ padding: '0.65rem 0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{sizeMb} MB</td>
-        <td style={{ padding: '0.5rem 0.75rem' }}>
+        <td data-label={t.backup.tableSnapshotName} style={{ padding: '0.65rem 0.75rem', color: 'var(--text-primary)', fontFamily: 'monospace' }}>{snapshot.filename}</td>
+        <td data-label={t.backup.tableCreated} style={{ padding: '0.65rem 0.75rem', color: 'var(--text-secondary)' }}>{formatDate(snapshot.createdAt, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
+        <td data-label={t.backup.tableSize} style={{ padding: '0.65rem 0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{sizeMb} MB</td>
+        <td data-label={t.backup.tableAction} style={{ padding: '0.5rem 0.75rem' }}>
           <div className="backup-snapshot-actions">
             <button type="button" className="snapshot-deploy-button" onClick={() => void handleDeploy()} disabled={deploying}>
               {deploying
@@ -370,7 +370,10 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
                 fontWeight: 600,
                 cursor: 'pointer',
                 minHeight: '44px',
-                whiteSpace: 'nowrap'
+                minWidth: 0,
+                whiteSpace: 'normal',
+                textAlign: 'center',
+                lineHeight: 1.3
               }}
             >
               <Download size={14} />
@@ -407,7 +410,10 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
                 fontWeight: 600,
                 cursor: isRestoring ? 'wait' : 'pointer',
                 minHeight: '44px',
-                whiteSpace: 'nowrap'
+                minWidth: 0,
+                whiteSpace: 'normal',
+                textAlign: 'center',
+                lineHeight: 1.3
               }}
             >
               <FileUp size={14} />

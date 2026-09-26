@@ -132,6 +132,11 @@ export const en: Translations = {
     steadyPace: 'Steady Pace',
     steadyHr: 'Steady HR',
     efficiencyFactor: 'Running Economy (EF)',
+    telemetryChartTitle: 'Elevation & Telemetry Profile',
+    telemetryChartElevation: 'Elevation',
+    telemetryChartAltitude: 'Altitude',
+    telemetrySampleSelector: 'Select a point in the run chart',
+    telemetrySamplePosition: 'Point {current} of {total}',
     telemetryLoadFailed: 'Could not load workout telemetry.',
     loadingTelemetry: 'Loading workout telemetry...',
     backToSessions: 'Back to sessions',
@@ -280,7 +285,7 @@ export const en: Translations = {
     longitudinalDesc: 'Compare your monthly volume progression (km) alongside cardiovascular Running Economy (EF).',
     totalDistanceLegend: 'Total Distance (km)',
     runningEconomyLegend: 'Running Economy (EF)',
-    hoverHint: 'Hover over bars to inspect period metrics',
+    hoverHint: 'Tap a chart point to inspect its data. Swipe horizontally to explore.',
     allRunsFilter: 'All Runs',
     easyBaseFilter: 'Easy / Base',
     thresholdVo2Filter: 'Threshold / VO2',
@@ -768,7 +773,10 @@ export const en: Translations = {
     showAllInChart: 'Show All in Chart ({count})',
     loadPreviousMonths: 'Load Previous 6 Months (+6) • Showing {shown} of {total} Blocks',
     collapseCards: 'Collapse Cards to Last 3 Months',
-    seasonLabel: '{year} Season'
+    seasonLabel: '{year} Season',
+    chartRunCount: { one: '{count} run', other: '{count} runs' },
+    chartPointAriaLabel: '{period}: {distance} km, {runs}',
+    selectedChartPoint: 'Selected period: {period}'
   },
   bestEfforts: {
     loading: 'Loading best efforts...',
@@ -782,7 +790,8 @@ export const en: Translations = {
   thresholdTrends: {
     rollingDesc: 'Rolling estimate from up to 5 qualifying runs in the preceding 45 days. Older observations are used when recent evidence is unavailable.',
     showRolling: 'Show rolling trend',
-    showIndividual: 'Show individual runs'
+    showIndividual: 'Show individual runs',
+    chartPointAriaLabel: '{type} on {date}: {value}'
   },
   progressExtras: {
     calibrationRun: 'Estimate Source Run',

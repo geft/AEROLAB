@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import type { CalibrationHistoryItem as ContractCalibrationHistoryItem, ThresholdsResponse } from '../types/api.js';
 import { Clock, Heart, TrendingUp } from 'lucide-react';
-import { formatPace, formatDate } from '../utils/formatters.js';
+import { formatPace } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { translateActivityName, translateCalibrationNote } from '../i18n/coachTranslator.js';
 import { rollingThreshold } from '../../shared/threshold-trend.js';
@@ -18,7 +18,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
   history,
   currentThresholds
 }) => {
-  const { t, language } = useTranslation();
+  const { t, language, format, formatDate } = useTranslation();
 
   // Date.now() must not be called during render (react-hooks/purity), so capture a
   // stable "now" once per mount for the time-range fallback.
@@ -32,6 +32,13 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
     x: number;
     y: number;
   } | null>(null);
+  const [selectedPoint, setSelectedPoint] = useState<{
+    type: 'lt1' | 'lt2';
+    item: CalibrationHistoryItem;
+    x: number;
+    y: number;
+  } | null>(null);
+  const activePoint = hoveredPoint ?? selectedPoint;
 
   // 1. Deduplicate & sort chronologically (oldest -> newest)
   const sortedHistory = useMemo(() => {
@@ -305,18 +312,18 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
       {/* Active Baseline Badges */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginBottom: '0.75rem', flexWrap: 'wrap', fontSize: '0.78rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-          <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b' }}></span>
+          <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--chart-series-amber)' }}></span>
           <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{t.progress.lt2ThresholdBadge}:</span>
-          <span style={{ color: '#f59e0b', fontWeight: 700 }}>
+          <span style={{ color: 'var(--chart-series-amber)', fontWeight: 700 }}>
             {currentThresholds?.lt2PaceSecKm ? formatPace(currentThresholds.lt2PaceSecKm) : '--'}
             {currentThresholds?.lt2Hr ? ` (~${currentThresholds.lt2Hr} bpm)` : ''}
           </span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-          <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#10b981' }}></span>
+          <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--chart-series-green)' }}></span>
           <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{t.progress.lt1AerobicBaseBadge}:</span>
-          <span style={{ color: '#10b981', fontWeight: 700 }}>
+          <span style={{ color: 'var(--chart-series-green)', fontWeight: 700 }}>
             {currentThresholds?.lt1PaceSecKm ? formatPace(currentThresholds.lt1PaceSecKm) : '--'}
             {currentThresholds?.lt1Hr ? ` (~${currentThresholds.lt1Hr} bpm)` : ''}
           </span>
@@ -333,7 +340,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
           {t.progress.noTrendData}
         </div>
       ) : (
-        <div className="svg-chart-wrapper" style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <div className="svg-chart-wrapper threshold-trends-scroll" role="region" aria-label={t.progress.hoverHint} tabIndex={0}>
           <svg
             className="threshold-trends-svg"
             viewBox={`0 0 ${width} ${height}`}
@@ -356,6 +363,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
                   <text
                     x={padLeft - 8}
                     y={y + 4}
+                    className="threshold-chart-axis-label"
                     fill="var(--text-muted)"
                     fontSize="10"
                     textAnchor="end"
@@ -375,7 +383,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
                   y1={activeLt2Y}
                   x2={width - padRight}
                   y2={activeLt2Y}
-                  stroke="#f59e0b"
+                  stroke="var(--chart-series-amber)"
                   strokeWidth="1.2"
                   strokeDasharray="4 4"
                   strokeOpacity="0.7"
@@ -383,7 +391,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
                 <text
                   x={width - padRight + 4}
                   y={activeLt2Y + 3}
-                  fill="#f59e0b"
+                  fill="var(--chart-series-amber)"
                   fontSize="9"
                   fontWeight="600"
                 >
@@ -399,7 +407,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
                   y1={activeLt1Y}
                   x2={width - padRight}
                   y2={activeLt1Y}
-                  stroke="#10b981"
+                  stroke="var(--chart-series-green)"
                   strokeWidth="1.2"
                   strokeDasharray="4 4"
                   strokeOpacity="0.7"
@@ -407,7 +415,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
                 <text
                   x={width - padRight + 4}
                   y={activeLt1Y + 3}
-                  fill="#10b981"
+                  fill="var(--chart-series-green)"
                   fontSize="9"
                   fontWeight="600"
                 >
@@ -421,7 +429,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
               <path
                 d={lt1Path}
                 fill="none"
-                stroke="#10b981"
+                stroke="var(--chart-series-green)"
                 strokeWidth="2.2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -433,7 +441,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
               <path
                 d={lt2Path}
                 fill="none"
-                stroke="#f59e0b"
+                stroke="var(--chart-series-amber)"
                 strokeWidth="2.2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -445,13 +453,31 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
               const x = getX(p.effective_date);
               const val = metric === 'pace' ? p.lt1_pace_sec_km! : p.lt1_hr!;
               const y = getY(val);
-              const isHovered = hoveredPoint?.item.effective_date === p.effective_date && hoveredPoint?.type === 'lt1';
+              const isHovered = (hoveredPoint ?? selectedPoint)?.item.effective_date === p.effective_date
+                && (hoveredPoint ?? selectedPoint)?.type === 'lt1';
 
               return (
                 <g
                   key={`lt1-${p.effective_date}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={selectedPoint?.type === 'lt1' && selectedPoint.item.effective_date === p.effective_date}
+                  aria-label={format(t.thresholdTrends.chartPointAriaLabel, {
+                    type: t.progress.lt1AerobicBaseBadge,
+                    date: formatDate(p.effective_date),
+                    value: metric === 'pace' ? `${formatPace(val)} ${t.common.pace}` : `${val} bpm`
+                  })}
                   onMouseEnter={() => setHoveredPoint({ type: 'lt1', item: p, x, y })}
                   onMouseLeave={() => setHoveredPoint(null)}
+                  onFocus={() => setHoveredPoint({ type: 'lt1', item: p, x, y })}
+                  onBlur={() => setHoveredPoint(null)}
+                  onClick={() => setSelectedPoint({ type: 'lt1', item: p, x, y })}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSelectedPoint({ type: 'lt1', item: p, x, y });
+                    }
+                  }}
                   style={{ cursor: 'pointer' }}
                 >
                   <circle
@@ -459,12 +485,12 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
                     cx={x}
                     cy={y}
                     r={isHovered ? 6 : 4}
-                    fill={isHovered ? '#34d399' : '#10b981'}
+                    fill={isHovered ? 'var(--chart-series-green)' : 'var(--chart-series-green)'}
                     stroke="var(--bg-card)"
                     strokeWidth="2"
                   />
                   {/* Invisible touch target */}
-                  <circle cx={x} cy={y} r={14} fill="transparent" />
+                  <circle cx={x} cy={y} r={28} fill="transparent" aria-hidden="true" />
                 </g>
               );
             })}
@@ -474,13 +500,31 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
               const x = getX(p.effective_date);
               const val = metric === 'pace' ? p.lt2_pace_sec_km! : p.lt2_hr!;
               const y = getY(val);
-              const isHovered = hoveredPoint?.item.effective_date === p.effective_date && hoveredPoint?.type === 'lt2';
+              const isHovered = (hoveredPoint ?? selectedPoint)?.item.effective_date === p.effective_date
+                && (hoveredPoint ?? selectedPoint)?.type === 'lt2';
 
               return (
                 <g
                   key={`lt2-${p.effective_date}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={selectedPoint?.type === 'lt2' && selectedPoint.item.effective_date === p.effective_date}
+                  aria-label={format(t.thresholdTrends.chartPointAriaLabel, {
+                    type: t.progress.lt2ThresholdBadge,
+                    date: formatDate(p.effective_date),
+                    value: metric === 'pace' ? `${formatPace(val)} ${t.common.pace}` : `${val} bpm`
+                  })}
                   onMouseEnter={() => setHoveredPoint({ type: 'lt2', item: p, x, y })}
                   onMouseLeave={() => setHoveredPoint(null)}
+                  onFocus={() => setHoveredPoint({ type: 'lt2', item: p, x, y })}
+                  onBlur={() => setHoveredPoint(null)}
+                  onClick={() => setSelectedPoint({ type: 'lt2', item: p, x, y })}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSelectedPoint({ type: 'lt2', item: p, x, y });
+                    }
+                  }}
                   style={{ cursor: 'pointer' }}
                 >
                   <circle
@@ -488,12 +532,12 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
                     cx={x}
                     cy={y}
                     r={isHovered ? 6 : 4}
-                    fill={isHovered ? '#fbbf24' : '#f59e0b'}
+                    fill="var(--chart-series-amber)"
                     stroke="var(--bg-card)"
                     strokeWidth="2"
                   />
                   {/* Invisible touch target */}
-                  <circle cx={x} cy={y} r={14} fill="transparent" />
+                  <circle cx={x} cy={y} r={28} fill="transparent" aria-hidden="true" />
                 </g>
               );
             })}
@@ -510,6 +554,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
                   key={`date-${idx}`}
                   x={x}
                   y={height - padBottom + 18}
+                  className="threshold-chart-axis-label"
                   fill="var(--text-muted)"
                   fontSize="9.5"
                   textAnchor="middle"
@@ -521,67 +566,70 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
           </svg>
 
           {/* Floating Glassmorphic Tooltip */}
-          {hoveredPoint && (
+          {activePoint && (
             <div
+              className="threshold-trend-tooltip"
+              role="status"
+              aria-live="polite"
               style={{
                 position: 'absolute',
-                top: Math.max(10, Math.min(height - 100, hoveredPoint.y + 10)),
-                left: Math.max(15, Math.min(width - 240, hoveredPoint.x - 110)),
-                background: 'rgba(15, 23, 42, 0.95)',
-                border: `1px solid ${hoveredPoint.type === 'lt1' ? '#10b981' : '#f59e0b'}`,
+                top: Math.max(10, Math.min(height - 100, activePoint.y + 10)),
+                left: Math.max(15, Math.min(width - 240, activePoint.x - 110)),
+                background: 'var(--bg-card)',
+                border: `1px solid var(${activePoint.type === 'lt1' ? '--chart-series-green' : '--chart-series-amber'})`,
                 borderRadius: 8,
                 padding: '0.65rem 0.85rem',
-                color: '#fff',
+                color: 'var(--text-primary)',
                 fontSize: '0.75rem',
-                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
+                boxShadow: 'var(--card-shadow)',
                 pointerEvents: 'none',
                 zIndex: 20,
                 minWidth: 190
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                <span style={{ fontWeight: 700, color: hoveredPoint.type === 'lt1' ? '#34d399' : '#fbbf24' }}>
-                  {hoveredPoint.type === 'lt1' ? t.progress.lt1AerobicBaseBadge : t.progress.lt2ThresholdBadge}
+                  <span style={{ fontWeight: 700, color: `var(${activePoint.type === 'lt1' ? '--chart-series-green' : '--chart-series-amber'})` }}>
+                  {activePoint.type === 'lt1' ? t.progress.lt1AerobicBaseBadge : t.progress.lt2ThresholdBadge}
                 </span>
-                <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
-                  {formatDate(hoveredPoint.item.effective_date)}
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', margin: '0.2rem 0' }}>
-                <span style={{ color: '#cbd5e1' }}>{t.common.pace}:</span>
-                <span style={{ fontWeight: 700, color: '#fff' }}>
-                  {hoveredPoint.type === 'lt1'
-                    ? (hoveredPoint.item.lt1_pace_sec_km ? formatPace(hoveredPoint.item.lt1_pace_sec_km) : '--')
-                    : (hoveredPoint.item.lt2_pace_sec_km ? formatPace(hoveredPoint.item.lt2_pace_sec_km) : '--')}
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                  {formatDate(activePoint.item.effective_date)}
                 </span>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', margin: '0.2rem 0' }}>
-                <span style={{ color: '#cbd5e1' }}>{t.common.heartRate}:</span>
-                <span style={{ fontWeight: 700, color: '#fff' }}>
-                  {hoveredPoint.type === 'lt1'
-                    ? `${hoveredPoint.item.lt1_hr || '--'} bpm`
-                    : `${hoveredPoint.item.lt2_hr || '--'} bpm`}
+                <span style={{ color: 'var(--text-secondary)' }}>{t.common.pace}:</span>
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {activePoint.type === 'lt1'
+                    ? (activePoint.item.lt1_pace_sec_km ? formatPace(activePoint.item.lt1_pace_sec_km) : '--')
+                    : (activePoint.item.lt2_pace_sec_km ? formatPace(activePoint.item.lt2_pace_sec_km) : '--')}
                 </span>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', margin: '0.2rem 0' }}>
-                <span style={{ color: '#cbd5e1' }}>{t.common.confidence}:</span>
-                <span style={{ fontWeight: 600, color: '#38bdf8' }}>
-                  {((hoveredPoint.item.confidence ?? 0) * 100).toFixed(0)}%
+                <span style={{ color: 'var(--text-secondary)' }}>{t.common.heartRate}:</span>
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {activePoint.type === 'lt1'
+                    ? `${activePoint.item.lt1_hr || '--'} bpm`
+                    : `${activePoint.item.lt2_hr || '--'} bpm`}
                 </span>
               </div>
 
-              {hoveredPoint.item.activity_name && (
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '0.35rem', paddingTop: '0.35rem', color: '#94a3b8', fontSize: '0.7rem' }}>
-                  {translateActivityName(hoveredPoint.item.activity_name, language)}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', margin: '0.2rem 0' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>{t.common.confidence}:</span>
+                <span style={{ fontWeight: 600, color: 'var(--accent-cyan)' }}>
+                  {((activePoint.item.confidence ?? 0) * 100).toFixed(0)}%
+                </span>
+              </div>
+
+              {activePoint.item.activity_name && (
+                <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: '0.35rem', paddingTop: '0.35rem', color: 'var(--text-muted)', fontSize: '0.7rem' }}>
+                  {translateActivityName(activePoint.item.activity_name, language)}
                 </div>
               )}
 
-              {hoveredPoint.item.notes && (
-                <div style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.68rem', marginTop: '0.2rem' }}>
-                  "{translateCalibrationNote(hoveredPoint.item.notes, language)}"
+              {activePoint.item.notes && (
+                <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.68rem', marginTop: '0.2rem' }}>
+                  "{translateCalibrationNote(activePoint.item.notes, language)}"
                 </div>
               )}
             </div>

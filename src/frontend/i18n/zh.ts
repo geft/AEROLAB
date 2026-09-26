@@ -132,6 +132,11 @@ export const zh: Translations = {
     steadyPace: '巡航配速',
     steadyHr: '巡航心率',
     efficiencyFactor: '效率因子 (EF)',
+    telemetryChartTitle: '海拔与运动遥测曲线',
+    telemetryChartElevation: '海拔',
+    telemetryChartAltitude: '海拔',
+    telemetrySampleSelector: '选择跑步图表中的数据点',
+    telemetrySamplePosition: '第 {current} / {total} 个数据点',
     telemetryLoadFailed: '无法加载本次训练的遥测数据。',
     loadingTelemetry: '正在加载训练遥测数据…',
     backToSessions: '返回训练记录',
@@ -284,7 +289,7 @@ export const zh: Translations = {
     longitudinalDesc: '对比各训练周期的月度跑量累积 (km) 与心血管跑步经济性 (EF) 的稳健提升。',
     totalDistanceLegend: '总跑量 (km)',
     runningEconomyLegend: '跑步经济性 (EF)',
-    hoverHint: '鼠标悬停于柱状图以查看周期详细生理指标',
+    hoverHint: '点击图表数据点查看详情，也可左右滑动浏览。',
     allRunsFilter: '所有跑步',
     easyBaseFilter: '轻松 / 有氧',
     thresholdVo2Filter: '阈值 / 最大摄氧量',
@@ -791,7 +796,10 @@ export const zh: Translations = {
     showAllInChart: '显示图表全部 ({count})',
     loadPreviousMonths: '加载前 6 个月历史周期 (+6) • 已显示 {shown} / {total} 个周期',
     collapseCards: '收起卡片至近 3 个月',
-    seasonLabel: '{year}赛季'
+    seasonLabel: '{year}赛季',
+    chartRunCount: { one: '{count} 次跑步', other: '{count} 次跑步' },
+    chartPointAriaLabel: '{period}：{distance} 公里，{runs}',
+    selectedChartPoint: '所选周期：{period}'
   },
   bestEfforts: {
     loading: '正在加载最佳成绩...',
@@ -810,7 +818,8 @@ export const zh: Translations = {
   thresholdTrends: {
     rollingDesc: '根据此前45天内最多5次符合条件的跑步计算滚动估算；缺少近期证据时采用更早的记录。',
     showRolling: '显示滚动趋势',
-    showIndividual: '显示单次跑步'
+    showIndividual: '显示单次跑步',
+    chartPointAriaLabel: '{date}的{type}：{value}'
   },
   progressExtras: {
     calibrationRun: '估算来源跑步',

@@ -168,6 +168,11 @@ export interface Translations {
     steadyPace: string;
     steadyHr: string;
     efficiencyFactor: string;
+    telemetryChartTitle: string;
+    telemetryChartElevation: string;
+    telemetryChartAltitude: string;
+    telemetrySampleSelector: string;
+    telemetrySamplePosition: string;
     telemetryLoadFailed: string;
     loadingTelemetry: string;
     backToSessions: string;
@@ -833,6 +838,9 @@ export interface Translations {
     collapseCards: string;
     /** Template with a `{year}` token, e.g. `{year} Season`. */
     seasonLabel: string;
+    chartRunCount: PluralForms;
+    chartPointAriaLabel: string;
+    selectedChartPoint: string;
   };
   bestEfforts: {
     loading: string;
@@ -850,6 +858,7 @@ export interface Translations {
     rollingDesc: string;
     showRolling: string;
     showIndividual: string;
+    chartPointAriaLabel: string;
   };
   progressExtras: {
     calibrationRun: string;

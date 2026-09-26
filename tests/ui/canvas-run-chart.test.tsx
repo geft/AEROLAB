@@ -50,11 +50,11 @@ describe('CanvasRunChart', () => {
     expect(context.fill).toHaveBeenCalled();
     const wrapper = document.querySelector('.chart-canvas-wrapper')!;
     fireEvent.mouseMove(wrapper, { clientX: 460 });
-    expect(screen.getByText('Dist:')).toBeTruthy();
+    expect(screen.getByText('Distance:')).toBeTruthy();
     expect(screen.getByText('0.35 km')).toBeTruthy();
     expect(screen.getByText('6:25/km')).toBeTruthy();
     expect(screen.getByText('150 bpm')).toBeTruthy();
-    expect(screen.getByText('15m')).toBeTruthy();
+    expect(screen.getByText('15 m')).toBeTruthy();
 
     fireEvent.mouseLeave(wrapper);
     expect(screen.queryByText('0.35 km')).toBeNull();

@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
+import { useTranslation } from '../i18n/LanguageContext.js';
 
 interface RecordPoint {
   elapsed_seconds: number;
@@ -16,6 +17,7 @@ interface CanvasRunChartProps {
 }
 
 export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme = 'dark' }) => {
+  const { t, format } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [layoutTick, setLayoutTick] = useState(0);
   const [hoverData, setHoverData] = useState<{
@@ -103,14 +105,14 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme =
       const paceSecVal = Math.round(minPace + ((maxPace - minPace) / 4) * i);
       const paceMin = Math.floor(paceSecVal / 60);
       const paceSec = String(paceSecVal % 60).padStart(2, '0');
-      ctx.fillStyle = '#06b6d4';
+      ctx.fillStyle = isLight ? '#0369a1' : '#06b6d4';
       ctx.font = '10px Inter, sans-serif';
       ctx.textAlign = 'left';
       ctx.fillText(`${paceMin}:${paceSec}`, 2, y + 3);
 
       // HR labels on right axis – drawn inside right-side padding, right-aligned to edge
       const hrVal = Math.round(maxHr - ((maxHr - minHr) / 4) * i);
-      ctx.fillStyle = '#f59e0b';
+      ctx.fillStyle = isLight ? '#b45309' : '#f59e0b';
       ctx.font = '10px Inter, sans-serif';
       ctx.textAlign = 'right';
       ctx.fillText(`${hrVal}`, width - 2, y + 3);
@@ -143,7 +145,7 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme =
     // Draw HR Line (Amber)
     ctx.beginPath();
     ctx.lineWidth = 2;
-    ctx.strokeStyle = '#f59e0b';
+    ctx.strokeStyle = isLight ? '#b45309' : '#f59e0b';
     let startedHr = false;
     for (let i = 0; i < displayRecords.length; i++) {
       const r = displayRecords[i];
@@ -163,7 +165,7 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme =
     // Draw Pace Line (Cyan / Blue)
     ctx.beginPath();
     ctx.lineWidth = 2;
-    ctx.strokeStyle = isLight ? '#0284c7' : '#06b6d4';
+    ctx.strokeStyle = isLight ? '#0369a1' : '#06b6d4';
     let startedPace = false;
     for (let i = 0; i < displayRecords.length; i++) {
       const r = displayRecords[i];
@@ -186,19 +188,9 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme =
 
   }, [displayRecords, theme, layoutTick]);
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas || displayRecords.length === 0) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const padding = { left: 40, right: 40 };
-    const chartW = rect.width - padding.left - padding.right;
-
-    const relX = Math.max(0, Math.min(chartW, mouseX - padding.left));
-    const idx = Math.min(displayRecords.length - 1, Math.round((relX / chartW) * (displayRecords.length - 1)));
-    const r = displayRecords[idx];
-
+  const getReadout = (index: number) => {
+    const r = displayRecords[index];
+    if (!r) return null;
     let paceStr = '—';
     const spd = r.speed_mps ?? r.speedMps;
     if (spd && spd > 1.0) {
@@ -208,61 +200,106 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme =
       paceStr = `${m}:${String(s).padStart(2, '0')}/km`;
     }
 
-    setHoverData({
-      index: idx,
+    return {
+      index,
       timeSec: r.elapsed_seconds,
       hr: r.heart_rate,
       paceStr,
       alt: r.altitude_m,
       distKm: ((r.distance_m ?? 0) / 1000).toFixed(2)
-    });
+    };
   };
 
-  const handleMouseLeave = () => {
-    setHoverData(null);
+  const handlePointerRead = (clientX: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas || displayRecords.length === 0) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const relativeX = clientX - rect.left;
+    const padding = { left: 40, right: 64 };
+    const chartW = rect.width - padding.left - padding.right;
+
+    const relX = Math.max(0, Math.min(chartW, relativeX - padding.left));
+    const idx = Math.min(displayRecords.length - 1, Math.round((relX / chartW) * (displayRecords.length - 1)));
+    setHoverData(getReadout(idx));
   };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Treat an omitted pointerType as mouse for synthetic mouse events and
+    // assistive test harnesses that dispatch legacy mouse input.
+    if (!e.pointerType || e.pointerType === 'mouse') handlePointerRead(e.clientX);
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    handlePointerRead(e.clientX);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    handlePointerRead(e.clientX);
+  };
+
+  const handleMouseLeave = () => setHoverData(null);
+
+  const handlePointerLeave = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!e.pointerType || e.pointerType === 'mouse') setHoverData(null);
+  };
+
+  const formatElapsed = (timeSec: number) => `${Math.floor(timeSec / 60)}:${String(timeSec % 60).padStart(2, '0')}`;
 
   return (
     <div style={{ position: 'relative', width: '100%' }}>
       {/* Legend & Hover readout bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.8rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
-            <span style={{ width: 10, height: 3, background: 'var(--accent-cyan)', borderRadius: 2 }}></span>
-            <span>Pace</span>
+      <div className="telemetry-chart-meta">
+        <div className="telemetry-chart-legend">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: theme === 'light' ? '#0369a1' : '#06b6d4', fontWeight: 600 }}>
+            <span style={{ width: 10, height: 3, background: theme === 'light' ? '#0369a1' : '#06b6d4', borderRadius: 2 }}></span>
+            <span>{t.common.pace}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--accent-amber)', fontWeight: 600 }}>
-            <span style={{ width: 10, height: 3, background: 'var(--accent-amber)', borderRadius: 2 }}></span>
-            <span>Heart Rate</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: theme === 'light' ? '#b45309' : '#f59e0b', fontWeight: 600 }}>
+            <span style={{ width: 10, height: 3, background: theme === 'light' ? '#b45309' : '#f59e0b', borderRadius: 2 }}></span>
+            <span>{t.common.heartRate}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)' }}>
             <span style={{ width: 10, height: 8, background: 'rgba(148, 163, 184, 0.3)', borderRadius: 1 }}></span>
-            <span>Elevation</span>
+            <span>{t.browse.telemetryChartElevation}</span>
           </div>
         </div>
 
         {hoverData && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem',
-            background: 'var(--tag-pill-bg)',
-            border: '1px solid var(--border-subtle)',
-            padding: '0.2rem 0.65rem',
-            borderRadius: 6,
-            fontSize: '0.75rem'
-          }}>
-            <span>Dist: <b style={{ color: 'var(--text-primary)' }}>{hoverData.distKm} km</b></span>
-            <span>Pace: <b style={{ color: 'var(--accent-cyan)' }}>{hoverData.paceStr}</b></span>
-            <span>HR: <b style={{ color: 'var(--accent-amber)' }}>{hoverData.hr ?? '—'} bpm</b></span>
-            <span>Alt: <b style={{ color: 'var(--text-muted)' }}>{hoverData.alt !== null ? `${hoverData.alt}m` : '—'}</b></span>
+          <div className="telemetry-chart-readout" role="status" aria-live="polite">
+            <span>{format(t.browse.telemetrySamplePosition, { current: hoverData.index + 1, total: displayRecords.length })} · {formatElapsed(hoverData.timeSec)}</span>
+            <span>{t.common.distance}: <b>{hoverData.distKm} {t.common.km}</b></span>
+            <span>{t.common.pace}: <b>{hoverData.paceStr}</b></span>
+            <span>{t.common.heartRate}: <b>{hoverData.hr ?? '—'} bpm</b></span>
+            <span>{t.browse.telemetryChartAltitude}: <b>{hoverData.alt !== null ? `${hoverData.alt} m` : '—'}</b></span>
           </div>
         )}
       </div>
 
-      <div className="chart-canvas-wrapper" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
+      <div
+        className="chart-canvas-wrapper"
+        onPointerMove={handlePointerMove}
+        onPointerDown={handlePointerDown}
+        onPointerLeave={handlePointerLeave}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+      >
         <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block', cursor: 'crosshair' }} />
       </div>
+      {displayRecords.length > 1 && (
+        <label className="telemetry-chart-sample-control">
+          <span>{t.browse.telemetrySampleSelector}</span>
+          <input
+            type="range"
+            min={0}
+            max={displayRecords.length - 1}
+            value={hoverData?.index ?? 0}
+            aria-label={t.browse.telemetrySampleSelector}
+            onFocus={() => setHoverData(getReadout(0))}
+            onChange={event => setHoverData(getReadout(Number(event.currentTarget.value)))}
+          />
+        </label>
+      )}
     </div>
   );
 };

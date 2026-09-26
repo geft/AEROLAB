@@ -29,8 +29,16 @@ export const PeriodProgressView: React.FC = () => {
   const [runTypeFilter, setRunTypeFilter] = useState<'all' | 'easy' | 'threshold'>('all');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [selectedChartPeriod, setSelectedChartPeriod] = useState<string | null>(null);
   const [visibleMonthsCount, setVisibleMonthsCount] = useState<number>(6);
   const [visibleCardCount, setVisibleCardCount] = useState<number>(3);
+  const [viewportWidth, setViewportWidth] = useState(() => typeof window === 'undefined' ? 1024 : window.innerWidth);
+
+  useEffect(() => {
+    const updateViewportWidth = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', updateViewportWidth);
+    return () => window.removeEventListener('resize', updateViewportWidth);
+  }, []);
 
   useEffect(() => {
     getProgressHistory(runTypeFilter)
@@ -66,12 +74,15 @@ export const PeriodProgressView: React.FC = () => {
   const maxEf = efValues.length > 0 ? Math.max(...efValues, 1.3) : 1.3;
   const efSpan = Math.max(0.1, maxEf - minEf);
 
-  const colWidth = periods.length > 12 ? 66 : periods.length > 6 ? 74 : 110;
-  const paddingLeft = 55;
-  const paddingRight = 55;
+  const isMobileChart = viewportWidth <= 768;
+  const colWidth = isMobileChart ? 48 : periods.length > 12 ? 66 : periods.length > 6 ? 74 : 110;
+  // Leave room for the y-axis labels even when the browser scrolls a focused
+  // point into view inside the horizontally scrollable chart.
+  const paddingLeft = isMobileChart ? 115 : 55;
+  const paddingRight = isMobileChart ? 42 : 55;
   const paddingTop = 25;
   const paddingBottom = 46;
-  const chartWidth = Math.max(840, periods.length * colWidth + paddingLeft + paddingRight);
+  const chartWidth = Math.max(isMobileChart ? 360 : 840, periods.length * colWidth + paddingLeft + paddingRight);
   const chartHeight = 236;
   const innerWidth = Math.max(10, chartWidth - paddingLeft - paddingRight);
   const innerHeight = Math.max(10, chartHeight - paddingTop - paddingBottom);
@@ -248,11 +259,11 @@ export const PeriodProgressView: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              <span style={{ width: 12, height: 12, borderRadius: 2, background: 'rgba(6, 182, 212, 0.6)' }}></span>
+              <span style={{ width: 12, height: 12, borderRadius: 2, background: 'var(--chart-series-cyan)' }}></span>
               <span>{t.progress.totalDistanceLegend}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              <span style={{ width: 14, height: 3, borderRadius: 2, background: '#10b981' }}></span>
+              <span style={{ width: 14, height: 3, borderRadius: 2, background: 'var(--chart-series-green)' }}></span>
               <span>{t.progress.runningEconomyLegend}</span>
             </div>
           </div>
@@ -261,20 +272,24 @@ export const PeriodProgressView: React.FC = () => {
           </span>
         </div>
 
-        <div className="svg-chart-wrapper" style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <div className="svg-chart-wrapper period-chart-scroll" role="region" aria-label={t.progress.hoverHint} tabIndex={0}>
           <svg
             className="period-progress-svg"
             viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-            style={{ width: '100%', minWidth: `${Math.min(chartWidth, Math.max(760, periods.length * 60))}px`, height: 'auto', maxHeight: 280, display: 'block' }}
+            style={{
+              width: isMobileChart ? `${chartWidth}px` : '100%',
+              minWidth: isMobileChart ? `${chartWidth}px` : `${Math.min(chartWidth, Math.max(760, periods.length * 60))}px`,
+              height: 'auto', maxHeight: isMobileChart ? 'none' : 280, display: 'block'
+            }}
           >
             <defs>
               <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.85" />
-                <stop offset="100%" stopColor="#0891b2" stopOpacity="0.25" />
+                <stop offset="0%" stopColor="var(--chart-series-cyan)" stopOpacity="0.85" />
+                <stop offset="100%" stopColor="var(--chart-series-cyan)" stopOpacity="0.25" />
               </linearGradient>
               <linearGradient id="barGradientHover" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.95" />
-                <stop offset="100%" stopColor="#0284c7" stopOpacity="0.45" />
+                <stop offset="0%" stopColor="var(--chart-series-cyan)" stopOpacity="0.95" />
+                <stop offset="100%" stopColor="var(--chart-series-cyan)" stopOpacity="0.45" />
               </linearGradient>
             </defs>
 
@@ -294,13 +309,13 @@ export const PeriodProgressView: React.FC = () => {
                   />
                   <text
                     className="period-chart-axis-label"
-                    x={paddingLeft - 8}
+                    x={paddingLeft - (isMobileChart ? 14 : 8)}
                     y={y + 4}
                     fill="var(--text-muted)"
                     fontSize="10"
                     textAnchor="end"
                   >
-                    {distVal} km
+                    {distVal} {t.common.km}
                   </text>
                 </g>
               );
@@ -315,7 +330,7 @@ export const PeriodProgressView: React.FC = () => {
                   key={i}
                   x={chartWidth - paddingRight + 8}
                   y={y + 4}
-                  fill="#10b981"
+                  fill="var(--chart-series-green)"
                   fontSize="10"
                   textAnchor="start"
                   fontWeight="600"
@@ -332,23 +347,19 @@ export const PeriodProgressView: React.FC = () => {
               const rawH = getBarHeight(p.totalDistanceKm);
               const barH = Number.isFinite(rawH) ? Math.max(4, rawH) : 4;
               const barY = Number.isFinite(paddingTop + innerHeight - barH) ? paddingTop + innerHeight - barH : paddingTop + innerHeight - 4;
-              const isHovered = hoveredIndex === idx;
+              const isHovered = hoveredIndex === idx || selectedChartPeriod === p.period;
 
               // Format top-of-bar distance (round >= 100km to avoid wide text overflow)
-              const formattedDistKm = p.totalDistanceKm >= 100
-                ? `${Math.round(p.totalDistanceKm)}k`
-                : `${p.totalDistanceKm}k`;
+              const formattedDistKm = Math.round(p.totalDistanceKm).toString();
 
               // Separate month from year in Month view to prevent cramped collisions
               const isMonthView = activePeriodType === 'month';
-              let primaryLabel = p.label;
+              let primaryLabel = formatPeriodLabel(p);
               let yearBadge: string | null = null;
 
               if (isMonthView && p.period && p.period.includes('-')) {
                 const [yr, mo] = p.period.split('-');
-                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                const mIdx = parseInt(mo, 10) - 1;
-                primaryLabel = monthNames[mIdx] || p.label;
+                primaryLabel = formatDate(`${yr}-${mo}-01`, { month: 'short' });
                 const prevYr = idx > 0 ? periods[idx - 1]?.period?.split('-')[0] : null;
                 const isYearStart = idx === 0 || yr !== prevYr;
                 if (isYearStart) {
@@ -359,17 +370,33 @@ export const PeriodProgressView: React.FC = () => {
               return (
                 <g
                   key={p.period}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={selectedChartPeriod === p.period}
+                  aria-label={format(t.periodProgress.chartPointAriaLabel, {
+                    period: formatPeriodLabel(p),
+                    distance: p.totalDistanceKm,
+                    runs: plural(p.runCount, t.periodProgress.chartRunCount)
+                  })}
                   onMouseEnter={() => setHoveredIndex(idx)}
                   onMouseLeave={() => setHoveredIndex(null)}
+                  onClick={() => setSelectedChartPeriod(p.period)}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSelectedChartPeriod(p.period);
+                    }
+                  }}
                   style={{ cursor: 'pointer' }}
                 >
                   {/* Invisible touch trigger */}
                   <rect
-                    x={xCenter - barW}
+                    x={xCenter - Math.max(barW, 22)}
                     y={paddingTop}
-                    width={barW * 2}
+                    width={Math.max(barW * 2, 44)}
                     height={innerHeight + paddingBottom}
                     fill="transparent"
+                    aria-hidden="true"
                   />
 
                   {/* Volume Bar */}
@@ -380,7 +407,7 @@ export const PeriodProgressView: React.FC = () => {
                     height={Math.max(4, barH)}
                     rx={4}
                     fill={isHovered ? 'url(#barGradientHover)' : 'url(#barGradient)'}
-                    stroke={isHovered ? '#38bdf8' : '#06b6d4'}
+                    stroke="var(--chart-series-cyan)"
                     strokeWidth={isHovered ? 1.5 : 0.8}
                   />
 
@@ -388,7 +415,7 @@ export const PeriodProgressView: React.FC = () => {
                   <text
                     x={xCenter}
                     y={barY - 6}
-                    fill={isHovered ? '#38bdf8' : 'var(--text-secondary)'}
+                    fill={isHovered ? 'var(--chart-series-cyan)' : 'var(--text-secondary)'}
                     fontSize="10"
                     fontWeight="600"
                     textAnchor="middle"
@@ -414,7 +441,7 @@ export const PeriodProgressView: React.FC = () => {
                     <text
                       x={xCenter}
                       y={paddingTop + innerHeight + 28}
-                      fill="#38bdf8"
+                      fill="var(--chart-series-cyan)"
                       fontSize="9"
                       fontWeight="700"
                       textAnchor="middle"
@@ -429,7 +456,7 @@ export const PeriodProgressView: React.FC = () => {
                       fontSize="9"
                       textAnchor="middle"
                     >
-                      {p.runCount} {p.runCount === 1 ? 'run' : 'runs'}
+                      {plural(p.runCount, t.periodProgress.chartRunCount)}
                     </text>
                   )}
 
@@ -442,7 +469,7 @@ export const PeriodProgressView: React.FC = () => {
                       fontSize="8.5"
                       textAnchor="middle"
                     >
-                      {p.runCount} {p.runCount === 1 ? 'run' : 'runs'}
+                      {plural(p.runCount, t.periodProgress.chartRunCount)}
                     </text>
                   )}
                 </g>
@@ -454,7 +481,7 @@ export const PeriodProgressView: React.FC = () => {
               <path
                 d={efLinePath}
                 fill="none"
-                stroke="#10b981"
+                stroke="var(--chart-series-green)"
                 strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -470,7 +497,7 @@ export const PeriodProgressView: React.FC = () => {
                     cx={pt.x}
                     cy={pt.y}
                     r={isHovered ? 6 : 4}
-                    fill="#10b981"
+                    fill="var(--chart-series-green)"
                     stroke="var(--bg-card)"
                     strokeWidth="2"
                     style={{ transition: 'r 0.15s ease' }}
@@ -480,7 +507,7 @@ export const PeriodProgressView: React.FC = () => {
                     <text
                       x={pt.x}
                       y={pt.y - 10}
-                      fill="#10b981"
+                      fill="var(--chart-series-green)"
                       fontSize="10.5"
                       fontWeight="700"
                       textAnchor="middle"
@@ -493,6 +520,18 @@ export const PeriodProgressView: React.FC = () => {
             })}
           </svg>
         </div>
+        {selectedChartPeriod && (() => {
+          const selected = periods.find(period => period.period === selectedChartPeriod);
+          if (!selected) return null;
+          return (
+            <div className="period-chart-selection" role="status" aria-live="polite">
+              <strong>{format(t.periodProgress.selectedChartPoint, { period: formatPeriodLabel(selected) })}</strong>
+              <span>{selected.totalDistanceKm} {t.common.km}</span>
+              <span>{plural(selected.runCount, t.periodProgress.chartRunCount)}</span>
+              {selected.avgEfficiencyFactor != null && <span>{selected.avgEfficiencyFactor.toFixed(2)} EF</span>}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Detail Breakdown: Cards or Table */}

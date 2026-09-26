@@ -607,7 +607,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               <>
                 <section className="chart-card">
                   <div className="chart-header">
-                    <span className="chart-title">Elevation & Telemetry Profile</span>
+                    <span className="chart-title">{t.browse.telemetryChartTitle}</span>
                   </div>
 
                   <CanvasRunChart

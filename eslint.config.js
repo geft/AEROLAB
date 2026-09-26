@@ -92,6 +92,8 @@ export default tseslint.config(
       'release/**',
       'coverage/**',
       'node_modules/**',
+      'test-results/**',
+      'playwright-report/**',
       'scratch/**',
       'data/**',
       '*.config.js',
