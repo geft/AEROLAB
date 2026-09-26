@@ -40,6 +40,7 @@ export interface Activity {
   weather_humidity_pct?: number | null;
   weather_apparent_temp_c?: number | null;
   weather_pm25_ug_m3?: number | null;
+  weather_pm25_source?: 'nea-sg' | 'open-meteo' | null;
   weather_condition?: string | null;
   weather_code?: number | null;
   weather_fetched_at?: string | null;

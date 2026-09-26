@@ -81,6 +81,7 @@ export function generateCoachSummary(params: {
   weatherApparentTempC?: number | null;
   weatherCondition?: string | null;
   weatherPm25?: number | null;
+  weatherPm25Source?: 'nea-sg' | 'open-meteo' | null;
   recentAverageWeatherTempC?: number | null;
   // Interval reps telemetry (for quality threshold / VO2 sessions)
   intervals?: any[] | null;
@@ -347,8 +348,10 @@ export function generateCoachSummary(params: {
     const warmerNote = params.recentAverageWeatherTempC != null && params.weatherTempC >= params.recentAverageWeatherTempC + 1.5
       ? ` Warmer than your recent fetched-run average (${params.recentAverageWeatherTempC.toFixed(1)}°C), adding heat strain.`
       : '';
-    const pm25Note = params.weatherPm25 != null && params.weatherPm25 >= 25
-      ? ` Modeled PM2.5 near the run midpoint was elevated at ${params.weatherPm25.toFixed(1)} µg/m³; haze can make hard breathing feel more difficult.`
+    const pm25Note = params.weatherPm25 != null && params.weatherPm25Source === 'nea-sg'
+      ? ` NEA's nearest regional monitor reported ${params.weatherPm25.toFixed(0)} µg/m³ PM2.5 near the run midpoint (${params.weatherPm25 <= 55 ? 'Normal' : params.weatherPm25 <= 150 ? 'Elevated' : params.weatherPm25 <= 250 ? 'High' : 'Very High'} 1-hour band); haze may have added breathing strain.`
+      : params.weatherPm25 != null && params.weatherPm25 >= 56
+        ? ` Open-Meteo modeled midpoint PM2.5 at ${params.weatherPm25.toFixed(1)} µg/m³; this is a model estimate, and haze may have added breathing strain.`
       : '';
     insights.add('neutral', `Microclimate Weather: ${params.weatherTempC}°C ambient${condStr}${humidStr}${feelsLikeStr}${watchStr}. ${
       params.weatherHumidityPct && params.weatherHumidityPct >= 80
@@ -650,6 +653,7 @@ export function syncActivityCoachSummary(
     weatherApparentTempC: activity.weather_apparent_temp_c ?? null,
     weatherCondition: activity.weather_condition ?? null,
     weatherPm25: activity.weather_pm25_ug_m3 ?? null,
+    weatherPm25Source: activity.weather_pm25_source ?? null,
     recentAverageWeatherTempC: weatherBaselineRow?.avg_temp ?? null,
     isFailedWorkout: overrides?.isFailedWorkout ?? new RegExp('failed|aborted|dnf|bailed', 'i').test(activity.name || ''),
     intervals: overrides?.intervals || intervals,

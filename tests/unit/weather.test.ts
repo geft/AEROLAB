@@ -50,7 +50,15 @@ describe('Weather Service Unit Tests', () => {
       } as any)
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ hourly: { pm2_5: [42.56] } })
+        json: async () => ({
+          data: {
+            items: [{ readings: { pm25_one_hourly: { central: 96, north: 46, south: 54, east: 76, west: 48 } } }],
+            regionMetadata: [
+              { name: 'central', labelLocation: { latitude: 1.35735, longitude: 103.82 } },
+              { name: 'north', labelLocation: { latitude: 1.41803, longitude: 103.82 } }
+            ]
+          }
+        })
       } as any);
 
     const res = await fetchHistoricalWeather(1.3521, 103.8512, '2026-09-12T07:15:00', 7200);
@@ -59,11 +67,12 @@ describe('Weather Service Unit Tests', () => {
     expect(res.apparentTempC).toBe(33.5);
     expect(res.weatherCode).toBe(2);
     expect(res.conditionText).toBe('Partly cloudy');
-    expect(res.pm25).toBe(42.6);
+    expect(res.pm25).toBe(96);
+    expect(res.pm25Source).toBe('nea-sg');
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(String(fetchMock.mock.calls[0][0])).toContain('start_date=2026-09-12');
-    expect(String(fetchMock.mock.calls[1][0])).toContain('start_hour=2026-09-12T08:00');
-    expect(String(fetchMock.mock.calls[1][0])).toContain('end_hour=2026-09-12T08:00');
+    expect(String(fetchMock.mock.calls[1][0])).toContain('date=2026-09-12T08%3A15%3A00');
+    expect(String(fetchMock.mock.calls[1][0])).toContain('api-open.data.gov.sg/v2/real-time/api/pm25');
   });
 
   it('uses the midpoint wall time across midnight and tolerates an air-quality failure', async () => {
@@ -80,14 +89,48 @@ describe('Weather Service Unit Tests', () => {
           }
         })
       } as any)
-      .mockRejectedValueOnce(new Error('Air-quality service unavailable'));
+      .mockRejectedValueOnce(new Error('NEA unavailable'))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ hourly: { pm2_5: [42.56] } })
+      } as any);
 
     const res = await fetchHistoricalWeather(1.35, 103.85, '2026-09-12 23:30:00', 7200);
 
     expect(String(fetchMock.mock.calls[0][0])).toContain('start_date=2026-09-13');
     expect(res.temperatureC).toBe(27);
     expect(res.conditionText).toBe('Slight snow');
-    expect(res.pm25).toBeNull();
+    expect(res.pm25).toBe(42.6);
+    expect(res.pm25Source).toBe('open-meteo');
+    expect(String(fetchMock.mock.calls[2][0])).toContain('air-quality-api.open-meteo.com');
+  });
+
+  it('does not query Singapore haze data for locations outside Singapore', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          hourly: {
+            time: ['2026-09-12T07:00'],
+            temperature_2m: [18],
+            relative_humidity_2m: [55],
+            apparent_temperature: [18],
+            weather_code: [1]
+          }
+        })
+      } as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ hourly: { pm2_5: [8.4] } })
+      } as any);
+
+    const res = await fetchHistoricalWeather(37.7749, -122.4194, '2026-09-12T07:00:00Z', 3600);
+
+    expect(res.pm25).toBe(8.4);
+    expect(res.pm25Source).toBe('open-meteo');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[1][0])).toContain('air-quality-api.open-meteo.com');
+    expect(String(fetchMock.mock.calls[1][0])).not.toContain('api-open.data.gov.sg');
   });
 
 });

@@ -3,6 +3,7 @@ export interface WeatherData {
   humidityPct: number | null;
   apparentTempC: number | null;
   pm25: number | null;
+  pm25Source: 'nea-sg' | 'open-meteo' | null;
   weatherCode: number | null;
   conditionText: string | null;
 }
@@ -44,10 +45,10 @@ const WMO_CODES: Record<number, string> = {
 };
 
 function emptyWeather(): WeatherData {
-  return { temperatureC: null, humidityPct: null, apparentTempC: null, pm25: null, weatherCode: null, conditionText: null };
+  return { temperatureC: null, humidityPct: null, apparentTempC: null, pm25: null, pm25Source: null, weatherCode: null, conditionText: null };
 }
 
-function midpointLocalTime(dateStr: string, durationSeconds: number): { date: string; hour: number } | null {
+function midpointLocalTime(dateStr: string, durationSeconds: number): { date: string; hour: number; datetime: string } | null {
   // Activity start_time is normally stored as the device's local wall time.
   // Explicit-offset timestamps are converted to the machine's local time, as
   // the Open-Meteo timezone=auto response is local to the run coordinates.
@@ -56,14 +57,74 @@ function midpointLocalTime(dateStr: string, durationSeconds: number): { date: st
     if (!Number.isFinite(instant.getTime())) return null;
     instant.setTime(instant.getTime() + Math.max(0, durationSeconds) * 500);
     const date = `${instant.getFullYear()}-${String(instant.getMonth() + 1).padStart(2, '0')}-${String(instant.getDate()).padStart(2, '0')}`;
-    return { date, hour: instant.getHours() };
+    const hour = instant.getHours();
+    const datetime = `${date}T${String(hour).padStart(2, '0')}:${String(instant.getMinutes()).padStart(2, '0')}:${String(instant.getSeconds()).padStart(2, '0')}`;
+    return { date, hour, datetime };
   }
   const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
   if (!match) return null;
   const [, year, month, day, hours, minutes, seconds = '0'] = match;
   const wallTime = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hours), Number(minutes), Number(seconds)) + Math.max(0, durationSeconds) * 500);
   if (!Number.isFinite(wallTime.getTime())) return null;
-  return { date: wallTime.toISOString().slice(0, 10), hour: wallTime.getUTCHours() };
+  const date = wallTime.toISOString().slice(0, 10);
+  const hour = wallTime.getUTCHours();
+  const datetime = `${date}T${String(hour).padStart(2, '0')}:${String(wallTime.getUTCMinutes()).padStart(2, '0')}:${String(wallTime.getUTCSeconds()).padStart(2, '0')}`;
+  return { date, hour, datetime };
+}
+
+const SINGAPORE_REGIONS = [
+  { name: 'central', lat: 1.35735, lon: 103.82 },
+  { name: 'east', lat: 1.35735, lon: 103.94 },
+  { name: 'north', lat: 1.41803, lon: 103.82 },
+  { name: 'south', lat: 1.29587, lon: 103.82 },
+  { name: 'west', lat: 1.35735, lon: 103.7 }
+] as const;
+
+function isSingaporeCoordinate(lat: number, lon: number): boolean {
+  return lat >= 1.15 && lat <= 1.5 && lon >= 103.55 && lon <= 104.1;
+}
+
+function nearestSingaporeRegion(lat: number, lon: number): typeof SINGAPORE_REGIONS[number]['name'] {
+  const toRadians = (degrees: number) => degrees * Math.PI / 180;
+  return [...SINGAPORE_REGIONS].sort((a, b) => {
+    const distance = (region: typeof a) => {
+      const latDistance = toRadians(region.lat - lat);
+      const lonDistance = toRadians(region.lon - lon) * Math.cos(toRadians(lat));
+      return latDistance * latDistance + lonDistance * lonDistance;
+    };
+    return distance(a) - distance(b);
+  })[0].name;
+}
+
+async function fetchSingaporeNeaPm25(lat: number, lon: number, datetime: string): Promise<number | null> {
+  const url = `https://api-open.data.gov.sg/v2/real-time/api/pm25?date=${encodeURIComponent(datetime)}`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3500);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) return null;
+    const data = await response.json() as any;
+    const reading = data?.data?.items?.[0]?.readings?.pm25_one_hourly?.[nearestSingaporeRegion(lat, lon)];
+    return typeof reading === 'number' && Number.isFinite(reading) ? reading : null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function fetchModeledPm25(lat: number, lon: number, date: string, hour: number): Promise<number | null> {
+  const hourText = String(hour).padStart(2, '0');
+  const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&hourly=pm2_5&start_hour=${date}T${hourText}:00&end_hour=${date}T${hourText}:00&timezone=auto`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3500);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) return null;
+    const data = await response.json() as any;
+    const value = data?.hourly?.pm2_5?.[0];
+    return typeof value === 'number' && Number.isFinite(value) ? Number(value.toFixed(1)) : null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 /**
@@ -108,26 +169,27 @@ export async function fetchHistoricalWeather(
     const code = data.hourly.weather_code?.[hourIdx] ?? null;
     const condition = code !== null ? (WMO_CODES[code] || 'Fair') : null;
 
-    // Open-Meteo's air quality archive is separate from the weather archive.
-    // Keep it optional so an AQ outage never hides otherwise valid weather.
     let pm25: number | null = null;
-    try {
-      const airUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&hourly=pm2_5&start_hour=${yyyyMmDd}T${String(hour).padStart(2, '0')}:00&end_hour=${yyyyMmDd}T${String(hour).padStart(2, '0')}:00&timezone=auto`;
-      const airController = new AbortController();
-      const airTimeoutId = setTimeout(() => airController.abort(), 3500);
-      const airRes = await fetch(airUrl, { signal: airController.signal }).finally(() => clearTimeout(airTimeoutId));
-      if (airRes.ok) {
-        const airData = await airRes.json() as any;
-        const rawPm25 = airData?.hourly?.pm2_5?.[0];
-        if (typeof rawPm25 === 'number' && Number.isFinite(rawPm25)) pm25 = Number(rawPm25.toFixed(1));
-      }
-    } catch { /* Air quality is an optional enrichment. */ }
+    let pm25Source: WeatherData['pm25Source'] = null;
+    if (isSingaporeCoordinate(lat, lon)) {
+      try {
+        pm25 = await fetchSingaporeNeaPm25(lat, lon, midpoint.datetime);
+        if (pm25 !== null) pm25Source = 'nea-sg';
+      } catch { /* Fall back to the global model if NEA is unavailable. */ }
+    }
+    if (pm25 === null) {
+      try {
+        pm25 = await fetchModeledPm25(lat, lon, yyyyMmDd, hour);
+        if (pm25 !== null) pm25Source = 'open-meteo';
+      } catch { /* Air quality is an optional enrichment. */ }
+    }
 
     return {
       temperatureC: temp !== null ? Number(temp.toFixed(1)) : null,
       humidityPct: humidity !== null ? Math.round(humidity) : null,
       apparentTempC: apparent !== null ? Number(apparent.toFixed(1)) : null,
       pm25,
+      pm25Source,
       weatherCode: code,
       conditionText: condition
     };
@@ -156,6 +218,7 @@ export async function syncActivityWeather(db: any, activityId: string): Promise<
           weather_humidity_pct = ?,
           weather_apparent_temp_c = ?,
           weather_pm25_ug_m3 = ?,
+          weather_pm25_source = ?,
           weather_condition = ?,
           weather_code = ?,
           weather_fetched_at = CURRENT_TIMESTAMP,
@@ -166,6 +229,7 @@ export async function syncActivityWeather(db: any, activityId: string): Promise<
         weather.humidityPct,
         weather.apparentTempC,
         weather.pm25,
+        weather.pm25Source,
         weather.conditionText,
         weather.weatherCode,
         activityId

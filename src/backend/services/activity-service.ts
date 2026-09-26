@@ -385,6 +385,7 @@ export function listActivitiesService(db: Database.Database, typeFilter?: string
       a.walk_distance_meters,
       a.weather_temperature_c, a.weather_humidity_pct, a.weather_apparent_temp_c,
       a.weather_pm25_ug_m3,
+      a.weather_pm25_source,
       a.weather_condition, a.weather_code, a.weather_fetched_at, a.weather_source,
       a.workout_lat, a.workout_lon,
       cs.effectiveness_score, cs.analysis_json

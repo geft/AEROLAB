@@ -88,7 +88,7 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
       ['steady_stance_time', 'REAL'], ['pause_duration_seconds', 'REAL DEFAULT 0'],
       ['walk_duration_seconds', 'REAL DEFAULT 0'], ['walk_distance_meters', 'REAL DEFAULT 0'],
       ['weather_temperature_c', 'REAL'], ['weather_humidity_pct', 'INTEGER'], ['weather_apparent_temp_c', 'REAL'],
-      ['weather_pm25_ug_m3', 'REAL'],
+      ['weather_pm25_ug_m3', 'REAL'], ['weather_pm25_source', 'TEXT'],
       ['weather_condition', 'TEXT'], ['weather_code', 'INTEGER'], ['weather_fetched_at', 'TEXT'],
       ['weather_source', 'TEXT'], ['training_load', 'REAL'], ['z1_seconds', 'INTEGER DEFAULT 0'],
       ['z2_seconds', 'INTEGER DEFAULT 0'], ['z3_seconds', 'INTEGER DEFAULT 0'],

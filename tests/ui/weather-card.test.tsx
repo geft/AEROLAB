@@ -59,6 +59,21 @@ describe('ActivityWeatherCard provenance states', () => {
     expect(container.textContent).toContain('Garmin sensor: 28°C');
   });
 
+  it('explains PM2.5 with a help control and displays the NEA hourly band', () => {
+    const container = renderCard({
+      weather_source: 'open-meteo',
+      weather_temperature_c: 30.2,
+      weather_pm25_ug_m3: 96,
+      weather_pm25_source: 'nea-sg'
+    });
+
+    expect(container.textContent).toContain('PM2.5 96 µg/m³');
+    expect(container.textContent).toContain('Elevated');
+    const help = container.querySelector('.weather-help-btn');
+    expect(help?.getAttribute('aria-label')).toContain('Measured 1-hour PM2.5');
+    expect(help?.getAttribute('title')).toContain('56–150 Elevated');
+  });
+
   it('offers the opt-in lookup when the workout has coordinates but no reading', () => {
     const container = renderCard({ workout_lat: 1.3521, workout_lon: 103.8198 });
 

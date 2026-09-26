@@ -1,5 +1,5 @@
 import React from 'react';
-import { CloudRain, Cloud, Thermometer, RefreshCw, Droplets } from 'lucide-react';
+import { CloudRain, Cloud, Thermometer, RefreshCw, Droplets, CircleHelp } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
 
 interface ActivityWeatherCardProps {
@@ -10,6 +10,7 @@ interface ActivityWeatherCardProps {
     weather_humidity_pct?: number | null;
     weather_apparent_temp_c?: number | null;
     weather_pm25_ug_m3?: number | null;
+    weather_pm25_source?: 'nea-sg' | 'open-meteo' | null;
     weather_condition?: string | null;
     weather_code?: number | null;
     weather_fetched_at?: string | null;
@@ -35,6 +36,14 @@ export const ActivityWeatherCard: React.FC<ActivityWeatherCardProps> = ({
   // which matches the heat-scoring rule in verifiedAmbientTemperature().
   const ambientVerified = hasStoredTemperature && activity.weather_source === 'open-meteo';
   const storedUnverified = hasStoredTemperature && !ambientVerified;
+  const pm25Level = activity.weather_pm25_source === 'nea-sg' && activity.weather_pm25_ug_m3 != null
+    ? activity.weather_pm25_ug_m3 <= 55 ? t.weather.pm25Normal
+      : activity.weather_pm25_ug_m3 <= 150 ? t.weather.pm25Elevated
+        : activity.weather_pm25_ug_m3 <= 250 ? t.weather.pm25High : t.weather.pm25VeryHigh
+    : null;
+  const pm25Tooltip = activity.weather_pm25_source === 'nea-sg'
+    ? t.weather.pm25NeaTooltip
+    : t.weather.pm25ModelTooltip;
   return (
     <div className="weather-chip-group">
       {ambientVerified ? (
@@ -62,8 +71,14 @@ export const ActivityWeatherCard: React.FC<ActivityWeatherCardProps> = ({
             </span>
           )}
           {activity.weather_pm25_ug_m3 != null && (
-            <span className="weather-metric" title={t.weather.pm25Tooltip}>
-              {format(t.weather.pm25, { value: activity.weather_pm25_ug_m3 })}
+            <span className="weather-pm25-group">
+              <span className="weather-metric weather-pm25">
+                {format(t.weather.pm25, { value: activity.weather_pm25_ug_m3 })}
+                {pm25Level && <span className="weather-pm25-level">{pm25Level}</span>}
+              </span>
+              <button type="button" className="weather-help-btn" title={pm25Tooltip} aria-label={pm25Tooltip}>
+                <CircleHelp size={14} aria-hidden="true" />
+              </button>
             </span>
           )}
           {activity.avg_temperature && (

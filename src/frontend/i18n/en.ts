@@ -60,7 +60,12 @@ export const en: Translations = {
     garminSensor: 'Garmin sensor: {temperature}°C',
     storedUnverifiedTemp: 'Stored temperature: {temperature}°C (source unverified)',
     pm25: 'PM2.5 {value} µg/m³',
-    pm25Tooltip: 'Modeled historical PM2.5 near the run midpoint; air quality estimates can differ from local monitors.',
+    pm25NeaTooltip: 'Measured 1-hour PM2.5 from the nearest Singapore region. NEA bands: ≤55 Normal, 56–150 Elevated, 151–250 High, ≥251 Very High µg/m³.',
+    pm25ModelTooltip: 'Estimated hourly concentration of fine particles (≤2.5 µm). Lower is generally better. This is a model estimate, not a local monitor reading.',
+    pm25Normal: 'Normal',
+    pm25Elevated: 'Elevated',
+    pm25High: 'High',
+    pm25VeryHigh: 'Very high',
   },
   runTypes: {
     easy_base: 'Easy Base',

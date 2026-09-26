@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS activities (
   weather_humidity_pct INTEGER,
   weather_apparent_temp_c REAL,
   weather_pm25_ug_m3 REAL,
+  weather_pm25_source TEXT,
   weather_condition TEXT,
   weather_code INTEGER,
   weather_fetched_at TEXT,

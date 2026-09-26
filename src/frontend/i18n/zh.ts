@@ -60,7 +60,12 @@ export const zh: Translations = {
     garminSensor: 'Garmin 传感器：{temperature}°C',
     storedUnverifiedTemp: '已保存温度：{temperature}°C（来源未确认）',
     pm25: 'PM2.5 {value} µg/m³',
-    pm25Tooltip: '跑步时间中点附近的历史 PM2.5 模型估值；空气质量估算可能与本地监测站数据不同。',
+    pm25NeaTooltip: '来自新加坡最近区域监测点的 1 小时 PM2.5 实测值。NEA 分级：≤55 正常，56–150 偏高，151–250 高，≥251 极高 µg/m³。',
+    pm25ModelTooltip: '空气中细颗粒物（≤2.5 µm）的每小时估值。通常数值越低越好；这是模型估算，不是本地监测站实测值。',
+    pm25Normal: '正常',
+    pm25Elevated: '偏高',
+    pm25High: '高',
+    pm25VeryHigh: '极高',
   },
   runTypes: {
     easy_base: '有氧基础',

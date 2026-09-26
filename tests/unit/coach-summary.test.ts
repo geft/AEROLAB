@@ -8,13 +8,13 @@ describe('AI Coach Summary Unit Tests', () => {
       avgHr: 146, maxHr: 160, cadence: 175, decouplingPct: 7.5,
       efficiencyFactor: 1.15, avgTemp: 30, groundContactTime: 250,
       weatherTempC: 31, weatherCondition: 'Moderate rain', weatherHumidityPct: 85,
-      weatherPm25: 45.2, recentAverageWeatherTempC: 28
+      weatherPm25: 96, weatherPm25Source: 'nea-sg', recentAverageWeatherTempC: 28
     });
 
     const weatherInsight = summary.keyInsights.find(i => i.startsWith('Microclimate Weather'));
     expect(weatherInsight).toContain('Precipitation conditions (Moderate rain)');
     expect(weatherInsight).toContain('Warmer than your recent fetched-run average (28.0°C)');
-    expect(weatherInsight).toContain('Modeled PM2.5 near the run midpoint was elevated at 45.2 µg/m³');
+    expect(weatherInsight).toContain('NEA\'s nearest regional monitor reported 96 µg/m³ PM2.5 near the run midpoint (Elevated 1-hour band)');
   });
 
   it('generates high score and positive insights for disciplined aerobic run', () => {

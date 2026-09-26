@@ -96,7 +96,12 @@ export interface Translations {
     garminSensor: string;
     storedUnverifiedTemp: string;
     pm25: string;
-    pm25Tooltip: string;
+    pm25NeaTooltip: string;
+    pm25ModelTooltip: string;
+    pm25Normal: string;
+    pm25Elevated: string;
+    pm25High: string;
+    pm25VeryHigh: string;
   };
   runTypes: {
     easy_base: string;

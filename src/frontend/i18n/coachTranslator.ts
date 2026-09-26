@@ -185,7 +185,8 @@ export function translateCoachInsight(insight: string, lang: string): string {
     res = res.replace('Microclimate weather verified from local meteorological reanalysis.', '微气候天气已通过本地气象再分析数据验证。');
     res = res.replace(/Precipitation conditions \((.+?)\) may have affected comfort and footing\./, '降水天气（$1）可能影响了舒适度和脚下稳定性。');
     res = res.replace(/Warmer than your recent fetched-run average \(([\d.]+)°C\), adding heat strain\./, '比近期已获取天气的跑步平均温度（$1°C）更热，增加了热负荷。');
-    res = res.replace(/Modeled PM2\.5 near the run midpoint was elevated at ([\d.]+) µg\/m³; haze can make hard breathing feel more difficult\./, '跑步中点附近的模型 PM2.5 为 $1 µg/m³，水平偏高；烟霾可能让呼吸更加困难。');
+    res = res.replace(/NEA's nearest regional monitor reported ([\d.]+) µg\/m³ PM2\.5 near the run midpoint \((Normal|Elevated|High|Very High) 1-hour band\); haze may have added breathing strain\./, '跑步中点附近 NEA 最近区域监测点报告 PM2.5 为 $1 µg/m³（1 小时$2等级）；烟霾可能增加了呼吸负担。');
+    res = res.replace(/Open-Meteo modeled midpoint PM2\.5 at ([\d.]+) µg\/m³; this is a model estimate, and haze may have added breathing strain\./, 'Open-Meteo 模型估算跑步中点 PM2.5 为 $1 µg/m³；这是模型值，烟霾可能增加了呼吸负担。');
     return res;
   }
 
