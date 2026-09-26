@@ -33,7 +33,7 @@ const recordFields = new Set([
   'altitude_m', 'temp', 'vert_osc', 'stance_time', 'step_length', 'vertical_ratio'
 ]);
 const profileFields = new Set([
-  'id', 'age', 'resting_hr', 'max_hr', 'is_max_hr_estimated', 'is_configured'
+  'id', 'age', 'gender', 'resting_hr', 'max_hr', 'is_max_hr_estimated', 'is_configured'
 ]);
 
 function pickObject(value: unknown, fields: Set<string>): Record<string, unknown> {
@@ -70,7 +70,14 @@ export function exportSnapshot(dbPath = getDatabasePath(), destination = outputP
     }
     const profileResponse = getProfileService(db);
     if (!profileResponse) throw new Error('The active database has no athlete profile.');
-    const profile = { ...profileResponse, profile: pickObject(profileResponse.profile, profileFields) };
+    const profile = {
+      ...profileResponse,
+      profile: {
+        ...pickObject(profileResponse.profile, profileFields),
+        age: profileResponse.profile.age ?? null,
+        gender: profileResponse.profile.gender ?? null
+      }
+    };
     const runTypes = ['all', 'easy', 'threshold', ...new Set(activities.map(activity => String(activity.run_type || 'Other')))];
     const progressByRunType = Object.fromEntries(runTypes.map(type => [type, scrub(getProgressHistoryService(db, type))]));
     const thresholdsByRunType = Object.fromEntries(runTypes.map(type => [type, scrub(getThresholdsService(db, type === 'all' ? undefined : type))]));
