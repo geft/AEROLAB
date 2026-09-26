@@ -1,10 +1,12 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
+import { snapshotPwaPlugin } from './scripts/snapshot-pwa.js';
 
 export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
+    ...(mode.startsWith('snapshot') ? [snapshotPwaPlugin()] : []),
     ...(mode.startsWith('snapshot') ? [{
       name: 'snapshot-api-client',
       enforce: 'pre' as const,
@@ -17,7 +19,7 @@ export default defineConfig(({ mode }) => ({
   define: {
     'import.meta.env.VITE_AEROLAB_TARGET': JSON.stringify(mode.startsWith('snapshot') ? 'snapshot' : 'desktop')
   },
-  ...(mode === 'snapshot-template' ? { publicDir: false } : {}),
+  ...(mode.startsWith('snapshot') ? { publicDir: 'snapshot-public' } : {}),
   build: mode === 'snapshot'
     ? { outDir: 'dist-snapshot', emptyOutDir: true }
     : mode === 'snapshot-template'

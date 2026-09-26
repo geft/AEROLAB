@@ -82,6 +82,7 @@ export const deploySnapshotToVercel = (_filename: string): never => readOnly();
 export const getSnapshotDeploymentStatus = (_jobId: string): never => readOnly();
 export const saveBackupSettings = (_settings: unknown): never => readOnly();
 export const selectBackupFolder = (): never => readOnly();
+export const openBackupFolder = (): never => readOnly();
 export const getDatabaseStatus = (): never => readOnly();
 export const chooseDatabaseLocation = (): never => readOnly();
 export const setDatabaseLocation = (_path: string, _exists: boolean): never => readOnly();

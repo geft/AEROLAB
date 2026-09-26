@@ -442,7 +442,9 @@ data to the fields needed by the read views. The build copies the artifact into
 the static site and writes `dist-snapshot/`; only that directory should be sent
 to deployment. The snapshot contains personal training information and must
 remain access-protected. The viewer displays its export time and has no database
-connection or write API.
+connection or write API. On Android, open the deployed HTTPS URL in Chrome and
+choose **Install app** from the browser menu to add the snapshot viewer to the
+home screen.
 
 `npm run build` continues to build the desktop target. `npm run build:snapshot`
 requires a successful export first.
