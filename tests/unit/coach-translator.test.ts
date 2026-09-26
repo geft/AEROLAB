@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
+  translateCalibrationNote,
+  translateActivityName,
+  translateCoachHeadline,
+  translateCoachRecommendation,
   translateCoachFocusAdvice,
   translateCoachInsight,
   translateScoreCategory,
@@ -14,6 +18,79 @@ const expectNoPlaceholders = (text: string) => {
   expect(text).not.toMatch(/\$\d/);
   expect(text).not.toContain('undefined');
 };
+
+describe('Coach translator — shared copy and fallbacks', () => {
+  it('translates known headlines and preserves unknown or non-Chinese headlines', () => {
+    expect(translateCoachHeadline('  Low-Stress Active Recovery Jog  ', 'zh')).toBe('低负荷主动恢复慢跑');
+    expect(translateCoachHeadline('New headline', 'zh')).toBe('New headline');
+    expect(translateCoachHeadline('Low-Stress Active Recovery Jog', 'en')).toBe('Low-Stress Active Recovery Jog');
+    expect(translateCoachHeadline('', 'zh')).toBe('');
+  });
+
+  it('translates recommendation templates and leaves unmatched copy intact', () => {
+    expect(translateCoachRecommendation(
+      'If an Easy recovery was intended, slow your initial kilometer pace by 15-20 sec/km to keep heart rate firmly under your LT1 ceiling (145 bpm).',
+      'zh'
+    )).toContain('LT1上限（145 bpm）以下');
+    expect(translateCoachRecommendation('Allow 48 hours of recovery or easy aerobic jogging before the next quality day.', 'zh'))
+      .toContain('48小时的恢复');
+    expect(translateCoachRecommendation('Unrecognized recommendation', 'zh')).toBe('Unrecognized recommendation');
+    expect(translateCoachRecommendation('Maintain easy efforts at this heart rate cap', 'en'))
+      .toBe('Maintain easy efforts at this heart rate cap');
+    expect(translateCoachRecommendation('', 'zh')).toBe('');
+  });
+
+  it('preserves calibration notes and activity names across locales', () => {
+    expect(translateCalibrationNote('Based on 8 runs', 'zh')).toBe('Based on 8 runs');
+    expect(translateCalibrationNote('Based on 8 runs', 'en')).toBe('Based on 8 runs');
+    expect(translateActivityName('Morning Run', 'zh')).toBe('Morning Run');
+  });
+
+  it('translates score taxonomy and preserves unknown keys', () => {
+    expect(translateScoreCategory('Autonomic Recovery', 'zh')).toBe('自主神经恢复');
+    expect(translateScoreCategory('New Category', 'zh')).toBe('New Category');
+    expect(translateScoreLabel('Strong Negative-Split Finish', 'zh')).toBe('后程加速（负分段）');
+    expect(translateScoreLabel('New Label', 'zh')).toBe('New Label');
+    expect(translateScoreLabel('Late-Race Fade', 'en')).toBe('Late-Race Fade');
+  });
+
+  it('translates additional score descriptions and returns unmatched copy unchanged', () => {
+    expect(translateScoreDescription('170 spm steady cadence', 'zh')).toBe('稳态步频 170 spm');
+    expect(translateScoreDescription('320 ms ground contact', 'zh')).toBe('触地时间 320 ms');
+    expect(translateScoreDescription('Target volume was cut short before the planned stimulus was delivered', 'zh'))
+      .toContain('目标跑量');
+    expect(translateScoreDescription('Unrecognized metric', 'zh')).toBe('Unrecognized metric');
+    expect(translateScoreDescription('170 spm steady cadence', 'en')).toBe('170 spm steady cadence');
+  });
+
+  it('translates walk-break and personal-baseline insight variants', () => {
+    const cases: Array<[string, string]> = [
+      ['Walk-Break Strategy: 3 walk breaks (12.5% of moving time, average entry 132 bpm) held heart rate under your 150 bpm LT1 ceiling, peaking at 145 bpm.', '平均进入心率 132 bpm'],
+      ['Walk-Break Strategy: 2 walk breaks (8.0% of moving time) held heart rate under your 150 bpm LT1 ceiling.', '心率稳定控制在 LT1 上限 150 bpm 以下'],
+      ['Work-Rep Interruption: 45s of walking began inside work reps at an average of 176 bpm (at or above LT1). Adjust the first rep.', '平均进入心率 176 bpm'],
+      ['Unplanned Walking: 70s of mid-run walking started at about 125 bpm. Check fuelling and sleep.', '约 125 bpm 时开始'],
+      ['Training Load Context: your 7-day load is 1.8x your 28-day weekly average — a high-risk spike. Keep the next days easy.', '高风险激增'],
+      ['Training Load Context: your 7-day load is 1.4x your 28-day weekly average and ramping fast. Be patient.', '上升较快'],
+      ['Training Load Context: your 7-day load is 0.5x your 28-day weekly average — a deload window. Recovery is working.', '属于减量周'],
+      ['Training Load Context: your 7-day load is 1.0x your 28-day weekly average, inside the productive 0.8-1.3 tunnel. Good absorption.', '处于 0.8-1.3 的高效区间'],
+      ['Personal Baseline: running economy reached 1.12 EF + 4.5%, above your 28-day median across 6 comparable runs. This is a real aerobic gain.', '（+4.5%）'],
+      ['Personal Baseline: running economy came in 3.2% below your 28-day median of 1.05 EF. Watch for fatigue.', '中位数 1.05 EF 低 3.2%'],
+      ['Pace-Specific Cost: 5:30/km usually costs you 145 bpm across 5 comparable runs; today you paid 6 bpm less. Nice adaptation.', '今天少了 6 bpm'],
+      ['Pace-Specific Cost: 5:30/km usually costs you 145 bpm across 5 comparable runs; today it cost 8 bpm more. Check heat.', '今天多了 8 bpm'],
+      ['Relative Standing: this was your most stable aerobic session across the last 9 comparable runs.', '最近 9 次可比训练'],
+      ['Relative Standing: aerobic stability ranks 2 of your last 9 comparable runs (best 1.2% drift).', '排名第 2'],
+      ['Relative Standing: aerobic stability ranks 4 of your last 9 comparable runs.', '排名第 4'],
+      ['Volume Milestone: at 18.5 km this is your longest comparable run in the last 90 days. Strong endurance.', '18.5 公里'],
+      ['Rubric Coverage: 72% of the grading rubric was measurable. Score uses observed signals.', '72%']
+    ];
+
+    for (const [insight, expected] of cases) {
+      const translated = translateCoachInsight(insight, 'zh');
+      expect(translated).toContain(expected);
+      expectNoPlaceholders(translated);
+    }
+  });
+});
 
 describe('Coach translator — condition-aware copy', () => {
   it('translates threshold-zone time in minutes and seconds', () => {

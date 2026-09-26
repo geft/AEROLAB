@@ -13,6 +13,15 @@ export default defineConfig({
       DATABASE_PATH: ':memory:'
     },
     include: ['tests/**/*.{test,spec}.{ts,tsx}'],
-    exclude: ['tests/visual/**']
+    exclude: ['tests/visual/**'],
+    coverage: {
+      include: ['src/**/*.{ts,tsx}'],
+      thresholds: {
+        statements: 75,
+        branches: 60,
+        functions: 75,
+        lines: 80
+      }
+    }
   }
 });

@@ -1,6 +1,9 @@
 import { seedBenchmarkProfile } from '../fixtures/benchmark-runs.js';
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import request from 'supertest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { createServer } from '../../src/backend/server.js';
 import { getDatabase } from '../../src/backend/db/client.js';
 import { getBenchmark, toCsv } from '../fixtures/benchmark-runs.js';
@@ -419,6 +422,47 @@ describe('API Server Integration Tests', () => {
     const res = await request(app).post('/api/ingest/upload').send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toContain('Missing content field');
+  });
+
+  it('rejects unsupported ZIP uploads with the documented response', async () => {
+    const res = await request(app)
+      .post('/api/ingest/upload')
+      .send({ content: 'UEsDBA==', filename: 'garmin-export.zip' });
+
+    expect(res.status).toBe(415);
+    expect(res.body.code).toBe('ERR_ZIP_UNSUPPORTED');
+    expect(res.body.error).toContain('individual .fit or .csv files');
+  });
+
+  it('stores and returns a valid Garmin import folder and rejects invalid folder paths', async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'aerolab-ingest-settings-'));
+    try {
+      const saved = await request(app).post('/api/ingest/settings').send({ directory });
+      expect(saved.status).toBe(200);
+      expect(saved.body).toEqual({ directory: path.resolve(directory), exists: true });
+
+      const loaded = await request(app).get('/api/ingest/settings');
+      expect(loaded.status).toBe(200);
+      expect(loaded.body).toEqual({ directory: path.resolve(directory), exists: true });
+
+      const relative = await request(app).post('/api/ingest/settings').send({ directory: 'relative/path' });
+      expect(relative.status).toBe(400);
+      const missing = await request(app).post('/api/ingest/settings').send({ directory: path.join(directory, 'missing') });
+      expect(missing.status).toBe(400);
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('decodes base64 CSV uploads before parsing', async () => {
+    const csv = `# Activity: Encoded Easy Run\n# Activity ID: base64-csv-upload\n# Date: 2026-09-20 07:00:00\n# Total Duration (s): 60\n# Total Distance (m): 200\n# Avg Heart Rate (bpm): 140\ntimestamp,heart_rate,cadence,speed,distance\n2026-09-20T07:00:00,140,170,3.3,0\n2026-09-20T07:01:00,140,170,3.3,200`;
+    const res = await request(app)
+      .post('/api/ingest/upload')
+      .send({ content: Buffer.from(csv).toString('base64'), filename: 'encoded-run.csv' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.result.status).toBe('imported');
+    expect(res.body.result.activityId).toBe('base64-csv-upload');
   });
 
   it('POST /api/ingest/upload rejects non-running FIT activities with 422', async () => {

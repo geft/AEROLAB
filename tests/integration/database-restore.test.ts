@@ -5,6 +5,7 @@ import path from 'path';
 import os from 'os';
 import { createServer } from '../../src/backend/server.js';
 import { getDatabase, closeDatabase } from '../../src/backend/db/client.js';
+import { createDatabaseBackup } from '../../src/backend/routes/database.js';
 
 describe('Database Restore & Auth Integration Tests', () => {
   let app: any;
@@ -55,6 +56,30 @@ describe('Database Restore & Auth Integration Tests', () => {
 
     expect(res.status).toBe(422);
     expect(res.body.error).toContain('SQLite');
+  });
+
+  it('rejects streamed binary content without a SQLite header', async () => {
+    const res = await request(app)
+      .post('/api/database/restore')
+      .set('Content-Type', 'application/octet-stream')
+      .send(Buffer.from('not a SQLite database'));
+
+    expect(res.status).toBe(422);
+    expect(res.body.error).toContain('unexpected file header');
+  });
+
+  it('restores a valid SQLite snapshot through the streamed binary endpoint', async () => {
+    const snapshot = createDatabaseBackup(getDatabase(), testDir).filePath;
+    const res = await request(app)
+      .post('/api/database/restore')
+      .set('Content-Type', 'application/octet-stream')
+      .send(fs.readFileSync(snapshot));
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('ok');
+    expect(res.body.activityCount).toBe(1);
+    const activeDb = getDatabase();
+    expect((activeDb.prepare('SELECT count(*) as c FROM activities').get() as any).c).toBe(1);
   });
 
   it('restores a valid database snapshot and replaces active activities', async () => {

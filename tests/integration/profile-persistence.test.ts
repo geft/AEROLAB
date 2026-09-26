@@ -108,6 +108,21 @@ describe('Athlete Profile & Resting HR Persistence Tests', () => {
     expect(verifyRes.body.profile.resting_hr).toBe(54);
   });
 
+  it('rejects invalid maximum HR values and empty profile updates', async () => {
+    for (const maxHr of [99, 241, '190', Number.NaN]) {
+      const response = await request(app).patch('/api/profile').send({ max_hr: maxHr });
+      expect(response.status).toBe(400);
+      expect(response.body.code).toBe('ERR_INVALID_MAX_HR');
+    }
+
+    const unknown = await request(app).patch('/api/profile').send({ unsupported_field: true });
+    expect(unknown.status).toBe(400);
+    expect(unknown.body.code).toBe('ERR_INVALID_PROFILE_INPUT');
+
+    const verify = await request(app).get('/api/profile');
+    expect(verify.body.profile.max_hr).toBe(203);
+  });
+
   it('does NOT reset resting HR across database re-initialization and migrations', async () => {
     const db = getDatabase();
     // Simulate database migrations and table ensures from client.ts

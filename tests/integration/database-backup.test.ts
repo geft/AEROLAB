@@ -6,7 +6,17 @@ import os from 'os';
 import Database from 'better-sqlite3';
 import { createServer } from '../../src/backend/server.js';
 import { getDatabase } from '../../src/backend/db/client.js';
-import { createDatabaseBackup, checkAndRunScheduledBackup, handleSelectFolder, listBackups, pruneBackups } from '../../src/backend/routes/database.js';
+import {
+  createDatabaseBackup,
+  checkAndRunScheduledBackup,
+  getBackupSettings,
+  getDefaultBackupDir,
+  handleSelectFolder,
+  isSafeBackupDirectory,
+  listBackups,
+  pruneBackups,
+  saveBackupSettings
+} from '../../src/backend/routes/database.js';
 
 describe('Database Backup & Cloud Sync Integration Tests', () => {
   let app: any;
@@ -131,6 +141,51 @@ describe('Database Backup & Cloud Sync Integration Tests', () => {
     status.mockClear();
     await handleSelectFolder({} as any, response, async () => path.join(testDir, 'missing-folder'));
     expect(status).toHaveBeenCalledWith(400);
+
+    status.mockClear();
+    await handleSelectFolder({} as any, response, async () => { throw new Error('picker failed'); });
+    expect(status).toHaveBeenCalledWith(500);
+    expect(json).toHaveBeenCalledWith({ error: 'picker failed' });
+  });
+
+  it('validates backup paths and preserves unrelated profile preferences', () => {
+    const db = getDatabase();
+    const originalPreferences = (db.prepare("SELECT preferences_json FROM athlete_profile WHERE id = 'primary'").get() as any).preferences_json;
+    expect(getDefaultBackupDir(db)).toBe(path.join(testDir, 'backups'));
+    expect(isSafeBackupDirectory(backupDir)).toBe(true);
+    expect(isSafeBackupDirectory('relative/backups')).toBe(false);
+    expect(isSafeBackupDirectory(`${testDir}\\..\\unsafe`)).toBe(false);
+    expect(isSafeBackupDirectory(`${backupDir}\u0001unsafe`)).toBe(false);
+
+    try {
+      db.prepare("UPDATE athlete_profile SET preferences_json = ? WHERE id = 'primary'")
+        .run(JSON.stringify({ theme: 'dark', backup: { autoBackupEnabled: true, backupDirectory: backupDir, backupIntervalDays: 7 } }));
+      const updated = saveBackupSettings(db, { autoBackupEnabled: false, backupIntervalDays: 14 });
+
+      expect(updated.autoBackupEnabled).toBe(false);
+      expect(updated.backupIntervalDays).toBe(14);
+      expect(getBackupSettings(db)).toEqual(updated);
+      const preferences = JSON.parse((db.prepare("SELECT preferences_json FROM athlete_profile WHERE id = 'primary'").get() as any).preferences_json);
+      expect(preferences.theme).toBe('dark');
+    } finally {
+      db.prepare("UPDATE athlete_profile SET preferences_json = ? WHERE id = 'primary'").run(originalPreferences);
+    }
+  });
+
+  it('falls back to defaults when stored backup preferences are malformed', () => {
+    const db = getDatabase();
+    const originalPreferences = (db.prepare("SELECT preferences_json FROM athlete_profile WHERE id = 'primary'").get() as any).preferences_json;
+    try {
+      db.prepare("UPDATE athlete_profile SET preferences_json = ? WHERE id = 'primary'").run('{broken json');
+      const settings = getBackupSettings(db);
+
+      expect(settings.autoBackupEnabled).toBe(true);
+      expect(settings.backupDirectory).toBe(getDefaultBackupDir(db));
+      expect(settings.backupIntervalDays).toBe(7);
+      expect(settings.lastBackupAt).toBeNull();
+    } finally {
+      db.prepare("UPDATE athlete_profile SET preferences_json = ? WHERE id = 'primary'").run(originalPreferences);
+    }
   });
 
   it('prunes snapshots created under an older retention policy', () => {
