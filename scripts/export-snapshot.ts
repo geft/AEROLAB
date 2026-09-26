@@ -29,7 +29,7 @@ const activityFields = new Set([
   'z1_seconds', 'z2_seconds', 'z3_seconds', 'z4_seconds', 'z5_seconds', 'effectiveness_score', 'verdict'
 ]);
 const recordFields = new Set([
-  'id', 'activity_id', 'elapsed_seconds', 'distance_m', 'speed_mps', 'heart_rate', 'cadence',
+  'id', 'activity_id', 'timestamp', 'elapsed_seconds', 'distance_m', 'speed_mps', 'heart_rate', 'cadence',
   'altitude_m', 'temp', 'vert_osc', 'stance_time', 'step_length', 'vertical_ratio'
 ]);
 const profileFields = new Set([
@@ -86,7 +86,7 @@ export function exportSnapshot(dbPath = getDatabasePath(), destination = outputP
     const volume: Record<string, unknown> = {};
     for (const month of months) volume[`month:${month}`] = scrub(getVolumeService(db, { period: 'month', month }));
     for (const year of years) volume[`year:${year}`] = scrub(getVolumeService(db, { period: 'year', year }));
-    for (const period of ['week', 'month', 'year']) volume[`${period}:current`] = scrub(getVolumeService(db, { period }));
+    for (const period of ['week', 'month', 'year', 'all']) volume[`${period}:current`] = scrub(getVolumeService(db, { period }));
     const trainingLoadByDays = Object.fromEntries([7, 14, 30, 60, 90, 180].map(days => [days, scrub(getTrainingLoadService(db, days))]));
     const snapshot = {
       schemaVersion: SNAPSHOT_SCHEMA_VERSION,

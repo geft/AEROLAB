@@ -17,6 +17,8 @@ function makeLegacySnapshotDatabase(): string {
   db.prepare(`INSERT INTO activities (id, start_time, name, run_type, distance_meters, duration_seconds,
     avg_pace_sec_km, workout_lat, workout_lon) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run('legacy-run-id', '2026-09-01T07:00:00Z', 'Legacy run', 'easy_base', 5000, 1800, 360, 1.23456, 103.12345);
+  db.prepare(`INSERT INTO activity_records (activity_id, timestamp, elapsed_seconds, distance_m, speed_mps)
+    VALUES ('legacy-run-id', '2026-09-01T07:00:00Z', 0, 0, 0)`).run();
 
   // A saved backup can predate these columns even though the current app schema
   // and the live database know about them.
@@ -47,7 +49,9 @@ describe('snapshot export from existing backup databases', () => {
       weather_pm25_source: null
     });
     expect(snapshot.details['legacy-run-id']).toBeDefined();
+    expect(snapshot.details['legacy-run-id'].records[0].timestamp).toBe('2026-09-01T07:00:00Z');
     expect(snapshot.profile.profile).toMatchObject({ age: 37, gender: 'Male' });
+    expect(snapshot.volume['all:current'].totalDistanceKm).toBe(5);
 
     const db = new Database(databasePath, { readonly: true, fileMustExist: true });
     const activityColumns = (db.pragma('table_info(activities)') as Array<{ name: string }>).map(column => column.name);
