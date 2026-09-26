@@ -45,6 +45,9 @@ try {
       throw new Error(`Built site ${size}x${size} install icon has incorrect dimensions.`);
     }
   }
+  const indexHtml = fs.readFileSync(path.join(output, 'index.html'), 'utf8');
+  if (!indexHtml.includes('service-worker.js')) throw new Error('Built site does not register its service worker.');
+  if (!fs.existsSync(path.join(output, 'service-worker.js'))) throw new Error('Built site is missing its service worker.');
   const jsFiles = [];
   function collectJs(dir) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

@@ -52,6 +52,7 @@ export const App: React.FC = () => {
   // null = still loading, false = needs onboarding, true = ready
   const [isConfigured, setIsConfigured] = useState<boolean | null>(SNAPSHOT_MODE ? true : null);
   const [snapshotGeneratedAt, setSnapshotGeneratedAt] = useState<string | null>(null);
+  const [snapshotReady, setSnapshotReady] = useState<boolean>(!SNAPSHOT_MODE);
   const [, setLoading] = useState<boolean>(true);
 
   // Theme state: persisted in localStorage, defaults to dark
@@ -118,14 +119,24 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     if (SNAPSHOT_MODE) {
-      void getSnapshotMetadata().then(data => setSnapshotGeneratedAt(data.generatedAt)).catch(error => console.error(error));
+      void Promise.all([getSnapshotMetadata(), listActivities()])
+        .then(([metadata, data]) => {
+          setSnapshotGeneratedAt(metadata.generatedAt);
+          setActivities(data.activities);
+          setSelectedActivityId(resolveSelectedActivityId(data.activities));
+        })
+        .catch(error => {
+          console.error('Failed to load snapshot:', error);
+          clientLogger.error('App', 'Failed to load snapshot', { error: String(error) });
+        })
+        .finally(() => setSnapshotReady(true));
       return;
     }
     checkProfileConfigured();
   }, []);
 
   useEffect(() => {
-    if (isConfigured === true) {
+    if (!SNAPSHOT_MODE && isConfigured === true) {
       fetchActivities();
     }
   }, [isConfigured]);
@@ -162,8 +173,8 @@ export const App: React.FC = () => {
     setActivityDataVersion(version => version + 1);
   };
 
-  // Loading splash — prevents flicker before the profile check resolves
-  if (isConfigured === null) {
+  // Keep the empty dashboard hidden until its initial data is ready.
+  if (isConfigured === null || !snapshotReady) {
     return (
       <div style={{
         minHeight: '100vh',
