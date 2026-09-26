@@ -4494,9 +4494,10 @@ body {
 
   .nav-actions {
     position: absolute;
-    top: 0.45rem;
+    top: 50%;
     right: 0.75rem;
     z-index: 1001;
+    transform: translateY(-50%);
   }
 
   .nav-brand span {
