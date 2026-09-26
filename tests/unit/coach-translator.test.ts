@@ -90,6 +90,26 @@ describe('Coach translator — shared copy and fallbacks', () => {
       expectNoPlaceholders(translated);
     }
   });
+
+  it('translates measured and modeled air-quality watch-outs', () => {
+    const measured = translateCoachInsight(
+      "Air Quality Watch: NEA's nearest regional monitor measured 96 µg/m³ PM2.5 near the run midpoint (Elevated 1-hour band). Haze may have added breathing strain; the reading represents the wider region, not the exact route.",
+      'zh'
+    );
+    expect(measured).toContain('NEA 最近的区域监测站');
+    expect(measured).toContain('96 µg/m³');
+    expect(measured).toContain('烟霾可能增加了呼吸负担');
+    expectNoPlaceholders(measured);
+
+    const modeled = translateCoachInsight(
+      'Air Quality Estimate: Open-Meteo modeled midpoint PM2.5 at 62.4 µg/m³. This coarse model estimate may indicate haze, but is not a local monitor reading.',
+      'zh'
+    );
+    expect(modeled).toContain('Open-Meteo 模型估算');
+    expect(modeled).toContain('62.4 µg/m³');
+    expect(modeled).toContain('不是本地监测站的实测值');
+    expectNoPlaceholders(modeled);
+  });
 });
 
 describe('Coach translator — condition-aware copy', () => {

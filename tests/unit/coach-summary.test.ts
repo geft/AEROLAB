@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { generateCoachSummary } from '../../src/backend/physiology/coach-summary.js';
 
 describe('AI Coach Summary Unit Tests', () => {
-  it('mentions precipitation, hotter-than-recent weather, and elevated midpoint PM2.5', () => {
+  it('shows elevated NEA haze as a caution alongside weather context', () => {
     const summary = generateCoachSummary({
       runType: 'long_run', distanceKm: 18, durationMin: 105, avgPaceSecKm: 360,
       avgHr: 146, maxHr: 160, cadence: 175, decouplingPct: 7.5,
@@ -14,7 +14,27 @@ describe('AI Coach Summary Unit Tests', () => {
     const weatherInsight = summary.keyInsights.find(i => i.startsWith('Microclimate Weather'));
     expect(weatherInsight).toContain('Precipitation conditions (Moderate rain)');
     expect(weatherInsight).toContain('Warmer than your recent fetched-run average (28.0°C)');
-    expect(weatherInsight).toContain('NEA\'s nearest regional monitor reported 96 µg/m³ PM2.5 near the run midpoint (Elevated 1-hour band)');
+    expect(weatherInsight).not.toContain('PM2.5');
+
+    const airQualityInsight = summary.keyInsights.find(i => i.startsWith('Air Quality Watch'));
+    expect(airQualityInsight).toContain('NEA\'s nearest regional monitor measured 96 µg/m³ PM2.5');
+    expect(airQualityInsight).toContain('Elevated 1-hour band');
+    expect(airQualityInsight).toContain('Haze may have added breathing strain');
+    expect(summary.insightTones[summary.keyInsights.indexOf(airQualityInsight!)]).toBe('caution');
+  });
+
+  it('keeps a high modeled PM2.5 estimate visible as a caveated caution', () => {
+    const summary = generateCoachSummary({
+      runType: 'easy_base', distanceKm: 8, durationMin: 50, avgPaceSecKm: 360,
+      avgHr: 140, maxHr: 155, cadence: 176, decouplingPct: 3,
+      efficiencyFactor: 1.2, avgTemp: 26, groundContactTime: 250, weatherTempC: 24,
+      weatherPm25: 62.4, weatherPm25Source: 'open-meteo'
+    });
+
+    const airQualityInsight = summary.keyInsights.find(i => i.startsWith('Air Quality Estimate'));
+    expect(airQualityInsight).toContain('62.4 µg/m³');
+    expect(airQualityInsight).toContain('not a local monitor reading');
+    expect(summary.insightTones[summary.keyInsights.indexOf(airQualityInsight!)]).toBe('caution');
   });
 
   it('generates high score and positive insights for disciplined aerobic run', () => {

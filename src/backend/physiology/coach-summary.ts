@@ -348,16 +348,20 @@ export function generateCoachSummary(params: {
     const warmerNote = params.recentAverageWeatherTempC != null && params.weatherTempC >= params.recentAverageWeatherTempC + 1.5
       ? ` Warmer than your recent fetched-run average (${params.recentAverageWeatherTempC.toFixed(1)}°C), adding heat strain.`
       : '';
-    const pm25Note = params.weatherPm25 != null && params.weatherPm25Source === 'nea-sg'
-      ? ` NEA's nearest regional monitor reported ${params.weatherPm25.toFixed(0)} µg/m³ PM2.5 near the run midpoint (${params.weatherPm25 <= 55 ? 'Normal' : params.weatherPm25 <= 150 ? 'Elevated' : params.weatherPm25 <= 250 ? 'High' : 'Very High'} 1-hour band); haze may have added breathing strain.`
-      : params.weatherPm25 != null && params.weatherPm25 >= 56
-        ? ` Open-Meteo modeled midpoint PM2.5 at ${params.weatherPm25.toFixed(1)} µg/m³; this is a model estimate, and haze may have added breathing strain.`
-      : '';
     insights.add('neutral', `Microclimate Weather: ${params.weatherTempC}°C ambient${condStr}${humidStr}${feelsLikeStr}${watchStr}. ${
       params.weatherHumidityPct && params.weatherHumidityPct >= 80
         ? 'High tropical humidity restricts evaporative cooling and directly explains elevated cardiac drift.'
         : 'Microclimate weather verified from local meteorological reanalysis.'
-    }${precipNote}${warmerNote}${pm25Note}`);
+    }${precipNote}${warmerNote}`);
+  }
+
+  // Air quality belongs in the watch-outs, not only inside neutral weather
+  // context, so it remains visible when the athlete filters to issues.
+  if (params.weatherPm25 != null && params.weatherPm25Source === 'nea-sg' && params.weatherPm25 > 55) {
+    const band = params.weatherPm25 <= 150 ? 'Elevated' : params.weatherPm25 <= 250 ? 'High' : 'Very High';
+    insights.add('caution', `Air Quality Watch: NEA's nearest regional monitor measured ${params.weatherPm25.toFixed(0)} µg/m³ PM2.5 near the run midpoint (${band} 1-hour band). Haze may have added breathing strain; the reading represents the wider region, not the exact route.`);
+  } else if (params.weatherPm25 != null && params.weatherPm25Source === 'open-meteo' && params.weatherPm25 >= 56) {
+    insights.add('caution', `Air Quality Estimate: Open-Meteo modeled midpoint PM2.5 at ${params.weatherPm25.toFixed(1)} µg/m³. This coarse model estimate may indicate haze, but is not a local monitor reading.`);
   }
 
   // Elevation ramp walk check

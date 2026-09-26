@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, cleanup } from '@testing-library/react';
+import { render, cleanup, fireEvent } from '@testing-library/react';
 import { ActivityWeatherCard } from '../../src/frontend/components/browse/ActivityWeatherCard.js';
 import { LanguageProvider } from '../../src/frontend/i18n/LanguageContext.js';
 
@@ -59,19 +59,60 @@ describe('ActivityWeatherCard provenance states', () => {
     expect(container.textContent).toContain('Garmin sensor: 28°C');
   });
 
-  it('explains PM2.5 with a help control and displays the NEA hourly band', () => {
-    const container = renderCard({
-      weather_source: 'open-meteo',
-      weather_temperature_c: 30.2,
-      weather_pm25_ug_m3: 96,
-      weather_pm25_source: 'nea-sg'
-    });
+  it('opens a PM2.5 explanation popup and keeps its help control beside the reading', () => {
+    const { container, getByRole, queryByRole } = render(
+      <LanguageProvider>
+        <ActivityWeatherCard
+          activity={{
+            weather_source: 'open-meteo',
+            weather_temperature_c: 30.2,
+            weather_pm25_ug_m3: 96,
+            weather_pm25_source: 'nea-sg'
+          }}
+          isRefreshingWeather={false}
+          onRefreshWeather={vi.fn()}
+        />
+      </LanguageProvider>
+    );
 
     expect(container.textContent).toContain('PM2.5 96 µg/m³');
     expect(container.textContent).toContain('Elevated');
-    const help = container.querySelector('.weather-help-btn');
-    expect(help?.getAttribute('aria-label')).toContain('Measured 1-hour PM2.5');
-    expect(help?.getAttribute('title')).toContain('56–150 Elevated');
+    expect(container.querySelector('.weather-pm25-group')?.contains(container.querySelector('.weather-help-btn'))).toBe(true);
+    expect(queryByRole('dialog')).toBeNull();
+
+    fireEvent.click(getByRole('button', { name: 'About PM2.5' }));
+
+    const dialog = getByRole('dialog');
+    expect(dialog.textContent).toContain('Measured · NEA regional monitor');
+    expect(dialog.textContent).toContain('Singapore NEA 1-hour bands');
+    expect(dialog.textContent).toContain('56–150 µg/m³');
+    fireEvent.click(getByRole('button', { name: 'Close' }));
+    expect(queryByRole('dialog')).toBeNull();
+  });
+
+  it('labels outside-Singapore PM2.5 as a model estimate without NEA bands', () => {
+    const { getByRole, queryByText } = render(
+      <LanguageProvider>
+        <ActivityWeatherCard
+          activity={{
+            weather_source: 'open-meteo',
+            weather_temperature_c: 18,
+            weather_pm25_ug_m3: 8.4,
+            weather_pm25_source: 'open-meteo'
+          }}
+          isRefreshingWeather={false}
+          onRefreshWeather={vi.fn()}
+        />
+      </LanguageProvider>
+    );
+
+    fireEvent.click(getByRole('button', { name: 'About PM2.5' }));
+
+    const dialog = getByRole('dialog');
+    expect(dialog.textContent).toContain('Model estimate · Open-Meteo');
+    expect(dialog.textContent).toContain('rather than a local monitor reading');
+    expect(queryByText('Singapore NEA 1-hour bands')).toBeNull();
+    expect(dialog.textContent).not.toContain('NEA regional monitor');
   });
 
   it('offers the opt-in lookup when the workout has coordinates but no reading', () => {

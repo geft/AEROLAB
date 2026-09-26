@@ -26,7 +26,17 @@ const activity = {
 };
 
 const activityDetail = {
-  activity: { ...activity, notes: 'Smooth morning run in Zone 2.' },
+  activity: {
+    ...activity,
+    notes: 'Smooth morning run in Zone 2.',
+    weather_source: 'open-meteo',
+    weather_temperature_c: 30.2,
+    weather_humidity_pct: 67,
+    weather_apparent_temp_c: 34.4,
+    weather_condition: 'Mainly clear',
+    weather_pm25_ug_m3: 96,
+    weather_pm25_source: 'nea-sg'
+  },
   splits: [
     { id: 1, split_index: 1, distance_meters: 1000, avg_pace_sec_km: 340, duration_seconds: 340, avg_heart_rate: 132, split_efficiency_factor: 1.22, elevation_change_m: 2 },
     { id: 2, split_index: 2, distance_meters: 1000, avg_pace_sec_km: 334, duration_seconds: 334, avg_heart_rate: 136, split_efficiency_factor: 1.24, elevation_change_m: -1 },

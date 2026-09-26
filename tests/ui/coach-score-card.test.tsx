@@ -165,6 +165,31 @@ describe('CoachScoreCard weighted rubric UI', () => {
     expect(document.querySelector('.coach-insight-item.tone-neutral')).toBeTruthy();
   });
 
+  it('keeps elevated measured haze visible in the Watch filter', () => {
+    render(
+      <CoachScoreCard
+        coachSummary={{
+          headline: 'Productive Zone 2 Aerobic Foundation',
+          effectivenessScore: 84,
+          keyInsights: [
+            "Air Quality Watch: NEA's nearest regional monitor measured 96 µg/m³ PM2.5 near the run midpoint (Elevated 1-hour band). Haze may have added breathing strain; the reading represents the wider region, not the exact route.",
+            'Pace-Specific Cost: 6:19/km usually costs you 138 bpm across 29 comparable runs; today it cost 8 bpm more.'
+          ],
+          insightTones: ['caution', 'neutral'],
+          recommendation: 'Keep the next run easy.'
+        }}
+        language="en"
+        t={en}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Watch/ }));
+
+    expect(document.querySelectorAll('.coach-insight-item.tone-caution')).toHaveLength(1);
+    expect(document.querySelectorAll('.coach-insight-item.tone-neutral')).toHaveLength(0);
+    expect(screen.getByText(/Haze may have added breathing strain/)).toBeTruthy();
+  });
+
   it('ignores a tone list that does not line up with the insights', () => {
     render(
       <CoachScoreCard

@@ -190,6 +190,20 @@ export function translateCoachInsight(insight: string, lang: string): string {
     return res;
   }
 
+  if (insight.startsWith('Air Quality Watch:')) {
+    return insight.replace(
+      /Air Quality Watch: NEA's nearest regional monitor measured ([\d.]+) µg\/m³ PM2\.5 near the run midpoint \((Elevated|High|Very High) 1-hour band\)\. Haze may have added breathing strain; the reading represents the wider region, not the exact route\./,
+      '空气质量提醒：NEA 最近的区域监测站在跑步中点附近测得 PM2.5 为 $1 µg/m³（1 小时$2等级）。烟霾可能增加了呼吸负担；该读数代表周边区域，而非路线上的精确浓度。'
+    );
+  }
+
+  if (insight.startsWith('Air Quality Estimate:')) {
+    return insight.replace(
+      /Air Quality Estimate: Open-Meteo modeled midpoint PM2\.5 at ([\d.]+) µg\/m³\. This coarse model estimate may indicate haze, but is not a local monitor reading\./,
+      '空气质量估值：Open-Meteo 模型估算跑步中点 PM2.5 为 $1 µg/m³。该模型较粗略，可能反映烟霾情况，但不是本地监测站的实测值。'
+    );
+  }
+
   // 10. Hot conditions fallback
   if (insight.includes('Executed in hot conditions')) {
     return insight.replace(

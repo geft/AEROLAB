@@ -1,5 +1,5 @@
-import React from 'react';
-import { CloudRain, Cloud, Thermometer, RefreshCw, Droplets, CircleHelp } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { CloudRain, Cloud, Thermometer, RefreshCw, Droplets, CircleHelp, X } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
 
 interface ActivityWeatherCardProps {
@@ -29,6 +29,7 @@ export const ActivityWeatherCard: React.FC<ActivityWeatherCardProps> = ({
   readOnly = false
 }) => {
   const { t, format } = useTranslation();
+  const [isPm25InfoOpen, setIsPm25InfoOpen] = useState(false);
   const shareNotice = t.weather.shareNotice;
   const hasStoredTemperature = activity.weather_temperature_c !== undefined && activity.weather_temperature_c !== null;
   // Only an Open-Meteo fetch may present itself as ambient weather. Older rows
@@ -36,14 +37,28 @@ export const ActivityWeatherCard: React.FC<ActivityWeatherCardProps> = ({
   // which matches the heat-scoring rule in verifiedAmbientTemperature().
   const ambientVerified = hasStoredTemperature && activity.weather_source === 'open-meteo';
   const storedUnverified = hasStoredTemperature && !ambientVerified;
+  const pm25Value = activity.weather_pm25_ug_m3;
+  const pm25Bands = [
+    { limit: 55, label: t.weather.pm25Normal, range: t.weather.pm25RangeNormal },
+    { limit: 150, label: t.weather.pm25Elevated, range: t.weather.pm25RangeElevated },
+    { limit: 250, label: t.weather.pm25High, range: t.weather.pm25RangeHigh },
+    { limit: Number.POSITIVE_INFINITY, label: t.weather.pm25VeryHigh, range: t.weather.pm25RangeVeryHigh }
+  ];
   const pm25Level = activity.weather_pm25_source === 'nea-sg' && activity.weather_pm25_ug_m3 != null
-    ? activity.weather_pm25_ug_m3 <= 55 ? t.weather.pm25Normal
-      : activity.weather_pm25_ug_m3 <= 150 ? t.weather.pm25Elevated
-        : activity.weather_pm25_ug_m3 <= 250 ? t.weather.pm25High : t.weather.pm25VeryHigh
+    ? pm25Bands.find(band => activity.weather_pm25_ug_m3! <= band.limit)?.label ?? null
     : null;
-  const pm25Tooltip = activity.weather_pm25_source === 'nea-sg'
-    ? t.weather.pm25NeaTooltip
-    : t.weather.pm25ModelTooltip;
+  const isNeaPm25 = activity.weather_pm25_source === 'nea-sg';
+  const pm25Explanation = isNeaPm25 ? t.weather.pm25NeaExplanation : t.weather.pm25ModelExplanation;
+
+  useEffect(() => {
+    if (!isPm25InfoOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsPm25InfoOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [isPm25InfoOpen]);
+
   return (
     <div className="weather-chip-group">
       {ambientVerified ? (
@@ -72,11 +87,18 @@ export const ActivityWeatherCard: React.FC<ActivityWeatherCardProps> = ({
           )}
           {activity.weather_pm25_ug_m3 != null && (
             <span className="weather-pm25-group">
-              <span className="weather-metric weather-pm25">
+              <span className="weather-pm25">
                 {format(t.weather.pm25, { value: activity.weather_pm25_ug_m3 })}
                 {pm25Level && <span className="weather-pm25-level">{pm25Level}</span>}
               </span>
-              <button type="button" className="weather-help-btn" title={pm25Tooltip} aria-label={pm25Tooltip}>
+              <button
+                type="button"
+                className="weather-help-btn"
+                aria-label={t.weather.pm25InfoTitle}
+                aria-haspopup="dialog"
+                aria-expanded={isPm25InfoOpen}
+                onClick={() => setIsPm25InfoOpen(true)}
+              >
                 <CircleHelp size={14} aria-hidden="true" />
               </button>
             </span>
@@ -133,6 +155,54 @@ export const ActivityWeatherCard: React.FC<ActivityWeatherCardProps> = ({
           <span title={t.weather.watchSensor}>{format(t.weather.garminSensor, { temperature: activity.avg_temperature ?? '—' })}</span>
         </div>
       ) : null}
+      {isPm25InfoOpen && (
+        <div className="modal-overlay weather-pm25-overlay" onClick={() => setIsPm25InfoOpen(false)}>
+          <div
+            className="modal-content weather-pm25-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="weather-pm25-title"
+            onClick={event => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2 id="weather-pm25-title" className="modal-title" style={{ color: 'var(--text-primary)' }}>
+                {t.weather.pm25InfoTitle}
+              </h2>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setIsPm25InfoOpen(false)}
+                aria-label={t.common.close}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="weather-pm25-guide-body">
+              <div className="weather-pm25-current-reading">
+                <span>{t.weather.pm25CurrentReading}</span>
+                <strong>{pm25Value != null ? format(t.weather.pm25, { value: pm25Value }) : '—'}</strong>
+                <span className="weather-pm25-source-label">
+                  {isNeaPm25 ? t.weather.pm25MeasuredSource : t.weather.pm25ModeledSource}
+                </span>
+              </div>
+              <p className="weather-pm25-help-copy">{pm25Explanation}</p>
+              {isNeaPm25 && (
+                <section className="weather-pm25-bands" aria-labelledby="weather-pm25-bands-title">
+                  <h3 id="weather-pm25-bands-title">{t.weather.pm25BandTitle}</h3>
+                  <div>
+                    {pm25Bands.map(band => (
+                      <div key={band.label} className={`weather-pm25-band-row${band.label === pm25Level ? ' is-current' : ''}`}>
+                        <span>{band.label}</span>
+                        <span>{band.range}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
