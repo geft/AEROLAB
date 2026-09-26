@@ -12,7 +12,7 @@ export default defineConfig({
     env: {
       DATABASE_PATH: ':memory:'
     },
-    include: ['tests/**/*.{test,spec}.{ts,tsx}']
+    include: ['tests/**/*.{test,spec}.{ts,tsx}'],
+    exclude: ['tests/visual/**']
   }
 });
-

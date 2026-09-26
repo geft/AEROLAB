@@ -170,6 +170,26 @@ npm run test:coverage # optional V8 coverage report
 npm run i18n:unused   # fails if a dictionary key is never referenced
 ```
 
+### Visual Layout Checks
+
+Targeted Playwright screenshots cover the Browse session sidebar, metric cards,
+guide cards, and coach summary, plus Progress benchmarks and trends, Stats volume
+and guide cards, and Profile thresholds and training zones at desktop and mobile
+sizes. They capture those components only, not the full app window. Install
+Playwright's Chromium browser automatically, run the checks, and open the combined
+HTML report with one command:
+
+```bash
+npm run visual
+```
+
+The separate `npm run test:visual` and `npm run test:visual:report` commands are
+available when you want to run or view those steps independently.
+
+When a UI change intentionally changes a baseline, review the HTML diff and run
+`npm run test:visual:update` to accept the new screenshots. Baselines are
+platform-specific; these committed images use Chromium on Windows.
+
 ### 3. Start Backend & Frontend Concurrently (Development Mode)
 ```bash
 npm run dev

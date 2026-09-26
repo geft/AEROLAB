@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Compass, TrendingUp, BarChart2, User, Settings, UploadCloud, Sun, Moon, Globe, Type, ChevronDown, Check, Minus, Plus, MoreHorizontal } from 'lucide-react';
+import { Compass, TrendingUp, BarChart2, User, Settings, UploadCloud, Sun, Moon, Globe, Type, ChevronDown, Check, Minus, Plus, MoreHorizontal, RefreshCw } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES } from '../i18n/types.js';
 import { useFontSize, FONT_PERCENTAGES } from '../context/FontSizeContext.js';
+import { GarminScanModal } from './GarminScanModal.js';
 
 export type TabType = 'browse' | 'progress' | 'stats' | 'profile' | 'settings';
 
@@ -10,6 +11,7 @@ interface NavbarProps {
   activeTab: TabType;
   onTabChange: (tab: TabType) => void;
   onOpenUpload: () => void;
+  onScanImportComplete?: () => void;
   onOpenBackup?: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
@@ -19,6 +21,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   onTabChange,
   onOpenUpload,
+  onScanImportComplete,
   theme,
   onToggleTheme
 }) => {
@@ -26,6 +29,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { fontSize, increaseFontSize, decreaseFontSize } = useFontSize();
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [isGarminScanOpen, setIsGarminScanOpen] = useState(false);
 
   const langRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -76,6 +80,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <button
           id="tab-browse-btn"
           className={`nav-tab-btn ${activeTab === 'browse' ? 'active' : ''}`}
+          aria-current={activeTab === 'browse' ? 'page' : undefined}
           onClick={() => onTabChange('browse')}
         >
           <Compass size={18} className="nav-tab-icon" />
@@ -84,6 +89,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <button
           id="tab-progress-btn"
           className={`nav-tab-btn ${activeTab === 'progress' ? 'active' : ''}`}
+          aria-current={activeTab === 'progress' ? 'page' : undefined}
           onClick={() => onTabChange('progress')}
         >
           <TrendingUp size={18} className="nav-tab-icon" />
@@ -92,6 +98,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <button
           id="tab-stats-btn"
           className={`nav-tab-btn ${activeTab === 'stats' ? 'active' : ''}`}
+          aria-current={activeTab === 'stats' ? 'page' : undefined}
           onClick={() => onTabChange('stats')}
         >
           <BarChart2 size={18} className="nav-tab-icon" />
@@ -100,6 +107,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <button
           id="tab-profile-btn"
           className={`nav-tab-btn ${activeTab === 'profile' ? 'active' : ''}`}
+          aria-current={activeTab === 'profile' ? 'page' : undefined}
           onClick={() => onTabChange('profile')}
         >
           <User size={18} className="nav-tab-icon" />
@@ -108,6 +116,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <button
           id="tab-settings-btn"
           className={`nav-tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
+          aria-current={activeTab === 'settings' ? 'page' : undefined}
           onClick={() => onTabChange('settings')}
         >
           <Settings size={18} className="nav-tab-icon" />
@@ -292,12 +301,28 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </div>
 
-        {/* Upload / Import Runs Button */}
-        <button id="nav-upload-btn" className="upload-btn" onClick={onOpenUpload} title={t.upload.title}>
-          <UploadCloud size={16} />
-          <span className="nav-btn-text">{t.nav.importRuns}</span>
-        </button>
+        <div className="nav-import-actions">
+          <button id="nav-upload-btn" className="upload-btn" onClick={onOpenUpload} title={t.upload.title} aria-label={t.nav.importRuns}>
+            <UploadCloud size={16} />
+            <span className="nav-btn-text">{t.nav.importRuns}</span>
+          </button>
+          <button
+            id="nav-scan-import-btn"
+            className="upload-btn scan-import-btn"
+            onClick={() => setIsGarminScanOpen(true)}
+            title={t.garminImport.scanFolder}
+            aria-label={t.garminImport.scanFolder}
+          >
+            <RefreshCw size={15} />
+            <span className="nav-btn-text">{t.garminImport.scanFolder}</span>
+          </button>
+        </div>
       </div>
+      <GarminScanModal
+        isOpen={isGarminScanOpen}
+        onClose={() => setIsGarminScanOpen(false)}
+        onImportComplete={onScanImportComplete}
+      />
     </header>
   );
 };

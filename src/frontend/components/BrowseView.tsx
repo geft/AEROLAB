@@ -26,6 +26,7 @@ export type ActivitySummary = Activity;
 export interface BrowseViewProps {
   activities: ActivitySummary[];
   selectedActivityId: string | null;
+  dataRefreshKey?: number;
   onSelectActivity: (id: string) => void;
   onOpenUpload: () => void;
   onActivityUpdated?: (activity: ActivityUpdate) => void;
@@ -98,13 +99,14 @@ const SIDEBAR_FILTER_TAGS = [
 export const BrowseView: React.FC<BrowseViewProps> = ({
   activities = [],
   selectedActivityId,
+  dataRefreshKey = 0,
   onSelectActivity,
   onOpenUpload,
   onActivityUpdated,
   theme = 'dark'
 }) => {
   const safeActivities = useMemo(() => (Array.isArray(activities) ? activities : []), [activities]);
-  const { t, language, formatDate } = useTranslation();
+  const { t, language, format, formatDate } = useTranslation();
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showCalendar, setShowCalendar] = useState<boolean>(false);
@@ -308,7 +310,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
       });
 
     return () => controller.abort();
-  }, [selectedActivityId, retryCounter]);
+  }, [selectedActivityId, retryCounter, dataRefreshKey]);
 
   const act = detailData?.activity;
 
@@ -346,13 +348,13 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
   return (
     <div className={`browse-grid ${mobileSubTab === 'detail' ? 'mobile-show-detail' : 'mobile-show-list'}`}>
       {/* Mobile list/detail switcher (< 768px) */}
-      <div className="mobile-browse-segmented-control" role="tablist" aria-label="Browse View Switcher">
+      <div className="mobile-browse-segmented-control" role="tablist" aria-label={t.browse.viewSwitcherLabel}>
         <button
           type="button"
           className={`mobile-browse-tab-btn ${mobileSubTab === 'list' ? 'active' : ''}`}
           onClick={() => setMobileSubTab('list')}
         >
-          Sessions ({filteredActivities.length})
+          {format(t.browse.sessionsCount, { count: filteredActivities.length })}
         </button>
         <button
           type="button"
@@ -484,7 +486,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               <AlertTriangle size={24} />
             </div>
             <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              Telemetry Profile Failed to Load
+              {t.browse.telemetryLoadFailed}
             </div>
             <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', maxWidth: 420 }}>
               {detailError}
@@ -506,7 +508,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               }}
             >
               <RefreshCw size={14} />
-              <span>Retry Loading</span>
+              <span>{t.common.retry}</span>
             </button>
           </div>
         ) : loadingDetail || !act ? (
@@ -524,7 +526,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
           >
             <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid rgba(6,182,212,0.2)', borderTopColor: '#06b6d4', animation: 'spin 0.8s linear infinite' }} />
             <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 500 }}>
-              Loading workout telemetry...
+              {t.browse.loadingTelemetry}
             </span>
           </div>
         ) : (
@@ -536,7 +538,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
                 className="mobile-back-btn"
                 onClick={() => setMobileSubTab('list')}
               >
-                ← Back to Sessions List
+                ← {t.browse.backToSessions}
               </button>
             </div>
 

@@ -119,6 +119,9 @@ describe('StatsView UI Tests', () => {
     expect(container.querySelector('.benchmarks-grid')).toBeNull();
     expect(container.querySelector('.zones-section')).toBeNull();
     expect(container.querySelector('.zones-grid')).toBeNull();
+    const timeKpi = container.querySelectorAll('.volume-kpi-box')[1];
+    expect(timeKpi?.textContent).toContain('Running Economy (EF): 1.16 EF');
+    expect(timeKpi?.textContent).not.toContain('m/beat');
 
     // Verify month dropdown is present when Monthly tab is active
     await waitFor(() => {
@@ -211,5 +214,62 @@ describe('StatsView UI Tests', () => {
     });
     fireEvent.mouseLeave(button);
     await waitFor(() => expect(screen.queryByText('Male · age 40')).toBeNull());
+  });
+
+  it('shows a retry action when statistics fail to load', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    let thresholdAttempts = 0;
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (url.includes('/api/thresholds')) {
+        thresholdAttempts += 1;
+        if (thresholdAttempts === 1) return Promise.reject(new Error('Temporary failure'));
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(mockThresholdData) });
+      }
+      if (url.includes('/api/activities/progress-history')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(mockProgressHistory) });
+      }
+      if (url.includes('/api/activities/volume')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(mockVolumeMonth) });
+      }
+      if (url.includes('/api/profile')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ profile: { age: 40, gender: 'Male' } }) });
+      }
+      return Promise.reject(new Error(`Unhandled fetch url: ${url}`));
+    }));
+
+    render(<StatsView />);
+    expect(await screen.findByText('Could not load statistics.')).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('Training Volume & Effort Analytics')).toBeDefined();
+  });
+
+  it('allows the training volume card to retry independently', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    let volumeAttempts = 0;
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (url.includes('/api/thresholds')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(mockThresholdData) });
+      }
+      if (url.includes('/api/activities/progress-history')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(mockProgressHistory) });
+      }
+      if (url.includes('/api/activities/volume')) {
+        volumeAttempts += 1;
+        if (volumeAttempts === 1) return Promise.reject(new Error('Temporary failure'));
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(mockVolumeMonth) });
+      }
+      if (url.includes('/api/profile')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ profile: { age: 40, gender: 'Male' } }) });
+      }
+      if (url.includes('/api/activities/training-load') || url.includes('/api/activities/best-efforts')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+      }
+      return Promise.reject(new Error(`Unhandled fetch url: ${url}`));
+    }));
+
+    render(<StatsView />);
+    expect(await screen.findByText('Could not load training volume.')).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('Total Distance')).toBeDefined();
   });
 });

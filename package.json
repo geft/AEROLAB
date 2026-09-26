@@ -16,6 +16,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:visual": "playwright test",
+    "test:visual:update": "playwright test --update-snapshots",
+    "test:visual:report": "playwright show-report",
+    "visual": "node scripts/visual-review.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "i18n:unused": "node scripts/find-unused-i18n-keys.mjs",
@@ -41,6 +45,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.63.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.3",
     "@types/better-sqlite3": "^7.6.12",

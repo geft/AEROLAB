@@ -334,6 +334,7 @@ export interface IngestResultItem {
   activityId?: string;
   error?: string;
   name?: string;
+  reason?: string;
 }
 
 /** A structured log line returned by /api/dev/diagnostics. */

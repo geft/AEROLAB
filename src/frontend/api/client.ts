@@ -7,6 +7,7 @@ import type {
   BackupSettingsResponse,
   BestEffortsResponse,
   DatabaseStatus,
+  IngestResultItem,
   MaintenanceStatus,
   ProgressHistoryResponse,
   ProfilePatchResponse,
@@ -147,6 +148,34 @@ export function uploadActivity(payload: { content: string; filename: string; for
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
+}
+
+/** GET /api/ingest/settings — configured Garmin export folder. */
+export function getImportFolder(): Promise<{ directory: string; exists: boolean }> {
+  return requestJson('/api/ingest/settings');
+}
+
+/** POST /api/ingest/settings — persist the folder scanned for Garmin exports. */
+export function saveImportFolder(directory: string): Promise<{ directory: string; exists: boolean }> {
+  return requestJson('/api/ingest/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ directory })
+  });
+}
+
+/** POST /api/ingest/select-folder — open the native folder picker for Garmin exports. */
+export function selectImportFolder(title: string): Promise<SelectFolderResponse> {
+  return requestJson('/api/ingest/select-folder', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title })
+  });
+}
+
+/** POST /api/ingest/scan — import every supported run file from the configured folder. */
+export function scanImportFolder(): Promise<{ directory: string; results: IngestResultItem[] }> {
+  return requestJson('/api/ingest/scan', { method: 'POST' });
 }
 
 /** POST /api/database/restore — replace the active database from a raw .db file body. */

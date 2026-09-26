@@ -288,10 +288,21 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
                 <div
                   key={a.id}
                   className={`session-card ${isSelected ? 'selected' : ''}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isSelected}
                   onClick={() => {
                     setShowTagMenu(false);
                     onSelectActivity(a.id);
                     setMobileSubTab('detail');
+                  }}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setShowTagMenu(false);
+                      onSelectActivity(a.id);
+                      setMobileSubTab('detail');
+                    }
                   }}
                 >
                   <div className="session-card-top">
@@ -344,9 +355,9 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
         )}
       </div>
 
-      <div className="dropzone-inline" onClick={onOpenUpload}>
+      <button type="button" className="dropzone-inline" onClick={onOpenUpload}>
         {t.browse.dropOrImportCsv}
-      </div>
+      </button>
     </aside>
   );
 };

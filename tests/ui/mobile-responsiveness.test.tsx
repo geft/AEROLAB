@@ -174,13 +174,30 @@ describe('Mobile Responsiveness & View Switcher UI Tests', () => {
 
     // Click "← Back to Sessions List"
     await waitFor(async () => {
-      const backBtn = screen.getByRole('button', { name: /← Back to Sessions List/i });
+      const backBtn = screen.getByRole('button', { name: /← Back to sessions/i });
       await act(async () => {
         fireEvent.click(backBtn);
       });
     });
 
     expect(browseGrid?.className).toContain('mobile-show-list');
+  });
+
+  it('opens a session card with Enter from the keyboard', () => {
+    const onSelectActivity = vi.fn();
+    const { container } = render(
+      <BrowseView
+        activities={mockActivities}
+        selectedActivityId={mockActivities[0].id}
+        onSelectActivity={onSelectActivity}
+        onOpenUpload={vi.fn()}
+      />
+    );
+
+    const firstCard = container.querySelector('.session-card');
+    expect(firstCard?.getAttribute('role')).toBe('button');
+    fireEvent.keyDown(firstCard!, { key: 'Enter' });
+    expect(onSelectActivity).toHaveBeenCalledWith(mockActivities[0].id);
   });
 
   it('Navbar renders navigation icons and labels for mobile bottom navigation', () => {

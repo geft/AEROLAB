@@ -54,6 +54,7 @@ export interface Translations {
   };
   common: {
     loading: string;
+    retry: string;
     close: string;
     done: string;
     filter: string;
@@ -112,10 +113,15 @@ export interface Translations {
     tabIntervals: string;
     tabSplits: string;
     tabCoach: string;
+    viewSwitcherLabel: string;
+    sessionsCount: string;
     exportCsv: string;
     steadyPace: string;
     steadyHr: string;
     efficiencyFactor: string;
+    telemetryLoadFailed: string;
+    loadingTelemetry: string;
+    backToSessions: string;
     efficiencyFactorUnits: string;
     metersPerHeartbeatDesc: string;
     efficiencyDefaultDesc: string;
@@ -251,6 +257,7 @@ export interface Translations {
     yearly: string;
     totalTime: string;
     economyIndex: string;
+    loadFailed: string;
     vdotTrend: string;
     lt1Title: string;
     lt1Sub: string;
@@ -354,6 +361,8 @@ export interface Translations {
     benchmarkAdvanced: string;
     benchmarkElite: string;
     volumeTitle: string;
+    loadFailed: string;
+    volumeLoadFailed: string;
     volumeDesc: string;
     periodWeek: string;
     periodMonth: string;
@@ -695,6 +704,29 @@ export interface Translations {
     fontDefault: string;
     fontLarge: string;
     fontXLarge: string;
+  };
+  garminImport: {
+    title: string;
+    modalTitle: string;
+    description: string;
+    pickerTitle: string;
+    folderLabel: string;
+    chooseFolder: string;
+    saveFolder: string;
+    scanFolder: string;
+    scanning: string;
+    saved: string;
+    folderUnavailable: string;
+    chooseFolderFailed: string;
+    saveFailed: string;
+    scanFailed: string;
+    noFiles: string;
+    filesScanned: string;
+    resultDetails: string;
+    resultImported: string;
+    resultDuplicate: string;
+    resultNonRunning: string;
+    resultError: string;
   };
   trainingLoad: {
     loading: string;

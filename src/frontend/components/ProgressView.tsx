@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { ThresholdsResponse, CalibrationHistoryItem } from '../types/api.js';
-import { TrendingUp, Activity, Zap, ShieldCheck, Calendar, List, LayoutGrid, Award } from 'lucide-react';
+import { TrendingUp, Activity, Zap, ShieldCheck, Calendar, List, LayoutGrid, Award, RefreshCw } from 'lucide-react';
 import { PeriodProgressView } from './PeriodProgressView';
 import { ThresholdTrendsChart } from './ThresholdTrendsChart';
 import { EconomyGuideModal } from './EconomyGuideModal';
@@ -32,6 +32,8 @@ export const ProgressView: React.FC = () => {
   const [mountedAt] = React.useState(() => Date.now());
   const [data, setData] = useState<ThresholdData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const [historyViewMode, setHistoryViewMode] = useState<'cards' | 'table'>('cards');
   const [calFilter, setCalFilter] = useState<'all' | 'lt1' | 'lt2' | 'race'>('all');
   const [isEconomyGuideOpen, setIsEconomyGuideOpen] = useState<boolean>(false);
@@ -40,6 +42,8 @@ export const ProgressView: React.FC = () => {
   const [visibleHistoryCount, setVisibleHistoryCount] = useState<number>(10);
 
   useEffect(() => {
+    setLoading(true);
+    setLoadError(false);
     getThresholds()
       .then(resData => {
         // The route always returns `latest`; the view's stricter local shape
@@ -49,9 +53,10 @@ export const ProgressView: React.FC = () => {
       })
       .catch(err => {
         console.error('Failed to load thresholds:', err);
+        setLoadError(true);
         setLoading(false);
       });
-  }, []);
+  }, [retryCount]);
 
   // Deduplicate history entries by source_activity_id to eliminate repetitive rows
   const uniqueHistory = React.useMemo(() => {
@@ -93,10 +98,21 @@ export const ProgressView: React.FC = () => {
     return filteredHistory.slice(0, visibleHistoryCount);
   }, [filteredHistory, visibleHistoryCount]);
 
-  if (loading || !data) {
+  if (loading) {
     return (
       <div className="progress-grid">
         <div className="overview-card loading-skeleton" style={{ height: 400 }}></div>
+      </div>
+    );
+  }
+
+  if (loadError || !data) {
+    return (
+      <div className="load-error-state" role="alert">
+        <p>{t.progress.loadFailed}</p>
+        <button type="button" className="outline-btn" onClick={() => setRetryCount(count => count + 1)}>
+          <RefreshCw size={14} /> {t.common.retry}
+        </button>
       </div>
     );
   }
@@ -180,7 +196,7 @@ export const ProgressView: React.FC = () => {
             <div className="benchmark-value" style={{ color: '#06b6d4' }}>
               {data.latest.lt1?.baseline_economy_ef ? Number(data.latest.lt1.baseline_economy_ef).toFixed(2) : '—'}
             </div>
-            <span className="benchmark-sub">{t.browse.metersPerBeat}</span>
+            <span className="benchmark-sub">{t.browse.efficiencyFactor}</span>
           </div>
           <div className="threshold-marker-badge cyan">
             <Activity size={12} /> {t.progress.cardioEfficiency}

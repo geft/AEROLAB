@@ -227,12 +227,12 @@ function runFolderPicker(command: string, args: string[]): Promise<string | null
 }
 
 /** Open the host OS folder chooser and return the selected absolute path. */
-export function selectBackupFolder(): Promise<string | null> {
+export function selectLocalFolder(title = 'Choose AEROLAB folder'): Promise<string | null> {
   if (process.platform === 'win32') {
     const script = [
       "Add-Type -AssemblyName System.Windows.Forms",
       "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog",
-      "$dialog.Description = 'Choose AEROLAB backup folder'",
+      `$dialog.Description = '${title.replace(/'/g, "''")}'`,
       "$dialog.ShowNewFolderButton = $true",
       "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Write($dialog.SelectedPath) }"
     ].join('; ');
@@ -240,11 +240,12 @@ export function selectBackupFolder(): Promise<string | null> {
   }
 
   if (process.platform === 'darwin') {
-    return runFolderPicker('osascript', ['-e', 'POSIX path of (choose folder with prompt "Choose AEROLAB backup folder")']);
+    const escapedTitle = title.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    return runFolderPicker('osascript', ['-e', `POSIX path of (choose folder with prompt "${escapedTitle}")`]);
   }
 
-  return runFolderPicker('zenity', ['--file-selection', '--directory', '--title=Choose AEROLAB backup folder'])
-    .then(folder => folder || runFolderPicker('kdialog', ['--getexistingdirectory', '', '--title', 'Choose AEROLAB backup folder']));
+  return runFolderPicker('zenity', ['--file-selection', '--directory', `--title=${title}`])
+    .then(folder => folder || runFolderPicker('kdialog', ['--getexistingdirectory', '', '--title', title]));
 }
 
 /** Select an existing database or a new filename in the host OS file chooser. */
@@ -272,7 +273,7 @@ export function selectDatabaseFile(): Promise<string | null> {
 export async function handleSelectFolder(
   _req: Request,
   res: Response,
-  picker: () => Promise<string | null> = selectBackupFolder
+  picker: () => Promise<string | null> = () => selectLocalFolder('Choose AEROLAB backup folder')
 ): Promise<void> {
   try {
     const folder = await picker();

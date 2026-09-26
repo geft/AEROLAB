@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { ThresholdsResponse, VolumeData } from '../types/api.js';
-import { Target, Zap, Calendar, HelpCircle, X } from 'lucide-react';
+import { Target, Zap, Calendar, HelpCircle, X, RefreshCw } from 'lucide-react';
 import { formatDuration, formatPace } from '../utils/formatters.js';
 import { raceBenchmarkFor, RACE_BENCHMARK_LEVELS } from '../utils/raceBenchmarks.js';
 import { classifyTurnpointMargin, estimateTurnpointGapSeconds } from '../utils/turnpointMargin.js';
@@ -21,11 +21,15 @@ export const StatsView: React.FC = () => {
   };
   const [data, setData] = useState<ThresholdsResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const [volumePeriod, setVolumePeriod] = useState<'week' | 'month' | 'year' | 'all'>('month');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [availableMonths, setAvailableMonths] = useState<{ period: string; label: string }[]>([]);
   const [volumeData, setVolumeData] = useState<VolumeData | null>(null);
   const [loadingVolume, setLoadingVolume] = useState<boolean>(false);
+  const [volumeLoadError, setVolumeLoadError] = useState(false);
+  const [volumeRetryCount, setVolumeRetryCount] = useState(0);
   const [isMarginGuideOpen, setIsMarginGuideOpen] = useState<boolean>(false);
   const [demographics, setDemographics] = useState<{ age: number | null; gender: string | null } | null>(null);
   const [openPredictionInfo, setOpenPredictionInfo] = useState<string | null>(null);
@@ -39,6 +43,8 @@ export const StatsView: React.FC = () => {
   ];
 
   useEffect(() => {
+    setLoading(true);
+    setLoadError(false);
     getThresholds()
       .then(resData => {
         setData(resData);
@@ -46,6 +52,7 @@ export const StatsView: React.FC = () => {
       })
       .catch(err => {
         console.error('Failed to load stats:', err);
+        setLoadError(true);
         setLoading(false);
       });
 
@@ -60,10 +67,11 @@ export const StatsView: React.FC = () => {
     getProfile()
       .then(response => setDemographics({ age: response.profile?.age ?? null, gender: response.profile?.gender ?? null }))
       .catch(() => setDemographics(null));
-  }, []);
+  }, [retryCount]);
 
   useEffect(() => {
     setLoadingVolume(true);
+    setVolumeLoadError(false);
     getVolume({
       period: volumePeriod,
       ...(volumePeriod === 'month' && selectedMonth !== 'all' ? { month: selectedMonth } : {})
@@ -74,14 +82,26 @@ export const StatsView: React.FC = () => {
       })
       .catch(err => {
         console.error('Failed to load volume stats:', err);
+        setVolumeLoadError(true);
         setLoadingVolume(false);
       });
-  }, [volumePeriod, selectedMonth]);
+  }, [volumePeriod, selectedMonth, volumeRetryCount]);
 
-  if (loading || !data) {
+  if (loading) {
     return (
       <div className="stats-grid">
         <div className="overview-card loading-skeleton" style={{ height: 400 }}></div>
+      </div>
+    );
+  }
+
+  if (loadError || !data) {
+    return (
+      <div className="load-error-state" role="alert">
+        <p>{t.stats.loadFailed}</p>
+        <button type="button" className="outline-btn" onClick={() => setRetryCount(count => count + 1)}>
+          <RefreshCw size={14} /> {t.common.retry}
+        </button>
       </div>
     );
   }
@@ -173,7 +193,16 @@ export const StatsView: React.FC = () => {
         </div>
 
         {/* Volume Summary KPI Grid */}
-        {loadingVolume || !volumeData ? (
+        {loadingVolume || (!volumeData && !volumeLoadError) ? (
+          <div className="loading-skeleton" style={{ height: 160, borderRadius: 10 }}></div>
+        ) : volumeLoadError ? (
+          <div className="load-error-state compact" role="alert">
+            <p>{t.stats.volumeLoadFailed}</p>
+            <button type="button" className="outline-btn" onClick={() => setVolumeRetryCount(count => count + 1)}>
+              <RefreshCw size={14} /> {t.common.retry}
+            </button>
+          </div>
+        ) : !volumeData ? (
           <div className="loading-skeleton" style={{ height: 160, borderRadius: 10 }}></div>
         ) : (
           <>
@@ -191,7 +220,7 @@ export const StatsView: React.FC = () => {
                 <div className="volume-kpi-val" style={{ color: '#38bdf8' }}>
                   {volumeData.totalDurationHours} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>{t.stats.hrsTotal}</span>
                 </div>
-                <span className="volume-kpi-sub">{t.browse.metersPerBeat}: ~{volumeData.avgEf ?? '—'} m/beat</span>
+                <span className="volume-kpi-sub">{t.browse.efficiencyFactor}: {volumeData.avgEf ?? '—'} EF</span>
               </div>
 
               <div className="volume-kpi-box highlight">

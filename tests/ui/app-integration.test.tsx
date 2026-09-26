@@ -2,7 +2,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
-import { App } from '../../src/frontend/App.js';
+import { App, resolveSelectedActivityId } from '../../src/frontend/App.js';
 
 describe('AEROLAB App Full Integration Tests', () => {
   const mockActivities = [
@@ -218,6 +218,14 @@ describe('AEROLAB App Full Integration Tests', () => {
     await waitFor(() => {
       expect(screen.getByText('Easy Aerobic Base')).toBeTruthy();
     });
+  });
+
+  it('selects a valid run after a restore removes the previously selected run', () => {
+    const restoredActivities = [{ ...mockActivities[0], id: 'restored-run-456' }];
+
+    expect(resolveSelectedActivityId(restoredActivities, undefined, '24321232759')).toBe('restored-run-456');
+    expect(resolveSelectedActivityId(restoredActivities, 'restored-run-456', '24321232759')).toBe('restored-run-456');
+    expect(resolveSelectedActivityId([], undefined, '24321232759')).toBeNull();
   });
 
   it('persists Day Mode theme toggle to documentElement and localStorage', async () => {

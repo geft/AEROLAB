@@ -13,6 +13,8 @@ release/
 
 # Test coverage
 coverage/
+test-results/
+playwright-report/
 
 # Local scratch scripts
 scratch/

@@ -61,7 +61,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
       if (data.success) {
         setRestoreMessage({ type: 'success', text: format(t.backup.restoreSuccessWithCount, { count: data.activityCount ?? 0 }) });
         fetchDbStatus();
-        if (onRestoreComplete) onRestoreComplete();
+        if (onRestoreComplete) await onRestoreComplete();
       } else {
         setRestoreMessage({ type: 'error', text: t.backup.restoreFailed });
       }
@@ -87,7 +87,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
           text: format(t.backup.restoreSuccessWithCount, { count: data.activityCount ?? 0 })
         });
         fetchDbStatus();
-        if (onRestoreComplete) onRestoreComplete();
+        if (onRestoreComplete) await onRestoreComplete();
       } else {
         setRestoreMessage({ type: 'error', text: t.backup.restoreFailed });
       }
@@ -211,7 +211,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
                 fontSize: '0.82rem',
                 fontWeight: 600,
                 cursor: 'pointer',
-                minHeight: '38px',
+                minHeight: '44px',
                 whiteSpace: 'nowrap'
               }}
             >
@@ -248,7 +248,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
                 fontSize: '0.82rem',
                 fontWeight: 600,
                 cursor: isRestoring ? 'wait' : 'pointer',
-                minHeight: '38px',
+                minHeight: '44px',
                 whiteSpace: 'nowrap'
               }}
             >

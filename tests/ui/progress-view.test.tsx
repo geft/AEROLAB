@@ -126,7 +126,7 @@ describe('ProgressView UI Tests', () => {
   });
 
   it('renders benchmark cards and threshold markers', async () => {
-    render(<ProgressView />);
+    const { container } = render(<ProgressView />);
 
     await waitFor(() => {
       expect(screen.getAllByText('Estimated LT1 Pace').length).toBeGreaterThan(0);
@@ -134,6 +134,9 @@ describe('ProgressView UI Tests', () => {
     expect(screen.getAllByText('Estimated LT2 Pace').length).toBeGreaterThan(0);
     expect(screen.getByText('Estimated VO2 Max / VDOT')).toBeDefined();
     expect(screen.getByText('Running Economy Index')).toBeDefined();
+    const economyCard = container.querySelector('.benchmark-card:last-child');
+    expect(economyCard?.textContent).toContain('Running Economy (EF)');
+    expect(economyCard?.textContent).not.toContain('Meters / Beat');
   });
 
   it('opens and closes VDOT Guide Modal when (?) button is clicked', async () => {
@@ -385,5 +388,26 @@ describe('ProgressView UI Tests', () => {
     await waitFor(() => {
       expect(range3mBtns[0].className).toContain('active');
     });
+  });
+
+  it('shows a retry action when threshold data fails to load', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    let thresholdAttempts = 0;
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (url.includes('/api/thresholds')) {
+        thresholdAttempts += 1;
+        if (thresholdAttempts === 1) return Promise.reject(new Error('Temporary failure'));
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(mockThresholdData) });
+      }
+      if (url.includes('/api/activities/progress-history')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(mockProgressHistory) });
+      }
+      return Promise.reject(new Error(`Unhandled fetch url: ${url}`));
+    }));
+
+    render(<ProgressView />);
+    expect(await screen.findByText('Could not load progress data.')).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect((await screen.findAllByText('Estimated LT1 Pace')).length).toBeGreaterThan(0);
   });
 });

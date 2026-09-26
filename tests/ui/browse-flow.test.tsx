@@ -142,6 +142,39 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     expect(screen.getByText('1.25')).toBeTruthy();
   });
 
+  it('reloads the selected activity detail when restored database data changes', async () => {
+    const restoredDetail = {
+      ...mockDetailData,
+      activity: { ...mockDetailData.activity, name: 'Restored Database Run' }
+    };
+    let detailRequestCount = 0;
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      const responseData = detailRequestCount++ === 0 ? mockDetailData : restoredDetail;
+      return { ok: true, json: async () => responseData } as any;
+    });
+    const onActivityUpdated = vi.fn();
+    const props = {
+      activities: mockActivities,
+      selectedActivityId: 'act-101',
+      onSelectActivity: vi.fn(),
+      onOpenUpload: vi.fn(),
+      onActivityUpdated,
+      theme: 'dark' as const
+    };
+
+    const { rerender } = render(<BrowseView {...props} dataRefreshKey={0} />);
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText('Easy Aerobic Base')).toBeTruthy();
+
+    // The selected ID is unchanged after restore, so the refresh signal must
+    // trigger a new detail request on its own.
+    rerender(<BrowseView {...props} dataRefreshKey={1} />);
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(onActivityUpdated).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'Restored Database Run' })));
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
   it('navigates through subtabs: Strides & Intervals, then Analysis', async () => {
     render(
       <BrowseView
@@ -563,4 +596,3 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     });
   });
 });
-

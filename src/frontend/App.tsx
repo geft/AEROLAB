@@ -24,11 +24,26 @@ const DevDiagnosticsDrawer = import.meta.env.DEV
   ? lazy(() => import('./components/DevDiagnosticsDrawer').then(m => ({ default: m.DevDiagnosticsDrawer })))
   : null;
 
+export function resolveSelectedActivityId(
+  activities: ActivitySummary[],
+  preferredSelectedId?: string,
+  selectedActivityId?: string | null
+): string | null {
+  if (preferredSelectedId && activities.some(activity => activity.id === preferredSelectedId)) {
+    return preferredSelectedId;
+  }
+  if (selectedActivityId && activities.some(activity => activity.id === selectedActivityId)) {
+    return selectedActivityId;
+  }
+  return activities[0]?.id ?? null;
+}
+
 export const App: React.FC = () => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabType>('browse');
   const [activities, setActivities] = useState<ActivitySummary[]>([]);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
+  const [activityDataVersion, setActivityDataVersion] = useState(0);
   const [isUploadOpen, setIsUploadOpen] = useState<boolean>(false);
   const [isBackupOpen, setIsBackupOpen] = useState<boolean>(false);
   // null = still loading, false = needs onboarding, true = ready
@@ -88,11 +103,7 @@ export const App: React.FC = () => {
       const data = await listActivities();
       const list = data.activities;
       setActivities(list);
-      if (preferredSelectedId) {
-        setSelectedActivityId(preferredSelectedId);
-      } else if (!selectedActivityId && list.length > 0) {
-        setSelectedActivityId(list[0].id);
-      }
+      setSelectedActivityId(resolveSelectedActivityId(list, preferredSelectedId, selectedActivityId));
     } catch (err) {
       console.error('Failed to load activities:', err);
       clientLogger.error('App', 'Failed to load activities', { error: String(err) });
@@ -132,6 +143,17 @@ export const App: React.FC = () => {
     fetchActivities();
   };
 
+  const handleRestoreComplete = async () => {
+    await checkProfileConfigured();
+    await fetchActivities();
+    setActivityDataVersion(version => version + 1);
+  };
+
+  const handleImportComplete = async () => {
+    await fetchActivities();
+    setActivityDataVersion(version => version + 1);
+  };
+
   // Loading splash — prevents flicker before the profile check resolves
   if (isConfigured === null) {
     return (
@@ -162,6 +184,7 @@ export const App: React.FC = () => {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onOpenUpload={() => setIsUploadOpen(true)}
+        onScanImportComplete={handleImportComplete}
         onOpenBackup={() => setIsBackupOpen(true)}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -173,6 +196,7 @@ export const App: React.FC = () => {
             <BrowseView
               activities={activities}
               selectedActivityId={selectedActivityId}
+              dataRefreshKey={activityDataVersion}
               onSelectActivity={setSelectedActivityId}
               onOpenUpload={() => setIsUploadOpen(true)}
               onActivityUpdated={handleActivityUpdated}
@@ -193,10 +217,7 @@ export const App: React.FC = () => {
 
           {activeTab === 'settings' && (
             <SettingsView
-              onRestoreComplete={() => {
-                checkProfileConfigured();
-                fetchActivities();
-              }}
+              onRestoreComplete={handleRestoreComplete}
               theme={theme}
               onToggleTheme={toggleTheme}
             />
@@ -219,10 +240,7 @@ export const App: React.FC = () => {
           <BackupModal
             isOpen={isBackupOpen}
             onClose={() => setIsBackupOpen(false)}
-            onRestoreComplete={() => {
-              checkProfileConfigured();
-              fetchActivities();
-            }}
+            onRestoreComplete={handleRestoreComplete}
           />
         )}
 

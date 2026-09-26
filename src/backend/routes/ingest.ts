@@ -1,25 +1,100 @@
 import { Router } from 'express';
+import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { getDatabase } from '../db/client.js';
-import { importDirectory, importRunContent } from '../ingestion/importer.js';
+import { importRunContent, importRunFile } from '../ingestion/importer.js';
 import { convertFitToCsv, isFitBuffer } from '../ingestion/fit-parser.js';
-import { checkAndRunScheduledBackup } from './database.js';
+import { checkAndRunScheduledBackup, isSafeBackupDirectory, selectLocalFolder } from './database.js';
 import { logger } from '../utils/logger.js';
 
 export const ingestRouter = Router();
 
-// POST /api/ingest/scan - scan data/raw folder
+function getGarminImportDirectory(db: ReturnType<typeof getDatabase>): string {
+  const fallback = path.join(os.homedir(), 'Downloads');
+  try {
+    const row = db.prepare("SELECT preferences_json FROM athlete_profile WHERE id = 'primary'").get() as { preferences_json?: string } | undefined;
+    if (row?.preferences_json) {
+      const preferences = JSON.parse(row.preferences_json) as { garminImportDirectory?: unknown };
+      if (typeof preferences.garminImportDirectory === 'string' && path.isAbsolute(preferences.garminImportDirectory)) {
+        return path.normalize(preferences.garminImportDirectory);
+      }
+    }
+  } catch { /* malformed preferences use the platform Downloads folder */ }
+  return fallback;
+}
+
+function saveGarminImportDirectory(db: ReturnType<typeof getDatabase>, directory: string): void {
+  const row = db.prepare("SELECT preferences_json FROM athlete_profile WHERE id = 'primary'").get() as { preferences_json?: string } | undefined;
+  const preferences = row?.preferences_json ? JSON.parse(row.preferences_json) as Record<string, unknown> : {};
+  preferences.garminImportDirectory = path.normalize(directory);
+  db.prepare("UPDATE athlete_profile SET preferences_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 'primary'").run(JSON.stringify(preferences));
+}
+
+// GET /api/ingest/settings - return the folder used by Scan Downloads.
+ingestRouter.get('/settings', (_req, res) => {
+  try {
+    const directory = getGarminImportDirectory(getDatabase());
+    res.json({ directory, exists: fs.existsSync(directory) && fs.statSync(directory).isDirectory() });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to load import settings' });
+  }
+});
+
+// POST /api/ingest/settings - choose and persist the Garmin export folder.
+ingestRouter.post('/settings', (req, res) => {
+  try {
+    const directory = req.body?.directory;
+    if (typeof directory !== 'string' || !path.isAbsolute(directory) || !isSafeBackupDirectory(directory)) {
+      return res.status(400).json({ error: 'Choose an absolute, safe folder path.' });
+    }
+    const normalized = path.resolve(directory);
+    if (!fs.existsSync(normalized) || !fs.statSync(normalized).isDirectory()) {
+      return res.status(400).json({ error: 'Choose an existing folder.' });
+    }
+    const db = getDatabase();
+    saveGarminImportDirectory(db, normalized);
+    res.json({ directory: normalized, exists: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to save import settings' });
+  }
+});
+
+// POST /api/ingest/select-folder - open the native folder chooser for import source.
+ingestRouter.post('/select-folder', async (req, res) => {
+  try {
+    const title = typeof req.body?.title === 'string' ? req.body.title.slice(0, 120) : 'Choose import folder';
+    const folder = await selectLocalFolder(title);
+    if (!folder) return res.json({ folder: null, cancelled: true });
+    const normalized = path.resolve(folder);
+    if (!isSafeBackupDirectory(normalized) || !fs.existsSync(normalized) || !fs.statSync(normalized).isDirectory()) {
+      return res.status(400).json({ error: 'Selected folder is invalid or unavailable.' });
+    }
+    res.json({ folder: normalized });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to select import folder' });
+  }
+});
+
+// POST /api/ingest/scan - import supported activity files from the configured folder.
 ingestRouter.post('/scan', (req, res) => {
   try {
     const db = getDatabase();
-    const rawDir = path.resolve(process.cwd(), 'data', 'raw');
-    const results = importDirectory(db, rawDir);
+    const directory = getGarminImportDirectory(db);
+    if (!fs.existsSync(directory) || !fs.statSync(directory).isDirectory()) {
+      return res.status(400).json({ code: 'IMPORT_FOLDER_UNAVAILABLE', error: 'The selected import folder is unavailable.' });
+    }
+    const files = fs.readdirSync(directory).filter(name => /\.(csv|fit)$/i.test(name));
+    const results = files.map(filename => ({
+      ...importRunFile(db, path.join(directory, filename)),
+      filename
+    }));
     if (results.some(r => r.status === 'imported')) {
       setTimeout(() => {
         try { checkAndRunScheduledBackup(db); } catch (e) { logger.error('AutoBackup', 'Scan error', e); }
       }, 500);
     }
-    res.json({ results });
+    res.json({ directory, results });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
