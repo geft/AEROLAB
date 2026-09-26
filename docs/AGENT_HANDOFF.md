@@ -1,6 +1,6 @@
 # Agent handoff - AEROLAB security and architecture audit
 
-Canonical rules live in `AGENTS.md`; the audit itself is tracked in
+Canonical rules live in `../AGENTS.md`; the audit itself is tracked in
 `SECURITY_ARCHITECTURE_PLAN.md`, which ends with a progress log. Read both before
 changing anything here.
 
