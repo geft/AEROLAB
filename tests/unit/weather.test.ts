@@ -11,6 +11,7 @@ describe('Weather Service Unit Tests', () => {
     expect(res.temperatureC).toBeNull();
     expect(res.humidityPct).toBeNull();
     expect(res.apparentTempC).toBeNull();
+    expect(res.pm25).toBeNull();
     expect(res.conditionText).toBeNull();
   });
 
@@ -42,17 +43,51 @@ describe('Weather Service Unit Tests', () => {
       }
     };
 
-    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({
       ok: true,
       json: async () => mockApiResponse
-    } as any);
+      } as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ hourly: { pm2_5: [42.56] } })
+      } as any);
 
-    const res = await fetchHistoricalWeather(1.3521, 103.8512, '2026-09-12T07:15:00');
+    const res = await fetchHistoricalWeather(1.3521, 103.8512, '2026-09-12T07:15:00', 7200);
     expect(res.temperatureC).toBe(28.2);
     expect(res.humidityPct).toBe(78);
     expect(res.apparentTempC).toBe(33.5);
     expect(res.weatherCode).toBe(2);
     expect(res.conditionText).toBe('Partly cloudy');
+    expect(res.pm25).toBe(42.6);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0][0])).toContain('start_date=2026-09-12');
+    expect(String(fetchMock.mock.calls[1][0])).toContain('start_hour=2026-09-12T08:00');
+    expect(String(fetchMock.mock.calls[1][0])).toContain('end_hour=2026-09-12T08:00');
+  });
+
+  it('uses the midpoint wall time across midnight and tolerates an air-quality failure', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          hourly: {
+            time: ['2026-09-13T00:00', '2026-09-13T01:00'],
+            temperature_2m: [27, 26],
+            relative_humidity_2m: [80, 82],
+            apparent_temperature: [30, 29],
+            weather_code: [71, 73]
+          }
+        })
+      } as any)
+      .mockRejectedValueOnce(new Error('Air-quality service unavailable'));
+
+    const res = await fetchHistoricalWeather(1.35, 103.85, '2026-09-12 23:30:00', 7200);
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain('start_date=2026-09-13');
+    expect(res.temperatureC).toBe(27);
+    expect(res.conditionText).toBe('Slight snow');
+    expect(res.pm25).toBeNull();
   });
 
 });

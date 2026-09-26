@@ -175,10 +175,7 @@ export async function openSettingsFixture(page: Page): Promise<void> {
     activityCount: 329,
     snapshots: [{ filename: 'runs-2026-09-19.db', createdAt: '2026-09-19T00:00:00.000Z', sizeMb: '12.4' }],
     settings: {
-      autoBackupEnabled: true,
       backupDirectory: 'C:/Users/Runner/AEROLAB/backups',
-      backupIntervalDays: 7,
-      lastBackupAt: '2026-09-19T00:00:00.000Z'
     }
   } }));
   await page.route('**/api/system/maintenance', route => route.fulfill({ json: { status: 'idle' } }));

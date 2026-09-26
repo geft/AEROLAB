@@ -37,6 +37,16 @@ export const LANGUAGE_LABELS: Record<Language, { short: string; native: string }
 export const SUPPORTED_LANGUAGES: Language[] = ['en', 'zh'];
 
 export interface Translations {
+  snapshot: {
+    generatedAt: string;
+    deployRowButton: string;
+    deployProtectionConfirmation: string;
+    deploying: string;
+    deploySuccess: string;
+    deployFailed: string;
+    deployNeedsLink: string;
+    deploySnapshotMissing: string;
+  };
   nav: {
     browse: string;
     progress: string;
@@ -85,6 +95,8 @@ export interface Translations {
     shareNotice: string;
     garminSensor: string;
     storedUnverifiedTemp: string;
+    pm25: string;
+    pm25Tooltip: string;
   };
   runTypes: {
     easy_base: string;
@@ -540,8 +552,8 @@ export interface Translations {
     downloadSnapshot: string;
     downloadSnapshotDesc: string;
     downloadButton: string;
-    autoBackupTitle: string;
-    autoBackupDesc: string;
+    manualBackupTitle: string;
+    manualBackupDesc: string;
     backupNowButton: string;
     backupSuccess: string;
     backupFailed: string;
@@ -553,7 +565,6 @@ export interface Translations {
     restoreFailed: string;
     restoring: string;
     settingsSaved: string;
-    enableAutoBackup: string;
     selectFolder: string;
     folderSelectionFailed: string;
     backingUp: string;
@@ -566,6 +577,11 @@ export interface Translations {
     tableAction: string;
     rollback: string;
     downloadAction: string;
+    deleteAction: string;
+    deleteSnapshotConfirm: string;
+    deleteSnapshotSuccess: string;
+    deleteSnapshotFailed: string;
+    deletingSnapshot: string;
     saveSettings: string;
     restoreConfirm: string;
     refreshAction: string;

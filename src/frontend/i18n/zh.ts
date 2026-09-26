@@ -1,6 +1,16 @@
 import { Translations } from './types';
 
 export const zh: Translations = {
+  snapshot: {
+    generatedAt: '快照导出时间：{date}',
+    deployRowButton: '部署此快照',
+    deployProtectionConfirmation: '将 {filename} 部署到 aerolab-snapshot？我已确认 Vercel Authentication 已保护所有部署。此操作会将所选快照中的跑步记录、遥测数据、训练指标和个人阈值发送到 Vercel。',
+    deploying: '正在部署…',
+    deploySuccess: '快照部署成功。',
+    deployFailed: '快照部署失败。',
+    deployNeedsLink: '请先使用 `npx vercel link --project aerolab-snapshot` 将此工作区关联到 aerolab-snapshot 项目。',
+    deploySnapshotMissing: '此本地快照已不存在，请刷新列表后重试。'
+  },
   nav: {
     browse: '跑步记录',
     progress: '训练进展',
@@ -49,6 +59,8 @@ export const zh: Translations = {
     shareNotice: '会向 Open-Meteo 分享地点和日期。',
     garminSensor: 'Garmin 传感器：{temperature}°C',
     storedUnverifiedTemp: '已保存温度：{temperature}°C（来源未确认）',
+    pm25: 'PM2.5 {value} µg/m³',
+    pm25Tooltip: '跑步时间中点附近的历史 PM2.5 模型估值；空气质量估算可能与本地监测站数据不同。',
   },
   runTypes: {
     easy_base: '有氧基础',
@@ -482,12 +494,12 @@ export const zh: Translations = {
   },
   backup: {
     cardTitle: '数据库备份与云端同步',
-    cardSubtitle: '安全导出离线快照，并管理本地自动轮换备份',
+    cardSubtitle: '创建和管理本地 SQLite 快照',
     downloadSnapshot: '即刻下载完整数据库',
     downloadSnapshotDesc: '下载完整独立的 SQLite 数据库快照文件 (.db)，涵盖全部跑步训练与生理校准',
     downloadButton: '下载数据库快照 (.db)',
-    autoBackupTitle: '自动每周备份',
-    autoBackupDesc: '每次启动应用程序时，每隔7天自动创建本地数据库快照。',
+    manualBackupTitle: '手动备份文件夹',
+    manualBackupDesc: '选择存放手动数据库备份的位置。此文件夹最多保留 3 份循环快照。',
     backupNowButton: '立即备份至指定文件夹',
     backupSuccess: '数据库备份已成功创建！',
     backupFailed: '创建备份失败：',
@@ -499,12 +511,11 @@ export const zh: Translations = {
     restoreFailed: '还原失败，请检查所选文件是否为有效的 AEROLAB 数据库。',
     restoring: '正在还原数据库…',
     settingsSaved: '备份设置已成功保存',
-    enableAutoBackup: '启用自动备份',
     selectFolder: '选择文件夹',
     folderSelectionFailed: '无法选择备份文件夹。',
     backingUp: '正在备份…',
     localSnapshots: '本地快照与回滚',
-    retentionPolicy: '保留最新 5 份循环快照',
+    retentionPolicy: '最多保留 3 份循环快照',
     noSnapshots: '未发现本地数据库快照。点击上方「立即备份到目录」即可生成。',
     tableSnapshotName: '快照文件名',
     tableCreated: '创建时间',
@@ -512,6 +523,11 @@ export const zh: Translations = {
     tableAction: '操作',
     rollback: '回滚',
     downloadAction: '下载',
+    deleteAction: '删除',
+    deleteSnapshotConfirm: '永久删除 {filename}？此操作只会删除这个本地备份文件。',
+    deleteSnapshotSuccess: '快照已删除。',
+    deleteSnapshotFailed: '无法删除此快照。',
+    deletingSnapshot: '正在删除…',
     saveSettings: '保存目录',
     restoreConfirm: '确定要恢复数据库快照吗？这将替换当前的所有活动记录。',
     refreshAction: '刷新'

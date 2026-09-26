@@ -8,7 +8,6 @@ import { createServer } from '../../src/backend/server.js';
 import { getDatabase } from '../../src/backend/db/client.js';
 import {
   createDatabaseBackup,
-  checkAndRunScheduledBackup,
   getBackupSettings,
   getDefaultBackupDir,
   handleSelectFolder,
@@ -70,8 +69,7 @@ describe('Database Backup & Cloud Sync Integration Tests', () => {
     expect(res.body).toHaveProperty('sizeBytes');
     expect(res.body.activityCount).toBeGreaterThanOrEqual(1);
     expect(res.body.settings).toBeDefined();
-    expect(res.body.settings.autoBackupEnabled).toBe(true);
-    expect(res.body.settings.backupIntervalDays).toBe(7);
+    expect(res.body.settings.backupDirectory).toBe(getDefaultBackupDir(getDatabase()));
   });
 
   it('POST /api/database/backup creates a transactionally consistent snapshot', async () => {
@@ -96,19 +94,13 @@ describe('Database Backup & Cloud Sync Integration Tests', () => {
   it('POST /api/database/settings updates preferences without clobbering profile', async () => {
     const res = await request(app)
       .post('/api/database/settings')
-      .send({
-        autoBackupEnabled: true,
-        backupDirectory: backupDir,
-        backupIntervalDays: 14
-      });
+      .send({ backupDirectory: backupDir });
 
     expect(res.status).toBe(200);
-    expect(res.body.settings.backupIntervalDays).toBe(14);
     expect(res.body.settings.backupDirectory).toBe(backupDir);
 
     // Verify through /status
     const statusRes = await request(app).get('/api/database/status');
-    expect(statusRes.body.settings.backupIntervalDays).toBe(14);
     expect(statusRes.body.settings.backupDirectory).toBe(backupDir);
   });
 
@@ -117,9 +109,9 @@ describe('Database Backup & Cloud Sync Integration Tests', () => {
     const rotateDir = path.join(testDir, 'rotation-test');
     fs.mkdirSync(rotateDir, { recursive: true });
 
-    // Create 5 backups with maxBackups set to 3
+    // Create 5 backups; only the newest 3 should remain.
     for (let i = 0; i < 5; i++) {
-      createDatabaseBackup(db, rotateDir, 3);
+      createDatabaseBackup(db, rotateDir);
     }
 
     const backups = listBackups(rotateDir);
@@ -160,13 +152,13 @@ describe('Database Backup & Cloud Sync Integration Tests', () => {
     try {
       db.prepare("UPDATE athlete_profile SET preferences_json = ? WHERE id = 'primary'")
         .run(JSON.stringify({ theme: 'dark', backup: { autoBackupEnabled: true, backupDirectory: backupDir, backupIntervalDays: 7 } }));
-      const updated = saveBackupSettings(db, { autoBackupEnabled: false, backupIntervalDays: 14 });
+      const updated = saveBackupSettings(db, { backupDirectory: backupDir });
 
-      expect(updated.autoBackupEnabled).toBe(false);
-      expect(updated.backupIntervalDays).toBe(14);
+      expect(updated).toEqual({ backupDirectory: backupDir });
       expect(getBackupSettings(db)).toEqual(updated);
       const preferences = JSON.parse((db.prepare("SELECT preferences_json FROM athlete_profile WHERE id = 'primary'").get() as any).preferences_json);
       expect(preferences.theme).toBe('dark');
+      expect(preferences.backup).toEqual({ backupDirectory: backupDir });
     } finally {
       db.prepare("UPDATE athlete_profile SET preferences_json = ? WHERE id = 'primary'").run(originalPreferences);
     }
@@ -179,39 +171,48 @@ describe('Database Backup & Cloud Sync Integration Tests', () => {
       db.prepare("UPDATE athlete_profile SET preferences_json = ? WHERE id = 'primary'").run('{broken json');
       const settings = getBackupSettings(db);
 
-      expect(settings.autoBackupEnabled).toBe(true);
       expect(settings.backupDirectory).toBe(getDefaultBackupDir(db));
-      expect(settings.backupIntervalDays).toBe(7);
-      expect(settings.lastBackupAt).toBeNull();
     } finally {
       db.prepare("UPDATE athlete_profile SET preferences_json = ? WHERE id = 'primary'").run(originalPreferences);
     }
   });
 
-  it('prunes snapshots created under an older retention policy', () => {
+  it('prunes older snapshots beyond the three-file rotation', () => {
     const db = getDatabase();
     const legacyDir = path.join(testDir, 'legacy-rotation-test');
     fs.mkdirSync(legacyDir, { recursive: true });
 
     for (let i = 0; i < 7; i++) {
-      createDatabaseBackup(db, legacyDir, 10);
+      createDatabaseBackup(db, legacyDir);
     }
 
-    expect(listBackups(legacyDir)).toHaveLength(7);
-    expect(pruneBackups(legacyDir, 5)).toHaveLength(5);
+    expect(listBackups(legacyDir)).toHaveLength(3);
+    expect(pruneBackups(legacyDir)).toHaveLength(3);
   });
 
   it('does not delete snapshots when reading database status', async () => {
     const db = getDatabase();
     const statusDir = path.join(testDir, 'status-read-test');
     fs.mkdirSync(statusDir, { recursive: true });
-    for (let i = 0; i < 7; i++) createDatabaseBackup(db, statusDir, 10);
+    for (let i = 0; i < 7; i++) createDatabaseBackup(db, statusDir);
     await request(app).post('/api/database/settings').send({ backupDirectory: statusDir });
 
     const status = await request(app).get('/api/database/status');
     expect(status.status).toBe(200);
-    expect(status.body.snapshots).toHaveLength(7);
-    expect(listBackups(statusDir)).toHaveLength(7);
+    expect(status.body.snapshots).toHaveLength(3);
+    expect(listBackups(statusDir)).toHaveLength(3);
+  });
+
+  it('deletes only a selected snapshot from the configured backup directory', async () => {
+    saveBackupSettings(getDatabase(), { backupDirectory: backupDir });
+    const backup = createDatabaseBackup(getDatabase(), backupDir);
+    const result = await request(app).post('/api/database/snapshots/delete').send({ filename: backup.filename });
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ status: 'ok', filename: backup.filename });
+    expect(fs.existsSync(backup.filePath)).toBe(false);
+
+    const invalid = await request(app).post('/api/database/snapshots/delete').send({ filename: '..\\test.db' });
+    expect(invalid.status).toBe(400);
   });
 
   it('GET /api/database/download streams a database snapshot as attachment', async () => {
@@ -220,12 +221,5 @@ describe('Database Backup & Cloud Sync Integration Tests', () => {
     expect(res.headers['content-disposition']).toContain('attachment');
     expect(res.headers['content-disposition']).toContain('.db');
     expect(res.body).toBeDefined();
-  });
-
-  it('checkAndRunScheduledBackup respects interval and avoids redundant backups', async () => {
-    const db = getDatabase();
-    // Recently backed up, so should return false (not due)
-    const result = await checkAndRunScheduledBackup(db);
-    expect(result).toBe(false);
   });
 });

@@ -7,10 +7,8 @@ import Database from 'better-sqlite3';
 import { createServer } from '../../src/backend/server.js';
 import { getDatabase, closeDatabase } from '../../src/backend/db/client.js';
 import {
-  checkAndRunScheduledBackup,
   listBackups,
-  validateDatabaseSnapshot,
-  saveBackupSettings
+  validateDatabaseSnapshot
 } from '../../src/backend/routes/database.js';
 import { getBenchmark, toCsv } from '../fixtures/benchmark-runs.js';
 
@@ -60,42 +58,29 @@ describe('Comprehensive Backup & Ingestion / Import Integration Tests', () => {
   });
 
   describe('1. Backup Status, Settings & Rotation', () => {
-    it('retrieves database status and updates auto-backup configuration', async () => {
+    it('retrieves database status and saves the manual backup directory', async () => {
       // Check status
       const statusRes = await request(app).get('/api/database/status');
       expect(statusRes.status).toBe(200);
       expect(statusRes.body.activityCount).toBeGreaterThanOrEqual(1);
-      expect(statusRes.body.settings.autoBackupEnabled).toBe(true);
-      expect(statusRes.body.settings.backupIntervalDays).toBe(7);
+      expect(statusRes.body.settings.backupDirectory).toBeTruthy();
 
       // Update settings
       const updateRes = await request(app)
         .post('/api/database/settings')
-        .send({
-          autoBackupEnabled: false,
-          backupIntervalDays: 14,
-          backupDirectory: backupDir
-        });
+        .send({ backupDirectory: backupDir });
 
       expect(updateRes.status).toBe(200);
-      expect(updateRes.body.settings.autoBackupEnabled).toBe(false);
-      expect(updateRes.body.settings.backupIntervalDays).toBe(14);
       expect(updateRes.body.settings.backupDirectory).toBe(backupDir);
 
       // Verify persistence in athlete profile preferences
       const db = getDatabase();
       const profileRow = db.prepare("SELECT preferences_json FROM athlete_profile WHERE id = 'primary'").get() as any;
       const parsed = JSON.parse(profileRow.preferences_json);
-      expect(parsed.backup.backupIntervalDays).toBe(14);
-      expect(parsed.backup.autoBackupEnabled).toBe(false);
-
-      // Re-enable for subsequent tests
-      await request(app)
-        .post('/api/database/settings')
-        .send({ autoBackupEnabled: true, backupIntervalDays: 7, backupDirectory: backupDir });
+      expect(parsed.backup).toEqual({ backupDirectory: backupDir });
     });
 
-    it('creates a local snapshot and enforces the 5-backup rotation retention policy', async () => {
+    it('creates local snapshots and enforces the 3-backup rotation retention policy', async () => {
       const rotateDir = path.join(testDir, 'rotation-test');
       fs.mkdirSync(rotateDir, { recursive: true });
 
@@ -110,9 +95,9 @@ describe('Comprehensive Backup & Ingestion / Import Integration Tests', () => {
       }
 
       const backups = listBackups(rotateDir);
-      // Maximum 5 backups retained
-      expect(backups.length).toBeLessThanOrEqual(5);
-      expect(backups.length).toBe(5);
+      // Maximum 3 backups retained
+      expect(backups.length).toBeLessThanOrEqual(3);
+      expect(backups.length).toBe(3);
       // Every file should be a valid SQLite database
       for (const b of backups) {
         expect(fs.existsSync(b.filePath)).toBe(true);
@@ -132,27 +117,6 @@ describe('Comprehensive Backup & Ingestion / Import Integration Tests', () => {
       expect(header).toBe('SQLite format 3\0');
     });
 
-    it('checkAndRunScheduledBackup handles schedule calculation and triggers when due', async () => {
-      const db = getDatabase();
-
-      // Case A: Last backup was recent (within interval) -> should return false
-      saveBackupSettings(db, { lastBackupAt: new Date().toISOString() });
-      const notDueResult = await checkAndRunScheduledBackup(db);
-      expect(notDueResult).toBe(false);
-
-      // Case B: Last backup was 15 days ago -> should return true and execute backup
-      const oldDate = new Date(Date.now() - 15 * 86400 * 1000).toISOString();
-      saveBackupSettings(db, { lastBackupAt: oldDate });
-
-      const dueResult = await checkAndRunScheduledBackup(db);
-      expect(dueResult).toBe(true);
-
-      // Verify lastBackupAt updated to now
-      const profileRow = db.prepare("SELECT preferences_json FROM athlete_profile WHERE id = 'primary'").get() as any;
-      const parsed = JSON.parse(profileRow.preferences_json);
-      const updatedDate = new Date(parsed.backup.lastBackupAt);
-      expect(Date.now() - updatedDate.getTime()).toBeLessThan(10000);
-    });
   });
 
   describe('2. Database Restore Safety, Validation & Rollback', () => {

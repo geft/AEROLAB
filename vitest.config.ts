@@ -13,7 +13,7 @@ export default defineConfig({
       DATABASE_PATH: ':memory:'
     },
     include: ['tests/**/*.{test,spec}.{ts,tsx}'],
-    exclude: ['tests/visual/**'],
+    exclude: ['tests/visual/**', 'tests/visual-snapshot/**'],
     coverage: {
       include: ['src/**/*.{ts,tsx}'],
       thresholds: {

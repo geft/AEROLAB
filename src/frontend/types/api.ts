@@ -316,10 +316,7 @@ export interface DatabaseStatus {
   snapshots: DatabaseSnapshot[];
   recentBackups?: DatabaseSnapshot[];
   settings?: {
-    autoBackupEnabled: boolean;
     backupDirectory: string;
-    backupIntervalDays: number;
-    lastBackupAt: string | null;
   };
 }
 

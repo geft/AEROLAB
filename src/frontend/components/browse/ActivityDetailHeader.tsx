@@ -29,6 +29,7 @@ interface ActivityDetailHeaderProps {
   setShowTagMenu: React.Dispatch<React.SetStateAction<boolean>>;
   tagMenuRef: React.RefObject<HTMLDivElement | null>;
   t: Translations;
+  readOnly?: boolean;
 }
 
 export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
@@ -44,7 +45,8 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
   showTagMenu,
   setShowTagMenu,
   tagMenuRef,
-  t
+  t,
+  readOnly = false
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState<boolean>(false);
   const [customTitle, setCustomTitle] = useState<string>('');
@@ -122,23 +124,23 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
               >
                 Save
               </button>
-              <button
+              {!readOnly && <button
                 onClick={() => setIsEditingTitle(false)}
                 style={{ background: 'transparent', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, padding: '0.4rem 0.75rem', cursor: 'pointer' }}
               >
                 Cancel
-              </button>
+              </button>}
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
               <h1 style={{ margin: 0 }}>{getDisplayTitle(act, t)}</h1>
-              <button
+              {!readOnly && <button
                 onClick={() => { setCustomTitle(act.name ?? ''); setIsEditingTitle(true); }}
                 title="Rename activity or name special race"
                 style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '0.2rem', display: 'flex', alignItems: 'center' }}
               >
                 <Edit2 size={16} />
-              </button>
+              </button>}
             </div>
           )}
 
@@ -178,15 +180,15 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
                 }}
               >
                 {tag}
-                <X
+                {!readOnly && <X
                   size={11}
                   style={{ cursor: 'pointer', opacity: 0.7 }}
                   onClick={() => handleRemoveTag(tag)}
-                />
+                />}
               </span>
             ))}
 
-            <div style={{ position: 'relative' }}>
+            {!readOnly && <div style={{ position: 'relative' }}>
               <button
                 onClick={() => setShowTagMenu(!showTagMenu)}
                 style={{
@@ -267,7 +269,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
                   </div>
                 </div>
               )}
-            </div>
+            </div>}
           </div>
         </div>
 
@@ -276,6 +278,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
           activity={act}
           isRefreshingWeather={isRefreshingWeather}
           onRefreshWeather={onRefreshWeather}
+          readOnly={readOnly}
         />
       </div>
 

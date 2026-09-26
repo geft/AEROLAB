@@ -1,9 +1,105 @@
 import { Router, Request, Response } from 'express';
+import { spawn } from 'child_process';
 import fs from 'fs';
+import path from 'path';
 import { getDatabase } from '../db/client.js';
+import { getBackupSettings, listBackups } from './database.js';
 import { logger } from '../utils/logger.js';
+import { isDevToolsEnabled } from '../utils/dev-mode.js';
 
 export const devRouter = Router();
+
+let snapshotDeploymentRunning = false;
+
+devRouter.post('/snapshot-deploy', (req: Request, res: Response) => {
+  // Snapshot export/build/deploy can take several minutes on a first run.
+  res.setTimeout(0);
+  if (!isDevToolsEnabled()) return res.sendStatus(404);
+  if (snapshotDeploymentRunning) {
+    return res.status(409).json({ error: 'A snapshot deployment is already running.', code: 'ERR_SNAPSHOT_DEPLOY_IN_PROGRESS' });
+  }
+
+  const projectRoot = process.cwd();
+  const linkPath = path.join(projectRoot, '.vercel', 'project.json');
+  if (!fs.existsSync(linkPath)) {
+    return res.status(409).json({
+      error: 'This checkout is not linked to a Vercel project.',
+      code: 'ERR_VERCEL_PROJECT_NOT_LINKED'
+    });
+  }
+
+  const filename = req.body?.filename;
+  if (typeof filename !== 'string' || path.basename(filename) !== filename
+    || !/^runs-[a-zA-Z0-9._-]+\.db$/.test(filename)) {
+    return res.status(400).json({ error: 'Choose a valid local snapshot row.', code: 'ERR_INVALID_SNAPSHOT' });
+  }
+  let selectedSnapshot: ReturnType<typeof listBackups>[number] | undefined;
+  try {
+    const backupDirectory = getBackupSettings(getDatabase()).backupDirectory;
+    selectedSnapshot = listBackups(backupDirectory).find(snapshot => snapshot.filename === filename);
+  } catch {
+    return res.status(500).json({ error: 'Could not read the local snapshot directory.', code: 'ERR_SNAPSHOT_DIRECTORY' });
+  }
+  if (!selectedSnapshot) {
+    return res.status(404).json({ error: 'That local snapshot no longer exists. Refresh the list and retry.', code: 'ERR_SNAPSHOT_NOT_FOUND' });
+  }
+
+  try {
+    const projectLink = JSON.parse(fs.readFileSync(linkPath, 'utf8')) as {
+      projectId?: unknown;
+      orgId?: unknown;
+      projectName?: unknown;
+    };
+    if (typeof projectLink.projectId !== 'string' || typeof projectLink.orgId !== 'string'
+      || projectLink.projectName !== 'aerolab-snapshot') {
+      return res.status(409).json({
+        error: 'This checkout must be linked to the aerolab-snapshot Vercel project before deploying.',
+        code: 'ERR_VERCEL_PROJECT_LINK_INVALID'
+      });
+    }
+  } catch {
+    return res.status(409).json({
+      error: 'This checkout must be linked to the aerolab-snapshot Vercel project before deploying.',
+      code: 'ERR_VERCEL_PROJECT_LINK_INVALID'
+    });
+  }
+
+  snapshotDeploymentRunning = true;
+  const child = spawn(process.execPath, [path.join(projectRoot, 'scripts', 'deploy-snapshot.js')], {
+    cwd: projectRoot,
+    env: { ...process.env, AEROLAB_SNAPSHOT_DATABASE_PATH: selectedSnapshot.filePath },
+    windowsHide: true,
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  let output = '';
+  const appendOutput = (chunk: Buffer) => {
+    output = `${output}${chunk.toString('utf8')}`.slice(-16_000);
+  };
+  child.stdout.on('data', appendOutput);
+  child.stderr.on('data', appendOutput);
+  child.on('error', error => {
+    snapshotDeploymentRunning = false;
+    logger.error('DEV_SNAPSHOT_DEPLOY', `Unable to start snapshot deployment: ${error.message}`);
+    if (!res.headersSent) res.status(500).json({ error: error.message, code: 'ERR_SNAPSHOT_DEPLOY_START' });
+  });
+  child.on('close', code => {
+    snapshotDeploymentRunning = false;
+    const deploymentUrl = [...output.matchAll(/https?:\/\/[^\s"'<>]+\.vercel\.app/gi)].at(-1)?.[0] ?? null;
+    if (code !== 0 || !deploymentUrl) {
+      const ansiEscape = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
+      const details = output.replace(ansiEscape, '').trim().slice(-2_000);
+      const message = details || 'Snapshot deployment command failed without additional output.';
+      logger.error('DEV_SNAPSHOT_DEPLOY', message);
+      if (!res.headersSent) {
+        return res.status(500).json({ error: message, code: 'ERR_SNAPSHOT_DEPLOY_FAILED' });
+      }
+      return;
+    }
+
+    logger.info('DEV_SNAPSHOT_DEPLOY', `Snapshot deployed to ${deploymentUrl}`);
+    if (!res.headersSent) res.json({ deploymentUrl });
+  });
+});
 
 devRouter.get('/diagnostics', (req: Request, res: Response) => {
   try {

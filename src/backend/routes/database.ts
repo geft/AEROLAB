@@ -8,7 +8,6 @@ import Database from 'better-sqlite3';
 import { getDatabase } from '../db/client.js';
 import { getDatabasePath, saveDatabasePath } from '../db/path.js';
 import { copyCurrentDatabaseTo, createSnapshot, restoreDatabaseFromFile, validateDatabaseSnapshot } from '../db/storage.js';
-import { logger } from '../utils/logger.js';
 import { startMaintenance } from '../jobs/maintenance.js';
 
 export { restoreDatabaseFromFile, validateDatabaseSnapshot } from '../db/storage.js';
@@ -88,10 +87,7 @@ function hasSqliteHeader(filePath: string): boolean {
 }
 
 export interface BackupSettings {
-  autoBackupEnabled: boolean;
   backupDirectory: string;
-  backupIntervalDays: number;
-  lastBackupAt: string | null;
 }
 
 export function getDefaultBackupDir(db: Database.Database): string {
@@ -111,20 +107,14 @@ export function getBackupSettings(db: Database.Database): BackupSettings {
       const prefs = JSON.parse(row.preferences_json);
       if (prefs.backup) {
         return {
-          autoBackupEnabled: Boolean(prefs.backup.autoBackupEnabled),
-          backupDirectory: prefs.backup.backupDirectory || defaultDir,
-          backupIntervalDays: prefs.backup.backupIntervalDays || 7,
-          lastBackupAt: prefs.backup.lastBackupAt || null
+          backupDirectory: prefs.backup.backupDirectory || defaultDir
         };
       }
     }
   } catch { /* intentionally ignored: non-fatal */ }
 
   return {
-    autoBackupEnabled: true,
-    backupDirectory: defaultDir,
-    backupIntervalDays: 7,
-    lastBackupAt: null
+    backupDirectory: defaultDir
   };
 }
 
@@ -154,15 +144,20 @@ export function listBackups(directory: string): Array<{ filename: string; filePa
     const files = fs.readdirSync(directory);
     return files
       .filter(f => f.startsWith('runs-') && f.endsWith('.db'))
-      .map(f => {
+      .flatMap(f => {
         const filePath = path.join(directory, f);
-        const stats = fs.statSync(filePath);
-        return {
-          filename: f,
-          filePath,
-          sizeBytes: stats.size,
-          createdAt: stats.mtime.toISOString()
-        };
+        try {
+          const stats = fs.lstatSync(filePath);
+          if (!stats.isFile()) return [];
+          return [{
+            filename: f,
+            filePath,
+            sizeBytes: stats.size,
+            createdAt: stats.mtime.toISOString()
+          }];
+        } catch {
+          return [];
+        }
       })
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   } catch {
@@ -171,8 +166,9 @@ export function listBackups(directory: string): Array<{ filename: string; filePa
 }
 
 /** Remove older rolling snapshots so retention also applies to files created under an older policy. */
-export function pruneBackups(directory: string, maxBackups: number = 5): Array<{ filename: string; filePath: string; sizeBytes: number; createdAt: string }> {
+export function pruneBackups(directory: string): Array<{ filename: string; filePath: string; sizeBytes: number; createdAt: string }> {
   const backups = listBackups(directory);
+  const maxBackups = 3;
   if (backups.length <= maxBackups) return backups;
 
   for (const old of backups.slice(maxBackups)) {
@@ -300,7 +296,7 @@ export async function handleSelectFolder(
   }
 }
 
-export function createDatabaseBackup(db: Database.Database, targetDirectory?: string, maxBackups: number = 5): { filePath: string; filename: string; sizeBytes: number; createdAt: string } {
+export function createDatabaseBackup(db: Database.Database, targetDirectory?: string): { filePath: string; filename: string; sizeBytes: number; createdAt: string } {
   const settings = getBackupSettings(db);
   const rawDir = targetDirectory ? String(targetDirectory).trim() : '';
   let backupDir: string;
@@ -339,11 +335,8 @@ export function createDatabaseBackup(db: Database.Database, targetDirectory?: st
   const stats = fs.statSync(filePath);
   const createdAt = now.toISOString();
 
-  // Save last backup timestamp
-  saveBackupSettings(db, { lastBackupAt: createdAt });
-
   // Rotate old backups in this directory (keep newest N).
-  pruneBackups(backupDir, maxBackups);
+  pruneBackups(backupDir);
 
   return {
     filePath,
@@ -351,29 +344,6 @@ export function createDatabaseBackup(db: Database.Database, targetDirectory?: st
     sizeBytes: stats.size,
     createdAt
   };
-}
-
-export async function checkAndRunScheduledBackup(db: Database.Database): Promise<boolean> {
-  try {
-    const settings = getBackupSettings(db);
-    if (!settings.autoBackupEnabled) return false;
-
-    if (settings.lastBackupAt) {
-      const last = new Date(settings.lastBackupAt).getTime();
-      const now = Date.now();
-      const elapsedDays = (now - last) / (1000 * 60 * 60 * 24);
-      if (elapsedDays < settings.backupIntervalDays) {
-        return false;
-      }
-    }
-
-    const backup = createDatabaseBackup(db, settings.backupDirectory);
-    logger.info('Database', `Scheduled backup created: ${backup.filename}`);
-
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 // GET /api/database/status
@@ -403,7 +373,7 @@ databaseRouter.get('/status', (req: Request, res: Response) => {
       activityCount,
       settings,
       snapshots: backupsWithMb,
-      recentBackups: backupsWithMb.slice(0, 5)
+      recentBackups: backupsWithMb.slice(0, 3)
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to retrieve database status' });
@@ -471,20 +441,39 @@ databaseRouter.post('/backup', (req: Request, res: Response) => {
   }
 });
 
+// POST /api/database/snapshots/delete — remove one file from the configured backup folder.
+databaseRouter.post('/snapshots/delete', (req: Request, res: Response) => {
+  try {
+    const db = getDatabase();
+    const filename = req.body?.filename;
+    if (typeof filename !== 'string' || path.basename(filename) !== filename
+      || !/^runs-[a-zA-Z0-9._-]+\.db$/.test(filename)) {
+      return res.status(400).json({ code: 'INVALID_SNAPSHOT_NAME', error: 'Choose a valid local snapshot.' });
+    }
+
+    const directory = getBackupSettings(db).backupDirectory;
+    const snapshot = listBackups(directory).find(item => item.filename === filename);
+    if (!snapshot) return res.status(404).json({ code: 'SNAPSHOT_NOT_FOUND', error: 'Snapshot was not found.' });
+
+    fs.unlinkSync(snapshot.filePath);
+    res.json({ status: 'ok', filename });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to delete local snapshot.' });
+  }
+});
+
 // POST /api/database/settings
 databaseRouter.post('/settings', (req: Request, res: Response) => {
   try {
     const db = getDatabase();
-    const { autoBackupEnabled, backupDirectory, backupIntervalDays } = req.body || {};
+    const { backupDirectory } = req.body || {};
 
     if (backupDirectory && !isSafeBackupDirectory(String(backupDirectory).trim())) {
       return res.status(400).json({ error: 'Invalid or unsafe backup directory path.' });
     }
 
     const updated = saveBackupSettings(db, {
-      ...(autoBackupEnabled !== undefined ? { autoBackupEnabled: Boolean(autoBackupEnabled) } : {}),
-      ...(backupDirectory ? { backupDirectory: String(backupDirectory).trim() } : {}),
-      ...(backupIntervalDays ? { backupIntervalDays: Number(backupIntervalDays) } : {})
+      ...(backupDirectory ? { backupDirectory: String(backupDirectory).trim() } : {})
     });
     res.json({
       status: 'ok',

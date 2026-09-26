@@ -88,6 +88,7 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
       ['steady_stance_time', 'REAL'], ['pause_duration_seconds', 'REAL DEFAULT 0'],
       ['walk_duration_seconds', 'REAL DEFAULT 0'], ['walk_distance_meters', 'REAL DEFAULT 0'],
       ['weather_temperature_c', 'REAL'], ['weather_humidity_pct', 'INTEGER'], ['weather_apparent_temp_c', 'REAL'],
+      ['weather_pm25_ug_m3', 'REAL'],
       ['weather_condition', 'TEXT'], ['weather_code', 'INTEGER'], ['weather_fetched_at', 'TEXT'],
       ['weather_source', 'TEXT'], ['training_load', 'REAL'], ['z1_seconds', 'INTEGER DEFAULT 0'],
       ['z2_seconds', 'INTEGER DEFAULT 0'], ['z3_seconds', 'INTEGER DEFAULT 0'],
@@ -111,6 +112,14 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
     ]);
     const activityColumns = new Set((db.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>).map(column => column.name));
     if (activityColumns.has('notes')) db.exec('ALTER TABLE activities DROP COLUMN notes');
+  });
+
+  // Keep additions to an already completed schema migration in a new step.
+  // Existing databases have schema-columns-v1 recorded, so editing that step
+  // alone would leave them without columns introduced by later releases.
+  migrations.run('weather-pm25-v1', () => {
+    const existing = new Set((db.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>).map(column => column.name));
+    if (!existing.has('weather_pm25_ug_m3')) db.exec('ALTER TABLE activities ADD COLUMN weather_pm25_ug_m3 REAL');
   });
 
   // Automatic backfill: compute core centroid for any existing runs missing workout coordinates

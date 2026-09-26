@@ -9,8 +9,8 @@ import { thresholdsRouter } from './routes/thresholds.js';
 import { ingestRouter } from './routes/ingest.js';
 import { profileRouter } from './routes/profile.js';
 import { devRouter } from './routes/dev.js';
-import { databaseRouter, checkAndRunScheduledBackup } from './routes/database.js';
-import { requestLogger, globalErrorHandler, logger } from './utils/logger.js';
+import { databaseRouter } from './routes/database.js';
+import { requestLogger, globalErrorHandler } from './utils/logger.js';
 import { isDevToolsEnabled } from './utils/dev-mode.js';
 import { getMaintenanceStatus, startMaintenance } from './jobs/maintenance.js';
 
@@ -187,9 +187,7 @@ if (process.env.NODE_ENV !== 'test') {
   const db = getDatabase();
 
   listenOnLoopback(app, PORT, () => {
-    startMaintenance(db.name, () => {
-      void checkAndRunScheduledBackup(db).catch(error => logger.warn('server', 'Initial backup check failed', { error: String(error) }));
-    });
+    startMaintenance(db.name);
     console.log(`\n🚀 Run Progress API server running at http://localhost:${PORT}`);
     if (launchToken && !process.env.AEROLAB_SESSION_TOKEN) {
       console.log(`Open http://127.0.0.1:${PORT}/bootstrap/${launchToken} to start a local session.`);

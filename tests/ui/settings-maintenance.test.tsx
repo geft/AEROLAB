@@ -22,7 +22,7 @@ vi.mock('../../src/frontend/api/client.js', async importOriginal => ({
 const baseStatus = {
   dbPath: 'C:/data/runs.db', startupDbPath: 'C:/data/runs.db', sizeMb: '12.4', activityCount: 7,
   snapshots: [{ filename: 'snapshot.db', createdAt: '2026-01-02T00:00:00Z', sizeMb: '2.5' }],
-  settings: { autoBackupEnabled: true, backupDirectory: 'C:/backup', backupIntervalDays: 7, lastBackupAt: null },
+  settings: { backupDirectory: 'C:/backup' },
 };
 const renderWithLanguage = (element: React.ReactElement) => render(<LanguageProvider>{element}</LanguageProvider>);
 
@@ -59,7 +59,7 @@ describe('backup management states', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Save Folder' }));
     await screen.findByText('Backup settings saved successfully');
-    expect(mocks.saveBackupSettings).toHaveBeenCalledWith({ autoBackupEnabled: true, backupDirectory: 'C:/backup' });
+    expect(mocks.saveBackupSettings).toHaveBeenCalledWith({ backupDirectory: 'C:/backup' });
     await waitFor(() => expect(mocks.getDatabaseStatus).toHaveBeenCalledTimes(2));
 
     fireEvent.click(screen.getByRole('button', { name: 'Backup Now to Folder' }));
@@ -74,6 +74,7 @@ describe('backup management states', () => {
   it('shows safe initial data when status fails and reports backup/settings errors', async () => {
     mocks.getDatabaseStatus.mockRejectedValue(new Error('offline'));
     mocks.backupDatabase.mockRejectedValue(new ApiRequestError(500, 'ERR_NETWORK', 'offline'));
+    mocks.saveBackupSettings.mockResolvedValueOnce({ status: 'ok' });
     mocks.saveBackupSettings.mockRejectedValue(new Error('disk full'));
     renderWithLanguage(<BackupManagementPanel />);
     await screen.findByText('No local database snapshots found. Click "Backup Now to Folder" above to create one.');

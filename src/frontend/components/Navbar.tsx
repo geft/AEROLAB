@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { Compass, TrendingUp, BarChart2, User, Settings, UploadCloud, Sun, Moon, Globe, Type, ChevronDown, Check, Minus, Plus, MoreHorizontal, RefreshCw } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES } from '../i18n/types.js';
 import { useFontSize, FONT_PERCENTAGES } from '../context/FontSizeContext.js';
-import { GarminScanModal } from './GarminScanModal.js';
+const SNAPSHOT_BUILD = import.meta.env.VITE_AEROLAB_TARGET === 'snapshot';
+const GarminScanModal = SNAPSHOT_BUILD ? null : lazy(() => import('./GarminScanModal.js').then(module => ({ default: module.GarminScanModal })));
 
 export type TabType = 'browse' | 'progress' | 'stats' | 'profile' | 'settings';
 
@@ -15,6 +16,7 @@ interface NavbarProps {
   onOpenBackup?: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
+  snapshotMode?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -23,7 +25,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenUpload,
   onScanImportComplete,
   theme,
-  onToggleTheme
+  onToggleTheme,
+  snapshotMode = false
 }) => {
   const { language, setLanguage, t } = useTranslation();
   const { fontSize, increaseFontSize, decreaseFontSize } = useFontSize();
@@ -113,7 +116,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <User size={18} className="nav-tab-icon" />
           <span className="nav-tab-label">{t.nav.profile}</span>
         </button>
-        <button
+        {!snapshotMode && <button
           id="tab-settings-btn"
           className={`nav-tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
           aria-current={activeTab === 'settings' ? 'page' : undefined}
@@ -121,7 +124,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <Settings size={18} className="nav-tab-icon" />
           <span className="nav-tab-label">{t.nav.settings}</span>
-        </button>
+        </button>}
       </nav>
 
       <div className="nav-actions">
@@ -301,7 +304,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </div>
 
-        <div className="nav-import-actions">
+        {!snapshotMode && <div className="nav-import-actions">
           <button id="nav-upload-btn" className="upload-btn" onClick={onOpenUpload} title={t.upload.title} aria-label={t.nav.importRuns}>
             <UploadCloud size={16} />
             <span className="nav-btn-text">{t.nav.importRuns}</span>
@@ -316,13 +319,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             <RefreshCw size={15} />
             <span className="nav-btn-text">{t.garminImport.scanFolder}</span>
           </button>
-        </div>
+        </div>}
       </div>
-      <GarminScanModal
+      {!snapshotMode && !SNAPSHOT_BUILD && GarminScanModal && <Suspense fallback={null}><GarminScanModal
         isOpen={isGarminScanOpen}
         onClose={() => setIsGarminScanOpen(false)}
         onImportComplete={onScanImportComplete}
-      />
+      /></Suspense>}
     </header>
   );
 };

@@ -1,12 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { Suspense, useState, useEffect, useRef } from 'react';
 import type { DatabaseStatus, DatabaseSnapshot } from '../types/api.js';
 import {
   HardDrive, Download, FileUp, RefreshCw,
   CheckCircle2, AlertCircle, FolderSync, Check
 } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
-import { backupDatabase, getDatabaseStatus, restoreDatabase, restoreDatabaseSnapshot, saveBackupSettings, selectBackupFolder } from '../api/client.js';
+import { backupDatabase, deleteDatabaseSnapshot, getDatabaseStatus, restoreDatabase, restoreDatabaseSnapshot, saveBackupSettings, selectBackupFolder } from '../api/client.js';
 import { apiErrorMessage } from '../api/errors.js';
+
+const SnapshotDeploymentPanel = import.meta.env.DEV
+  ? React.lazy(() => import('./SnapshotDeploymentPanel.js').then(module => ({ default: module.SnapshotDeploymentPanel })))
+  : null;
 
 export interface BackupManagementPanelProps {
   onRestoreComplete?: () => void;
@@ -20,12 +24,12 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
   const { t, format } = useTranslation();
 
   const [dbStatus, setDbStatus] = useState<DatabaseStatus | null>(null);
-  const [autoBackupEnabled, setAutoBackupEnabled] = useState(true);
   const [backupDirectory, setBackupDirectory] = useState('');
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [backupStatusMessage, setBackupStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [isRestoring, setIsRestoring] = useState(false);
+  const [deletingFilename, setDeletingFilename] = useState<string | null>(null);
   const [restoreMessage, setRestoreMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const restoreFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -35,7 +39,6 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
         const data = await getDatabaseStatus();
         setDbStatus(data);
         if (data.settings) {
-          setAutoBackupEnabled(Boolean(data.settings.autoBackupEnabled));
           setBackupDirectory(data.settings.backupDirectory || '');
         }
       }
@@ -103,6 +106,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
     setIsBackingUp(true);
     setBackupStatusMessage(null);
     try {
+      await saveBackupSettings({ backupDirectory });
       const data = await backupDatabase(backupDirectory);
       if (data.status === 'ok') {
         setBackupStatusMessage({ type: 'success', text: t.backup.backupSuccess });
@@ -119,11 +123,26 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
 
   const handleSaveBackupSettings = async () => {
     try {
-      await saveBackupSettings({ autoBackupEnabled, backupDirectory });
+      await saveBackupSettings({ backupDirectory });
       setBackupStatusMessage({ type: 'success', text: t.backup.settingsSaved });
       fetchDbStatus();
     } catch (err) {
       setBackupStatusMessage({ type: 'error', text: apiErrorMessage(t, err, t.backup.backupFailed) });
+    }
+  };
+
+  const handleDeleteSnapshot = async (filename: string) => {
+    if (!window.confirm(format(t.backup.deleteSnapshotConfirm, { filename }))) return;
+    setDeletingFilename(filename);
+    setBackupStatusMessage(null);
+    try {
+      await deleteDatabaseSnapshot(filename);
+      setBackupStatusMessage({ type: 'success', text: t.backup.deleteSnapshotSuccess });
+      await fetchDbStatus();
+    } catch (err) {
+      setBackupStatusMessage({ type: 'error', text: apiErrorMessage(t, err, t.backup.deleteSnapshotFailed) });
+    } finally {
+      setDeletingFilename(null);
     }
   };
 
@@ -261,27 +280,17 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
       </div>
 
 
-      {/* Auto-Backup & Directory Configuration */}
+      {/* Manual Backup & Directory Configuration */}
       <div style={{ background: 'var(--bg-surface)', padding: '1.25rem', borderRadius: 12, border: '1px solid var(--border-subtle)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
           <FolderSync size={16} style={{ color: 'var(--accent-cyan)' }} />
-          <span>{t.backup.autoBackupTitle}</span>
+          <span>{t.backup.manualBackupTitle}</span>
         </div>
         <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.45, margin: '0 0 1rem' }}>
-          {t.backup.autoBackupDesc}
+          {t.backup.manualBackupDesc}
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-primary)', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={autoBackupEnabled}
-              onChange={e => setAutoBackupEnabled(e.target.checked)}
-              style={{ accentColor: 'var(--accent-cyan)' }}
-            />
-            <span>{t.backup.enableAutoBackup}</span>
-          </label>
-
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             <input
               type="text"
@@ -427,7 +436,12 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
                         <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-secondary)' }}>{new Date(s.createdAt).toLocaleString()}</td>
                         <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-secondary)' }}>{sizeMb} MB</td>
                         <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>
-                          <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
+                          <div style={{ display: 'inline-flex', gap: '0.4rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                            {SnapshotDeploymentPanel && (
+                              <Suspense fallback={null}>
+                                <SnapshotDeploymentPanel filename={s.filename} />
+                              </Suspense>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleRestoreFromSnapshot(s.filename)}
@@ -459,6 +473,22 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
                               }}
                             >
                               {t.backup.downloadAction || 'Download'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteSnapshot(s.filename)}
+                              disabled={deletingFilename !== null}
+                              style={{
+                                background: 'rgba(239, 68, 68, 0.12)',
+                                color: '#f87171',
+                                border: '1px solid rgba(239, 68, 68, 0.3)',
+                                borderRadius: 4,
+                                padding: '0.2rem 0.5rem',
+                                fontSize: '0.72rem',
+                                cursor: deletingFilename ? 'wait' : 'pointer'
+                              }}
+                            >
+                              {deletingFilename === s.filename ? t.backup.deletingSnapshot : t.backup.deleteAction}
                             </button>
                           </div>
                         </td>

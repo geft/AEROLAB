@@ -1,9 +1,13 @@
 # Dependencies
 node_modules/
+/.vercel/
 
 # Production build
 dist/
+dist-snapshot/
 dist-backend/
+snapshot-data/
+public/snapshot.json
 release/
 
 # Compiled Windows launchers / installers

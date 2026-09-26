@@ -67,4 +67,31 @@ describe('named database migrations', () => {
       else process.env.AEROLAB_DEFER_MIGRATIONS = previousDefer;
     }
   });
+
+  it('adds weather PM2.5 to databases that already completed the older column migration', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aerolab-weather-migration-'));
+    roots.push(root);
+    const file = path.join(root, 'legacy.db');
+    const legacy = new Database(file);
+    legacy.exec(fs.readFileSync(path.resolve('src/backend/db/schema.sql'), 'utf8'));
+    legacy.exec(`
+      ALTER TABLE activities DROP COLUMN weather_pm25_ug_m3;
+      CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, completed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+      INSERT INTO schema_migrations (name) VALUES ('schema-columns-v1');
+    `);
+    legacy.close();
+
+    const previousDefer = process.env.AEROLAB_DEFER_MIGRATIONS;
+    process.env.AEROLAB_DEFER_MIGRATIONS = '1';
+    try {
+      const migrated = openDatabase(file);
+      const columns = migrated.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>;
+      expect(columns.some(column => column.name === 'weather_pm25_ug_m3')).toBe(true);
+      expect(migrated.prepare("SELECT 1 FROM schema_migrations WHERE name = 'weather-pm25-v1'").get()).toBeTruthy();
+      migrated.close();
+    } finally {
+      if (previousDefer === undefined) delete process.env.AEROLAB_DEFER_MIGRATIONS;
+      else process.env.AEROLAB_DEFER_MIGRATIONS = previousDefer;
+    }
+  });
 });

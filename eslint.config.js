@@ -86,6 +86,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist/**',
+      'dist-snapshot/**',
       'dist-backend/**',
       'release/**',
       'coverage/**',

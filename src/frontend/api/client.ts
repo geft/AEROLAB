@@ -30,6 +30,19 @@ export class ApiRequestError extends Error {
   }
 }
 
+/** Exists for the snapshot build; desktop pages never call this helper. */
+export async function getSnapshotMetadata(): Promise<{ generatedAt: string }> {
+  throw new ApiRequestError(400, 'ERR_WRONG_TARGET', 'Snapshot metadata is only available in the snapshot build.');
+}
+
+export async function deploySnapshotToVercel(filename: string): Promise<{ deploymentUrl: string | null }> {
+  return requestJson<{ deploymentUrl: string | null }>('/api/dev/snapshot-deploy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename })
+  });
+}
+
 async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
   let response: Response;
   try {
@@ -207,8 +220,17 @@ export function backupDatabase(targetDirectory?: string): Promise<BackupResponse
   });
 }
 
-/** POST /api/database/settings — persist auto-backup preferences. */
-export function saveBackupSettings(settings: { autoBackupEnabled?: boolean; backupDirectory?: string; backupIntervalDays?: number }): Promise<BackupSettingsResponse> {
+/** POST /api/database/snapshots/delete — remove a selected local backup file. */
+export function deleteDatabaseSnapshot(filename: string): Promise<{ status: 'ok'; filename: string }> {
+  return requestJson('/api/database/snapshots/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename })
+  });
+}
+
+/** POST /api/database/settings — persist the manual backup directory. */
+export function saveBackupSettings(settings: { backupDirectory?: string }): Promise<BackupSettingsResponse> {
   return requestJson('/api/database/settings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

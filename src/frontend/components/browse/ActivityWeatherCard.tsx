@@ -9,6 +9,7 @@ interface ActivityWeatherCardProps {
     weather_temperature_c?: number | null;
     weather_humidity_pct?: number | null;
     weather_apparent_temp_c?: number | null;
+    weather_pm25_ug_m3?: number | null;
     weather_condition?: string | null;
     weather_code?: number | null;
     weather_fetched_at?: string | null;
@@ -17,12 +18,14 @@ interface ActivityWeatherCardProps {
   };
   isRefreshingWeather: boolean;
   onRefreshWeather: () => void;
+  readOnly?: boolean;
 }
 
 export const ActivityWeatherCard: React.FC<ActivityWeatherCardProps> = ({
   activity,
   isRefreshingWeather,
-  onRefreshWeather
+  onRefreshWeather,
+  readOnly = false
 }) => {
   const { t, format } = useTranslation();
   const shareNotice = t.weather.shareNotice;
@@ -58,12 +61,17 @@ export const ActivityWeatherCard: React.FC<ActivityWeatherCardProps> = ({
               {format(t.weather.feelsLike, { temperature: activity.weather_apparent_temp_c ?? '—' })}
             </span>
           )}
+          {activity.weather_pm25_ug_m3 != null && (
+            <span className="weather-metric" title={t.weather.pm25Tooltip}>
+              {format(t.weather.pm25, { value: activity.weather_pm25_ug_m3 })}
+            </span>
+          )}
           {activity.avg_temperature && (
             <span className="weather-watch-sensor" title={t.weather.watchSensor}>
               {format(t.weather.garminSensor, { temperature: activity.avg_temperature ?? '—' })}
             </span>
           )}
-          <button
+          {!readOnly && <button
             className="weather-refresh-btn"
             onClick={onRefreshWeather}
             disabled={isRefreshingWeather}
@@ -71,13 +79,13 @@ export const ActivityWeatherCard: React.FC<ActivityWeatherCardProps> = ({
             aria-label={t.weather.refresh}
           >
             <RefreshCw size={12} className={isRefreshingWeather ? 'spinning' : ''} />
-          </button>
+          </button>}
         </div>
       ) : storedUnverified ? (
         <div className="weather-chip" title={t.weather.unknownSourceTooltip}>
           <Thermometer size={14} />
           <span>{format(t.weather.storedUnverifiedTemp, { temperature: activity.weather_temperature_c ?? '—' })}</span>
-          {activity.workout_lat && activity.workout_lon ? (
+          {!readOnly && activity.workout_lat && activity.workout_lon ? (
             <button
               className="weather-refresh-btn"
               onClick={onRefreshWeather}
@@ -93,7 +101,7 @@ export const ActivityWeatherCard: React.FC<ActivityWeatherCardProps> = ({
         <div className="weather-chip weather-chip-ambient">
           <Cloud size={18} style={{ color: '#38bdf8' }} />
           <span>{t.weather.available}</span>
-          <button
+          {!readOnly && <button
             className="weather-fetch-btn"
             onClick={onRefreshWeather}
             disabled={isRefreshingWeather}
@@ -101,7 +109,7 @@ export const ActivityWeatherCard: React.FC<ActivityWeatherCardProps> = ({
           >
             <RefreshCw size={16} className={isRefreshingWeather ? 'spinning' : ''} />
             {isRefreshingWeather ? t.weather.fetching : t.weather.fetch}
-          </button>
+          </button>}
           <span className="weather-watch-sensor">{shareNotice}</span>
         </div>
       ) : activity.avg_temperature ? (

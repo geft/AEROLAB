@@ -13,7 +13,7 @@ describe('packaged local session boundary', () => {
   it('keeps health available but requires a session for API data and mutations', async () => {
     expect((await request(app).get('/api/health')).status).toBe(200);
     expect((await request(app).get('/api/database/status')).status).toBe(401);
-    expect((await request(app).post('/api/database/settings').send({ autoBackupEnabled: false })).status).toBe(401);
+    expect((await request(app).post('/api/database/settings').send({ backupDirectory: 'C:\\backup' })).status).toBe(401);
     expect((await request(app).post('/api/system/shutdown')).status).toBe(401);
     expect((await request(app).get('/api/database/status').set('Cookie', `aerolab_session=${'é'.repeat(64)}`)).status).toBe(401);
   });
@@ -25,7 +25,7 @@ describe('packaged local session boundary', () => {
     expect(bootstrap.headers['set-cookie'][0]).toContain('HttpOnly');
     expect(bootstrap.headers['set-cookie'][0]).toContain('SameSite=Strict');
     expect((await agent.get('/api/database/status')).status).toBe(200);
-    expect((await agent.post('/api/database/settings').send({ autoBackupEnabled: false })).status).toBe(200);
+    expect((await agent.post('/api/database/settings').send({ backupDirectory: 'C:\\backup' })).status).toBe(200);
     expect((await agent.get(`/bootstrap/${token}`)).status).toBe(404);
   });
 

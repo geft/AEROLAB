@@ -14,7 +14,8 @@ export type { WorkoutPrescription };
  * is later dropped as a transient work block and its samples are absorbed into
  * the surrounding recoveries.
  */
-const STRIDE_MIN_DISTANCE_M = 20;
+const STRIDE_MIN_DISTANCE_M = 25;
+const STRIDE_MIN_DURATION_SECONDS = 8;
 
 export interface DetectedInterval {
   intervalIndex: number;
@@ -332,7 +333,7 @@ export function detectIntervals(
       const dist = Math.max(0, endDist - startDist);
       // Same floor as promotion, so a stride can never be promoted and then
       // silently discarded by validation.
-      return dur >= 6 && dur <= 45 && dist >= STRIDE_MIN_DISTANCE_M;
+      return dur >= STRIDE_MIN_DURATION_SECONDS && dur <= 45 && dist >= STRIDE_MIN_DISTANCE_M;
     }
     if (b.type === 'work') return dur >= 15;
     return dur >= 8;

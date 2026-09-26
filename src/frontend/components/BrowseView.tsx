@@ -31,6 +31,7 @@ export interface BrowseViewProps {
   onOpenUpload: () => void;
   onActivityUpdated?: (activity: ActivityUpdate) => void;
   theme?: 'dark' | 'light';
+  readOnly?: boolean;
 }
 
 /** The subset of a workout row needed to derive a display title. */
@@ -103,7 +104,8 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
   onSelectActivity,
   onOpenUpload,
   onActivityUpdated,
-  theme = 'dark'
+  theme = 'dark',
+  readOnly = false
 }) => {
   const safeActivities = useMemo(() => (Array.isArray(activities) ? activities : []), [activities]);
   const { t, language, format, formatDate } = useTranslation();
@@ -387,6 +389,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
         setMobileSubTab={setMobileSubTab}
         setShowTagMenu={setShowTagMenu}
         onOpenUpload={onOpenUpload}
+        readOnly={readOnly}
         getDisplayTitle={getDisplayTitle}
         formatPace={formatPace}
         language={language}
@@ -432,7 +435,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
             <p style={{ maxWidth: 460, color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.55, margin: 0 }}>
               {t.browse.readyFirstRunDesc}
             </p>
-            <button
+            {!readOnly && <button
               onClick={onOpenUpload}
               style={{
                 marginTop: '0.5rem',
@@ -452,7 +455,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
             >
               <Plus size={16} />
               <span>{t.browse.importFirstWorkoutBtn}</span>
-            </button>
+            </button>}
           </div>
         ) : detailError ? (
           <div
@@ -560,6 +563,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               setShowTagMenu={setShowTagMenu}
               tagMenuRef={tagMenuRef}
               t={t}
+              readOnly={readOnly}
             />
 
             {/* Sub-Tabs Selector for Main Panel */}

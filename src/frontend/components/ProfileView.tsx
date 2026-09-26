@@ -20,9 +20,10 @@ interface ObservedPeakData {
 interface ProfileViewProps {
   onOpenBackup?: () => void;
   onNavigateToSettings?: () => void;
+  readOnly?: boolean;
 }
 
-export const ProfileView: React.FC<ProfileViewProps> = () => {
+export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) => {
   const { t, format } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -180,7 +181,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
           </div>
         </div>
 
-        <button
+        {!readOnly && <button
           type="button"
           className="save-profile-btn"
           onClick={handleSave}
@@ -188,7 +189,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
         >
           <Save size={16} />
           {saving ? t.common.loading : t.profile.saveProfile}
-        </button>
+        </button>}
       </div>
 
       {statusMessage && (
@@ -254,7 +255,8 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
       </section>
 
       {/* Main Profile Form */}
-      <form onSubmit={handleSave} className="profile-settings-form">
+      {!readOnly && <form onSubmit={handleSave} className="profile-settings-form">
+        <fieldset disabled={readOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         {/* Cardiovascular Baselines & RHR Section */}
         <section className="profile-card">
           <div className="profile-card-header">
@@ -437,7 +439,8 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
             </label>
           </div>
         </section>
-      </form>
+        </fieldset>
+      </form>}
 
       {/* 3. Resulting Karvonen HRR Training Zones Preview */}
       <section className="profile-card">

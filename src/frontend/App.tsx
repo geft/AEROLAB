@@ -7,15 +7,18 @@ import { Terminal } from 'lucide-react';
 import { clientLogger } from './utils/clientLogger';
 import { useTranslation } from './i18n/LanguageContext';
 import { getProfile, listActivities } from './api/client.js';
+import { getSnapshotMetadata } from './api/client.js';
+
+const SNAPSHOT_MODE = import.meta.env.VITE_AEROLAB_TARGET === 'snapshot';
 
 // Code-split secondary views, modals, and heavy drawers for instant first paint
 const ProgressView = lazy(() => import('./components/ProgressView').then(m => ({ default: m.ProgressView })));
 const StatsView = lazy(() => import('./components/StatsView').then(m => ({ default: m.StatsView })));
 const ProfileView = lazy(() => import('./components/ProfileView').then(m => ({ default: m.ProfileView })));
-const SettingsView = lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })));
-const UploadModal = lazy(() => import('./components/UploadModal').then(m => ({ default: m.UploadModal })));
-const BackupModal = lazy(() => import('./components/BackupModal').then(m => ({ default: m.BackupModal })));
-const OnboardingPage = lazy(() => import('./components/OnboardingPage').then(m => ({ default: m.OnboardingPage })));
+const SettingsView = SNAPSHOT_MODE ? null : lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })));
+const UploadModal = SNAPSHOT_MODE ? null : lazy(() => import('./components/UploadModal').then(m => ({ default: m.UploadModal })));
+const BackupModal = SNAPSHOT_MODE ? null : lazy(() => import('./components/BackupModal').then(m => ({ default: m.BackupModal })));
+const OnboardingPage = SNAPSHOT_MODE ? null : lazy(() => import('./components/OnboardingPage').then(m => ({ default: m.OnboardingPage })));
 
 // Developer diagnostics are excluded from release bundles. Vite statically
 // replaces `import.meta.env.DEV` with `false` in production, so this ternary
@@ -39,7 +42,7 @@ export function resolveSelectedActivityId(
 }
 
 export const App: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, format, formatDate } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabType>('browse');
   const [activities, setActivities] = useState<ActivitySummary[]>([]);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
@@ -47,7 +50,8 @@ export const App: React.FC = () => {
   const [isUploadOpen, setIsUploadOpen] = useState<boolean>(false);
   const [isBackupOpen, setIsBackupOpen] = useState<boolean>(false);
   // null = still loading, false = needs onboarding, true = ready
-  const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
+  const [isConfigured, setIsConfigured] = useState<boolean | null>(SNAPSHOT_MODE ? true : null);
+  const [snapshotGeneratedAt, setSnapshotGeneratedAt] = useState<string | null>(null);
   const [, setLoading] = useState<boolean>(true);
 
   // Theme state: persisted in localStorage, defaults to dark
@@ -113,6 +117,10 @@ export const App: React.FC = () => {
   };
 
   useEffect(() => {
+    if (SNAPSHOT_MODE) {
+      void getSnapshotMetadata().then(data => setSnapshotGeneratedAt(data.generatedAt)).catch(error => console.error(error));
+      return;
+    }
     checkProfileConfigured();
   }, []);
 
@@ -170,7 +178,7 @@ export const App: React.FC = () => {
   }
 
   // If first-time user and not configured, show fullscreen Onboarding flow
-  if (isConfigured === false) {
+  if (!SNAPSHOT_MODE && isConfigured === false && OnboardingPage) {
     return (
       <Suspense fallback={<div className="loading-state" style={{ minHeight: '100vh' }} />}>
         <OnboardingPage onCompleted={handleOnboardingComplete} />
@@ -188,7 +196,14 @@ export const App: React.FC = () => {
         onOpenBackup={() => setIsBackupOpen(true)}
         theme={theme}
         onToggleTheme={toggleTheme}
+        snapshotMode={SNAPSHOT_MODE}
       />
+
+      {SNAPSHOT_MODE && snapshotGeneratedAt && (
+        <div className="snapshot-freshness" role="status">
+          {format(t.snapshot.generatedAt, { date: formatDate(snapshotGeneratedAt, { dateStyle: 'medium', timeStyle: 'short' }) })}
+        </div>
+      )}
 
       <main className="main-content">
         <Suspense fallback={<div className="overview-card loading-skeleton" style={{ minHeight: 400 }} />}>
@@ -201,6 +216,7 @@ export const App: React.FC = () => {
               onOpenUpload={() => setIsUploadOpen(true)}
               onActivityUpdated={handleActivityUpdated}
               theme={theme}
+              readOnly={SNAPSHOT_MODE}
             />
           )}
 
@@ -212,10 +228,11 @@ export const App: React.FC = () => {
             <ProfileView
               onOpenBackup={() => setIsBackupOpen(true)}
               onNavigateToSettings={() => setActiveTab('settings')}
+              readOnly={SNAPSHOT_MODE}
             />
           )}
 
-          {activeTab === 'settings' && (
+          {!SNAPSHOT_MODE && activeTab === 'settings' && SettingsView && (
             <SettingsView
               onRestoreComplete={handleRestoreComplete}
               theme={theme}
@@ -228,7 +245,7 @@ export const App: React.FC = () => {
       <Footer />
 
       <Suspense fallback={null}>
-        {isUploadOpen && (
+        {!SNAPSHOT_MODE && UploadModal && isUploadOpen && (
           <UploadModal
             isOpen={isUploadOpen}
             onClose={() => setIsUploadOpen(false)}
@@ -236,7 +253,7 @@ export const App: React.FC = () => {
           />
         )}
 
-        {isBackupOpen && (
+        {!SNAPSHOT_MODE && BackupModal && isBackupOpen && (
           <BackupModal
             isOpen={isBackupOpen}
             onClose={() => setIsBackupOpen(false)}

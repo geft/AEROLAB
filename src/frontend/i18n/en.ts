@@ -1,6 +1,16 @@
 import { Translations } from './types';
 
 export const en: Translations = {
+  snapshot: {
+    generatedAt: 'Snapshot exported {date}',
+    deployRowButton: 'Deploy this snapshot',
+    deployProtectionConfirmation: 'Deploy {filename} to aerolab-snapshot? I verified Vercel Authentication protects All Deployments. This sends the selected snapshot’s run activities, telemetry, training metrics, and profile thresholds to Vercel.',
+    deploying: 'Deploying…',
+    deploySuccess: 'Snapshot deployed successfully.',
+    deployFailed: 'Snapshot deployment failed.',
+    deployNeedsLink: 'Link this checkout to the aerolab-snapshot Vercel project first with `npx vercel link --project aerolab-snapshot`.',
+    deploySnapshotMissing: 'That local snapshot no longer exists. Refresh the list and retry.'
+  },
   nav: {
     browse: 'Browse',
     progress: 'Progress',
@@ -49,6 +59,8 @@ export const en: Translations = {
     shareNotice: 'Shares location and date with Open-Meteo.',
     garminSensor: 'Garmin sensor: {temperature}°C',
     storedUnverifiedTemp: 'Stored temperature: {temperature}°C (source unverified)',
+    pm25: 'PM2.5 {value} µg/m³',
+    pm25Tooltip: 'Modeled historical PM2.5 near the run midpoint; air quality estimates can differ from local monitors.',
   },
   runTypes: {
     easy_base: 'Easy Base',
@@ -472,12 +484,12 @@ export const en: Translations = {
   },
   backup: {
     cardTitle: 'Database Backup & Snapshots',
-    cardSubtitle: 'Export offline SQLite snapshots and manage the automatic local backup rotation',
+    cardSubtitle: 'Create and manage local SQLite snapshots',
     downloadSnapshot: 'Download Database Snapshot',
     downloadSnapshotDesc: 'Download a standalone SQLite database snapshot (.db) containing all workouts and metrics.',
     downloadButton: 'Download Database Snapshot (.db)',
-    autoBackupTitle: 'Weekly Auto Backup',
-    autoBackupDesc: 'Automatically create a local database snapshot every 7 days when launching the application.',
+    manualBackupTitle: 'Manual Backup Folder',
+    manualBackupDesc: 'Choose where manual database backups are stored. Keep up to 3 rotating snapshots in this folder.',
     backupNowButton: 'Backup Now to Folder',
     backupSuccess: 'Database backup created successfully!',
     backupFailed: 'Backup failed: ',
@@ -489,12 +501,11 @@ export const en: Translations = {
     restoreFailed: 'Restore failed. Please verify the file is a valid AEROLAB database.',
     restoring: 'Restoring database…',
     settingsSaved: 'Backup settings saved successfully',
-    enableAutoBackup: 'Enable Automatic Backups',
     selectFolder: 'Choose Folder',
     folderSelectionFailed: 'Could not choose a backup folder.',
     backingUp: 'Backing up…',
     localSnapshots: 'Local Snapshots & Rollback',
-    retentionPolicy: 'Keeps up to 5 rotating snapshots',
+    retentionPolicy: 'Keeps up to 3 rotating snapshots',
     noSnapshots: 'No local database snapshots found. Click "Backup Now to Folder" above to create one.',
     tableSnapshotName: 'Snapshot File',
     tableCreated: 'Created At',
@@ -502,6 +513,11 @@ export const en: Translations = {
     tableAction: 'Action',
     rollback: 'Rollback',
     downloadAction: 'Download',
+    deleteAction: 'Delete',
+    deleteSnapshotConfirm: 'Permanently delete {filename}? This only removes this local backup file.',
+    deleteSnapshotSuccess: 'Snapshot deleted.',
+    deleteSnapshotFailed: 'Could not delete this snapshot.',
+    deletingSnapshot: 'Deleting…',
     saveSettings: 'Save Folder',
     restoreConfirm: 'Are you sure you want to restore? This will replace current database activities.',
     refreshAction: 'Refresh'

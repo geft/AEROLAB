@@ -119,6 +119,7 @@ describe('activity aggregation services', () => {
       ALTER TABLE activities ADD COLUMN weather_temperature_c REAL;
       ALTER TABLE activities ADD COLUMN weather_humidity_pct REAL;
       ALTER TABLE activities ADD COLUMN weather_apparent_temp_c REAL;
+      ALTER TABLE activities ADD COLUMN weather_pm25_ug_m3 REAL;
       ALTER TABLE activities ADD COLUMN weather_condition TEXT;
       ALTER TABLE activities ADD COLUMN weather_code REAL;
       ALTER TABLE activities ADD COLUMN weather_fetched_at TEXT;

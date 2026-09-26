@@ -8,7 +8,7 @@ A local-first, high-performance running analytics platform and dashboard designe
 - **Automatic Interval & Stride Detection**: Isolates structured work reps, recoveries, and explosive strides (15–40s bursts), recording Peak Pace, Peak Cadence, Min Ground Contact Time (GCT), and Heart Rate Recovery (HRR) drop
 - **Transparent Physiological Execution Score (3-Tier: Bronze / Silver / Gold)**: Granular 100-point scoring engine with itemized point breakdowns for aerobic stability, cadence discipline, decoupling drift, and pacing adherence
 - **Intelligent Physiological Debrief**: Algorithmic coaching summary graded by a **run-type weighted rubric**. Easy runs are graded on **one failure mode — going too hard**: sustained time above the personal LT1 ceiling (measured from per-second telemetry with 60 s smoothing) plus sustained time in the top of Zone 2, with a late-session breach excused **only when the run was both long and hot** (a 1 h breach or a 2 h breach in cool weather still counts). Cardiac drift, city pacing variance, walk breaks and turnover are reported as observations rather than penalties. Quality sessions keep grading **structure, cardiovascular stimulus, intensity control, form/efficiency (turnover and ground contact) and set fatigue** — the last compares the final work rep against the first, with drift tolerances that scale with the set's work time and short-rep sets judged on pace alone (heart-rate lag, not decay). Deliberately short recoveries (which hold heart rate near threshold to extend time-in-zone) are reported rather than penalised, and short reps are anchored on their peak heart rate because an average cannot reach the target in under two minutes. **The anchor always comes from the session's intent**: a threshold session whose heart rate drifts upward is flagged as *Drifted Into VO2 Territory* and loses intensity points rather than being re-graded against a VO2 target, and one that never reaches its anchor is flagged as under-stimulus. Races keep their pacing, finish-strength and turnover rubric. Includes **personal-baseline comparisons** against your own recent history, **walk-break classification** that credits walk breaks used to hold heart rate under the LT1 ceiling or to climb, and a **"biggest lever"** fix for the factor that cost the most points
-- **Automated Local Backup Rotation**: Scheduled weekly SQLite snapshots with a rolling 10-backup retention policy, plus manual snapshot download and drop-in restore
+- **Local Backup Rotation**: Manual SQLite snapshots with up to 3 rotating backups, deletion, download and drop-in restore
 - **Full Bilingual Localization (English & 简体中文)**: Key-based dictionaries with `Intl`-driven date and plural formatting (never inline language conditionals), covering the interface, AI coach advice, activity tags, and physiological guides with an instant navbar dropdown switcher
 - **Customizable Typography & Font Scaling**: Smooth 25% font-scaling increments (75%, 100%, 125%, 150%, 175%, 200%)
 - **Period Progress & Training Volume**: Monthly and annual mileage breakdowns, weekly volume cadence, and 5-zone cardiovascular distribution
@@ -61,7 +61,7 @@ Weather conditions in tropical climates vary dramatically across short distances
 - Weather lookup runs only when you press **Fetch ambient weather** on a workout. That action sends the workout centroid and date to Open-Meteo. Imported Garmin temperature remains available as a device sensor reading; an on-wrist reading may be affected by body heat and is not used as ambient temperature in the coach rubric.
 
 ### 5. Local Backup Rotation & Restore
-- **Weekly Auto Backup**: A SQLite snapshot is written to the local backup directory every 7 days on launch, with a rolling retention policy that keeps the 5 most recent files.
+- **Manual Backup Rotation**: Create a SQLite snapshot when you choose. The target folder keeps up to 3 recent snapshots, and individual snapshots can be deleted from the list.
 - **Manual Snapshot Download**: Download a portable `.db` snapshot at any time via the Settings backup panel (one `.db` file contains the whole history).
 - **Drop-In Restore**: Drag a `.db` snapshot back in to restore. Binary uploads stream to disk with a 256 MB default limit (configurable with `MAX_RESTORE_BYTES`), and a safety backup of the current database is written before anything is replaced.
 - **No Cloud Dependency**: Backups are local-only by design. The database grows roughly 150 KB per run (per-second telemetry), and run data can be re-exported from Garmin at any time, so mirroring it into a personal cloud quota was not worth it.
@@ -87,7 +87,7 @@ Garmin Connect gives you a great overview of what you did. AEROLAB tells you **h
 | **Traffic stop & walk break isolation** (prevents stop-light distortion) | — | ✅ |
 | **VDOT race predictions from actual physiological thresholds** (not just recent pace) | — | ✅ |
 | **Workout centroid weather** (tracks conditions where you actually ran, not your doorstep) | — | ✅ |
-| **Local-only weekly backup with rolling retention** | — | ✅ |
+| **Local backups with three-file rotation** | — | ✅ |
 | **Bilingual interface (English & 简体中文)** | — | ✅ |
 | **Customizable UI font size scaling (75% to 200%)** | — | ✅ |
 | **Editable runner's notebook** attached to each session | — | ✅ |
@@ -283,7 +283,7 @@ AEROLAB operates on a **single embedded SQLite WAL database file**. Development 
 - **Cardiovascular Baselines**: Resting HR, Max HR engine, and VO2 Max.
 - **Max Heart Rate Engine & Auto-Inference**: Automatically infers peak heart rate from your hardest actual workout efforts (e.g. 5K time trial at 203 bpm), with an opt-out toggle to auto-estimate via the Tanaka formula (208 - 0.7 * age) or manual baseline entry.
 - **Inferred Physiological Thresholds**: Visual reference card displaying active LT1 and LT2 paces and heart rates calibrated from empirical training sessions.
-- **Local Backups**: Weekly automatic SQLite snapshots with rolling retention, a configurable backup directory, and immediate database snapshot download.
+- **Local Backups**: Manual SQLite snapshots with a configurable folder, three-file rotation, per-snapshot deletion, and immediate database snapshot download.
 - **Display & Typography**: Font size selector pills with live typography sample preview.
 
 ---
@@ -299,7 +299,7 @@ AEROLAB operates on a **single embedded SQLite WAL database file**. Development 
 | `activity_coach_summaries` | AI Coach debrief: headline, recommendation, execution score (0–100) from a run-type weighted rubric, stars (1–3), rating5, key insights JSON, itemized `score_breakdown_json` (points vs. weight per factor) and `analysis_json` (personal-baseline context, biggest lever, rubric coverage). |
 | `physiological_thresholds` | Historical calibration points for LT1, LT2, and 30-day baseline Running Economy. |
 | `athlete_profile` | Athlete configuration: max HR, resting HR, LT1/LT2 baselines, and demographic calibration. |
-| `database_settings` | Configuration for automated local backup cadence and retention policies. |
+| `database_settings` | (Reserved; backup folder preference is stored in the athlete profile.) |
 
 ---
 
@@ -412,3 +412,61 @@ The diagnostics drawer, the floating dev-mode button, and the whole `/api/dev/*`
 `npx tsc --noEmit`, `npm run lint`, `npm test`, and `npm run i18n:unused` must all pass before a commit. Use the `gh` CLI for GitHub work (`gh run list`, `gh workflow run release.yml`).
 
 The ESLint config surfaces the remaining pre-existing backlog as **warnings** (currently ~240: hardcoded UI strings, untyped `any` payloads, and React effect patterns) so lint stays a useful, non-blocking signal while it is burned down. Genuinely broken code — including an unannotated empty `catch` — is an **error** and fails the lint.
+# Phone snapshot viewer
+
+AEROLAB can build a static, read-only copy of the local dashboard for phone use.
+The desktop app remains the only database-backed application. Exported data is
+personal data: configure Vercel Deployment Protection (or equivalent protection
+covering HTML, JSON, assets, and source files) before deploying a real snapshot.
+Do not rely on a password prompt in the browser; the exported JSON is downloaded
+by the browser. If your Vercel plan cannot protect every artifact, use a host that
+can. Never commit `snapshot-data/` or `public/snapshot.json`.
+
+Refresh the snapshot manually after updating runs in desktop AEROLAB:
+
+```bash
+npm run snapshot:export
+npm run snapshot:validate
+npm run build:snapshot
+```
+
+The export command follows this checkout's configured database path. If the
+desktop app uses a different database file, pass the path from its Database
+location settings: `npm run snapshot:export -- --database "C:\\path\\to\\runs.db"`.
+
+The exporter reads the active configured SQLite database in a consistent
+read-only transaction, writes schema version 1 with an export timestamp, and
+atomically replaces `snapshot-data/snapshot.json`. It allowlists activity and
+telemetry fields, omits GPS coordinates, location and notes, and limits profile
+data to the fields needed by the read views. The build copies the artifact into
+the static site and writes `dist-snapshot/`; only that directory should be sent
+to deployment. The snapshot contains personal training information and must
+remain access-protected. The viewer displays its export time and has no database
+connection or write API.
+
+`npm run build` continues to build the desktop target. `npm run build:snapshot`
+requires a successful export first.
+
+The desktop backend retains its write routes for activity edits/weather refresh,
+profile updates, ingestion settings/folder selection/scan/upload, database
+selection/location, backup settings/creation, restore, local shutdown, and the
+development test-error probe. Snapshot output contains no backend and its client
+only fetches `/snapshot.json`; its write functions fail locally without sending
+requests. Local browser preferences remain in that browser's storage.
+
+For manual deployment, first enable Vercel Authentication for **All Deployments**
+in the project, then link this checkout and deploy only the built static folder:
+
+```bash
+npx vercel link --project aerolab-snapshot
+npx vercel deploy dist-snapshot --prod
+```
+
+In development, each row in **Settings → Local Snapshots & Rollback** has a
+**Deploy this snapshot** action. The confirmation names the selected backup and
+states what data will be sent. After confirming Vercel Authentication protects
+**All Deployments**, the app exports from that exact `.db` file, validates and
+builds the read-only viewer, and deploys it to the linked `aerolab-snapshot`
+project. The project link is checked before uploading. The row action and API
+endpoint are omitted from production builds; Vercel CLI login and the project
+link are still required.

@@ -173,6 +173,9 @@ export function translateCoachInsight(insight: string, lang: string): string {
     res = res.replace('Overcast', '阴天');
     res = res.replace('Clear', '晴朗');
     res = res.replace('Rain', '下雨');
+    res = res.replace(/(Light|Moderate|Heavy) snow showers?/gi, '降雪');
+    res = res.replace(/(Light|Moderate|Heavy) snow/gi, '降雪');
+    res = res.replace(/(Light|Moderate|Heavy) rain showers?/gi, '降雨');
     res = res.replace('Partly Cloudy', '多云');
     res = res.replace('with', '相对湿度');
     res = res.replace('humidity', '');
@@ -180,6 +183,9 @@ export function translateCoachInsight(insight: string, lang: string): string {
     res = res.replace('Garmin watch sensor:', 'Garmin 手表传感器:');
     res = res.replace('High tropical humidity restricts evaporative cooling and directly explains elevated cardiac drift.', '热带高湿度限制了汗液蒸发散热，直接解释了心血管漂移升高的现象。');
     res = res.replace('Microclimate weather verified from local meteorological reanalysis.', '微气候天气已通过本地气象再分析数据验证。');
+    res = res.replace(/Precipitation conditions \((.+?)\) may have affected comfort and footing\./, '降水天气（$1）可能影响了舒适度和脚下稳定性。');
+    res = res.replace(/Warmer than your recent fetched-run average \(([\d.]+)°C\), adding heat strain\./, '比近期已获取天气的跑步平均温度（$1°C）更热，增加了热负荷。');
+    res = res.replace(/Modeled PM2\.5 near the run midpoint was elevated at ([\d.]+) µg\/m³; haze can make hard breathing feel more difficult\./, '跑步中点附近的模型 PM2.5 为 $1 µg/m³，水平偏高；烟霾可能让呼吸更加困难。');
     return res;
   }
 

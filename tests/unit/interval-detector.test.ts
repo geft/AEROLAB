@@ -141,6 +141,25 @@ describe('Interval & Stride Detector (Unit)', () => {
     expect(detectIntervals(records).filter(i => i.type === 'stride')).toEqual([]);
   });
 
+  it('rejects a 7-second, 21-meter burst in the middle of a long run as a stride', () => {
+    const records: ActivityRecord[] = [];
+    let sec = 0;
+    let dist = 0;
+    const push = (cad: number, spd: number, advance: number) => {
+      dist += advance;
+      records.push({ ...makeRecord(sec, cad, spd, 140), elapsedSeconds: sec, distanceMeters: dist });
+      sec++;
+    };
+
+    for (let i = 0; i < 1800; i++) push(170, 2.7, 2.7);
+    for (let i = 0; i < 30; i++) push(110, 1.2, 1.2);
+    for (let i = 0; i < 8; i++) push(180, 3.0, 3);
+    for (let i = 0; i < 1800; i++) push(170, 2.7, 2.7);
+
+    const intervals = detectIntervals(records);
+    expect(intervals.some(i => i.type === 'stride' && i.durationSeconds === 7 && i.distanceMeters === 21)).toBe(false);
+  });
+
   it('returns empty array if records < 60', () => {
     const records = Array.from({ length: 30 }, (_, i) => makeRecord(i, 170, 3.5, 150));
     expect(detectIntervals(records)).toEqual([]);

@@ -80,6 +80,8 @@ export function generateCoachSummary(params: {
   weatherHumidityPct?: number | null;
   weatherApparentTempC?: number | null;
   weatherCondition?: string | null;
+  weatherPm25?: number | null;
+  recentAverageWeatherTempC?: number | null;
   // Interval reps telemetry (for quality threshold / VO2 sessions)
   intervals?: any[] | null;
   splits?: any[] | null;
@@ -338,11 +340,21 @@ export function generateCoachSummary(params: {
     const humidStr = params.weatherHumidityPct ? ` with ${params.weatherHumidityPct}% humidity` : '';
     const feelsLikeStr = params.weatherApparentTempC ? ` (feels like ${params.weatherApparentTempC}°C)` : '';
     const watchStr = avgTemp ? ` [Garmin watch sensor: ${avgTemp}°C]` : '';
+    const lowerCondition = (params.weatherCondition || '').toLowerCase();
+    const precipNote = /rain|drizzle|snow|sleet|hail/.test(lowerCondition)
+      ? ` Precipitation conditions (${params.weatherCondition}) may have affected comfort and footing.`
+      : '';
+    const warmerNote = params.recentAverageWeatherTempC != null && params.weatherTempC >= params.recentAverageWeatherTempC + 1.5
+      ? ` Warmer than your recent fetched-run average (${params.recentAverageWeatherTempC.toFixed(1)}°C), adding heat strain.`
+      : '';
+    const pm25Note = params.weatherPm25 != null && params.weatherPm25 >= 25
+      ? ` Modeled PM2.5 near the run midpoint was elevated at ${params.weatherPm25.toFixed(1)} µg/m³; haze can make hard breathing feel more difficult.`
+      : '';
     insights.add('neutral', `Microclimate Weather: ${params.weatherTempC}°C ambient${condStr}${humidStr}${feelsLikeStr}${watchStr}. ${
       params.weatherHumidityPct && params.weatherHumidityPct >= 80
         ? 'High tropical humidity restricts evaporative cooling and directly explains elevated cardiac drift.'
         : 'Microclimate weather verified from local meteorological reanalysis.'
-    }`);
+    }${precipNote}${warmerNote}${pm25Note}`);
   }
 
   // Elevation ramp walk check
@@ -560,7 +572,8 @@ export function generateCoachSummary(params: {
 export function syncActivityCoachSummary(
   db: Database.Database,
   activityId: string,
-  overrides?: { runType?: string; isFailedWorkout?: boolean; intervals?: unknown[]; splits?: unknown[] }
+  overrides?: { runType?: string; isFailedWorkout?: boolean; intervals?: unknown[]; splits?: unknown[] },
+  options: { persist?: boolean } = {}
 ): CoachSummary | null {
   const activityValue: unknown = db.prepare('SELECT * FROM activities WHERE id = ?').get(activityId);
   if (!activityValue) return null;
@@ -602,6 +615,13 @@ export function syncActivityCoachSummary(
 
   let sessionTags: string[] = [];
   try { sessionTags = JSON.parse(activity.tags || '[]'); } catch { /* Older rows can have malformed tags. */ }
+  const weatherBaselineRow = db.prepare(`
+    SELECT AVG(weather_temperature_c) AS avg_temp FROM (
+      SELECT weather_temperature_c FROM activities
+      WHERE id <> ? AND start_time < ? AND weather_source = 'open-meteo' AND weather_temperature_c IS NOT NULL
+      ORDER BY start_time DESC LIMIT 12
+    )
+  `).get(activityId, activity.start_time) as { avg_temp: number | null } | undefined;
   const coachSummary = generateCoachSummary({
     sessionTags: Array.isArray(sessionTags) ? sessionTags : [],
     runType: overrides?.runType || activity.run_type || 'easy_base',
@@ -629,6 +649,8 @@ export function syncActivityCoachSummary(
     weatherHumidityPct: activity.weather_humidity_pct ?? null,
     weatherApparentTempC: activity.weather_apparent_temp_c ?? null,
     weatherCondition: activity.weather_condition ?? null,
+    weatherPm25: activity.weather_pm25_ug_m3 ?? null,
+    recentAverageWeatherTempC: weatherBaselineRow?.avg_temp ?? null,
     isFailedWorkout: overrides?.isFailedWorkout ?? new RegExp('failed|aborted|dnf|bailed', 'i').test(activity.name || ''),
     intervals: overrides?.intervals || intervals,
     splits: overrides?.splits || splits,
@@ -645,6 +667,8 @@ export function syncActivityCoachSummary(
     rubricFamily: coachSummary.rubricFamily ?? null,
     walkAudit: coachSummary.walkAudit ?? null
   };
+
+  if (options.persist === false) return coachSummary;
 
   try {
     db.prepare(`

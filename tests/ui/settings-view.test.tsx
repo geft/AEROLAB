@@ -105,7 +105,7 @@ describe('SettingsView & Header Tab Navigation Tests', () => {
           ok: true,
           json: () => Promise.resolve({
             dbPath: 'C:\\data\\runs.db',
-            settings: { autoBackupEnabled: true, backupDirectory: 'C:\\backup' },
+            settings: { backupDirectory: 'C:\\backup' },
             snapshots: []
           })
         } as any);

@@ -5,7 +5,7 @@ import path from 'path';
 import { getDatabase } from '../db/client.js';
 import { importRunContent, importRunFile } from '../ingestion/importer.js';
 import { convertFitToCsv, isFitBuffer } from '../ingestion/fit-parser.js';
-import { checkAndRunScheduledBackup, isSafeBackupDirectory, selectLocalFolder } from './database.js';
+import { isSafeBackupDirectory, selectLocalFolder } from './database.js';
 import { logger } from '../utils/logger.js';
 
 export const ingestRouter = Router();
@@ -89,11 +89,6 @@ ingestRouter.post('/scan', (req, res) => {
       ...importRunFile(db, path.join(directory, filename)),
       filename
     }));
-    if (results.some(r => r.status === 'imported')) {
-      setTimeout(() => {
-        try { checkAndRunScheduledBackup(db); } catch (e) { logger.error('AutoBackup', 'Scan error', e); }
-      }, 500);
-    }
     res.json({ directory, results });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -196,11 +191,6 @@ ingestRouter.post('/upload', (req, res) => {
     const result = importRunContent(db, csvContent, filename || 'uploaded_run.csv', { force: Boolean(force) });
     if (result.status === 'error') {
       return res.status(422).json({ error: result.error || 'Failed to process run content', result });
-    }
-    if (result.status === 'imported') {
-      setTimeout(() => {
-        try { checkAndRunScheduledBackup(db); } catch (e) { logger.error('AutoBackup', 'Upload error', e); }
-      }, 500);
     }
     res.json({ result });
   } catch (err: any) {

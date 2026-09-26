@@ -36,6 +36,7 @@ interface BrowseSidebarProps {
   setMobileSubTab: (tab: 'list' | 'detail') => void;
   setShowTagMenu: (show: boolean) => void;
   onOpenUpload: () => void;
+  readOnly?: boolean;
   getDisplayTitle: DisplayTitleFn;
   formatPace: (secKm: number | null) => string;
   language: 'en' | 'zh';
@@ -64,6 +65,7 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
   setMobileSubTab,
   setShowTagMenu,
   onOpenUpload,
+  readOnly = false,
   getDisplayTitle,
   formatPace,
   language,
@@ -355,9 +357,9 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
         )}
       </div>
 
-      <button type="button" className="dropzone-inline" onClick={onOpenUpload}>
+      {!readOnly && <button type="button" className="dropzone-inline" onClick={onOpenUpload}>
         {t.browse.dropOrImportCsv}
-      </button>
+      </button>}
     </aside>
   );
 };

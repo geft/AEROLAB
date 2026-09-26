@@ -2,6 +2,21 @@ import { describe, it, expect } from 'vitest';
 import { generateCoachSummary } from '../../src/backend/physiology/coach-summary.js';
 
 describe('AI Coach Summary Unit Tests', () => {
+  it('mentions precipitation, hotter-than-recent weather, and elevated midpoint PM2.5', () => {
+    const summary = generateCoachSummary({
+      runType: 'long_run', distanceKm: 18, durationMin: 105, avgPaceSecKm: 360,
+      avgHr: 146, maxHr: 160, cadence: 175, decouplingPct: 7.5,
+      efficiencyFactor: 1.15, avgTemp: 30, groundContactTime: 250,
+      weatherTempC: 31, weatherCondition: 'Moderate rain', weatherHumidityPct: 85,
+      weatherPm25: 45.2, recentAverageWeatherTempC: 28
+    });
+
+    const weatherInsight = summary.keyInsights.find(i => i.startsWith('Microclimate Weather'));
+    expect(weatherInsight).toContain('Precipitation conditions (Moderate rain)');
+    expect(weatherInsight).toContain('Warmer than your recent fetched-run average (28.0°C)');
+    expect(weatherInsight).toContain('Modeled PM2.5 near the run midpoint was elevated at 45.2 µg/m³');
+  });
+
   it('generates high score and positive insights for disciplined aerobic run', () => {
     const summary = generateCoachSummary({
       runType: 'easy_base',

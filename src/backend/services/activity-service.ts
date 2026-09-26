@@ -384,6 +384,7 @@ export function listActivitiesService(db: Database.Database, typeFilter?: string
       a.steady_stance_time, a.pause_duration_seconds, a.walk_duration_seconds,
       a.walk_distance_meters,
       a.weather_temperature_c, a.weather_humidity_pct, a.weather_apparent_temp_c,
+      a.weather_pm25_ug_m3,
       a.weather_condition, a.weather_code, a.weather_fetched_at, a.weather_source,
       a.workout_lat, a.workout_lon,
       cs.effectiveness_score, cs.analysis_json
@@ -415,7 +416,7 @@ export function listActivitiesService(db: Database.Database, typeFilter?: string
 
 
 /** GET /api/activities/:id - deep dive into individual run */
-export function getActivityDetailService(db: Database.Database, id: string): ActivityDetailResponse | null {
+export function getActivityDetailService(db: Database.Database, id: string, options: { persistCoachSummary?: boolean } = {}): ActivityDetailResponse | null {
   const activityRow = db.prepare('SELECT * FROM activities WHERE id = ?').get(id);
   if (!activityRow) return null;
   const activity = activityFromRow(activityRow);
@@ -474,7 +475,7 @@ export function getActivityDetailService(db: Database.Database, id: string): Act
   const { maxHr: maxHeartRate, restingHr, lt1Hr, lt2Hr } = getAthleteHeartRateProfile(db);
 
   // Generate, persist, and retrieve from activity_coach_summaries table
-  const coachSummary = syncActivityCoachSummary(db, id) || generateCoachSummary({
+  const coachSummary = syncActivityCoachSummary(db, id, undefined, { persist: options.persistCoachSummary !== false }) || generateCoachSummary({
     runType: activity.run_type || 'easy_base',
     distanceKm: activity.distance_meters / 1000,
     durationMin: activity.duration_seconds / 60,

@@ -41,10 +41,7 @@ describe('Onboarding & Profile Backup / Import UI Component Tests', () => {
             sizeBytes: 1048576,
             activityCount: 24,
             settings: {
-              autoBackupEnabled: true,
-              backupIntervalDays: 7,
               backupDirectory: 'data/backups',
-              lastBackupAt: '2026-09-15T08:00:00Z'
             },
             recentBackups: []
           })
