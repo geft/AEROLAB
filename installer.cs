@@ -20,7 +20,7 @@ namespace AerolabInstaller
         // Release version reported to Windows' "Apps & features" list. scripts/package-chromium-free.js
         // rewrites this constant with the real release version at package time, so the uninstall entry
         // always matches the installer filename; the value below is only a direct-compile fallback.
-        private const string DisplayVersion = "1.1.0";
+        private const string DisplayVersion = "1.2.0";
 
         public InstallerForm()
         {
