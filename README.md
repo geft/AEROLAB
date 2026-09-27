@@ -2,8 +2,6 @@
 
 A local-first, high-performance running analytics platform and dashboard designed to ingest Garmin run data (both native `.fit` binary files and exported `.csv` files), store it in a single embedded SQLite database, and track real-time physiological adaptations over time:
 
-**Current Windows release:** [AEROLAB 1.2.0](https://github.com/geft/AEROLAB/releases/tag/v1.2.0)
-
 - **LT1 (Aerobic Threshold / VT1)** pace and heart rate progression
 - **LT2 (Lactate / Anaerobic Threshold / VT2)** pace and heart rate progression with dynamic turnpoint modeling
 - **Running Economy**: Efficiency Factor (Speed / HR), Meters per Heartbeat, and Aerobic Decoupling (Pa:Hr drift %)
@@ -16,7 +14,10 @@ A local-first, high-performance running analytics platform and dashboard designe
 - **Customizable Typography & Font Scaling**: Smooth 25% font-scaling increments (75%, 100%, 125%, 150%, 175%, 200%)
 - **Period Progress & Training Volume**: Monthly and annual mileage breakdowns, weekly volume cadence, and 5-zone cardiovascular distribution
 - **Calibrated Race Predictions**: Jack Daniels VDOT and Critical Velocity projections for 5K, 10K, Half Marathon, and Marathon based on empirical physiological thresholds
-- **Ultra-Lightweight Standalone Windows App**: 47 MB native Windows installer (`AEROLAB-Setup-v<version>.exe`, e.g. `AEROLAB-Setup-v1.2.0.exe`) running in isolated App Mode using your existing Chrome or Edge browser (0 MB Chromium bloat)
+- **Training Load & Best Efforts**: 7-day acute load against a 28-day baseline, plus all-time and current-year best efforts and age- and gender-based race benchmarks
+- **Garmin Export Folder Scan**: Import new FIT or CSV exports from a configured local folder, with duplicate and non-run detection
+- **Installable Phone Snapshot**: Export a read-only dashboard for a phone and optionally deploy it to a protected Vercel project
+- **Ultra-Lightweight Standalone Windows App**: Compact native Windows installer (`AEROLAB-Setup-v<version>.exe`) running in isolated App Mode using your existing Chrome or Edge browser (0 MB Chromium bloat)
 
 ---
 
@@ -47,6 +48,7 @@ The preferences live in `%APPDATA%\aerolab\development-database-location.json` a
 AEROLAB supports both native Garmin binary `.fit` files and exported `.csv` files:
 - **Direct FIT Decoding**: Built-in FIT binary stream parser (`fit-decoder`) decodes native compressed Garmin FIT files directly without third-party cloud uploaders.
 - **Web UI Ingestion**: Drag-and-drop CSV or FIT files are parsed **in-memory** in the browser and transmitted directly to SQLite. No raw files linger on disk.
+- **Garmin Export Folder Scan**: Point Settings to the folder where Garmin Connect or a compatible extension saves FIT/CSV exports. Use **Scan & Import** in the navbar to import new activities; duplicates and non-running files are reported and skipped. This reads local exports and does not sync with a Garmin account.
 - **CLI Ingestion**: The CLI importer supports the `--clean` flag, which ingests files from `data/raw/` and immediately deletes source files once safely committed to SQLite.
 - **Git Protection**: `.gitignore` strictly ignores `*.csv`, `*.fit`, and `data/*.db` to keep your git repo ultra-lightweight.
 
@@ -61,13 +63,13 @@ High-frequency 1Hz time-series data is compacted by ~75% before saving to SQLite
 Weather conditions in tropical climates vary dramatically across short distances:
 - Rather than sampling weather at the runner's doorstep (which biases every run to the starting location), AEROLAB trims the warmup (first 5 min / 20%) and cooldown (last 3–5 min / 15%) to calculate the **mathematical geographic centroid** of the core workout segment.
 - This centroid is stored as `workout_lat` and `workout_lon` on the activity, enabling hyper-local weather lookups while keeping home coordinates private.
-- Weather lookup runs only when you press **Fetch ambient weather** on a workout. That action sends the workout centroid and date to Open-Meteo. Imported Garmin temperature remains available as a device sensor reading; an on-wrist reading may be affected by body heat and is not used as ambient temperature in the coach rubric.
+- Weather lookup runs only when you press **Fetch ambient weather** on a workout. That action sends the workout centroid and date to Open-Meteo. For Singapore, PM2.5 uses the nearest available NEA regional reading; elsewhere, AEROLAB uses an Open-Meteo model estimate when available. The source is shown in the activity details, and high readings can appear in the coach debrief. Imported Garmin temperature remains a device sensor reading and is not treated as ambient temperature.
 
 ### 5. Local Backup Rotation & Restore
 - **Manual Backup Rotation**: Create a SQLite snapshot when you choose. The target folder keeps up to 3 recent snapshots, and individual snapshots can be deleted from the list.
 - **Manual Snapshot Download**: Download a portable `.db` snapshot at any time via the Settings backup panel (one `.db` file contains the whole history).
 - **Drop-In Restore**: Drag a `.db` snapshot back in to restore. Binary uploads stream to disk with a 256 MB default limit (configurable with `MAX_RESTORE_BYTES`), and a safety backup of the current database is written before anything is replaced.
-- **No Cloud Dependency**: Backups are local-only by design. The database grows roughly 150 KB per run (per-second telemetry), and run data can be re-exported from Garmin at any time, so mirroring it into a personal cloud quota was not worth it.
+- **Local by Default**: The app and backups work without a cloud service. A hosted phone snapshot is optional and only sent when you explicitly deploy it; protect the deployed site because its static export contains training data.
 
 ---
 
@@ -94,7 +96,8 @@ Garmin Connect gives you a great overview of what you did. AEROLAB tells you **h
 | **Bilingual interface (English & 简体中文)** | — | ✅ |
 | **Customizable UI font size scaling (75% to 200%)** | — | ✅ |
 | **Editable runner's notebook** attached to each session | — | ✅ |
-| Your data leaves your machine | ✅ | ❌ (local-first) |
+| Cloud account required for core analysis | ✅ | ❌ (local-first) |
+| Optional hosted read-only phone snapshot | — | ✅ (explicit deploy) |
 
 **The core gap**: Garmin gives you data. AEROLAB gives you a **physiological verdict** — did this run serve its purpose? Was it a genuine Zone 2 stimulus, or did it quietly drift into grey-zone tempo territory? Are you actually building aerobic capacity, or just accumulating junk miles at the wrong intensity?
 
@@ -212,7 +215,7 @@ To build the standalone Windows installer on your machine:
 ```bash
 npm run package:chromium-free
 ```
-This produces a single, self-extracting installer executable in `release/AEROLAB-Setup-v<version>.exe` (~47 MB, e.g. `release/AEROLAB-Setup-v1.2.0.exe`) with:
+This produces a single, self-extracting installer executable in `release/AEROLAB-Setup-v<version>.exe` with:
 - Zero Chromium download overhead (uses host Chrome or Edge in App Mode)
 - Native C# launcher (`AEROLAB.exe`, compiled from `launcher.cs` during packaging — it is a build artifact and is **not** tracked in git)
 - Embedded Node runtime and production bundles
@@ -241,13 +244,17 @@ Add `--clean` to automatically delete raw files after successful database ingest
 npm run ingest -- --clean
 ```
 
-### Method C: Python Batch Ingestion Script
+### Method C: Scan a Garmin export folder
+1. In **Settings → Import Garmin Runs**, choose and save the folder where Garmin Connect or a compatible extension saves FIT/CSV exports.
+2. Select **Scan & Import** in the navbar. AEROLAB imports new supported activities and reports duplicates, non-running files, and errors.
+
+### Method D: Python Batch Ingestion Script
 For batch-importing from external folders or USB Garmin mounts:
 ```bash
 python scripts/batch_ingest.py --dir "C:/path/to/Garmin/Activities" --clean
 ```
 
-### Method D: Direct Database Portability (`data/runs.db`)
+### Method E: Direct Database Portability (`data/runs.db`)
 AEROLAB operates on a **single embedded SQLite WAL database file**. Development defaults to `data/runs.db`; the Windows app defaults to `%APPDATA%\aerolab\runs.db`. Settings shows the active location. To back up or transfer your running history, use **Download Snapshot** in the backup panel so the copy includes committed WAL data.
 
 ---
@@ -279,8 +286,10 @@ AEROLAB operates on a **single embedded SQLite WAL database file**. Development 
 ### 3. Stats View
 - **Physiological Benchmark Cards**: Current LT1 Pace & HR, LT2 Pace & HR, VO2 Max estimate, and 30-day baseline Running Economy.
 - **Calibrated Heart Rate Zones**: 5-zone cardiovascular distribution dynamically derived from HRR, LT1 ceiling (~148 bpm), and LT2 turnpoint (~172 bpm).
+- **Training Load**: Acute 7-day load, 28-day chronic baseline, their optimal range, and a status summary; choose a 7–90 day timeline.
 - **Aerobic Turnpoint Margin & Guide**: Measures the pace gap between LT1 easy base and LT2 threshold. Click the info button to open the educational modal featuring benchmark tiers (Optimal <= 50s, Well-Conditioned 50 - 70s, Base Opportunity > 70s).
-- **Calibrated Race Time Predictions**: VDOT-derived finish times, average pace, and kilometer splits for 5K, 10K, Half Marathon, and Marathon.
+- **Calibrated Race Time Predictions**: VDOT-derived finish times, average pace, and kilometer splits for 5K, 10K, Half Marathon, and Marathon, with age- and gender-based benchmark tiers when profile details are available.
+- **Personal Best Efforts**: Fastest continuous telemetry segments at tracked race distances, shown for all time or the current year.
 
 ### 4. Profile View
 - **Cardiovascular Baselines**: Resting HR, Max HR engine, and VO2 Max.
@@ -414,8 +423,8 @@ The diagnostics drawer, the floating dev-mode button, and the whole `/api/dev/*`
 ### Verification
 `npx tsc --noEmit`, `npm run lint`, `npm test`, and `npm run i18n:unused` must all pass before a commit. Use the `gh` CLI for GitHub work (`gh run list`, `gh workflow run release.yml`).
 
-The ESLint config surfaces the remaining pre-existing backlog as **warnings** (currently ~240: hardcoded UI strings, untyped `any` payloads, and React effect patterns) so lint stays a useful, non-blocking signal while it is burned down. Genuinely broken code — including an unannotated empty `catch` — is an **error** and fails the lint.
-# Phone snapshot viewer
+The ESLint config surfaces the remaining backlog as **warnings** (including hardcoded UI strings, untyped `any` payloads, and React effect patterns) so lint stays a useful, non-blocking signal while it is burned down. Genuinely broken code — including an unannotated empty `catch` — is an **error** and fails the lint.
+## Installable phone snapshot
 
 AEROLAB can build a static, read-only copy of the local dashboard for phone use.
 The desktop app remains the only database-backed application. Exported data is
