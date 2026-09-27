@@ -1,6 +1,9 @@
 # AEROLAB 🏃‍♂️ — Physiological Running Analytics
 
 A local-first, high-performance running analytics platform and dashboard designed to ingest Garmin run data (both native `.fit` binary files and exported `.csv` files), store it in a single embedded SQLite database, and track real-time physiological adaptations over time:
+
+**Current Windows release:** [AEROLAB 1.2.0](https://github.com/geft/AEROLAB/releases/tag/v1.2.0)
+
 - **LT1 (Aerobic Threshold / VT1)** pace and heart rate progression
 - **LT2 (Lactate / Anaerobic Threshold / VT2)** pace and heart rate progression with dynamic turnpoint modeling
 - **Running Economy**: Efficiency Factor (Speed / HR), Meters per Heartbeat, and Aerobic Decoupling (Pa:Hr drift %)
