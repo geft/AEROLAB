@@ -26,19 +26,13 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
   const [metric, setMetric] = useState<'pace' | 'hr'>('pace');
   const [timeRange, setTimeRange] = useState<'3m' | '6m' | '12m' | 'all'>('6m');
   const [showIndividualRuns, setShowIndividualRuns] = useState(false);
-  const [hoveredPoint, setHoveredPoint] = useState<{
-    type: 'lt1' | 'lt2';
-    item: CalibrationHistoryItem;
-    x: number;
-    y: number;
-  } | null>(null);
   const [selectedPoint, setSelectedPoint] = useState<{
     type: 'lt1' | 'lt2';
     item: CalibrationHistoryItem;
     x: number;
     y: number;
   } | null>(null);
-  const activePoint = hoveredPoint ?? selectedPoint;
+  const activePoint = selectedPoint;
 
   // 1. Deduplicate & sort chronologically (oldest -> newest)
   const sortedHistory = useMemo(() => {
@@ -225,6 +219,27 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
   }, [currentThresholds, metric, getY]);
 
   const hasData = lt1Points.length > 0 || lt2Points.length > 0;
+  const selectablePoints = [
+    ...lt1Points.map(item => ({ type: 'lt1' as const, item })),
+    ...lt2Points.map(item => ({ type: 'lt2' as const, item }))
+  ].sort((a, b) => a.item.effective_date.localeCompare(b.item.effective_date));
+  const selectedPointIndex = selectedPoint
+    ? selectablePoints.findIndex(point => point.type === selectedPoint.type && point.item.effective_date === selectedPoint.item.effective_date)
+    : 0;
+  const selectPointByIndex = (index: number) => {
+    const point = selectablePoints[index];
+    if (!point) return;
+    const value = point.type === 'lt1'
+      ? (metric === 'pace' ? point.item.lt1_pace_sec_km : point.item.lt1_hr)
+      : (metric === 'pace' ? point.item.lt2_pace_sec_km : point.item.lt2_hr);
+    if (value == null) return;
+    setSelectedPoint({
+      type: point.type,
+      item: point.item,
+      x: getX(point.item.effective_date),
+      y: getY(value)
+    });
+  };
 
   return (
     <section className="threshold-trends-card" style={{
@@ -252,7 +267,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
         {/* Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
           <button className="filter-pill-btn" aria-pressed={showIndividualRuns}
-            onClick={() => { setShowIndividualRuns(v => !v); setHoveredPoint(null); }}>
+            onClick={() => { setShowIndividualRuns(v => !v); setSelectedPoint(null); }}>
             {showIndividualRuns ? t.thresholdTrends.showRolling : t.thresholdTrends.showIndividual}
           </button>
           {/* Metric Toggle: Pace vs HR */}
@@ -276,7 +291,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
           </div>
 
           {/* Time Range Filter */}
-          <div className="filter-pills" style={{ display: 'flex', background: 'var(--bg-card-subtle, rgba(255,255,255,0.05))', borderRadius: 8, padding: 2 }}>
+          <div className="filter-pills threshold-trends-range" style={{ display: 'flex', background: 'var(--bg-card-subtle, rgba(255,255,255,0.05))', borderRadius: 8, padding: 2 }}>
             <button
               className={`filter-pill-btn ${timeRange === '3m' ? 'active' : ''}`}
               onClick={() => setTimeRange('3m')}
@@ -340,6 +355,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
           {t.progress.noTrendData}
         </div>
       ) : (
+        <>
         <div className="svg-chart-wrapper threshold-trends-scroll" role="region" aria-label={t.progress.hoverHint} tabIndex={0}>
           <svg
             className="threshold-trends-svg"
@@ -453,32 +469,17 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
               const x = getX(p.effective_date);
               const val = metric === 'pace' ? p.lt1_pace_sec_km! : p.lt1_hr!;
               const y = getY(val);
-              const isHovered = (hoveredPoint ?? selectedPoint)?.item.effective_date === p.effective_date
-                && (hoveredPoint ?? selectedPoint)?.type === 'lt1';
+              const isHovered = selectedPoint?.item.effective_date === p.effective_date
+                && selectedPoint?.type === 'lt1';
 
               return (
                 <g
                   key={`lt1-${p.effective_date}`}
-                  role="button"
-                  tabIndex={0}
-                  aria-pressed={selectedPoint?.type === 'lt1' && selectedPoint.item.effective_date === p.effective_date}
                   aria-label={format(t.thresholdTrends.chartPointAriaLabel, {
                     type: t.progress.lt1AerobicBaseBadge,
                     date: formatDate(p.effective_date),
                     value: metric === 'pace' ? `${formatPace(val)} ${t.common.pace}` : `${val} bpm`
                   })}
-                  onMouseEnter={() => setHoveredPoint({ type: 'lt1', item: p, x, y })}
-                  onMouseLeave={() => setHoveredPoint(null)}
-                  onFocus={() => setHoveredPoint({ type: 'lt1', item: p, x, y })}
-                  onBlur={() => setHoveredPoint(null)}
-                  onClick={() => setSelectedPoint({ type: 'lt1', item: p, x, y })}
-                  onKeyDown={event => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      setSelectedPoint({ type: 'lt1', item: p, x, y });
-                    }
-                  }}
-                  style={{ cursor: 'pointer' }}
                 >
                   <circle
                     aria-label={`LT1 ${p.effective_date}: ${val}`}
@@ -500,32 +501,17 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
               const x = getX(p.effective_date);
               const val = metric === 'pace' ? p.lt2_pace_sec_km! : p.lt2_hr!;
               const y = getY(val);
-              const isHovered = (hoveredPoint ?? selectedPoint)?.item.effective_date === p.effective_date
-                && (hoveredPoint ?? selectedPoint)?.type === 'lt2';
+              const isHovered = selectedPoint?.item.effective_date === p.effective_date
+                && selectedPoint?.type === 'lt2';
 
               return (
                 <g
                   key={`lt2-${p.effective_date}`}
-                  role="button"
-                  tabIndex={0}
-                  aria-pressed={selectedPoint?.type === 'lt2' && selectedPoint.item.effective_date === p.effective_date}
                   aria-label={format(t.thresholdTrends.chartPointAriaLabel, {
                     type: t.progress.lt2ThresholdBadge,
                     date: formatDate(p.effective_date),
                     value: metric === 'pace' ? `${formatPace(val)} ${t.common.pace}` : `${val} bpm`
                   })}
-                  onMouseEnter={() => setHoveredPoint({ type: 'lt2', item: p, x, y })}
-                  onMouseLeave={() => setHoveredPoint(null)}
-                  onFocus={() => setHoveredPoint({ type: 'lt2', item: p, x, y })}
-                  onBlur={() => setHoveredPoint(null)}
-                  onClick={() => setSelectedPoint({ type: 'lt2', item: p, x, y })}
-                  onKeyDown={event => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      setSelectedPoint({ type: 'lt2', item: p, x, y });
-                    }
-                  }}
-                  style={{ cursor: 'pointer' }}
                 >
                   <circle
                     aria-label={`LT2 ${p.effective_date}: ${val}`}
@@ -565,26 +551,15 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
             })}
           </svg>
 
-          {/* Floating Glassmorphic Tooltip */}
-          {activePoint && (
+        </div>
+
+        {activePoint && (
             <div
               className="threshold-trend-tooltip"
               role="status"
               aria-live="polite"
               style={{
-                position: 'absolute',
-                top: Math.max(10, Math.min(height - 100, activePoint.y + 10)),
-                left: Math.max(15, Math.min(width - 240, activePoint.x - 110)),
-                background: 'var(--bg-card)',
                 border: `1px solid var(${activePoint.type === 'lt1' ? '--chart-series-green' : '--chart-series-amber'})`,
-                borderRadius: 8,
-                padding: '0.65rem 0.85rem',
-                color: 'var(--text-primary)',
-                fontSize: '0.75rem',
-                boxShadow: 'var(--card-shadow)',
-                pointerEvents: 'none',
-                zIndex: 20,
-                minWidth: 190
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
@@ -634,7 +609,20 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
               )}
             </div>
           )}
-        </div>
+        {selectablePoints.length > 1 && (
+          <label className="chart-point-selector">
+            <span>{t.progress.chartPointSelector}</span>
+            <input
+              type="range"
+              min={0}
+              max={selectablePoints.length - 1}
+              value={Math.max(0, selectedPointIndex)}
+              aria-label={t.progress.chartPointSelector}
+              onChange={event => selectPointByIndex(Number(event.currentTarget.value))}
+            />
+          </label>
+        )}
+        </>
       )}
     </section>
   );

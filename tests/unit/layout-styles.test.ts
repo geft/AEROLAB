@@ -105,6 +105,21 @@ describe('Layout stylesheet contracts', () => {
     expect(ruleBody('.svg-chart-wrapper')).toMatch(/overflow-x:\s*auto/);
   });
 
+  it('keeps chart selection details readable and axis labels tied to font scaling', () => {
+    expect(ruleBody('.chart-point-selector input')).toMatch(/min-height:\s*44px/);
+    expect(ruleBody('.training-load-axis-label, .threshold-chart-axis-label, .period-chart-axis-label'))
+      .toMatch(/font-size:\s*0\.72rem\s*!important/);
+    expect(ruleBody('.threshold-trend-tooltip')).toMatch(/position:\s*static\s*!important/);
+    expect(ruleBody('.period-metrics-grid')).toMatch(/background:\s*var\(--bg-card-hover\)/);
+  });
+
+  it('makes the custom month picker and mobile training chart independently scrollable', () => {
+    expect(ruleBody('.month-picker-dialog')).toMatch(/max-height:\s*min\(80dvh, 42rem\)/);
+    expect(ruleBody('.month-picker-options')).toMatch(/overflow-y:\s*auto/);
+    expect(css).toMatch(/\.training-load-chart-scroll\s*\{[^}]*overflow-x:\s*auto/s);
+    expect(css).toMatch(/\.training-load-chart\s*\{[^}]*width:\s*700px\s*!important/s);
+  });
+
   it('never declares a grid track floor wide enough to overflow a 320px phone', () => {
     const offenders: string[] = [];
     const inspect = (source: string, label: string) => {

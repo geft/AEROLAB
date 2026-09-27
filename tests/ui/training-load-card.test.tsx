@@ -84,6 +84,20 @@ describe('TrainingLoadCard UI Tests', () => {
     expect(paths.length).toBeGreaterThan(0);
   });
 
+  it('uses the shared slider to select a training-load point and show its details', async () => {
+    const { container } = render(<TrainingLoadCard />);
+    const slider = await screen.findByRole('slider', { name: 'Select a chart point' });
+
+    const scroller = container.querySelector('.training-load-chart-scroll');
+    expect(scroller).toBeTruthy();
+    Object.defineProperty(scroller, 'scrollTo', { configurable: true, value: vi.fn() });
+    fireEvent.change(slider, { target: { value: '0' } });
+
+    expect(container.textContent).toContain('2026-09-18');
+    expect(container.textContent).toContain('75');
+    expect(container.querySelector('line[stroke-dasharray="4 4"]')).toBeTruthy();
+  });
+
   it('renders time filter buttons and triggers fetch with chosen range', async () => {
     render(<TrainingLoadCard />);
 

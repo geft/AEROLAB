@@ -6,6 +6,7 @@ import type { Translations } from '../../i18n/types.js';
 import { Edit2, Tag, Plus, X, Check, ShieldCheck, Download } from 'lucide-react';
 import { ActivityWeatherCard } from './ActivityWeatherCard';
 import { translateTag } from '../../i18n/tagTranslator';
+import { translateActivityName } from '../../i18n/coachTranslator.js';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { patchActivity } from '../../api/client.js';
 import { downloadSessionCsv } from '../../utils/sessionCsv.js';
@@ -50,7 +51,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState<boolean>(false);
   const [customTitle, setCustomTitle] = useState<string>('');
-  const { formatDate } = useTranslation();
+  const { formatDate, language } = useTranslation();
 
   // Parse current tags safely
   let currentTags: string[] = [];
@@ -133,7 +134,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
-              <h1 style={{ margin: 0 }}>{getDisplayTitle(act, t)}</h1>
+              <h1 style={{ margin: 0 }}>{translateActivityName(getDisplayTitle(act, t), language)}</h1>
               {!readOnly && <button
                 onClick={() => { setCustomTitle(act.name ?? ''); setIsEditingTitle(true); }}
                 title="Rename activity or name special race"
@@ -179,7 +180,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
                   fontWeight: 600
                 }}
               >
-                {tag}
+                {translateTag(tag, t)}
                 {!readOnly && <X
                   size={11}
                   style={{ cursor: 'pointer', opacity: 0.7 }}
@@ -302,7 +303,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
           </span>
           {act.steady_pace_sec_km && act.steady_pace_sec_km !== act.avg_pace_sec_km && (
             <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-              Raw: {formatPace(act.avg_pace_sec_km)}
+              {t.browse.raw}: {formatPace(act.avg_pace_sec_km)}
             </span>
           )}
         </div>
@@ -316,7 +317,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
           </span>
           {act.steady_heart_rate && act.steady_heart_rate !== act.avg_heart_rate && (
             <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-              Raw: {act.avg_heart_rate}
+              {t.browse.raw}: {act.avg_heart_rate}
             </span>
           )}
         </div>
@@ -334,7 +335,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
           </span>
           {act.steady_cadence && act.steady_cadence !== act.avg_cadence && (
             <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-              Raw: {act.avg_cadence} spm
+              {t.browse.raw}: {act.avg_cadence} spm
             </span>
           )}
         </div>
@@ -378,10 +379,10 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
             <ShieldCheck size={16} color="#06b6d4" />
             <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)', fontWeight: 500 }}>
               <strong style={{ color: '#06b6d4' }}>{t.browse.steadyIsolated}:</strong>{' '}
-              {act.steady_pace_sec_km ? `${formatPace(act.steady_pace_sec_km)}/km pace` : ''}
-              {act.steady_cadence ? ` • ${act.steady_cadence} spm cadence` : ''}
-              {act.steady_heart_rate ? ` • ${act.steady_heart_rate} bpm HR` : ''}
-              {act.steady_stance_time ? ` • ${Math.round(act.steady_stance_time)} ms GCT` : ''}
+              {act.steady_pace_sec_km ? `${formatPace(act.steady_pace_sec_km)}/km ${t.common.pace}` : ''}
+              {act.steady_cadence ? ` • ${act.steady_cadence} spm ${t.common.cadence}` : ''}
+              {act.steady_heart_rate ? ` • ${act.steady_heart_rate} bpm ${t.common.heartRate}` : ''}
+              {act.steady_stance_time ? ` • ${Math.round(act.steady_stance_time)} ms ${t.browse.groundContactTime}` : ''}
             </span>
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>

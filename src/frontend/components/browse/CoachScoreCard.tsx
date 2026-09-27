@@ -205,7 +205,7 @@ export const CoachScoreCard: React.FC<CoachScoreCardProps> = ({
               <span className="coach-insight-bullet" aria-hidden="true">◆</span>
               <span className="coach-insight-text">
                 {tone && <span className={`coach-insight-tag tone-${tone}`}>{toneLabel(tone)}</span>}
-                {entry.localized ? entry.text : (t.browse.coachTextOverrides[entry.text] ?? translateCoachInsight(entry.text, language))}
+                {t.browse.coachTextOverrides[entry.text] ?? translateCoachInsight(entry.text, language)}
               </span>
             </li>
           );

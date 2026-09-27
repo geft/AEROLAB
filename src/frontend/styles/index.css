@@ -17,6 +17,7 @@
   --chart-series-cyan: #06b6d4;
   --chart-series-green: #10b981;
   --chart-series-amber: #f59e0b;
+  --chart-series-pink: #ec4899;
   --accent-cyan-glow: rgba(6, 182, 212, 0.15);
   --accent-emerald: #10b981;
   --accent-emerald-glow: rgba(16, 185, 129, 0.15);
@@ -61,6 +62,7 @@
   --chart-series-cyan: #0369a1;
   --chart-series-green: #047857;
   --chart-series-amber: #b45309;
+  --chart-series-pink: #be185d;
   --accent-cyan-glow: rgba(2, 132, 199, 0.1);
   --accent-emerald: #047857;      /* Emerald 700 for text contrast */
   --accent-emerald-glow: rgba(5, 150, 105, 0.1);
@@ -2447,6 +2449,25 @@ body {
   border-top: 1px solid var(--border-subtle);
 }
 
+@media (max-width: 768px) {
+  .prediction-help-anchor {
+    position: static;
+  }
+
+  .prediction-benchmark {
+    position: fixed;
+    top: auto;
+    right: 0.75rem;
+    bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
+    left: 0.75rem;
+    width: auto;
+    max-height: calc(100dvh - 7rem - env(safe-area-inset-bottom, 0px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 .prediction-time {
   font-family: var(--font-heading);
   font-size: 1.6rem;
@@ -2467,6 +2488,141 @@ body {
   text-align: center;
   font-size: 0.8rem;
   color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.month-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 40px;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.vdot-pace-range {
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  background: var(--bg-surface);
+}
+
+.vdot-pace-range > div:first-child {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  margin-bottom: 0.15rem;
+}
+
+.chart-point-selector {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.3rem;
+  margin-top: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.chart-point-selector input {
+  width: 100%;
+  min-height: 44px;
+  accent-color: var(--accent-action-bg);
+  touch-action: pan-x;
+}
+
+.training-load-chart-scroll {
+  width: 100%;
+  position: relative;
+}
+
+.training-load-axis-label,
+.threshold-chart-axis-label,
+.period-chart-axis-label {
+  font-size: 0.72rem !important;
+}
+
+.threshold-trend-tooltip {
+  position: static !important;
+  width: 100%;
+  min-width: 0 !important;
+  margin-top: 0.75rem;
+  pointer-events: auto !important;
+}
+
+.month-picker-overlay {
+  z-index: 1500;
+}
+
+.month-picker-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(28rem, 100%);
+  max-height: min(80dvh, 42rem);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--modal-bg);
+  color: var(--text-primary);
+  box-shadow: var(--card-shadow);
+}
+
+.month-picker-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.month-picker-dialog-header h2 {
+  font-size: 1rem;
+}
+
+.month-picker-options {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.month-picker-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  min-height: 48px;
+  padding: 0.65rem 1rem;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.month-picker-option.active {
+  background: rgba(6, 182, 212, 0.12);
+  color: var(--accent-cyan);
+  font-weight: 700;
+}
+
+.threshold-trend-tooltip {
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  box-shadow: var(--card-shadow);
 }
 
 .footer-version-badge {
@@ -2553,6 +2709,32 @@ body {
   flex-direction: column;
   gap: 1.25rem;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+}
+
+.turnpoint-guide-overlay {
+  z-index: 1500;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.turnpoint-guide-modal {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.training-load-guide-overlay {
+  z-index: 1500 !important;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.training-load-guide-modal {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-header {
@@ -3253,7 +3435,8 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
   gap: 0.65rem;
-  background: rgba(0, 0, 0, 0.18);
+  background: var(--bg-card-hover);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
   padding: 0.75rem 0.85rem;
 }
@@ -3787,6 +3970,8 @@ body {
   background: rgba(6, 182, 212, 0.12);
   color: var(--accent-cyan);
   border: 1px solid rgba(6, 182, 212, 0.25);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .calibration-filter-pills {
@@ -3997,10 +4182,12 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+.threshold-pill-item {
   transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.threshold-ref-box:hover,
 .threshold-pill-item:hover {
   border-color: var(--border-hover);
   transform: translateY(-2px);
@@ -4569,6 +4756,46 @@ body {
     padding: 0.75rem 0.75rem 5.5rem 0.75rem;
   }
 
+  .app-footer {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.7rem;
+  }
+
+  .threshold-trends-range {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .threshold-trends-range .filter-pill-btn {
+    min-width: 0;
+    min-height: 44px;
+    padding: 0.45rem 0.25rem !important;
+    font-size: 0.86rem !important;
+  }
+
+  .threshold-trends-card button svg,
+  .threshold-trends-card .profile-sync-badge svg {
+    width: 18px !important;
+    height: 18px !important;
+    flex-shrink: 0;
+  }
+
+  .training-load-chart-scroll {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    touch-action: pan-x;
+  }
+
+  .training-load-chart {
+    width: 700px !important;
+    min-width: 700px;
+    max-height: none !important;
+  }
+
   /* Compact Mobile Top Navbar */
   .navbar {
     height: 3rem;
@@ -4922,7 +5149,7 @@ body {
   }
 
   .period-progress-svg .period-chart-axis-label {
-    font-size: 12px !important;
+    font-size: 0.75rem !important;
   }
 
   .period-progress-svg g[role="button"],

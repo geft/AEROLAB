@@ -79,6 +79,7 @@ describe('AEROLAB App Full Integration Tests', () => {
 
   beforeEach(() => {
     localStorage.clear();
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: any) => {
       const urlStr = String(url);
       if (urlStr.includes('/api/thresholds')) {
@@ -217,6 +218,19 @@ describe('AEROLAB App Full Integration Tests', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Easy Aerobic Base')).toBeTruthy();
+    });
+  });
+
+  it('resets scroll position when switching main tabs', async () => {
+    render(<App />);
+    await waitFor(() => expect(screen.getAllByText('AEROLAB').length).toBeGreaterThanOrEqual(1));
+
+    const scrollTo = vi.mocked(window.scrollTo);
+    scrollTo.mockClear();
+    fireEvent.click(document.getElementById('tab-progress-btn')!);
+
+    await waitFor(() => {
+      expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' });
     });
   });
 

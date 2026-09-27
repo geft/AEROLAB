@@ -82,6 +82,24 @@ export const App: React.FC = () => {
     localStorage.setItem('aerolab_theme', theme);
   }, [theme]);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!SNAPSHOT_MODE) return;
+    const root = document.documentElement;
+    const body = document.body;
+    const previousRootBehavior = root.style.overscrollBehaviorY;
+    const previousBodyBehavior = body.style.overscrollBehaviorY;
+    root.style.overscrollBehaviorY = 'none';
+    body.style.overscrollBehaviorY = 'none';
+    return () => {
+      root.style.overscrollBehaviorY = previousRootBehavior;
+      body.style.overscrollBehaviorY = previousBodyBehavior;
+    };
+  }, []);
+
   const toggleTheme = () => {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };

@@ -1,59 +1,17 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import { Footer } from '../../src/frontend/components/Footer.js';
-import { BUILD_INFO } from '../../src/frontend/version.js';
 
-describe('Footer Auto-Versioning UI Component Tests', () => {
-  afterEach(() => {
-    cleanup();
-    vi.restoreAllMocks();
-  });
+describe('Footer', () => {
+  it('keeps the app name and copyright in a single concise line', () => {
+    const { container } = render(<Footer />);
+    const footer = container.querySelector('.app-footer');
 
-  beforeEach(() => {
-    // Mock navigator.clipboard
-    Object.assign(navigator, {
-      clipboard: {
-        writeText: vi.fn().mockImplementation(() => Promise.resolve())
-      }
-    });
-  });
-
-  it('renders copyright and auto versioning label with version and commit hash', () => {
-    render(<Footer />);
-
-    // Copyright label
-    expect(screen.getByText(/© 2026 AEROLAB/i)).toBeTruthy();
-
-    // Auto version badge
-    expect(screen.getByText(`v${BUILD_INFO.version}`)).toBeTruthy();
-    expect(screen.getByText(`(${BUILD_INFO.gitCommit})`)).toBeTruthy();
-
-    // Button accessible label
-    const versionBtn = screen.getByRole('button', { name: /app build and version information/i });
-    expect(versionBtn).toBeTruthy();
-    expect(versionBtn.getAttribute('title')).toContain(BUILD_INFO.gitCommit);
-    expect(versionBtn.getAttribute('title')).toContain(BUILD_INFO.buildDate);
-  });
-
-  it('copies build debug details when version badge is clicked', async () => {
-    render(<Footer />);
-
-    const versionBtn = screen.getByRole('button', { name: /app build and version information/i });
-    fireEvent.click(versionBtn);
-
-    expect(navigator.clipboard.writeText).toHaveBeenCalledTimes(1);
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      expect.stringContaining(`AEROLAB v${BUILD_INFO.version}`)
-    );
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      expect.stringContaining(BUILD_INFO.gitCommit)
-    );
-
-    // Shows Copied! state
-    await waitFor(() => {
-      expect(screen.getByText(/Copied!/i)).toBeTruthy();
-    });
+    expect(footer?.textContent).toContain('© 2026 AEROLAB');
+    expect(footer?.textContent).toContain('Offline-First');
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByText(/v\d+\.\d+/)).toBeNull();
   });
 });

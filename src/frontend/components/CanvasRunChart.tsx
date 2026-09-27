@@ -41,6 +41,12 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme =
   }, []);
 
   useEffect(() => {
+    const observer = new MutationObserver(() => setLayoutTick(tick => tick + 1));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-font-size'] });
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || displayRecords.length === 0) return;
 
@@ -56,6 +62,8 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme =
     const width = rect.width;
     const height = rect.height;
     const isLight = theme === 'light';
+    const rootFontSize = Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+    const fontScale = rootFontSize / 16;
 
     ctx.clearRect(0, 0, width, height);
 
@@ -106,14 +114,14 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme =
       const paceMin = Math.floor(paceSecVal / 60);
       const paceSec = String(paceSecVal % 60).padStart(2, '0');
       ctx.fillStyle = isLight ? '#0369a1' : '#06b6d4';
-      ctx.font = '10px Inter, sans-serif';
+      ctx.font = `${10 * fontScale}px Inter, sans-serif`;
       ctx.textAlign = 'left';
       ctx.fillText(`${paceMin}:${paceSec}`, 2, y + 3);
 
       // HR labels on right axis – drawn inside right-side padding, right-aligned to edge
       const hrVal = Math.round(maxHr - ((maxHr - minHr) / 4) * i);
       ctx.fillStyle = isLight ? '#b45309' : '#f59e0b';
-      ctx.font = '10px Inter, sans-serif';
+      ctx.font = `${10 * fontScale}px Inter, sans-serif`;
       ctx.textAlign = 'right';
       ctx.fillText(`${hrVal}`, width - 2, y + 3);
     }
@@ -186,7 +194,49 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme =
     }
     ctx.stroke();
 
-  }, [displayRecords, theme, layoutTick]);
+    // Keep the selected sample visible on the chart so the range control has
+    // an obvious point-to-line relationship, including its initial position.
+    const selectedIndex = hoverData?.index ?? 0;
+    const selectedRecord = displayRecords[selectedIndex];
+    if (selectedRecord) {
+      const x = displayRecords.length > 1
+        ? padding.left + (selectedIndex / (displayRecords.length - 1)) * chartW
+        : padding.left + chartW / 2;
+      ctx.save();
+      ctx.beginPath();
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = isLight ? 'rgba(15, 23, 42, 0.55)' : 'rgba(255, 255, 255, 0.65)';
+      ctx.lineWidth = 1;
+      ctx.moveTo(x, padding.top);
+      ctx.lineTo(x, height - padding.bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const drawSelectedPoint = (y: number, color: string) => {
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = isLight ? '#ffffff' : '#0f172a';
+        ctx.stroke();
+      };
+
+      if (selectedRecord.heart_rate && selectedRecord.heart_rate > 50) {
+        const y = height - padding.bottom - ((selectedRecord.heart_rate - minHr) / (maxHr - minHr || 1)) * chartH;
+        drawSelectedPoint(y, isLight ? '#b45309' : '#f59e0b');
+      }
+      const selectedSpeed = selectedRecord.speed_mps ?? selectedRecord.speedMps;
+      if (selectedSpeed && selectedSpeed > 1.0) {
+        const paceSec = Math.max(minPace, Math.min(maxPace, 1000 / selectedSpeed));
+        const yNorm = 1 - (paceSec - minPace) / (maxPace - minPace || 1);
+        const y = height - padding.bottom - yNorm * chartH;
+        drawSelectedPoint(y, isLight ? '#0369a1' : '#06b6d4');
+      }
+      ctx.restore();
+    }
+
+  }, [displayRecords, theme, layoutTick, hoverData?.index]);
 
   const getReadout = (index: number) => {
     const r = displayRecords[index];
@@ -208,40 +258,6 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme =
       alt: r.altitude_m,
       distKm: ((r.distance_m ?? 0) / 1000).toFixed(2)
     };
-  };
-
-  const handlePointerRead = (clientX: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas || displayRecords.length === 0) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const relativeX = clientX - rect.left;
-    const padding = { left: 40, right: 64 };
-    const chartW = rect.width - padding.left - padding.right;
-
-    const relX = Math.max(0, Math.min(chartW, relativeX - padding.left));
-    const idx = Math.min(displayRecords.length - 1, Math.round((relX / chartW) * (displayRecords.length - 1)));
-    setHoverData(getReadout(idx));
-  };
-
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    // Treat an omitted pointerType as mouse for synthetic mouse events and
-    // assistive test harnesses that dispatch legacy mouse input.
-    if (!e.pointerType || e.pointerType === 'mouse') handlePointerRead(e.clientX);
-  };
-
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    handlePointerRead(e.clientX);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    handlePointerRead(e.clientX);
-  };
-
-  const handleMouseLeave = () => setHoverData(null);
-
-  const handlePointerLeave = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!e.pointerType || e.pointerType === 'mouse') setHoverData(null);
   };
 
   const formatElapsed = (timeSec: number) => `${Math.floor(timeSec / 60)}:${String(timeSec % 60).padStart(2, '0')}`;
@@ -276,15 +292,8 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme =
         )}
       </div>
 
-      <div
-        className="chart-canvas-wrapper"
-        onPointerMove={handlePointerMove}
-        onPointerDown={handlePointerDown}
-        onPointerLeave={handlePointerLeave}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-      >
-        <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block', cursor: 'crosshair' }} />
+      <div className="chart-canvas-wrapper">
+        <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
       </div>
       {displayRecords.length > 1 && (
         <label className="telemetry-chart-sample-control">

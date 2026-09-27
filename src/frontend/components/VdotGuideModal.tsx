@@ -179,21 +179,21 @@ export const VdotGuideModal: React.FC<VdotGuideModalProps> = ({
               </span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.6rem', marginTop: '0.5rem' }}>
-              <div style={{ background: 'rgba(0,0,0,0.25)', padding: '0.4rem 0.6rem', borderRadius: 6 }}>
-                <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{t.vdotGuide.easyBase}</div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#10b981' }}>{easyPaceRange} /km</div>
+              <div className="vdot-pace-range">
+                <div>{t.vdotGuide.easyBase}</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--chart-series-green)' }}>{easyPaceRange} /km</div>
               </div>
-              <div style={{ background: 'rgba(0,0,0,0.25)', padding: '0.4rem 0.6rem', borderRadius: 6 }}>
-                <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{t.vdotGuide.marathonPace}</div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#38bdf8' }}>{marathonPaceRange} /km</div>
+              <div className="vdot-pace-range">
+                <div>{t.vdotGuide.marathonPace}</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--chart-series-cyan)' }}>{marathonPaceRange} /km</div>
               </div>
-              <div style={{ background: 'rgba(0,0,0,0.25)', padding: '0.4rem 0.6rem', borderRadius: 6 }}>
-                <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{t.vdotGuide.thresholdLt2}</div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f59e0b' }}>{thresholdPaceRange} /km</div>
+              <div className="vdot-pace-range">
+                <div>{t.vdotGuide.thresholdLt2}</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--chart-series-amber)' }}>{thresholdPaceRange} /km</div>
               </div>
-              <div style={{ background: 'rgba(0,0,0,0.25)', padding: '0.4rem 0.6rem', borderRadius: 6 }}>
-                <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{t.vdotGuide.intervalsVo2}</div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#ec4899' }}>{intervalPaceRange} /km</div>
+              <div className="vdot-pace-range">
+                <div>{t.vdotGuide.intervalsVo2}</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--chart-series-pink)' }}>{intervalPaceRange} /km</div>
               </div>
             </div>
           </div>

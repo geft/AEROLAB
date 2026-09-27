@@ -6,7 +6,8 @@ import { CanvasRunChart } from '../../src/frontend/components/CanvasRunChart.js'
 
 const context = {
   scale: vi.fn(), clearRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(),
-  stroke: vi.fn(), fill: vi.fn(), closePath: vi.fn(), fillText: vi.fn(),
+  stroke: vi.fn(), fill: vi.fn(), closePath: vi.fn(), fillText: vi.fn(), save: vi.fn(), restore: vi.fn(),
+  setLineDash: vi.fn(), arc: vi.fn(),
   strokeStyle: '', fillStyle: '', lineWidth: 1, font: '', textAlign: 'left',
 };
 let resizeCallback: ResizeObserverCallback | undefined;
@@ -29,7 +30,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   resizeCallback = undefined;
-  for (const key of ['scale', 'clearRect', 'beginPath', 'moveTo', 'lineTo', 'stroke', 'fill', 'closePath', 'fillText'] as const) context[key].mockClear();
+  for (const key of ['scale', 'clearRect', 'beginPath', 'moveTo', 'lineTo', 'stroke', 'fill', 'closePath', 'fillText', 'save', 'restore', 'setLineDash', 'arc'] as const) context[key].mockClear();
 });
 
 function setCanvasBounds(width = 500, height = 220) {
@@ -41,23 +42,23 @@ function setCanvasBounds(width = 500, height = 220) {
 }
 
 describe('CanvasRunChart', () => {
-  it('draws the chart, supports hover readouts, and clears them on leave', () => {
+  it('draws the chart and uses the slider to select its readout and marker', () => {
     setCanvasBounds();
     render(<CanvasRunChart records={points} theme="light" />);
 
     expect(context.clearRect).toHaveBeenCalledWith(0, 0, 500, 220);
     expect(context.stroke).toHaveBeenCalled();
     expect(context.fill).toHaveBeenCalled();
-    const wrapper = document.querySelector('.chart-canvas-wrapper')!;
-    fireEvent.mouseMove(wrapper, { clientX: 460 });
+    const slider = screen.getByRole('slider', { name: 'Select a point in the run chart' });
+    fireEvent.change(slider, { target: { value: '2' } });
     expect(screen.getByText('Distance:')).toBeTruthy();
     expect(screen.getByText('0.35 km')).toBeTruthy();
     expect(screen.getByText('6:25/km')).toBeTruthy();
     expect(screen.getByText('150 bpm')).toBeTruthy();
     expect(screen.getByText('15 m')).toBeTruthy();
 
-    fireEvent.mouseLeave(wrapper);
-    expect(screen.queryByText('0.35 km')).toBeNull();
+    expect(context.setLineDash).toHaveBeenCalledWith([4, 4]);
+    expect(context.arc).toHaveBeenCalled();
   });
 
   it('uses fallback ranges when telemetry is missing and redraws after resize', () => {
@@ -70,8 +71,8 @@ describe('CanvasRunChart', () => {
     expect(initialDraws).toBe(1);
     act(() => resizeCallback?.([], {} as ResizeObserver));
     expect(context.clearRect).toHaveBeenCalledTimes(initialDraws + 1);
-    fireEvent.mouseMove(document.querySelector('.chart-canvas-wrapper')!, { clientX: 40 });
-    expect(screen.getByText('— bpm')).toBeTruthy();
+    fireEvent.change(screen.getByRole('slider', { name: 'Select a point in the run chart' }), { target: { value: '1' } });
+    expect(screen.getByText('40 bpm')).toBeTruthy();
     expect(screen.getAllByText('—', { selector: 'b' })).toHaveLength(2);
   });
 

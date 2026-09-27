@@ -123,27 +123,32 @@ describe('StatsView UI Tests', () => {
     expect(timeKpi?.textContent).toContain('Running Economy (EF): 1.16 EF');
     expect(timeKpi?.textContent).not.toContain('m/beat');
 
-    // Verify month dropdown is present when Monthly tab is active
+    // Verify the custom month picker is available when Monthly is active
     await waitFor(() => {
-      const select = screen.getByTitle('Select specific month to analyze') as HTMLSelectElement;
-      expect(select).toBeDefined();
-      expect(select.options.length).toBeGreaterThanOrEqual(4); // "All / Recent" + 3 months
+      expect(screen.getByRole('button', { name: /All \/ Recent/ })).toBeDefined();
     });
   });
 
-  it('changes period when a different month is selected from the dropdown', async () => {
+  it('opens a dismissible month-picker dialog and applies the selected month', async () => {
     render(<StatsView />);
 
-    await waitFor(() => {
-      expect(screen.getByTitle('Select specific month to analyze')).toBeDefined();
-    });
-
-    const select = screen.getByTitle('Select specific month to analyze');
-    fireEvent.change(select, { target: { value: '2026-09' } });
+    fireEvent.click(await screen.findByRole('button', { name: /All \/ Recent/ }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.querySelectorAll('.month-picker-option')).toHaveLength(4);
+    fireEvent.click(screen.getByRole('button', { name: /September 2026/ }));
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith('/api/activities/volume?period=month&month=2026-09');
     });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('dismisses the month picker with Escape', async () => {
+    render(<StatsView />);
+    fireEvent.click(await screen.findByRole('button', { name: /All \/ Recent/ }));
+    expect(screen.getByRole('dialog')).toBeDefined();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
   it('switches volume periods (Past 7 Days, This Year, All-Time)', async () => {

@@ -1,16 +1,25 @@
 // @vitest-environment jsdom
-import React from 'react';
+import React, { useEffect } from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/react';
 import { ActivityWeatherCard } from '../../src/frontend/components/browse/ActivityWeatherCard.js';
 import { LanguageProvider } from '../../src/frontend/i18n/LanguageContext.js';
+import { useTranslation } from '../../src/frontend/i18n/LanguageContext.js';
 
 type CardActivity = React.ComponentProps<typeof ActivityWeatherCard>['activity'];
 
-function renderCard(activity: CardActivity) {
+function LanguageSetter({ language, children }: { language: 'en' | 'zh'; children: React.ReactNode }) {
+  const { setLanguage } = useTranslation();
+  useEffect(() => setLanguage(language), [language, setLanguage]);
+  return <>{children}</>;
+}
+
+function renderCard(activity: CardActivity, language: 'en' | 'zh' = 'en') {
   const { container } = render(
     <LanguageProvider>
-      <ActivityWeatherCard activity={activity} isRefreshingWeather={false} onRefreshWeather={vi.fn()} />
+      <LanguageSetter language={language}>
+        <ActivityWeatherCard activity={activity} isRefreshingWeather={false} onRefreshWeather={vi.fn()} />
+      </LanguageSetter>
     </LanguageProvider>
   );
   return container;
@@ -113,6 +122,20 @@ describe('ActivityWeatherCard provenance states', () => {
     expect(dialog.textContent).toContain('rather than a local monitor reading');
     expect(queryByText('Singapore NEA 1-hour bands')).toBeNull();
     expect(dialog.textContent).not.toContain('NEA regional monitor');
+  });
+
+  it('localizes known weather conditions in Chinese mode', () => {
+    const container = renderCard({
+      workout_lat: 1.3521,
+      workout_lon: 103.8198,
+      weather_source: 'open-meteo',
+      weather_temperature_c: 30,
+      weather_condition: 'Mainly clear',
+      weather_code: 1
+    }, 'zh');
+
+    expect(container.textContent).toContain('大致晴朗');
+    expect(container.textContent).not.toContain('Mainly clear');
   });
 
   it('offers the opt-in lookup when the workout has coordinates but no reading', () => {

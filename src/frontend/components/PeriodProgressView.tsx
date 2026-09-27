@@ -370,9 +370,6 @@ export const PeriodProgressView: React.FC = () => {
               return (
                 <g
                   key={p.period}
-                  role="button"
-                  tabIndex={0}
-                  aria-pressed={selectedChartPeriod === p.period}
                   aria-label={format(t.periodProgress.chartPointAriaLabel, {
                     period: formatPeriodLabel(p),
                     distance: p.totalDistanceKm,
@@ -380,14 +377,6 @@ export const PeriodProgressView: React.FC = () => {
                   })}
                   onMouseEnter={() => setHoveredIndex(idx)}
                   onMouseLeave={() => setHoveredIndex(null)}
-                  onClick={() => setSelectedChartPeriod(p.period)}
-                  onKeyDown={event => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      setSelectedChartPeriod(p.period);
-                    }
-                  }}
-                  style={{ cursor: 'pointer' }}
                 >
                   {/* Invisible touch trigger */}
                   <rect
@@ -532,6 +521,19 @@ export const PeriodProgressView: React.FC = () => {
             </div>
           );
         })()}
+        {periods.length > 1 && (
+          <label className="chart-point-selector">
+            <span>{t.progress.chartPointSelector}</span>
+            <input
+              type="range"
+              min={0}
+              max={periods.length - 1}
+              value={Math.max(0, periods.findIndex(period => period.period === selectedChartPeriod))}
+              aria-label={t.progress.chartPointSelector}
+              onChange={event => setSelectedChartPeriod(periods[Number(event.currentTarget.value)]?.period ?? null)}
+            />
+          </label>
+        )}
       </div>
 
       {/* Detail Breakdown: Cards or Table */}

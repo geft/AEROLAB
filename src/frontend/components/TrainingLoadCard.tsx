@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Activity, Flame, ShieldAlert, CheckCircle2, TrendingUp, HelpCircle, X } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { getTrainingLoad } from '../api/client.js';
@@ -34,6 +34,8 @@ export const TrainingLoadCard: React.FC = () => {
   const [data, setData] = useState<TrainingStatusData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [hoveredDay, setHoveredDay] = useState<DayLoadPoint | null>(null);
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
+  const chartScrollRef = useRef<HTMLDivElement>(null);
   const [showGuide, setShowGuide] = useState<boolean>(false);
 
   useEffect(() => {
@@ -87,6 +89,7 @@ export const TrainingLoadCard: React.FC = () => {
 
   // SVG Chart Metrics (responsive & generous breathing room)
   const timeline = data.timeline || [];
+  const activeDayIndex = selectedDayIndex ?? 0;
   const chartHeight = 185;
   const chartWidth = 800;
   const paddingLeft = 44;
@@ -285,8 +288,9 @@ export const TrainingLoadCard: React.FC = () => {
       </div>
 
       {/* Interactive Optimal Tunnel Graph (100% responsive fluid SVG) */}
-      <div style={{ width: '100%', position: 'relative' }}>
+      <div className="training-load-chart-scroll" ref={chartScrollRef}>
         <svg
+          className="training-load-chart"
           viewBox={`0 0 ${chartWidth} ${chartHeight}`}
           style={{ width: '100%', height: 'auto', maxHeight: 230, display: 'block' }}
         >
@@ -312,6 +316,7 @@ export const TrainingLoadCard: React.FC = () => {
                   strokeDasharray="3 3"
                 />
                 <text
+                  className="training-load-axis-label"
                   x={paddingLeft - 8}
                   y={y + 3.5}
                   fill="var(--text-muted)"
@@ -341,6 +346,7 @@ export const TrainingLoadCard: React.FC = () => {
             const x = getX(idx);
             return (
               <text
+                className="training-load-axis-label"
                 key={`tick-${pt.date}`}
                 x={x}
                 y={chartHeight - 6}
@@ -362,15 +368,24 @@ export const TrainingLoadCard: React.FC = () => {
             return (
               <g
                 key={pt.date}
-                onMouseEnter={() => setHoveredDay(pt)}
-                onMouseLeave={() => setHoveredDay(null)}
-                style={{ cursor: 'pointer' }}
+                aria-hidden="true"
               >
+                {idx === activeDayIndex && (
+                  <line
+                    x1={x}
+                    y1={paddingTop}
+                    x2={x}
+                    y2={chartHeight - paddingBottom}
+                    stroke="var(--text-secondary)"
+                    strokeWidth="1"
+                    strokeDasharray="4 4"
+                  />
+                )}
                 <circle
                   cx={x}
                   cy={y}
-                  r={isLatest ? 5.5 : 3.5}
-                  fill={isLatest ? '#38bdf8' : '#06b6d4'}
+                  r={idx === activeDayIndex ? 7 : isLatest ? 5.5 : 3.5}
+                  fill={idx === activeDayIndex ? 'var(--chart-series-amber)' : isLatest ? '#38bdf8' : '#06b6d4'}
                   stroke="var(--bg-card)"
                   strokeWidth="2"
                 />
@@ -386,6 +401,31 @@ export const TrainingLoadCard: React.FC = () => {
           })}
         </svg>
       </div>
+
+      {timeline.length > 1 && (
+        <label className="chart-point-selector">
+          <span>{t.progress.chartPointSelector}</span>
+          <input
+            type="range"
+            min={0}
+            max={timeline.length - 1}
+            value={selectedDayIndex ?? timeline.length - 1}
+            aria-label={t.progress.chartPointSelector}
+            onChange={event => {
+              const index = Number(event.currentTarget.value);
+              setSelectedDayIndex(index);
+              setHoveredDay(timeline[index] ?? null);
+              const scroller = chartScrollRef.current;
+              if (scroller) {
+                scroller.scrollTo({
+                  left: (scroller.scrollWidth - scroller.clientWidth) * (index / (timeline.length - 1)),
+                  behavior: 'smooth'
+                });
+              }
+            }}
+          />
+        </label>
+      )}
 
       {/* Hover Information Badge */}
       <div style={{
@@ -415,7 +455,7 @@ export const TrainingLoadCard: React.FC = () => {
 
       {/* Explanation Guide Modal */}
       {showGuide && (
-        <div style={{
+        <div className="training-load-guide-overlay" style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -426,10 +466,9 @@ export const TrainingLoadCard: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 1000,
           padding: '1rem'
         }}>
-          <div style={{
+          <div className="training-load-guide-modal" style={{
             background: 'var(--bg-card)',
             border: '1px solid var(--border-subtle)',
             borderRadius: 14,

@@ -10,7 +10,7 @@ import { BestEffortsCard } from './BestEffortsCard.js';
 import { getProfile, getProgressHistory, getThresholds, getVolume } from '../api/client.js';
 
 export const StatsView: React.FC = () => {
-  const { t, format } = useTranslation();
+  const { t, format, formatDate } = useTranslation();
 
   const formatDistanceName = (name: string) => {
     if (name === '5K') return t.stats.fiveK;
@@ -25,6 +25,7 @@ export const StatsView: React.FC = () => {
   const [retryCount, setRetryCount] = useState(0);
   const [volumePeriod, setVolumePeriod] = useState<'week' | 'month' | 'year' | 'all'>('month');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
   const [availableMonths, setAvailableMonths] = useState<{ period: string; label: string }[]>([]);
   const [volumeData, setVolumeData] = useState<VolumeData | null>(null);
   const [loadingVolume, setLoadingVolume] = useState<boolean>(false);
@@ -33,6 +34,15 @@ export const StatsView: React.FC = () => {
   const [isMarginGuideOpen, setIsMarginGuideOpen] = useState<boolean>(false);
   const [demographics, setDemographics] = useState<{ age: number | null; gender: string | null } | null>(null);
   const [openPredictionInfo, setOpenPredictionInfo] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isMonthPickerOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsMonthPickerOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [isMonthPickerOpen]);
 
   const benchmarkLabels = [
     t.stats.benchmarkBeginner,
@@ -149,18 +159,18 @@ export const StatsView: React.FC = () => {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
             {volumePeriod === 'month' && availableMonths.length > 0 && (
-              <select
-                className="month-picker-select"
-                value={selectedMonth}
-                onChange={e => setSelectedMonth(e.target.value)}
-                style={{ height: '32px', fontSize: '0.78rem', padding: '0 0.6rem', minWidth: '130px' }}
-                title="Select specific month to analyze"
+              <button
+                type="button"
+                className="month-picker-trigger"
+                onClick={() => setIsMonthPickerOpen(true)}
+                aria-haspopup="dialog"
+                aria-expanded={isMonthPickerOpen}
               >
-                <option value="all">{t.stats.allRecentMonth}</option>
-                {availableMonths.map(m => (
-                  <option key={m.period} value={m.period}>{m.label}</option>
-                ))}
-              </select>
+                <Calendar size={16} aria-hidden="true" />
+                <span>{selectedMonth === 'all'
+                  ? t.stats.allRecentMonth
+                  : formatDate(`${selectedMonth}-01`, { month: 'long', year: 'numeric' })}</span>
+              </button>
             )}
 
             <div className="volume-tabs">
@@ -477,8 +487,8 @@ export const StatsView: React.FC = () => {
 
       {/* Aerobic Turnpoint Margin Educational Guide Modal */}
       {isMarginGuideOpen && (
-        <div className="modal-overlay" onClick={() => setIsMarginGuideOpen(false)}>
-          <div className="modal-content" style={{ maxWidth: 580 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-overlay turnpoint-guide-overlay" onClick={() => setIsMarginGuideOpen(false)}>
+          <div className="modal-content turnpoint-guide-modal" style={{ maxWidth: 580 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                 <Zap size={20} color="#06b6d4" />
@@ -602,6 +612,48 @@ export const StatsView: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {isMonthPickerOpen && (
+        <div className="modal-overlay month-picker-overlay" onClick={() => setIsMonthPickerOpen(false)}>
+          <section
+            className="month-picker-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t.stats.allRecentMonth}
+            onClick={event => event.stopPropagation()}
+          >
+            <header className="month-picker-dialog-header">
+              <h2>{t.stats.allRecentMonth}</h2>
+              <button type="button" className="modal-close-btn" onClick={() => setIsMonthPickerOpen(false)} aria-label={t.common.close}>
+                <X size={20} />
+              </button>
+            </header>
+            <div className="month-picker-options">
+              <button
+                type="button"
+                className={`month-picker-option ${selectedMonth === 'all' ? 'active' : ''}`}
+                aria-pressed={selectedMonth === 'all'}
+                onClick={() => { setSelectedMonth('all'); setIsMonthPickerOpen(false); }}
+              >
+                <span>{t.stats.allRecentMonth}</span>
+                <span aria-hidden="true">{selectedMonth === 'all' ? '●' : '○'}</span>
+              </button>
+              {availableMonths.map(month => (
+                <button
+                  key={month.period}
+                  type="button"
+                  className={`month-picker-option ${selectedMonth === month.period ? 'active' : ''}`}
+                  aria-pressed={selectedMonth === month.period}
+                  onClick={() => { setSelectedMonth(month.period); setIsMonthPickerOpen(false); }}
+                >
+                  <span>{formatDate(`${month.period}-01`, { month: 'long', year: 'numeric' })}</span>
+                  <span aria-hidden="true">{selectedMonth === month.period ? '●' : '○'}</span>
+                </button>
+              ))}
+            </div>
+          </section>
         </div>
       )}
     </div>

@@ -75,6 +75,15 @@ describe('ProfileView UI Tests', () => {
     });
   });
 
+  it('keeps estimated threshold reference tiles read-only instead of presenting them as controls', async () => {
+    const { container } = render(<ProfileView />);
+    await screen.findByText('Workout-Based Threshold Estimates');
+
+    const tiles = container.querySelectorAll('.threshold-ref-box');
+    expect(tiles).toHaveLength(3);
+    expect([...tiles].every(tile => tile.tagName !== 'BUTTON' && !tile.hasAttribute('tabindex'))).toBe(true);
+  });
+
   it('switches between Auto-Infer and Manual Override modes', async () => {
     render(<ProfileView />);
 

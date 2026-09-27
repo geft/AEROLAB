@@ -98,6 +98,16 @@ export const en: Translations = {
     pm25RangeHigh: '151–250 µg/m³',
     pm25VeryHigh: 'Very high',
     pm25RangeVeryHigh: '≥251 µg/m³',
+    conditions: {
+      '0': 'Clear sky', '1': 'Mainly clear', '2': 'Partly cloudy', '3': 'Overcast',
+      '45': 'Fog', '48': 'Depositing rime fog', '51': 'Light drizzle', '53': 'Moderate drizzle',
+      '55': 'Dense drizzle', '56': 'Light freezing drizzle', '57': 'Dense freezing drizzle',
+      '61': 'Slight rain', '63': 'Moderate rain', '65': 'Heavy rain', '66': 'Light freezing rain',
+      '67': 'Heavy freezing rain', '71': 'Slight snow', '73': 'Moderate snow', '75': 'Heavy snow',
+      '77': 'Snow grains', '80': 'Slight rain showers', '81': 'Moderate rain showers',
+      '82': 'Violent rain showers', '85': 'Slight snow showers', '86': 'Heavy snow showers',
+      '95': 'Thunderstorm', '96': 'Thunderstorm with slight hail', '99': 'Thunderstorm with heavy hail'
+    },
   },
   runTypes: {
     easy_base: 'Easy Base',
@@ -168,6 +178,7 @@ export const en: Translations = {
     activeCount: 'active',
     showAll: 'Show Full Run',
     cadenceLabel: 'Avg Cadence',
+    raw: 'Raw',
     elevationLabel: 'Elevation Gain',
     caloriesLabel: 'Calories',
     coachTag: 'ANALYSIS',
@@ -256,6 +267,7 @@ export const en: Translations = {
     evenPacingDesc: 'Metronomic consistency — steady metabolic conservation throughout the session.'
   },
   progress: {
+    chartPointSelector: 'Select a chart point',
     title: 'Progress Over Months & Years',
     subtitle: 'Track volume, aerobic efficiency, and threshold fitness evolution over time',
     monthly: 'Monthly',
@@ -285,7 +297,7 @@ export const en: Translations = {
     longitudinalDesc: 'Compare your monthly volume progression (km) alongside cardiovascular Running Economy (EF).',
     totalDistanceLegend: 'Total Distance (km)',
     runningEconomyLegend: 'Running Economy (EF)',
-    hoverHint: 'Tap a chart point to inspect its data. Swipe horizontally to explore.',
+    hoverHint: 'Use the slider to inspect chart data. Swipe horizontally to explore.',
     allRunsFilter: 'All Runs',
     easyBaseFilter: 'Easy / Base',
     thresholdVo2Filter: 'Threshold / VO2',
@@ -616,7 +628,6 @@ export const en: Translations = {
     localSecurityNote: 'All workouts and health metrics are stored locally in offline SQLite. Complete data privacy guaranteed.'
   },
   footer: {
-    tagline: 'Precision Running Analytics & Physiological Intelligence',
     offlineEngine: 'Offline-First Engine',
   },
   economyGuide: {

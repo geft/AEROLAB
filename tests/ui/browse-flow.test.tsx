@@ -318,8 +318,8 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     // Check banner content
     expect(screen.getByText(/6:35\/km pace/i)).toBeTruthy();
     expect(screen.getByText(/175 spm cadence/i)).toBeTruthy();
-    expect(screen.getByText(/131 bpm HR/i)).toBeTruthy();
-    expect(screen.getByText(/261 ms GCT/i)).toBeTruthy();
+    expect(screen.getByText(/131 bpm Heart Rate/i)).toBeTruthy();
+    expect(screen.getByText(/261 ms Ground Contact Time/i)).toBeTruthy();
 
     // Check exclusion detail
     expect(screen.getByText(/Excludes 1:03 traffic stops & 1:28 walk breaks \(105m\)/i)).toBeTruthy();

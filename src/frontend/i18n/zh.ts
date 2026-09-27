@@ -98,6 +98,16 @@ export const zh: Translations = {
     pm25RangeHigh: '151–250 µg/m³',
     pm25VeryHigh: '极高',
     pm25RangeVeryHigh: '≥251 µg/m³',
+    conditions: {
+      '0': '晴朗', '1': '大致晴朗', '2': '局部多云', '3': '阴天',
+      '45': '雾', '48': '冻雾', '51': '小毛毛雨', '53': '中等毛毛雨',
+      '55': '浓毛毛雨', '56': '小冻毛毛雨', '57': '浓冻毛毛雨',
+      '61': '小雨', '63': '中雨', '65': '大雨', '66': '小冻雨',
+      '67': '强冻雨', '71': '小雪', '73': '中雪', '75': '大雪',
+      '77': '雪粒', '80': '小阵雨', '81': '中等阵雨',
+      '82': '强阵雨', '85': '小阵雪', '86': '大阵雪',
+      '95': '雷暴', '96': '伴有轻微冰雹的雷暴', '99': '伴有强冰雹的雷暴'
+    },
   },
   runTypes: {
     easy_base: '有氧基础',
@@ -168,6 +178,7 @@ export const zh: Translations = {
     activeCount: '生效中',
     showAll: '显示完整跑步',
     cadenceLabel: '平均步频',
+    raw: '原始值',
     elevationLabel: '累计爬升',
     caloriesLabel: '消耗热量',
     coachTag: '训练分析',
@@ -260,6 +271,7 @@ export const zh: Translations = {
     evenPacingDesc: '如节拍器般稳定 — 全程保持平稳的代谢负荷与体能储备。'
   },
   progress: {
+    chartPointSelector: '选择图表数据点',
     title: '训练进展与进阶趋势',
     subtitle: '长期追踪跑量累积、有氧经济性与阈值体能的动态演进',
     monthly: '月度统计',
@@ -289,7 +301,7 @@ export const zh: Translations = {
     longitudinalDesc: '对比各训练周期的月度跑量累积 (km) 与心血管跑步经济性 (EF) 的稳健提升。',
     totalDistanceLegend: '总跑量 (km)',
     runningEconomyLegend: '跑步经济性 (EF)',
-    hoverHint: '点击图表数据点查看详情，也可左右滑动浏览。',
+    hoverHint: '使用滑块查看图表数据，也可左右滑动浏览。',
     allRunsFilter: '所有跑步',
     easyBaseFilter: '轻松 / 有氧',
     thresholdVo2Filter: '阈值 / 最大摄氧量',
@@ -626,7 +638,6 @@ export const zh: Translations = {
     localSecurityNote: '所有运动与健康数据均采用 SQLite 纯本地离线加密存储，绝不泄露隐私。'
   },
   footer: {
-    tagline: '精准跑步生理指标计算与深度体能分析引擎',
     offlineEngine: '纯本地离线引擎',
   },
   economyGuide: {

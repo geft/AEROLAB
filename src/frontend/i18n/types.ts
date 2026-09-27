@@ -134,6 +134,7 @@ export interface Translations {
     pm25RangeHigh: string;
     pm25VeryHigh: string;
     pm25RangeVeryHigh: string;
+    conditions: Record<string, string>;
   };
   runTypes: {
     easy_base: string;
@@ -204,6 +205,7 @@ export interface Translations {
     activeCount: string;
     showAll: string;
     cadenceLabel: string;
+    raw: string;
     elevationLabel: string;
     caloriesLabel: string;
     coachTag: string;
@@ -305,6 +307,7 @@ export interface Translations {
     evenPacingDesc: string;
   };
   progress: {
+    chartPointSelector: string;
     title: string;
     subtitle: string;
     monthly: string;
@@ -681,7 +684,6 @@ export interface Translations {
     localSecurityNote: string;
   };
   footer: {
-    tagline: string;
     offlineEngine: string;
   };
   economyGuide: {

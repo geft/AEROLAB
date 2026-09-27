@@ -214,6 +214,19 @@ describe('ProgressView UI Tests', () => {
     });
   });
 
+  it('selects period-chart details with the accessible slider', async () => {
+    const { container } = render(<ProgressView />);
+
+    await waitFor(() => expect(container.querySelector('.period-chart-card input[type="range"]')).toBeTruthy());
+    const slider = container.querySelector('.period-chart-card input[type="range"]') as HTMLInputElement;
+    fireEvent.change(slider, { target: { value: '1' } });
+    fireEvent.change(slider, { target: { value: '0' } });
+
+    const selection = container.querySelector('.period-chart-selection');
+    expect(selection?.textContent).toContain('Jan 2026');
+    expect(selection?.textContent).toContain('23.8 km');
+  });
+
   it('renders the Show All in Chart action with the shared rounded outline button style', async () => {
     const fiveMonths = {
       months: ['2026-05', '2026-06', '2026-07', '2026-08', '2026-09'].map((period, idx) => ({

@@ -49,6 +49,9 @@ export const ActivityWeatherCard: React.FC<ActivityWeatherCardProps> = ({
     : null;
   const isNeaPm25 = activity.weather_pm25_source === 'nea-sg';
   const pm25Explanation = isNeaPm25 ? t.weather.pm25NeaExplanation : t.weather.pm25ModelExplanation;
+  const weatherCondition = activity.weather_condition && activity.weather_code != null
+    ? t.weather.conditions[String(activity.weather_code)] ?? activity.weather_condition
+    : activity.weather_condition;
 
   useEffect(() => {
     if (!isPm25InfoOpen) return;
@@ -72,8 +75,8 @@ export const ActivityWeatherCard: React.FC<ActivityWeatherCardProps> = ({
         >
           <CloudRain size={14} style={{ color: '#38bdf8' }} />
           <span className="weather-temp-main">{activity.weather_temperature_c}°C</span>
-          {activity.weather_condition && (
-            <span className="weather-cond">{activity.weather_condition}</span>
+          {weatherCondition && (
+            <span className="weather-cond">{weatherCondition}</span>
           )}
           {activity.weather_humidity_pct !== null && (
             <span className="weather-metric" title={t.weather.humidity}>

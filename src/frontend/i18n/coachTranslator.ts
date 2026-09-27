@@ -740,6 +740,19 @@ export function translateCalibrationNote(note: string, _lang?: string): string {
   return note;
 }
 
-export function translateActivityName(name: string, _lang?: string): string {
-  return name;
+export function translateActivityName(name: string, lang?: string): string {
+  if (lang !== 'zh' || !name) return name;
+  const knownNames: Record<string, string> = {
+    'long run': '长距离跑',
+    'endurance long run': '长距离耐力跑',
+    'long-distance endurance run (lsd)': '长距离耐力跑',
+    'long distance endurance run (lsd)': '长距离耐力跑',
+    'easy base': '有氧基础跑',
+    'easy aerobic base': '有氧基础跑',
+    'threshold': '乳酸阈值训练',
+    'lactate threshold (lt2)': '乳酸阈值训练（LT2）',
+    'vo2 max intervals': '最大摄氧量间歇训练',
+    'recovery jog': '恢复慢跑'
+  };
+  return knownNames[name.trim().toLowerCase()] ?? name;
 }
