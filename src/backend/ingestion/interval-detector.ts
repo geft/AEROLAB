@@ -44,6 +44,7 @@ export interface DetectIntervalsOptions {
   isRace?: boolean;
   lt1Hr?: number;
   lt2Hr?: number;
+  stridePaceAnchorSecKm?: number;
   maxHr?: number;
   restingHr?: number;
 }
@@ -82,8 +83,12 @@ export function detectIntervals(
   const baseSpeed = p50Spd > 0.5 ? p50Spd : 2.5;
   const baseCad = p50Cad > 100 ? p50Cad : 160;
 
-  // Stride thresholds adapt to runner's baseline pace and cadence (relative, no hardcoded elite floors)
-  const strideSpeedThreshold = Math.max(baseSpeed * 1.20, baseSpeed + 0.35);
+  // Strides must exceed both a run-relative surge threshold and the runner's
+  // date-specific LT2 pace when that calibrated pace is available.
+  const stridePaceAnchorSpeed = options.stridePaceAnchorSecKm && options.stridePaceAnchorSecKm > 0
+    ? 1000 / options.stridePaceAnchorSecKm
+    : 0;
+  const strideSpeedThreshold = Math.max(baseSpeed * 1.20, baseSpeed + 0.35, stridePaceAnchorSpeed);
   const strideCadThreshold = Math.max(162, baseCad + 8);
 
   const sessionMaxHr = hrs.length > 0 ? hrs[hrs.length - 1] : 0;
@@ -180,6 +185,10 @@ export function detectIntervals(
       const durSec = (records[b.endIndex]?.elapsedSeconds ?? 0) - (records[b.startIndex]?.elapsedSeconds ?? 0);
       const blockRecs = records.slice(b.startIndex, b.endIndex + 1);
       const maxSpd = Math.max(...blockRecs.map(r => r?.speedMps ?? 0));
+      const recordedSpeeds = blockRecs.map(r => r.speedMps ?? 0).filter(speed => speed > 0);
+      const avgRecordedSpeed = recordedSpeeds.length > 0
+        ? recordedSpeeds.reduce((sum, speed) => sum + speed, 0) / recordedSpeeds.length
+        : 0;
       const fastShare = blockRecs.filter(r => (r.speedMps ?? 0) >= strideSpeedThreshold).length / blockRecs.length;
       const _minStance = Math.min(...blockRecs.map(r => (r?.stanceTime && r.stanceTime > 100) ? r.stanceTime : 9999));
       const startDist = blockRecs[0]?.distanceMeters ?? 0;
@@ -188,7 +197,8 @@ export function detectIntervals(
 
       // Stride requires short duration, real ground covered and sustained speed
       // contrast; cadence alone is not evidence of a stride
-      if (durSec <= 45 && distM >= STRIDE_MIN_DISTANCE_M && maxSpd >= strideSpeedThreshold && fastShare >= 0.6) {
+      const clearsPaceAnchor = stridePaceAnchorSpeed === 0 || avgRecordedSpeed > stridePaceAnchorSpeed;
+      if (durSec <= 45 && distM >= STRIDE_MIN_DISTANCE_M && maxSpd >= strideSpeedThreshold && fastShare >= 0.6 && clearsPaceAnchor) {
         b.type = 'stride';
       } else if (isEasyBaseSession && !hasSpeedContrast && !hasCadenceContrast && durSec < 90) {
         b.type = 'recovery';

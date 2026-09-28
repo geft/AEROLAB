@@ -7,7 +7,7 @@ import { convertFitToCsv, isFitBuffer } from './fit-parser.js';
 import { calculateEconomy, calculateKmSplits } from '../physiology/economy.js';
 import { detectIntervals } from './interval-detector.js';
 import { classifyRun } from './classifier.js';
-import { evaluateThresholdUpdate } from '../physiology/threshold-tracker.js';
+import { evaluateThresholdUpdate, getStridePaceAnchorSecKmAtDate } from '../physiology/threshold-tracker.js';
 import { syncActivityCoachSummary } from '../physiology/coach-summary.js';
 import { calculateActivityTrainingLoad } from '../physiology/training-load.js';
 
@@ -118,11 +118,13 @@ export function importRunContent(
     nameLower.includes('race') ||
     nameLower.includes('parkrun');
   const hrProfile = getAthleteHeartRateProfile(db);
+  const stridePaceAnchorSecKm = getStridePaceAnchorSecKmAtDate(db, metadata.date);
 
   const intervalOpts = {
     isRace,
     lt1Hr: hrProfile.lt1Hr ?? undefined,
     lt2Hr: hrProfile.lt2Hr ?? undefined,
+    stridePaceAnchorSecKm: stridePaceAnchorSecKm ?? undefined,
     maxHr: hrProfile.maxHr ?? undefined,
     restingHr: hrProfile.restingHr ?? undefined
   };

@@ -3,7 +3,7 @@ import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { detectIntervals } from '../ingestion/interval-detector.js';
 import { classifyRun } from '../ingestion/classifier.js';
 import { calculateEconomy, calculateKmSplits } from '../physiology/economy.js';
-import { evaluateThresholdUpdate, getCurrentThresholds } from '../physiology/threshold-tracker.js';
+import { evaluateThresholdUpdate, getCurrentThresholds, getStridePaceAnchorSecKmAtDate } from '../physiology/threshold-tracker.js';
 import { syncAllCoachSummaries } from '../physiology/coach-summary.js';
 
 export interface RealignStats {
@@ -143,10 +143,12 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
         nameLower.includes('race') ||
         nameLower.includes('parkrun');
       const hrProfile = replayProfile;
+      const stridePaceAnchorSecKm = getStridePaceAnchorSecKmAtDate(db, act.start_time);
       const intervals = detectIntervals(mapped as any, {
         isRace,
         lt1Hr: hrProfile?.lt1Hr ?? undefined,
         lt2Hr: hrProfile?.lt2Hr ?? undefined,
+        stridePaceAnchorSecKm: stridePaceAnchorSecKm ?? undefined,
         maxHr: hrProfile?.maxHr ?? undefined,
         restingHr: hrProfile?.restingHr ?? undefined
       });

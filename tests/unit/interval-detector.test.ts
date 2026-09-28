@@ -113,11 +113,32 @@ describe('Interval & Stride Detector (Unit)', () => {
 
     for (let i = 0; i < 40; i++) push(5, 114, 1.3, 128, 6.5); // walk again
 
-    const strides = detectIntervals(records).filter(i => i.type === 'stride');
+    const strides = detectIntervals(records, { stridePaceAnchorSecKm: 286 }).filter(i => i.type === 'stride');
     expect(strides).toHaveLength(1);
     expect(strides[0].durationSeconds).toBeGreaterThanOrEqual(9);
     expect(strides[0].distanceMeters).toBeGreaterThanOrEqual(20);
     expect(strides[0].peakCadence).toBeGreaterThanOrEqual(200);
+  });
+
+  it('rejects an easy-pace burst even when short cadence and distance thresholds are met', () => {
+    const records: ActivityRecord[] = [];
+    let distance = 0;
+    const sampleTimes = Array.from(new Set([
+      ...Array.from({ length: 241 }, (_, i) => i * 5),
+      627, 632, 638
+    ])).sort((a, b) => a - b);
+
+    for (let i = 0; i < sampleTimes.length; i++) {
+      const sec = sampleTimes[i];
+      const isCandidate = sec >= 627 && sec <= 638;
+      const speed = isCandidate ? 2.92 : 2.2;
+      const cadence = isCandidate ? 178 : 169;
+      if (i > 0) distance += speed * (sec - sampleTimes[i - 1]);
+      records.push({ ...makeRecord(sec, cadence, speed, 140), distanceMeters: distance });
+    }
+
+    expect(detectIntervals(records).some(i => i.type === 'stride')).toBe(true);
+    expect(detectIntervals(records, { stridePaceAnchorSecKm: 286 }).some(i => i.type === 'stride')).toBe(false);
   });
 
   it('still rejects a two-sample sensor spike that covers no ground', () => {

@@ -2,7 +2,7 @@ import { seedBenchmarkProfile } from '../fixtures/benchmark-runs.js';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { getDatabase } from '../../src/backend/db/client.js';
-import { evaluateThresholdUpdate, computeRollingThresholds, getCurrentThresholds } from '../../src/backend/physiology/threshold-tracker.js';
+import { evaluateThresholdUpdate, computeRollingThresholds, getCurrentThresholds, getStridePaceAnchorSecKmAtDate } from '../../src/backend/physiology/threshold-tracker.js';
 import { ActivityMetadata, ActivityRecord } from '../../src/backend/ingestion/csv-parser.js';
 import { EconomyMetrics } from '../../src/backend/physiology/economy.js';
 
@@ -25,6 +25,29 @@ describe('Threshold Tracker Unit Tests', () => {
       ) VALUES (?, ?, 'Test Run', 'easy_base', 10000, 3000, 600)
     `).run(id, date);
   };
+
+  it('builds a date-specific stride pace anchor from LT2 and nearby threshold/VO2 rep paces', () => {
+    const insertQualityRun = (id: string, date: string, runType: string, paces: number[]) => {
+      insertParentActivity(id, date);
+      db.prepare('UPDATE activities SET run_type = ? WHERE id = ?').run(runType, id);
+      const insertInterval = db.prepare(`
+        INSERT INTO activity_intervals (
+          activity_id, interval_index, type, duration_seconds, avg_pace_sec_km
+        ) VALUES (?, ?, 'work', 180, ?)
+      `);
+      paces.forEach((pace, index) => insertInterval.run(id, index + 1, pace));
+    };
+
+    insertQualityRun('threshold-nearby', '2026-09-01 19:00:00', 'threshold_lt2', [278, 293]);
+    insertQualityRun('vo2-nearby', '2026-09-05 19:00:00', 'intervals_vo2', [231, 260, 265]);
+    insertQualityRun('quality-future', '2026-09-12 19:00:00', 'intervals_vo2', [200]);
+    db.prepare(`
+      INSERT INTO physiological_thresholds (effective_date, source_activity_id, lt2_pace_sec_km, confidence)
+      VALUES (?, ?, ?, ?)
+    `).run('2026-09-07 19:00:00', 'threshold-nearby', 280, 0.9);
+
+    expect(getStridePaceAnchorSecKmAtDate(db, '2026-09-10 19:00:00')).toBe(260);
+  });
 
 
   const dummyMetadata: ActivityMetadata = {
@@ -808,5 +831,3 @@ describe('Threshold Tracker Unit Tests', () => {
     });
   });
 });
-
-

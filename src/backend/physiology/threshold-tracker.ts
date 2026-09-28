@@ -14,6 +14,56 @@ export interface ThresholdEstimate {
   baselineEconomyEf: number | null;
 }
 
+/** Fastest known LT2 or quality-rep pace near a run date, in sec/km. */
+export function getStridePaceAnchorSecKmAtDate(db: Database.Database, runDate: string): number | null {
+  try {
+    const candidates: number[] = [];
+    const lt2Row = db.prepare(`
+      SELECT lt2_pace_sec_km
+      FROM physiological_thresholds
+      WHERE lt2_pace_sec_km IS NOT NULL
+        AND julianday(effective_date) <= julianday(?)
+      ORDER BY julianday(effective_date) DESC, id DESC
+      LIMIT 1
+    `).get(runDate) as { lt2_pace_sec_km?: unknown } | undefined;
+    if (typeof lt2Row?.lt2_pace_sec_km === 'number' && Number.isFinite(lt2Row.lt2_pace_sec_km) && lt2Row.lt2_pace_sec_km > 0) {
+      candidates.push(lt2Row.lt2_pace_sec_km);
+    }
+
+    // Use the most recent threshold and VO2 sessions separately so the anchor
+    // follows fitness changes while still using both known quality paces.
+    const workRows = db.prepare(`
+      SELECT a.id, a.run_type, i.avg_pace_sec_km
+      FROM activities a
+      JOIN activity_intervals i ON i.activity_id = a.id
+      WHERE a.run_type IN ('threshold_lt2', 'intervals_vo2')
+        AND i.type = 'work'
+        AND i.duration_seconds >= 60
+        AND i.avg_pace_sec_km IS NOT NULL
+        AND i.avg_pace_sec_km > 0
+        AND julianday(a.start_time) < julianday(?)
+        AND julianday(a.start_time) >= julianday(?, '-42 days')
+      ORDER BY julianday(a.start_time) DESC, a.id DESC, i.interval_index ASC
+    `).all(runDate, runDate) as Array<{ id: string; run_type: string; avg_pace_sec_km: number }>;
+    const latestByType = new Map<string, { activityId: string; paces: number[] }>();
+    for (const row of workRows) {
+      const latest = latestByType.get(row.run_type);
+      if (!latest) latestByType.set(row.run_type, { activityId: row.id, paces: [row.avg_pace_sec_km] });
+      else if (latest.activityId === row.id) latest.paces.push(row.avg_pace_sec_km);
+    }
+    for (const { paces } of latestByType.values()) {
+      paces.sort((a, b) => a - b);
+      const middle = Math.floor(paces.length / 2);
+      const median = paces.length % 2 ? paces[middle] : (paces[middle - 1] + paces[middle]) / 2;
+      if (Number.isFinite(median) && median > 0) candidates.push(median);
+    }
+
+    return candidates.length > 0 ? Math.min(...candidates) : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface SplitRow {
   split_index: number;
   distance_meters: number;
