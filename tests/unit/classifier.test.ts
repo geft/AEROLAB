@@ -232,7 +232,7 @@ describe('Run Classifier Engine (Unit)', () => {
     expect(result.reason).toContain('Recovery run identified by title');
   });
 
-  it('handles low maxHeartRate fallback (< 120) and null decoupling gracefully', () => {
+  it('does not infer recovery from a short Zone 2 run when session max HR is missing', () => {
     const meta: ActivityMetadata = {
       ...baseMetadata,
       avgHeartRate: 135,
@@ -240,7 +240,7 @@ describe('Run Classifier Engine (Unit)', () => {
     };
     const records = createMockRecords(1800, 135);
     const result = classifyRun(meta, records, { ...baseEconomy, aerobicDecouplingPct: null }, [], { maxHr: 190, restingHr: 55, lt1Hr: 148, lt2Hr: 167 });
-    expect(result.runType).toBe('recovery'); // 135 <= 136 and duration 30m <= 50m
+    expect(result.runType).toBe('easy_base');
   });
 
   it('classifies threshold intervals when zoneDist.z4Pct >= 20 even if work HR is lower', () => {
@@ -303,12 +303,12 @@ describe('Run Classifier Engine (Unit)', () => {
     expect(res.reason).toContain('Galloway');
   });
 
-  it('classifies recovery based on maxHr * 0.72 ceiling when avg HR > 136', () => {
-    // maxHr = 200, 72% is 144. HR 140 is > 136 bpm but < 144 bpm
+  it('does not classify a short Zone 2 run as recovery based on max-HR percentage alone', () => {
+    // maxHr = 200, 72% is 144. HR 140 remains Zone 2, not recovery effort.
     const meta = { ...baseMetadata, maxHeartRate: 200, avgHeartRate: 140, totalDurationSeconds: 1800 };
     const records = createMockRecords(1800, 140);
     const res = classifyRun(meta, records, baseEconomy, [], { maxHr: 200, restingHr: 55 });
-    expect(res.runType).toBe('recovery');
+    expect(res.runType).toBe('easy_base');
   });
 
   it('handles empty activity name and non-recovery low maxHr gracefully', () => {

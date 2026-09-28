@@ -225,19 +225,21 @@ export function classifyRun(
     };
   }
 
-  // 5. Recovery run check (duration + profile-relative low strain — no absolute bpm).
-  // Recovery ceiling tracks just under LT1 (LT1 minus 12 bpm ≈ top of Z1),
-  // or under 72% of max HR — so slower athletes qualify on their own zones.
-  const recoveryCeiling = Math.max(lt1 - 8, 136);
+  // 5. Recovery run check.
+  // Short duration alone is not evidence of recovery intent: a run can be cut
+  // short by schedule, weather, or air quality. For unnamed runs, require both
+  // low average HR and most recorded time in the athlete-relative recovery zone.
+  // Do not use a fraction of max HR here; for some athletes that labels steady
+  // Zone 2 running as recovery, especially when a short session limits HR lag.
   const isExplicitRecovery = nameLower.includes('recovery');
-  const isRecoveryHr = avgHr <= recoveryCeiling || avgHr <= effMax * 0.72;
+  const isRecoveryHr = avgHr <= zones.z1[1] && zoneDist.z1Pct >= 50;
   if (isExplicitRecovery || (durationMin <= 50 && isRecoveryHr)) {
     return {
       runType: 'recovery',
       confidence: 0.88,
       reason: isExplicitRecovery
         ? `Recovery run identified by title: "${metadata.name}"`
-        : `Low cardiovascular strain recovery jog (${durationMin.toFixed(0)} min, avg HR ${avgHr} bpm vs Z1 ceiling ${zones.z1[1]} bpm)`
+        : `Very low cardiovascular strain recovery jog (${durationMin.toFixed(0)} min, avg HR ${avgHr} bpm, ${zoneDist.z1Pct.toFixed(0)}% in Zone 1)`
     };
   }
 
