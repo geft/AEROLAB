@@ -305,14 +305,14 @@ describe('Weighted Execution Rubric', () => {
 
   it('makes threshold-zone time decisive while treating rep pace as secondary', () => {
     const intervals = [
-      { type: 'work', start_seconds: 0, duration_seconds: 300, avg_heart_rate: 175, max_heart_rate: 180, avg_pace_sec_km: 250 },
+      { type: 'work', start_seconds: 0, duration_seconds: 300, avg_heart_rate: 170, max_heart_rate: 180, avg_pace_sec_km: 250 },
       { type: 'recovery', start_seconds: 300, duration_seconds: 60 },
-      { type: 'work', start_seconds: 360, duration_seconds: 300, avg_heart_rate: 175, max_heart_rate: 180, avg_pace_sec_km: 265 },
+      { type: 'work', start_seconds: 360, duration_seconds: 300, avg_heart_rate: 170, max_heart_rate: 180, avg_pace_sec_km: 265 },
       { type: 'recovery', start_seconds: 660, duration_seconds: 60 },
-      { type: 'work', start_seconds: 720, duration_seconds: 300, avg_heart_rate: 175, max_heart_rate: 180, avg_pace_sec_km: 280 }
+      { type: 'work', start_seconds: 720, duration_seconds: 300, avg_heart_rate: 170, max_heart_rate: 180, avg_pace_sec_km: 280 }
     ];
     const records = Array.from({ length: 1020 }, (_, second) => ({
-      elapsed_seconds: second, heart_rate: 175, cadence: 178, speed_mps: 3.5,
+      elapsed_seconds: second, heart_rate: 170, cadence: 178, speed_mps: 3.5,
       distance_m: second * 3.5, altitude_m: 20
     }));
     const goodHr = gradeRun({ ...baseAerobic, runType: 'threshold_lt2', intervals, records });
@@ -321,7 +321,7 @@ describe('Weighted Execution Rubric', () => {
 
     expect(zoneFactor?.maxPoints).toBe(50);
     expect(zoneFactor?.points).toBe(50);
-    expect(zoneFactor?.description).toMatch(/^14m 59s in Zone 4 /);
+    expect(zoneFactor?.description).toMatch(/^14m 59s within the LT2 band \(163-171 bpm\)/);
     expect(goodHr.score).toBeGreaterThanOrEqual(85);
     expect(goodHr.score).toBeGreaterThan(lowHr.score + 25);
     expect(lowHr.score).toBeLessThan(70);

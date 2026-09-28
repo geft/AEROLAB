@@ -397,7 +397,7 @@ export const en: Translations = {
     zone2AerobicBase: 'Z2 Aerobic Base',
     zone3Tempo: 'Z3 Tempo',
     zone4Threshold: 'Z4 Threshold',
-    zone5Vo2Max: 'Z5 VO2 Max',
+    zone5Vo2Max: 'Z5 Above LT2',
     polarizedBalanceTitle: '80/20 Polarized Balance',
     polarizedBalanceDesc: 'Optimal distribution: easy volume below LT1 preserves freshness for quality threshold sessions.',
     turnpointMarginTitle: 'Aerobic Turnpoint Margin',
@@ -444,9 +444,9 @@ export const en: Translations = {
     zoneDesc: {
       z1: 'Active Recovery & Warmup (< LT1 - 14 bpm)',
       z2: 'Aerobic Base / Steady Endurance (LT1 - 13 bpm to LT1)',
-      z3: 'Aerobic Power / Tempo (LT1 to LT2)',
-      z4: 'Lactate Threshold / LT2 (LT2 to LT2 + 15 bpm)',
-      z5: 'VO2 Max / Anaerobic Capacity (> LT2 + 16 bpm)'
+      z3: 'Tempo (LT1 to upper threshold approach)',
+      z4: 'Threshold (upper threshold approach to LT2)',
+      z5: 'Above LT2 (high intensity)'
     }
   },
   profile: {
@@ -492,8 +492,8 @@ export const en: Translations = {
     zone4Name: 'Threshold (LT2)',
     zone4Desc: 'Lactate clearance & 1-hour race pace.',
     zone5Title: 'Zone 5',
-    zone5Name: 'VO2 Max',
-    zone5Desc: 'Peak aerobic power & fast intervals.',
+    zone5Name: 'Above LT2',
+    zone5Desc: 'High-intensity work above lactate threshold.',
     iDontKnowMaxHr: "I don't know my max heart rate",
     readOnlyBaseline: 'Estimated from workouts • Updated automatically',
     thresholdHeartRate: 'Estimated LT2 Heart Rate',

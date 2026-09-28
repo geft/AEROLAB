@@ -70,8 +70,8 @@ export function translateCoachInsight(insight: string, lang: string): string {
 
   if (insight.startsWith('Threshold Heart Rate:')) {
     return insight
-      .replace(/^Threshold Heart Rate: (\d+)m (\d{2})s in Zone 4 \((\d+)-(\d+) bpm\), ([\d.]+)% of observed work-rep time\. Time in the threshold zone is the primary measure of this session; pace is supporting context\.$/,
-        '阈值心率：工作间歇中有 $1 分 $2 秒位于第 4 区（$3-$4 bpm），占有效时间的 $5%。阈值区间时长是本次训练的主要评价依据，配速仅作辅助参考。')
+      .replace(/^Threshold Heart Rate: (\d+)m (\d{2})s within the LT2 band \((\d+)-(\d+) bpm\), ([\d.]+)% of observed work-rep time\. Time near the LT2 range is the primary measure of this session; pace is supporting context\.$/,
+        '阈值心率：工作间歇中有 $1 分 $2 秒处于 LT2 区间（$3-$4 bpm），占有效时间的 $5%。接近 LT2 区间的时长是本次训练的主要评价依据，配速仅作辅助参考。')
       .replace('Threshold Heart Rate: Work-rep heart-rate coverage was insufficient to verify time in the threshold zone. This session cannot earn a gold threshold grade from pace alone.',
         '阈值心率：工作间歇的心率数据不足，无法核实阈值区间时长。仅凭配速不能获得金级阈值训练评价。');
   }
@@ -566,7 +566,7 @@ export function translateScoreDescription(description: string, lang: string): st
   if (lang !== 'zh' || !description) return description;
 
   const rules: Array<[RegExp, string | ((substring: string, ...args: string[]) => string)]> = [
-    [/^(\d+)m (\d{2})s in Zone 4 \((\d+)-(\d+) bpm\), ([\d.]+)% of observed work-rep time$/, '工作间歇中有 $1 分 $2 秒位于第 4 区（$3-$4 bpm），占有效心率时间的 $5%'],
+    [/^(\d+)m (\d{2})s within the LT2 band \((\d+)-(\d+) bpm\), ([\d.]+)% of observed work-rep time$/, '工作间歇中有 $1 分 $2 秒处于 LT2 区间（$3-$4 bpm），占有效心率时间的 $5%'],
     [/^([\d.]+)% cardiac drift \(([\d.]+)% or lower earns full marks\)$/, '$1% 心率漂移（≤$2% 可获满分）'],
     [
       /^([\d.]+)% above the (\d+) bpm LT1 ceiling \(first half: ([\d.]+)%\) · ([\d.]+)% in the top of Zone 2 \(([\d-]+) bpm\)$/,
@@ -642,8 +642,8 @@ export function translateCoachFocusAdvice(advice: string, lang: string): string 
   if (lang !== 'zh' || !advice) return advice;
 
   const rules: Array<[RegExp, string | ((substring: string, ...args: string[]) => string)]> = [
-    [/^Biggest Lever — Threshold Zone Time: ([\d.]+)% of observed work-rep time was in Zone 4 \((\d+)-(\d+) bpm\) \((\d+) of (\d+) points lost\)\..*$/,
-      '最大提升重点 — 阈值心率区间时长：工作间歇中有 $1% 位于第 4 区（$2-$3 bpm），损失 $4 / $5 分。以心率维持阈值强度，配速只用于辅助控制。'],
+    [/^Biggest Lever — Threshold Zone Time: ([\d.]+)% of observed work-rep time was within the LT2 band \((\d+)-(\d+) bpm\) \((\d+) of (\d+) points lost\)\..*$/,
+      '最大提升重点 — 阈值心率区间时长：工作间歇中有 $1% 处于 LT2 区间（$2-$3 bpm），损失 $4 / $5 分。以心率维持阈值强度，配速只用于辅助控制。'],
     [/^Biggest Lever — Threshold Heart Rate: work-rep heart rate missed the (\d+) bpm LT2 anchor \((\d+) of (\d+) points lost\)\..*$/,
       '最大提升重点 — 阈值心率控制：工作间歇心率未贴近 $1 bpm 的 LT2 参考值，损失 $2 / $3 分。调整强度以保持阈值心率，不要追逐配速目标。'],
     [

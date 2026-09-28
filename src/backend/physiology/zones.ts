@@ -1,12 +1,12 @@
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
-import { ActivityRecord } from '../ingestion/csv-parser';
+import type { ActivityRecord } from '../ingestion/csv-parser';
 
 export interface HeartRateZones {
   z1: [number, number]; // Recovery (< 68% HRmax or < LT1 - 15)
   z2: [number, number]; // Aerobic Base / Up to LT1
   z3: [number, number]; // Tempo (Between LT1 and LT2)
   z4: [number, number]; // Threshold / LT2
-  z5: [number, number]; // VO2 Max / Anaerobic (> LT2)
+  z5: [number, number]; // Above LT2
 }
 
 export interface ZoneDistribution {
@@ -22,6 +22,15 @@ export interface ZoneDistribution {
   z5Pct: number;
 }
 
+export const LT2_TRAINING_BAND_TOLERANCE_BPM = 4;
+
+export function getLt2TrainingBand(lt2Hr: number): [number, number] {
+  return [
+    Math.max(1, lt2Hr - LT2_TRAINING_BAND_TOLERANCE_BPM),
+    lt2Hr + LT2_TRAINING_BAND_TOLERANCE_BPM
+  ];
+}
+
 export function getDefaultZones(
   maxHr?: number,
   lt1Hr?: number,
@@ -34,15 +43,16 @@ export function getDefaultZones(
 
   // HRR Zone 1 active recovery ceiling (~54% HRR, bounded below LT1 - 14)
   const z1Upper = Math.min(lt1 - 14, Math.round(rhr + (maxHr - rhr) * 0.54));
-  // HRR Zone 4 threshold ceiling: 90% HRR, at or above LT2
-  const z4Upper = Math.min(maxHr - 1, Math.max(lt2, Math.round(rhr + (maxHr - rhr) * 0.90)));
+  // Split the broad LT1-to-LT2 range at 80% HRR. LT2 itself is the upper
+  // boundary of Zone 4; Zone 5 begins immediately above the LT2 anchor.
+  const z3Upper = Math.max(lt1 + 1, Math.min(lt2 - 1, Math.round(rhr + (maxHr - rhr) * 0.80)));
 
   return {
     z1: [0, z1Upper],
     z2: [z1Upper + 1, lt1],
-    z3: [lt1 + 1, lt2 - 1],
-    z4: [lt2, z4Upper],
-    z5: [z4Upper + 1, Math.max(maxHr + 10, z4Upper + 15)]
+    z3: [lt1 + 1, z3Upper],
+    z4: [z3Upper + 1, lt2],
+    z5: [lt2 + 1, Math.max(maxHr + 10, lt2 + 15)]
   };
 }
 

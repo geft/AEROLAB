@@ -195,7 +195,8 @@ describe('API Server Integration Tests', () => {
     expect(res.body.zones.z1[1]).toBe(134);
     expect(res.body.zones.z2[1]).toBe(148);
     expect(res.body.zones.z3[0]).toBe(149);
-    expect(res.body.zones.z4[0]).toBe(167);
+    expect(res.body.zones.z4[1]).toBe(167);
+    expect(res.body.zones.z5[0]).toBe(168);
   });
 
   it('PATCH /api/profile continuously syncs all coach summaries across database', async () => {

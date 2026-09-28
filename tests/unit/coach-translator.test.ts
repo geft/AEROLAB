@@ -114,10 +114,10 @@ describe('Coach translator — shared copy and fallbacks', () => {
 
 describe('Coach translator — condition-aware copy', () => {
   it('translates threshold-zone time in minutes and seconds', () => {
-    const description = '34m 52s in Zone 4 (179-188 bpm), 77.5% of observed work-rep time';
+    const description = '34m 52s within the LT2 band (175-183 bpm), 77.5% of observed work-rep time';
     expect(translateScoreDescription(description, 'zh')).toContain('34 分 52 秒');
     const insight = translateCoachInsight(
-      `Threshold Heart Rate: ${description}. Time in the threshold zone is the primary measure of this session; pace is supporting context.`,
+      `Threshold Heart Rate: ${description}. Time near the LT2 range is the primary measure of this session; pace is supporting context.`,
       'zh'
     );
     expect(insight).toContain('34 分 52 秒');

@@ -151,7 +151,7 @@ export const ProgressView: React.FC = () => {
             </span>
           </div>
           <div className="threshold-marker-badge amber">
-            <Zap size={12} /> {t.progress.zone4Threshold}: ~{data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? data.latest.lt2?.lt2_hr ?? '—'} bpm
+            <Zap size={12} /> {t.progress.zone4Threshold}: ~{data.currentThresholds?.lt2Hr ?? data.latest.lt2?.lt2_hr ?? data.zones?.z4?.[1] ?? '—'} bpm
           </div>
         </div>
 

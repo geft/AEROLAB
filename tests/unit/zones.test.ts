@@ -7,18 +7,25 @@ describe('Heart Rate Zones & Distribution Unit Tests', () => {
     const zones = getDefaultZones(185);
     expect(zones.z1).toEqual([0, 127]);
     expect(zones.z2).toEqual([128, 141]);
-    expect(zones.z3).toEqual([142, 162]);
-    expect(zones.z4).toEqual([163, 173]);
-    expect(zones.z5[0]).toBe(174);
+    expect(zones.z3).toEqual([142, 160]);
+    expect(zones.z4).toEqual([161, 163]);
+    expect(zones.z5[0]).toBe(164);
   });
 
   it('respects custom LT1 and LT2 values without special-case athlete branches', () => {
     const zones = getDefaultZones(190, 144, 170, 60);
     expect(zones.z1[1]).toBe(130);
     expect(zones.z2[1]).toBe(144);
-    expect(zones.z3).toEqual([145, 169]);
-    expect(zones.z4).toEqual([170, 177]);
-    expect(zones.z5[0]).toBe(178);
+    expect(zones.z3).toEqual([145, 164]);
+    expect(zones.z4).toEqual([165, 170]);
+    expect(zones.z5[0]).toBe(171);
+  });
+
+  it('places LT2 at the top of Zone 4 and starts Zone 5 above it', () => {
+    const zones = getDefaultZones(203, 153, 179, 54);
+
+    expect(zones.z4[1]).toBe(179);
+    expect(zones.z5[0]).toBe(180);
   });
 
   it('calculates accurate zone distribution and percentages across records', () => {
@@ -49,7 +56,7 @@ describe('Heart Rate Zones & Distribution Unit Tests', () => {
     addRecords(120, 10); // Z1 (10)
     addRecords(135, 60); // Z2 (60)
     addRecords(148, 15); // Z3 (15)
-    addRecords(168, 10); // Z4 (10)
+    addRecords(162, 10); // Z4 (10)
     addRecords(175, 5);  // Z5 (5)
     addRecords(30, 5);   // <= 40 (ignored)
     addRecords(0, 2);    // 0 / null (ignored)

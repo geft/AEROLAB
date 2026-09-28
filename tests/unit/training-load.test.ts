@@ -25,10 +25,10 @@ describe('Training Load & ACWR Engine Unit Tests', () => {
   });
 
   it('calculates higher training load for a 60-minute threshold workout', () => {
-    // 60 min at 170 bpm (Z4 threshold)
+    // 60 min at the 168 bpm LT2 boundary (top of Z4)
     const records: Array<{ elapsed_seconds: number; heart_rate: number }> = [];
     for (let s = 0; s <= 3600; s += 2) {
-      records.push({ elapsed_seconds: s, heart_rate: 170 });
+      records.push({ elapsed_seconds: s, heart_rate: 168 });
     }
 
     const res = calculateActivityTrainingLoad(records, mockProfile);

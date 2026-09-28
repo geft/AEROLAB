@@ -49,8 +49,14 @@ export function classifyRun(
   // Zone distribution from profile-relative zones (no hardcoded bpm anywhere).
   const zones = getDefaultZones(effMax, lt1, lt2, resting);
   const zoneDist = calculateZoneDistribution(records, zones);
-  const z4Floor = zones.z4[0];
-  const z5Floor = zones.z5[0];
+  const lt2Anchor = lt2;
+  // Zone 5 now means above LT2. Keep VO2 detection tied to the former
+  // high-intensity HRR ceiling so threshold HR alone does not imply VO2 work.
+  const vo2HrFloor = Math.min(effMax - 1, Math.max(lt2, Math.round(resting + (effMax - resting) * 0.90))) + 1;
+  const validHrRecords = records.filter(r => r.heartRate != null && r.heartRate > 40);
+  const vo2HrPct = validHrRecords.length > 0
+    ? (validHrRecords.filter(r => r.heartRate! >= vo2HrFloor).length / validHrRecords.length) * 100
+    : 0;
 
   // 1. Race / Continuous Time Trial Detection (title-only, pace-free)
   const isRaceByName =
@@ -98,7 +104,7 @@ export function classifyRun(
 
   const gallowayWalkCount = Math.max(walkingBouts, recordWalkBouts);
   const isGallowaySession = gallowayWalkCount >= 4 &&
-    (zoneDist.z4Pct + zoneDist.z5Pct < 15) &&
+    (zoneDist.z5Pct < 15) &&
     (avgHr <= lt1 + 6 || (zoneDist.z1Pct + zoneDist.z2Pct >= 50));
 
   if (isGallowaySession) {
@@ -137,7 +143,7 @@ export function classifyRun(
       }
     }
 
-    const repInThresholdBand = (hr: number): boolean => hr >= z4Floor - 8;
+    const repInThresholdBand = (hr: number): boolean => hr >= lt2Anchor - 8;
     const thresholdRepCount = workIntervals.filter(i =>
       repInThresholdBand(i.avgHeartRate)
     ).length;
@@ -151,7 +157,7 @@ export function classifyRun(
       workIntervals.some(i => i.durationSeconds >= 450 && repInThresholdBand(i.avgHeartRate));
 
     if (isThresholdIntervals) {
-      const stimulusMissed = maxWorkHr < z4Floor - 8;
+        const stimulusMissed = maxWorkHr < lt2Anchor - 8;
       const isFailed =
         stimulusMissed ||
         (workIntervals.length === 1 && totalWorkDurationSec < 480) ||
@@ -169,8 +175,9 @@ export function classifyRun(
 
     // B. VO2 Max Intervals: short repeated structure (median work <= 6 min,
     //    2+ reps) with Z5 spikes (profile-relative max-HR attainment).
-    const vo2RepCount = workIntervals.filter(i => i.maxHeartRate >= z5Floor || i.maxHeartRate >= effMax * 0.91).length;
-    const hasVo2Intensity = vo2RepCount >= 2 || (vo2RepCount >= 1 && zoneDist.z5Pct >= 4) || (zoneDist.z5Pct >= 6 && zoneDist.z5Seconds >= 120);
+    const vo2RepCount = workIntervals.filter(i => i.maxHeartRate >= vo2HrFloor || i.maxHeartRate >= effMax * 0.91).length;
+    const vo2HrSamples = validHrRecords.filter(r => r.heartRate! >= vo2HrFloor).length;
+    const hasVo2Intensity = vo2RepCount >= 2 || (vo2RepCount >= 1 && vo2HrPct >= 4) || (vo2HrPct >= 6 && vo2HrSamples >= 120);
     const hasExplicitVo2 = nameLower.includes('vo2') || nameLower.includes('v02');
 
     // Surges check: If work intervals are sporadic brief bursts in a steady tempo/base run,
@@ -179,7 +186,7 @@ export function classifyRun(
       !hasExplicitVo2 &&
       (totalWorkDurationSec < 300 || totalWorkDurationSec < metadata.totalDurationSeconds * 0.22) &&
       vo2RepCount < 2 &&
-      zoneDist.z5Pct < 4;
+      vo2HrPct < 4;
 
     const isVo2Intervals =
       !isSporadicSurges &&
@@ -188,7 +195,7 @@ export function classifyRun(
       (hasExplicitVo2 || hasVo2Intensity);
 
     if (isVo2Intervals) {
-      const stimulusMissed = maxWorkHr < z4Floor - 6;
+      const stimulusMissed = maxWorkHr < lt2Anchor - 6;
       const isFailed =
         stimulusMissed ||
         totalWorkDurationSec < 360 ||
@@ -208,7 +215,7 @@ export function classifyRun(
   }
 
   // 3. Continuous Threshold / Tempo check (profile-relative zone occupancy)
-  if (zoneDist.z4Pct >= 35 || zoneDist.z4Pct + zoneDist.z5Pct >= 45) {
+  if (zoneDist.z4Pct >= 35 || zoneDist.z5Pct >= 45) {
     return {
       runType: 'threshold_lt2',
       confidence: 0.88,

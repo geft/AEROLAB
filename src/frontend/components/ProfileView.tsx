@@ -1,4 +1,5 @@
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
+import { getDefaultZones } from '../../backend/physiology/zones.js';
 import type { ThresholdsResponse } from '../types/api.js';
 import { getProfile, updateProfile } from '../api/client.js';
 import { apiErrorMessage } from '../api/errors.js';
@@ -104,16 +105,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
     const lt1 = (currentThresholds?.source === 'calibrated' ? currentThresholds.lt1Hr : null) || Math.round(rhr + (max - rhr) * 0.65);
     const lt2 = (currentThresholds?.source === 'calibrated' ? currentThresholds.lt2Hr : null) || Math.round(rhr + (max - rhr) * 0.82);
 
-    const z1Upper = Math.min(lt1 - 14, Math.round(rhr + (max - rhr) * 0.54));
-    const z4Upper = Math.round(rhr + (max - rhr) * 0.90);
-
-    return {
-      z1: [0, z1Upper],
-      z2: [z1Upper + 1, lt1],
-      z3: [lt1 + 1, lt2 - 1],
-      z4: [lt2, z4Upper],
-      z5: [z4Upper + 1, max]
-    };
+    return getDefaultZones(max, lt1, lt2, rhr);
   }, [restingHr, effectiveMaxHr, currentThresholds, dob]);
 
   const handleSave = async (e: React.FormEvent) => {

@@ -401,7 +401,7 @@ export const zh: Translations = {
     zone2AerobicBase: 'Z2 基础有氧',
     zone3Tempo: 'Z3 节奏跑',
     zone4Threshold: 'Z4 乳酸阈值',
-    zone5Vo2Max: 'Z5 最大摄氧量/间歇',
+    zone5Vo2Max: 'Z5 高于 LT2',
     polarizedBalanceTitle: '80/20 极化训练比例',
     polarizedBalanceDesc: '最佳分布：LT1以下的轻松跑量可保持身体充沛精力，从而保障高质量阈值课的执行效果。',
     turnpointMarginTitle: '有氧转折点边际 (LT1与LT2差距)',
@@ -454,9 +454,9 @@ export const zh: Translations = {
     zoneDesc: {
       z1: '动态恢复与热身 (< LT1 - 14 bpm)',
       z2: '有氧耐力基石 (LT1 - 13 bpm 至 LT1)',
-      z3: '马拉松配速节奏跑 (LT1 至 LT2)',
-      z4: '乳酸阈值 / LT2 (LT2 至 LT2 + 15 bpm)',
-      z5: '最大摄氧量 / 无氧间歇 (> LT2 + 16 bpm)'
+      z3: '节奏跑 (LT1 至接近高阈值)',
+      z4: '阈值训练 (接近高阈值至 LT2)',
+      z5: '高于 LT2 (高强度)'
     }
   },
   profile: {
@@ -502,8 +502,8 @@ export const zh: Translations = {
     zone4Name: '乳酸阈值 (LT2)',
     zone4Desc: '乳酸清除能力与1小时比赛配速。',
     zone5Title: '5区',
-    zone5Name: '最大摄氧量 (VO2 Max)',
-    zone5Desc: '极限有氧功率与高速间歇。',
+    zone5Name: '高于 LT2',
+    zone5Desc: '高于乳酸阈值的高强度训练。',
     iDontKnowMaxHr: '我不知道我的最大心率',
     readOnlyBaseline: '根据训练估算 · 自动更新',
     thresholdHeartRate: 'LT2 估算心率',

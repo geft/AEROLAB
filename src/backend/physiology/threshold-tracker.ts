@@ -434,9 +434,18 @@ export function evaluateThresholdUpdate(
     const stimulusFloor = lt2EffortBaseline - 10;
     // Sustained work, not strides or short VO2 reps. Count elapsed session
     // time as well as work time so a late long-run HR rise cannot qualify.
-    const qualifiedWork = workInvs.filter(i => (i.avg_heart_rate ?? 0) >= stimulusFloor
-      && i.duration_seconds >= 300 && i.start_seconds >= 0
-      && i.start_seconds + i.duration_seconds <= 3600);
+    const stimulusWork = workInvs.filter(i => (i.avg_heart_rate ?? 0) >= stimulusFloor
+      && i.duration_seconds >= 300 && i.start_seconds >= 0);
+    // Keep the calibration itself inside the first hour, but retain later
+    // reps as validation evidence so accumulated drift lowers confidence.
+    const qualifiedWork = stimulusWork.filter(i => i.start_seconds + i.duration_seconds <= 3600);
+    const repEfficiencies = stimulusWork
+      .filter(i => (i.avg_heart_rate ?? 0) > 0 && (i.avg_pace_sec_km ?? 0) > 0)
+      .map(i => 1000 / i.avg_pace_sec_km! / i.avg_heart_rate!);
+    const lateRepEfficiencyRatio = repEfficiencies.length > 1
+      ? Math.min(...repEfficiencies.slice(1).map(efficiency => efficiency / repEfficiencies[0]))
+      : 1;
+    const lateRepDriftPenalty = Math.min(0.12, Math.max(0, (0.95 - lateRepEfficiencyRatio) * 2));
 
     if (qualifiedWork.length > 0) {
       let interRepRecs: Array<{ duration_seconds: number; hr_drop: number | null }> = [];
@@ -555,7 +564,7 @@ export function evaluateThresholdUpdate(
           const avgWorkDur = evalDur / qualifiedWork.length;
           const excessRest = Math.max(0, avgRestDur - 60);
           const restPenalty = Math.min(0.14, (excessRest / (avgWorkDur || 900)) * 0.45);
-          lt2Confidence = Number((0.92 - restPenalty).toFixed(2));
+          lt2Confidence = Number(Math.max(0.70, 0.92 - restPenalty - lateRepDriftPenalty).toFixed(2));
         }
       }
     }

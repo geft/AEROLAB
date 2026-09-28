@@ -574,29 +574,29 @@ describe('Threshold Tracker Unit Tests', () => {
       expect(stored.lt2_hr).toBe(172);
     });
 
-    it('caps quality work evaluation to the first 30 minutes to prevent tropical hyperthermia drift', () => {
+    it('keeps calibration in the first 30 work minutes but lowers confidence for late-rep drift', () => {
       insertParentActivity('test-act-tropical', '2026-09-17 19:00:00');
 
-      // 3 x 15-minute reps (900s each = 2700s total work)
-      // Rep 1 (900s): 178 bpm, 4:35/km (3272m)
-      // Rep 2 (900s): 180 bpm, 4:35/km (3272m)
-      // Rep 3 (900s): 191 bpm (tropical heat accumulation & drift!), 4:35/km (3272m)
-      insertWorkInterval('test-act-tropical', 1, 0, 900, 3272, 178, 275);
+      // 3 x 15-minute reps (900s each), with the last rep ending after 60 minutes.
+      // Rep 1 (900s): 178 bpm, 4:32/km (3272m)
+      // Rep 2 (900s): 180 bpm, 4:36/km (3272m)
+      // Rep 3 (900s): 182 bpm and slower 4:43/km, after the early calibration window.
+      insertWorkInterval('test-act-tropical', 1, 900, 900, 3272, 178, 272);
       insertRecoveryInterval('test-act-tropical', 2, 90, 33);
-      insertWorkInterval('test-act-tropical', 3, 990, 900, 3272, 180, 275);
+      insertWorkInterval('test-act-tropical', 3, 1890, 900, 3272, 180, 276);
       insertRecoveryInterval('test-act-tropical', 4, 90, 33);
-      insertWorkInterval('test-act-tropical', 5, 1980, 900, 3272, 191, 275);
+      insertWorkInterval('test-act-tropical', 5, 2880, 900, 3180, 182, 283);
 
       const economy: EconomyMetrics = {
         movingDurationSeconds: 2700,
-        movingDistanceMeters: 9816,
-        avgMovingHeartRate: 183,
+        movingDistanceMeters: 9724,
+        avgMovingHeartRate: 180,
         avgMovingPaceSecKm: 275,
         efficiencyFactor: 1.48,
         metersPerBeat: 3.5,
         firstHalfEf: 1.52,
         secondHalfEf: 1.44,
-        aerobicDecouplingPct: 5.5
+        aerobicDecouplingPct: 2.5
       };
 
       const estimate = evaluateThresholdUpdate(
@@ -604,21 +604,19 @@ describe('Threshold Tracker Unit Tests', () => {
         'test-act-tropical',
         '2026-09-17 19:00:00',
         'threshold_lt2',
-        { ...dummyMetadata, id: 'test-act-tropical', totalDurationSeconds: 2880 },
+        { ...dummyMetadata, id: 'test-act-tropical', totalDurationSeconds: 3780 },
         [],
         economy
       );
 
-      // Max work evaluation window is 1800s (first 30 minutes).
-      // Rep 1 (900s @ 178 bpm) + Rep 2 (900s @ 180 bpm) = 1800s.
-      // Rep 3 (191 bpm drift) is completely excluded.
-      // Average HR = (178 * 900 + 180 * 900) / 1800 = 179 bpm!
+      // The estimate still uses reps 1+2 only; the later rep is validation-only.
       expect(estimate.lt2Hr).toBe(179);
       expect(estimate.lt2PaceSecKm).toBe(275);
 
       const stored = db.prepare('SELECT * FROM physiological_thresholds WHERE source_activity_id = ?').get('test-act-tropical') as any;
       expect(stored.lt2_hr).toBe(179);
       expect(stored.lt2_pace_sec_km).toBe(275);
+      expect(stored.confidence).toBeLessThan(0.91);
     });
 
     it('compensates for cardiac lag and scales confidence continuously based on rest continuity', () => {

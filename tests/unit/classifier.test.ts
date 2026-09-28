@@ -269,6 +269,21 @@ describe('Run Classifier Engine (Unit)', () => {
     expect(res.runType).toBe('intervals_vo2');
   });
 
+  it('does not treat merely crossing LT2 as VO2 intensity', () => {
+    const meta = { ...baseMetadata, maxHeartRate: 203, avgHeartRate: 181 };
+    const intervals: DetectedInterval[] = [
+      { intervalIndex: 1, type: 'work', startSeconds: 100, durationSeconds: 180, distanceMeters: 900, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 181, maxHeartRate: 183, avgCadence: 180 },
+      { intervalIndex: 2, type: 'recovery', startSeconds: 280, durationSeconds: 60, distanceMeters: 100, avgSpeedMps: 1.6, avgPaceSecKm: 600, avgHeartRate: 150, maxHeartRate: 165, avgCadence: 110 },
+      { intervalIndex: 3, type: 'work', startSeconds: 340, durationSeconds: 180, distanceMeters: 900, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 182, maxHeartRate: 184, avgCadence: 180 }
+    ];
+    const records = createMockRecords(1200, 181);
+    const profile = { maxHr: 203, restingHr: 54, lt1Hr: 153, lt2Hr: 179 };
+
+    const result = classifyRun(meta, records, baseEconomy, intervals, profile);
+
+    expect(result.runType).toBe('threshold_lt2');
+  });
+
   it('does not classify surges in a tempo or base run as intervals_vo2', () => {
     // 2 brief surges during a tempo run where peak HR only reaches tempo/Z4 (168 bpm vs max 200)
     const meta = { ...baseMetadata, maxHeartRate: 200, avgHeartRate: 155 };

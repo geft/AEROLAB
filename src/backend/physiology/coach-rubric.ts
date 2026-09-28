@@ -1,7 +1,7 @@
 import { sessionVerdict } from './session-verdict.js';
 import type { SessionVerdict } from '../../shared/session-verdict.js';
 import { PauseBreakdown } from './economy.js';
-import { getDefaultZones } from './zones.js';
+import { getDefaultZones, getLt2TrainingBand } from './zones.js';
 
 /**
  * AEROLAB Physiological Execution Rubric
@@ -1087,7 +1087,8 @@ function thresholdZoneShare(input: RubricInput): { pct: number; seconds: number;
     .map((rep: any) => ({ from: rep.start_seconds ?? rep.startSeconds, to: (rep.start_seconds ?? rep.startSeconds) + intervalDuration(rep) }))
     .filter((window: { from: number; to: number }) => Number.isFinite(window.from) && window.to > window.from);
   if (workWindows.length === 0 || !input.records || input.records.length < 10) return null;
-  const [lower, upper] = getDefaultZones(input.maxHeartRate, input.lt1Hr, input.lt2Hr, input.restingHr ?? undefined).z4;
+  const zones = getDefaultZones(input.maxHeartRate, input.lt1Hr, input.lt2Hr, input.restingHr ?? undefined);
+  const [lower, upper] = getLt2TrainingBand(zones.z4[1]);
   let observed = 0;
   let inZone = 0;
   const records = input.records;
@@ -1120,7 +1121,7 @@ function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): RubricFa
       factors.push({
         category: 'Threshold Zone Time', points: Math.round(pts), maxPoints: max,
         label: band(pts / max, 'Sustained Threshold Heart Rate', 'Partial Threshold Exposure', 'Little Threshold Exposure'),
-        description: `${Math.floor(zone.seconds / 60)}m ${String(zone.seconds % 60).padStart(2, '0')}s in Zone 4 (${zone.lower}-${zone.upper} bpm), ${zone.pct.toFixed(1)}% of observed work-rep time`
+        description: `${Math.floor(zone.seconds / 60)}m ${String(zone.seconds % 60).padStart(2, '0')}s within the LT2 band (${zone.lower}-${zone.upper} bpm), ${zone.pct.toFixed(1)}% of observed work-rep time`
       });
     }
   }
@@ -1394,7 +1395,7 @@ function buildFocusAdvice(factor: RubricFactor, input: RubricInput, walkAudit: W
   switch (factor.category) {
     case 'Threshold Zone Time': {
       const zone = thresholdZoneShare(input);
-      return `${prefix}${zone ? `${zone.pct.toFixed(1)}% of observed work-rep time was in Zone 4 (${zone.lower}-${zone.upper} bpm)` : 'threshold-zone time could not be measured'}${tail}. Let heart rate settle into the threshold band during work reps; use pace only to help hold that effort.`;
+      return `${prefix}${zone ? `${zone.pct.toFixed(1)}% of observed work-rep time was within the LT2 band (${zone.lower}-${zone.upper} bpm)` : 'threshold-zone time could not be measured'}${tail}. Let heart rate settle near the LT2 anchor during work reps; use pace only to help hold that effort.`;
     }
     case 'Threshold Heart Rate':
       return `${prefix}work-rep heart rate missed the ${input.lt2Hr} bpm LT2 anchor${tail}. Adjust effort to keep the work near threshold rather than chasing a pace target.`;

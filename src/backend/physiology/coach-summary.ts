@@ -408,7 +408,7 @@ export function generateCoachSummary(params: {
   if (runType === 'threshold_lt2') {
     const zoneFactor = rubric.factors.find(factor => factor.category === 'Threshold Zone Time');
     if (zoneFactor) {
-      insights.add(zoneFactor.points >= 40 ? 'positive' : 'caution', `Threshold Heart Rate: ${zoneFactor.description}. Time in the threshold zone is the primary measure of this session; pace is supporting context.`);
+      insights.add(zoneFactor.points >= 40 ? 'positive' : 'caution', `Threshold Heart Rate: ${zoneFactor.description}. Time near the LT2 range is the primary measure of this session; pace is supporting context.`);
     } else {
       insights.add('caution', 'Threshold Heart Rate: Work-rep heart-rate coverage was insufficient to verify time in the threshold zone. This session cannot earn a gold threshold grade from pace alone.');
     }
