@@ -181,16 +181,16 @@ describe('Athlete Profile & Resting HR Persistence Tests', () => {
     expect(res.status).toBe(200);
 
     // A sub-threshold 145 bpm run does not lower LT1; Z1 follows the athlete’s HR reserve.
-    // Zone 4 ends at the LT2 anchor rather than the 90% HRR cutoff.
+    // LT2 stays in Zone 4; Zone 5 starts at the high-intensity 90% HRR boundary.
     expect(res.body.zones.z1[1]).toBe(134);
-    expect(res.body.zones.z4[1]).toBe(176);
-    expect(res.body.zones.z5[0]).toBe(177);
+    expect(res.body.zones.z4[1]).toBe(187);
+    expect(res.body.zones.z5[0]).toBe(188);
 
     // Verify GET /api/profile zones also reflect the custom resting HR and persisted profile
     const profRes = await request(app).get('/api/profile');
     expect(profRes.body.profile.resting_hr).toBe(54);
     expect(profRes.body.zones.z1[1]).toBe(134);
-    expect(profRes.body.zones.z4[1]).toBe(176);
-    expect(profRes.body.zones.z5[0]).toBe(177);
+    expect(profRes.body.zones.z4[1]).toBe(187);
+    expect(profRes.body.zones.z5[0]).toBe(188);
   });
 });

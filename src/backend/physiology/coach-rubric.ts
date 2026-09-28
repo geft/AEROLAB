@@ -1,7 +1,7 @@
 import { sessionVerdict } from './session-verdict.js';
 import type { SessionVerdict } from '../../shared/session-verdict.js';
 import { PauseBreakdown } from './economy.js';
-import { getDefaultZones, getLt2TrainingBand } from './zones.js';
+import { getLt2TrainingBand } from './zones.js';
 
 /**
  * AEROLAB Physiological Execution Rubric
@@ -1087,8 +1087,7 @@ function thresholdZoneShare(input: RubricInput): { pct: number; seconds: number;
     .map((rep: any) => ({ from: rep.start_seconds ?? rep.startSeconds, to: (rep.start_seconds ?? rep.startSeconds) + intervalDuration(rep) }))
     .filter((window: { from: number; to: number }) => Number.isFinite(window.from) && window.to > window.from);
   if (workWindows.length === 0 || !input.records || input.records.length < 10) return null;
-  const zones = getDefaultZones(input.maxHeartRate, input.lt1Hr, input.lt2Hr, input.restingHr ?? undefined);
-  const [lower, upper] = getLt2TrainingBand(zones.z4[1]);
+  const [lower, upper] = getLt2TrainingBand(input.lt2Hr);
   let observed = 0;
   let inZone = 0;
   const records = input.records;

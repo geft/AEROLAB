@@ -43,16 +43,18 @@ export function getDefaultZones(
 
   // HRR Zone 1 active recovery ceiling (~54% HRR, bounded below LT1 - 14)
   const z1Upper = Math.min(lt1 - 14, Math.round(rhr + (maxHr - rhr) * 0.54));
-  // Split the broad LT1-to-LT2 range at 80% HRR. LT2 itself is the upper
-  // boundary of Zone 4; Zone 5 begins immediately above the LT2 anchor.
+  // Split the broad LT1-to-LT2 range at 80% HRR. Keep the upper Zone 4 / Zone
+  // 5 boundary tied to the high-intensity HRR anchor, while ensuring Zone 5
+  // never starts at or below the athlete's LT2 estimate.
   const z3Upper = Math.max(lt1 + 1, Math.min(lt2 - 1, Math.round(rhr + (maxHr - rhr) * 0.80)));
+  const z5Lower = Math.max(lt2 + 1, Math.round(rhr + (maxHr - rhr) * 0.90));
 
   return {
     z1: [0, z1Upper],
     z2: [z1Upper + 1, lt1],
     z3: [lt1 + 1, z3Upper],
-    z4: [z3Upper + 1, lt2],
-    z5: [lt2 + 1, Math.max(maxHr + 10, lt2 + 15)]
+    z4: [z3Upper + 1, z5Lower - 1],
+    z5: [z5Lower, Math.max(maxHr + 10, z5Lower + 15)]
   };
 }
 

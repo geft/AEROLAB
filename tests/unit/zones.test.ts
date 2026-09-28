@@ -8,8 +8,8 @@ describe('Heart Rate Zones & Distribution Unit Tests', () => {
     expect(zones.z1).toEqual([0, 127]);
     expect(zones.z2).toEqual([128, 141]);
     expect(zones.z3).toEqual([142, 160]);
-    expect(zones.z4).toEqual([161, 163]);
-    expect(zones.z5[0]).toBe(164);
+    expect(zones.z4).toEqual([161, 172]);
+    expect(zones.z5[0]).toBe(173);
   });
 
   it('respects custom LT1 and LT2 values without special-case athlete branches', () => {
@@ -17,15 +17,30 @@ describe('Heart Rate Zones & Distribution Unit Tests', () => {
     expect(zones.z1[1]).toBe(130);
     expect(zones.z2[1]).toBe(144);
     expect(zones.z3).toEqual([145, 164]);
-    expect(zones.z4).toEqual([165, 170]);
-    expect(zones.z5[0]).toBe(171);
+    expect(zones.z4).toEqual([165, 176]);
+    expect(zones.z5[0]).toBe(177);
   });
 
-  it('places LT2 at the top of Zone 4 and starts Zone 5 above it', () => {
+  it('keeps LT2 in upper Zone 4 and reserves Zone 5 for high-intensity HR', () => {
     const zones = getDefaultZones(203, 153, 179, 54);
 
-    expect(zones.z4[1]).toBe(179);
-    expect(zones.z5[0]).toBe(180);
+    expect(zones.z4[1]).toBe(187);
+    expect(zones.z5[0]).toBe(188);
+    expect(zones.z4[1]).toBeGreaterThan(179);
+  });
+
+  it('does not classify a threshold workout as Zone 5 just for crossing LT2', () => {
+    const zones = getDefaultZones(203, 153, 179, 54);
+    const records = [179, 180, 181, 182, 183, 187, 188].map((heartRate, index) => ({
+      timestamp: '2026-09-24 19:30:00', elapsedSeconds: index, heartRate,
+      speedMps: 3, cadence: 175, fractionalCadence: 0, altitudeMeters: 0,
+      distanceMeters: index * 3, temperature: 28, stanceTime: 240,
+      verticalOscillation: 80, latitude: 1.35, longitude: 103.85
+    })) as ActivityRecord[];
+    const distribution = calculateZoneDistribution(records, zones);
+
+    expect(distribution.z4Seconds).toBe(6);
+    expect(distribution.z5Seconds).toBe(1);
   });
 
   it('calculates accurate zone distribution and percentages across records', () => {
