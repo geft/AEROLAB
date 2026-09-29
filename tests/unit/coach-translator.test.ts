@@ -174,7 +174,7 @@ describe('Coach translator — condition-aware copy', () => {
     expectNoPlaceholders(insight);
 
     expect(translateCoachInsight(
-      'Clearly Easy: 34.3% sat in upper Zone 2 (148-153 bpm), below the 40% clearly-easy guide. That’s a normal easy-run distribution.',
+      'Clearly Easy: 34.3% of your running time sat in upper Zone 2 (148-153 bpm), below the 40% clearly-easy guide. That’s a normal easy-run distribution.',
       'zh'
     )).toContain('低于 40% 的轻松跑参考线');
     expect(translateCoachInsight(

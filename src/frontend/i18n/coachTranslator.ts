@@ -291,7 +291,7 @@ export function translateCoachInsight(insight: string, lang: string): string {
   // 19. Aerobic intensity: the one thing an easy run is graded on
   if (insight.startsWith('Clearly Easy:')) {
     return insight.replace(
-      /^Clearly Easy: (?:only ([\d.]+)% of your running time sat above the (\d+) bpm LT1 ceiling, and )?([\d.]+)% sat in upper Zone 2 \(([\d-]+) bpm\), below the 40% clearly-easy guide\..*$/,
+      /^Clearly Easy: (?:only ([\d.]+)% of your running time sat above the (\d+) bpm LT1 ceiling; )?([\d.]+)% of your running time sat in upper Zone 2 \(([\d-]+) bpm\), below the 40% clearly-easy guide\..*$/,
       (_m, above, lt1, zone2, band) => `轻松跑强度合适：${above ? `跑动时间中仅 ${above}% 超过 ${lt1} bpm 的 LT1 上限，` : ''}${zone2}% 位于 2 区上部（${band} bpm），低于 40% 的轻松跑参考线。`
     );
   }
