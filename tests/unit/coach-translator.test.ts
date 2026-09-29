@@ -166,34 +166,45 @@ describe('Coach translator — condition-aware copy', () => {
 
   it('translates the high-Zone-2 messaging', () => {
     const insight = translateCoachInsight(
-      'Zone 2 Ceiling Held, High-Zone-2 Creep: you never crossed the 153 bpm LT1 ceiling, but 55.0% of your running time sat in the top of Zone 2 (146-153 bpm), rising to 75% in the second half. It is still aerobic, and in 32°C much of the late creep is heat rather than pace, but sitting just under the ceiling costs recovery — ease the opening kilometres so the whole run sits nearer 143 bpm.',
+      'Zone 2 Ceiling Held, High-Zone-2 Creep: you never crossed the 153 bpm LT1 ceiling, but 55.0% of your running time sat in upper Zone 2 (148-153 bpm), rising to 75% in the second half. This is normal easy; in 32°C much of the late creep may be heat-related. Ease the opening kilometres and aim nearer 143 bpm on a routine easy day.',
       'zh'
     );
-    expect(insight).toContain('守住上限，但停留在 2 区上部');
-    expect(insight).toContain('146-153 bpm');
+    expect(insight).toContain('守住上限，但心率偏高');
+    expect(insight).toContain('148-153 bpm');
     expectNoPlaceholders(insight);
 
+    expect(translateCoachInsight(
+      'Clearly Easy: 34.3% sat in upper Zone 2 (148-153 bpm), below the 40% clearly-easy guide. That’s a normal easy-run distribution.',
+      'zh'
+    )).toContain('低于 40% 的轻松跑参考线');
+    expect(translateCoachInsight(
+      'Normal Easy: you never crossed the 153 bpm LT1 ceiling, and 50.0% of your running time sat in upper Zone 2 (148-153 bpm), within the 40-60% normal-easy range. Keep the opening relaxed.',
+      'zh'
+    )).toContain('40-60% 的正常轻松跑范围');
+
     const lever = translateCoachFocusAdvice(
-      'Biggest Lever — Aerobic Intensity: you never crossed the 153 bpm LT1 ceiling, but 55.0% of your running time sat in the top of Zone 2 (146-153 bpm) (16 of 85 points lost). Staying just under the ceiling still costs recovery, so on easy days treat 143 bpm as the ceiling rather than 153 — the hard limit is a safety line, not the target.',
+      'Biggest Lever — Aerobic Intensity: you never crossed the 153 bpm LT1 ceiling, and 55.0% of your running time sat in the top of Zone 2 (148-153 bpm) (16 of 85 points lost). That is normal easy. Keep the opening relaxed and let heart rate rise naturally.',
       'zh'
     );
     expect(lever).toContain('最大提升杠杆 — 有氧强度');
-    expect(lever).toContain('146-153 bpm');
+    expect(lever).toContain('148-153 bpm');
     expect(lever).toContain('16 / 85');
     expectNoPlaceholders(lever);
 
-    expect(translateScoreDescription('55.0% in the top of Zone 2 (146-153 bpm) · 0.0% above the 153 bpm LT1 ceiling · rising to 75% in the second half', 'zh'))
-      .toContain('2 区上部（146-153 bpm）');
-    expect(translateScoreDescription('9.0% above the 153 bpm LT1 ceiling (first half: 8.0%) · 20.0% in the top of Zone 2 (146-153 bpm)', 'zh'))
+    expect(translateScoreDescription('55.0% in the top of Zone 2 (148-153 bpm) · 0.0% above the 153 bpm LT1 ceiling · rising to 75% in the second half', 'zh'))
+      .toContain('2 区上部（148-153 bpm）');
+    expect(translateScoreDescription('9.0% above the 153 bpm LT1 ceiling (first half: 8.0%) · 20.0% in the top of Zone 2 (148-153 bpm)', 'zh'))
       .toContain('前半程 8.0%');
   });
 
   it('translates the aerobic intensity copy (category, labels, description, insight, lever)', () => {
     expect(translateScoreCategory('Aerobic Intensity', 'zh')).toBe('有氧强度');
     expect(translateScoreLabel('Disciplined Aerobic Ceiling', 'zh')).toBe('严格遵守有氧心率上限');
+    expect(translateScoreLabel('Clearly Easy', 'zh')).toBe('轻松跑');
+    expect(translateScoreLabel('Upper Easy / Aerobic Steady', 'zh')).toBe('上有氧轻松跑 / 有氧稳态');
     expect(translateScoreLabel('Extended Above the LT1 Ceiling', 'zh')).toBe('长时间超过 LT1 上限');
 
-    expect(translateScoreDescription('0.7% above the 153 bpm LT1 ceiling (first half: 0.0%) · 22.4% in the top of Zone 2 (146-153 bpm)', 'zh'))
+    expect(translateScoreDescription('0.7% above the 153 bpm LT1 ceiling (first half: 0.0%) · 22.4% in the top of Zone 2 (148-153 bpm)', 'zh'))
       .toContain('153 bpm 的 LT1 上限');
     expect(translateScoreDescription('135 bpm average against a 143 bpm LT1 ceiling (average only — no per-second telemetry)', 'zh'))
       .toContain('无逐秒采样数据');

@@ -17,6 +17,10 @@ describe('Session verdicts', () => {
   });
   it('distinguishes mild intensity drift from a substantially over-intensity run', () => {
     expect(sessionVerdict({ ...base, factors: [factor('Aerobic Intensity', 'Drifting Into High Zone 2')] })).toBe('some_deviation');
+    expect(sessionVerdict({ ...base, factors: [factor('Aerobic Intensity', 'Clearly Easy')] })).toBe('on_track');
+    expect(sessionVerdict({ ...base, factors: [factor('Aerobic Intensity', 'Normal Easy')] })).toBe('on_track');
+    expect(sessionVerdict({ ...base, factors: [factor('Aerobic Intensity', 'Upper Easy / Aerobic Steady')] })).toBe('some_deviation');
+    expect(sessionVerdict({ ...base, factors: [factor('Aerobic Intensity', 'Potentially Too Close to LT1')] })).toBe('some_deviation');
     expect(sessionVerdict({ ...base, factors: [factor('Aerobic Intensity', 'Extended Above the LT1 Ceiling')] })).toBe('off_target');
   });
   it('does not certify missing, unsupported or unknown evidence', () => {

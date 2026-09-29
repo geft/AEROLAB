@@ -479,16 +479,25 @@ export function generateCoachSummary(params: {
   if (intensity && rubric.family === 'aerobic') {
     const above = intensity.aboveCeilingPct;
     const zone2 = intensity.highZ2Pct;
-    const band = `${intensity.lt1Hr - 7}-${intensity.lt1Hr}`;
-    if (above <= 5 && zone2 <= 25) {
+    const band = `${intensity.lt1Hr - 5}-${intensity.lt1Hr}`;
+    if (above <= 5 && zone2 < 40) {
+      const aboveText = Number(above.toFixed(1)) === 0
+        ? ''
+        : `only ${above.toFixed(1)}% of your running time sat above the ${intensity.lt1Hr} bpm LT1 ceiling; `;
       insights.add(
         'positive',
-        `Aerobic Intensity Discipline: only ${above.toFixed(1)}% of your running time sat above the ${intensity.lt1Hr} bpm LT1 ceiling (${intensity.firstHalfAboveCeilingPct.toFixed(1)}% of it in the first half), so this stayed an aerobic session throughout. That’s the point of an easy day: keep the effort easy, whatever the pace.`
+        `Clearly Easy: ${aboveText}${zone2.toFixed(1)}% of your running time sat in upper Zone 2 (${band} bpm), below the 40% clearly-easy guide. That’s a normal easy-run distribution.`
+      );
+    } else if (above <= 5 && zone2 < 60) {
+      insights.add(
+        'neutral',
+        `Normal Easy: you never crossed the ${intensity.lt1Hr} bpm LT1 ceiling, and ${zone2.toFixed(1)}% of your running time sat in upper Zone 2 (${band} bpm), within the 40-60% normal-easy range. Keep the opening relaxed and let heart rate rise naturally.`
       );
     } else if (above <= 5) {
+      const classification = zone2 <= 75 ? 'upper-easy / aerobic steady' : 'potentially too close to LT1 for a routine easy day';
       insights.add(
         'caution',
-        `Zone 2 Ceiling Held, High-Zone-2 Creep: you never crossed the ${intensity.lt1Hr} bpm LT1 ceiling, but ${zone2.toFixed(1)}% of your running time sat in the top of Zone 2 (${band} bpm), rising to ${intensity.highZ2SecondHalfPct.toFixed(0)}% in the second half. It is still aerobic${ambientTempC !== null && ambientTempC >= 28 ? `, and in ${Math.round(ambientTempC)}°C much of the late creep is heat rather than pace` : ''}, but sitting just under the ceiling costs recovery — ease the opening kilometres so the whole run sits nearer ${intensity.lt1Hr - 10} bpm.`
+        `Zone 2 Ceiling Held, High-Zone-2 Creep: you never crossed the ${intensity.lt1Hr} bpm LT1 ceiling, but ${zone2.toFixed(1)}% of your running time sat in upper Zone 2 (${band} bpm), rising to ${intensity.highZ2SecondHalfPct.toFixed(0)}% in the second half. This is ${classification}${ambientTempC !== null && ambientTempC >= 28 ? `; in ${Math.round(ambientTempC)}°C much of the late creep may be heat-related` : ''}. Ease the opening kilometres and aim nearer ${intensity.lt1Hr - 10} bpm on a routine easy day.`
       );
     } else if (above <= 20) {
       insights.add(

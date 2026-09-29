@@ -121,7 +121,7 @@ describe('Weighted Execution Rubric', () => {
     expect(nothing.score).toBe(70); // neutral, never a fake perfect score
   });
 
-  it('scores intensity continuously: a compliant ceiling beats high Zone 2 beats Z3', () => {
+  it('scores intensity continuously, and treats less than 40% upper Zone 2 as clearly easy', () => {
     const steady = (hr: number) => makeRecordsWithSpeed([{ sec: 900, speed: 3.2 }]).map(r => ({ ...r, heart_rate: hr }));
     const compliant = gradeRun({ ...baseAerobic, lt1Hr: 148, records: steady(138) });
     const highZ2 = gradeRun({ ...baseAerobic, lt1Hr: 148, records: steady(146) });
@@ -132,6 +132,35 @@ describe('Weighted Execution Rubric', () => {
     expect(aboveCeiling.score).toBeLessThan(60); // above the ceiling is a failure
   });
 
+  it('uses the top 5 bpm below LT1 as upper Zone 2 and applies the proposed classification bands', () => {
+    const steady = (hr: number) => makeRecordsWithSpeed([{ sec: 600, speed: 3.2 }])
+      .map(r => ({ ...r, heart_rate: hr }));
+    const gradeShare = (sharePct: number) => {
+      const records = makeRecordsWithSpeed([
+        { sec: 600 * sharePct / 100, speed: 3.2 },
+        { sec: 600 * (100 - sharePct) / 100, speed: 3.2 }
+      ]).map(r => ({
+        ...r,
+        heart_rate: r.elapsed_seconds < 600 * sharePct / 100 ? 150 : 140
+      }));
+      return gradeRun({ ...baseAerobic, lt1Hr: 153, records });
+    };
+
+    expect(gradeRun({ ...baseAerobic, lt1Hr: 153, records: steady(147) })
+      .factors.find(f => f.category === 'Aerobic Intensity')!.label).toBe('Clearly Easy');
+    expect(gradeRun({ ...baseAerobic, lt1Hr: 153, records: steady(148) })
+      .factors.find(f => f.category === 'Aerobic Intensity')!.label).toBe('Potentially Too Close to LT1');
+    const clearlyEasy = gradeShare(35);
+    const normalEasy = gradeShare(50);
+    const upperEasy = gradeShare(70);
+    const nearLt1 = gradeShare(90);
+    expect(clearlyEasy.factors.find(f => f.category === 'Aerobic Intensity')!.label).toBe('Clearly Easy');
+    expect(clearlyEasy.factors.find(f => f.category === 'Aerobic Intensity')!.points).toBe(85);
+    expect(normalEasy.factors.find(f => f.category === 'Aerobic Intensity')!.label).toBe('Normal Easy');
+    expect(upperEasy.factors.find(f => f.category === 'Aerobic Intensity')!.label).toBe('Upper Easy / Aerobic Steady');
+    expect(nearLt1.factors.find(f => f.category === 'Aerobic Intensity')!.label).toBe('Potentially Too Close to LT1');
+  });
+
   it('does not describe a ceiling-compliant run as a ceiling problem', () => {
     // Creep confined to the second half: compliant early, top of Zone 2 late
     const records = makeRecordsWithSpeed([{ sec: 270, speed: 3.2 }, { sec: 330, speed: 3.2 }])
@@ -139,16 +168,13 @@ describe('Weighted Execution Rubric', () => {
 
     const hot = gradeRun({ ...baseAerobic, lt1Hr: 153, ambientTempC: 31.7, durationMin: 50, records });
     const factor = hot.factors.find(f => f.category === 'Aerobic Intensity')!;
-    expect(factor.label).toBe('Drifting Into High Zone 2');
-    expect(factor.description).toContain('in the top of Zone 2 (146-153 bpm)');
+    expect(factor.label).toBe('Normal Easy');
+    expect(factor.description).toContain('in the top of Zone 2 (148-153 bpm)');
     expect(factor.description).toContain('0.0% above the 153 bpm LT1 ceiling');
     const description = factor.description || '';
     expect(description.indexOf('Zone 2')).toBeLessThan(description.indexOf('above the')); // leads with the real problem
 
-    const lever = hot.focusAdvice ?? '';
-    expect(lever).toContain('you never crossed the 153 bpm LT1 ceiling');
-    expect(lever).toContain('146-153 bpm');
-    expect(lever).not.toContain('0.0% of your running time sat above');
+    expect(hot.focusAdvice).toBeNull();
 
     // Heat softens late creep only; cool weather gets no credit for the same trace
     const cool = gradeRun({ ...baseAerobic, lt1Hr: 153, ambientTempC: 16, durationMin: 50, records });

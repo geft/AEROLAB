@@ -5,6 +5,10 @@ import type { RubricFactor, RunFamily } from './coach-rubric.js';
 // Form, cadence, economy and weather observations do not change the verdict.
 const findings: Record<string, Exclude<SessionVerdict, 'insufficient_evidence'>> = {
   'Disciplined Aerobic Ceiling': 'on_track',
+  'Clearly Easy': 'on_track',
+  'Normal Easy': 'on_track',
+  'Upper Easy / Aerobic Steady': 'some_deviation',
+  'Potentially Too Close to LT1': 'some_deviation',
   'Drifting Into High Zone 2': 'some_deviation',
   'Extended Above the LT1 Ceiling': 'off_target',
   'On-Target Intensity Control': 'on_track',

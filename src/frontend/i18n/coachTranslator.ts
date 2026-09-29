@@ -289,11 +289,23 @@ export function translateCoachInsight(insight: string, lang: string): string {
   }
 
   // 19. Aerobic intensity: the one thing an easy run is graded on
+  if (insight.startsWith('Clearly Easy:')) {
+    return insight.replace(
+      /^Clearly Easy: (?:only ([\d.]+)% of your running time sat above the (\d+) bpm LT1 ceiling, and )?([\d.]+)% sat in upper Zone 2 \(([\d-]+) bpm\), below the 40% clearly-easy guide\..*$/,
+      (_m, above, lt1, zone2, band) => `轻松跑强度合适：${above ? `跑动时间中仅 ${above}% 超过 ${lt1} bpm 的 LT1 上限，` : ''}${zone2}% 位于 2 区上部（${band} bpm），低于 40% 的轻松跑参考线。`
+    );
+  }
+  if (insight.startsWith('Normal Easy:')) {
+    return insight.replace(
+      /^Normal Easy: you never crossed the (\d+) bpm LT1 ceiling, and ([\d.]+)% of your running time sat in upper Zone 2 \(([\d-]+) bpm\), within the 40-60% normal-easy range\..*$/,
+      (_m, lt1, zone2, band) => `正常轻松跑：你没有超过 ${lt1} bpm 的 LT1 上限，跑动时间中有 ${zone2}% 位于 2 区上部（${band} bpm），处于 40-60% 的正常轻松跑范围。`
+    );
+  }
   if (insight.startsWith('Zone 2 Ceiling Held, High-Zone-2 Creep:')) {
     return insight.replace(
-      /^Zone 2 Ceiling Held, High-Zone-2 Creep: you never crossed the (\d+) bpm LT1 ceiling, but ([\d.]+)% of your running time sat in the top of Zone 2 \(([\d-]+) bpm\), rising to (\d+)% in the second half\..*$/,
+      /^Zone 2 Ceiling Held, High-Zone-2 Creep: you never crossed the (\d+) bpm LT1 ceiling, but ([\d.]+)% of your running time sat in upper Zone 2 \(([\d-]+) bpm\), rising to (\d+)% in the second half\..*$/,
       (_m, lt1, zone2, band, late) =>
-        `守住上限，但停留在 2 区上部：你从未超过 ${lt1} bpm 的 LT1 上限，但有 ${zone2}% 的跑动时间停留在 2 区上部（${band} bpm），后半程升至 ${late}%。这仍属有氧训练，在高温下后半程的漂移多由天气造成；但贴近上限跑会增加恢复成本——把前几公里放慢，让全程更接近 ${Number(lt1) - 10} bpm。`
+        `守住上限，但心率偏高：你从未超过 ${lt1} bpm 的 LT1 上限，${zone2}% 的跑动时间位于 2 区上部（${band} bpm），后半程升至 ${late}%。${Number(zone2) <= 75 ? '这是上有氧轻松跑的分布' : '常规轻松跑中，这可能过于接近 LT1'}；前几公里放慢些，全程尽量接近 ${Number(lt1) - 10} bpm。`
     );
   }
 
@@ -502,6 +514,10 @@ export function translateScoreLabel(label: string, lang: string): string {
     'Elevated Cardiac Drift / Thermal Strain': '心率漂移过高 / 热负荷过大',
     'Textbook Aerobic Discipline': '教科书级有氧自律',
     'Disciplined Aerobic Ceiling': '严格遵守有氧心率上限',
+    'Clearly Easy': '轻松跑',
+    'Normal Easy': '正常轻松跑',
+    'Upper Easy / Aerobic Steady': '上有氧轻松跑 / 有氧稳态',
+    'Potentially Too Close to LT1': '可能过于接近 LT1',
     'Drifting Into High Zone 2': '漂移至 2 区上部',
     'Extended Above the LT1 Ceiling': '长时间超过 LT1 上限',
     'Substantially Walked Session': '步行比例明显偏高',
@@ -647,9 +663,18 @@ export function translateCoachFocusAdvice(advice: string, lang: string): string 
     [/^Biggest Lever — Threshold Heart Rate: work-rep heart rate missed the (\d+) bpm LT2 anchor \((\d+) of (\d+) points lost\)\..*$/,
       '最大提升重点 — 阈值心率控制：工作间歇心率未贴近 $1 bpm 的 LT2 参考值，损失 $2 / $3 分。调整强度以保持阈值心率，不要追逐配速目标。'],
     [
-      /^Biggest Lever — Aerobic Intensity: you never crossed the (\d+) bpm LT1 ceiling, but ([\d.]+)% of your running time sat in the top of Zone 2 \(([\d-]+) bpm\) \((\d+) of (\d+) points lost\)\..*$/,
-      (_m, lt1, zone2, band, lost, max) =>
-        `最大提升杠杆 — 有氧强度：你从未超过 ${lt1} bpm 的 LT1 上限，但有 ${zone2}% 的跑动时间停留在 2 区上部（${band} bpm）（损失 ${lost} / ${max} 分）。一直贴着上限跑依然会增加恢复成本，因此轻松跑请把 ${Number(lt1) - 10} bpm 当作实际上限——${lt1} bpm 是安全线，而不是目标。`
+      /^Biggest Lever — Aerobic Intensity: you never crossed the (\d+) bpm LT1 ceiling, and ([\d.]+)% of your running time sat in the top of Zone 2 \(([\d-]+) bpm\) \((\d+) of (\d+) points lost\)\. That is (normal easy|upper-easy \/ aerobic steady|potentially too close to LT1 for a routine easy day)\. (.*)$/,
+      (_m, lt1, zone2, band, lost, max, classification) => {
+        const translatedClass = classification === 'normal easy'
+          ? '正常轻松跑'
+          : classification === 'upper-easy / aerobic steady'
+            ? '上有氧轻松跑 / 有氧稳态'
+            : '常规轻松跑中可能过于接近 LT1';
+        const guidance = classification === 'normal easy'
+          ? '保持开跑时轻松，让心率自然上升。'
+          : `常规轻松跑时，前几公里放慢些，并将心率控制在 ${Number(lt1) - 10} bpm 附近。`;
+        return `最大提升杠杆 — 有氧强度：你从未超过 ${lt1} bpm 的 LT1 上限，${zone2}% 的跑动时间位于 2 区上部（${band} bpm）（损失 ${lost} / ${max} 分），属于${translatedClass}。${guidance}`;
+      }
     ],
     [
       /^Biggest Lever — Aerobic Intensity: ([\d.]+)% of your running time sat above the (\d+) bpm LT1 ceiling \(([\d.]+)% of it in the first half\) \((\d+) of (\d+) points lost\)\..*$/,

@@ -103,19 +103,40 @@ describe('Walk-break coaching in the debrief', () => {
       steadyCadence: 178,
       steadyStanceTime: 245,
       records: records([
-        { kind: 'run', sec: 360, hr: 150 }, // top of Zone 2
-        { kind: 'run', sec: 240, hr: 140 }
+        { kind: 'run', sec: 420, hr: 150 }, // upper Zone 2
+        { kind: 'run', sec: 180, hr: 140 }
       ])
     } as any);
 
     const insight = summary.keyInsights.find(i => i.startsWith('Zone 2 Ceiling Held'));
     expect(insight).toBeDefined();
     expect(insight).toContain('you never crossed the 153 bpm LT1 ceiling');
-    expect(insight).toContain('146-153 bpm');
-    expect(summary.keyInsights.some(i => i.startsWith('Aerobic Intensity Discipline'))).toBe(false);
+    expect(insight).toContain('148-153 bpm');
+    expect(insight).toContain('upper-easy / aerobic steady');
+    expect(summary.keyInsights.some(i => i.startsWith('Clearly Easy:'))).toBe(false);
     const factor = summary.scoreBreakdown.find(f => f.category === 'Aerobic Intensity')!;
-    expect(factor.label).toBe('Drifting Into High Zone 2');
+    expect(factor.label).toBe('Upper Easy / Aerobic Steady');
     expect(factor.points).toBeLessThan(factor.maxPoints);
+  });
+
+  it('calls a 34% upper-Zone-2 run clearly easy instead of flagging high-zone creep', () => {
+    const summary = generateCoachSummary({
+      runType: 'easy_base', distanceKm: 8.5, durationMin: 50,
+      avgPaceSecKm: 352, avgHr: 144, maxHr: 158, cadence: 178,
+      decouplingPct: 3.0, efficiencyFactor: 1.15, avgTemp: 20,
+      groundContactTime: 245, lt1Hr: 153, lt2Hr: 177, maxHeartRate: 203,
+      steadyPaceSecKm: 350, steadyHr: 144, steadyCadence: 178, steadyStanceTime: 245,
+      records: records([
+        { kind: 'run', sec: 206, hr: 150 },
+        { kind: 'run', sec: 394, hr: 140 }
+      ])
+    } as any);
+
+    const insight = summary.keyInsights.find(i => i.startsWith('Clearly Easy:'));
+    expect(insight).toBeDefined();
+    expect(insight).toContain('upper Zone 2 (148-153 bpm)');
+    expect(summary.keyInsights.some(i => i.startsWith('Zone 2 Ceiling Held'))).toBe(false);
+    expect(summary.scoreBreakdown.find(f => f.category === 'Aerobic Intensity')?.label).toBe('Clearly Easy');
   });
 
   it('credits walk breaks used to hold heart rate under the LT1 ceiling', () => {

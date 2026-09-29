@@ -443,7 +443,7 @@ export interface IntensityAudit {
   sampledSec: number;
   /** Share of running time with HR above the LT1 ceiling (Z3+). */
   aboveCeilingPct: number;
-  /** Share of running time in the top 7 bpm of Zone 2. */
+  /** Share of running time in the top 5 bpm of Zone 2. */
   highZ2Pct: number;
   firstHalfAboveCeilingPct: number;
   secondHalfAboveCeilingPct: number;
@@ -452,10 +452,11 @@ export interface IntensityAudit {
   lt1Hr: number;
 }
 
-const HIGH_Z2_BAND_BPM = 7;
+const HIGH_Z2_BAND_BPM = 5;
 /** Aerobic-intensity grading weights: Z3+ is the failure, high Z2 is a soft signal. */
 const ABOVE_CEILING_MAX = 60;
 const HIGH_Z2_MAX = 25;
+const HIGH_Z2_PENALTY_START_PCT = 40;
 
 export function intensityAudit(
   records: Array<any> | null | undefined,
@@ -991,9 +992,9 @@ function gradeAerobic(input: RubricInput, walkAudit: WalkAudit | null, intensity
   // longer an easy day in the recovery sense).
   const gradeIntensity = (audit: IntensityAudit): { points: number; label: string; description: string } => {
     const effectiveAbove = audit.firstHalfAboveCeilingPct + lateWeight * audit.secondHalfAboveCeilingPct;
-    const effectiveHighZ2 = audit.highZ2FirstHalfPct + lateZone2 * audit.highZ2SecondHalfPct;
+    const effectiveHighZ2 = (audit.highZ2FirstHalfPct + lateZone2 * audit.highZ2SecondHalfPct) / 2;
     const abovePoints = curve(ABOVE_CEILING_MAX, effectiveAbove, 5, 40);
-    const zone2Points = curve(HIGH_Z2_MAX, effectiveHighZ2, 25, 100);
+    const zone2Points = curve(HIGH_Z2_MAX, effectiveHighZ2, HIGH_Z2_PENALTY_START_PCT, 100);
     const pts = abovePoints + zone2Points;
 
     const aboveLost = ABOVE_CEILING_MAX - abovePoints;
@@ -1003,16 +1004,20 @@ function gradeAerobic(input: RubricInput, walkAudit: WalkAudit | null, intensity
     // ceiling-compliant run is never described as a ceiling problem.
     const zone2Text = `${audit.highZ2Pct.toFixed(1)}% in the top of Zone 2 (${audit.lt1Hr - HIGH_Z2_BAND_BPM}-${audit.lt1Hr} bpm)`;
     const aboveText = `${audit.aboveCeilingPct.toFixed(1)}% above the ${audit.lt1Hr} bpm LT1 ceiling`;
-    const description = aboveLost >= zone2Lost
+    const description = aboveLost > 0 && aboveLost >= zone2Lost
       ? `${aboveText} (first half: ${audit.firstHalfAboveCeilingPct.toFixed(1)}%) · ${zone2Text}`
       : `${zone2Text} · ${aboveText} · rising to ${audit.highZ2SecondHalfPct.toFixed(0)}% in the second half`;
 
     // The label names the signal that actually failed, not a blended ratio.
     const label = aboveLost >= 12
       ? 'Extended Above the LT1 Ceiling'
-      : zone2Lost >= 8
-        ? 'Drifting Into High Zone 2'
-        : 'Disciplined Aerobic Ceiling';
+      : audit.highZ2Pct < 40
+        ? 'Clearly Easy'
+        : audit.highZ2Pct < 60
+          ? 'Normal Easy'
+          : audit.highZ2Pct <= 75
+            ? 'Upper Easy / Aerobic Steady'
+            : 'Potentially Too Close to LT1';
 
     return {
       points: Math.round(pts),
@@ -1039,7 +1044,7 @@ function gradeAerobic(input: RubricInput, walkAudit: WalkAudit | null, intensity
       category: 'Aerobic Intensity',
       points: Math.round(pts),
       maxPoints: 85,
-      label: band(pts / 85, 'Disciplined Aerobic Ceiling', 'Drifting Into High Zone 2', 'Extended Above the LT1 Ceiling'),
+      label: band(pts / 85, 'Disciplined Aerobic Ceiling', 'Normal Easy', 'Extended Above the LT1 Ceiling'),
       description: `${hr} bpm average against a ${input.lt1Hr} bpm LT1 ceiling (average only — no per-second telemetry)`
     });
   }
@@ -1416,8 +1421,16 @@ function buildFocusAdvice(factor: RubricFactor, input: RubricInput, walkAudit: W
       const bandLow = input.lt1Hr - HIGH_Z2_BAND_BPM;
       const targetHigh = input.lt1Hr - 10;
       // Advise on whichever signal actually cost the points.
-      if (zone2 > 25 && above < 5) {
-        return `${prefix}you never crossed the ${input.lt1Hr} bpm LT1 ceiling, but ${zone2.toFixed(1)}% of your running time sat in the top of Zone 2 (${bandLow}-${input.lt1Hr} bpm)${tail}. Staying just under the ceiling still costs recovery, so on easy days treat ${targetHigh} bpm as the ceiling rather than ${input.lt1Hr} — the hard limit is a safety line, not the target.`;
+      if (zone2 >= 40 && above < 5) {
+        const interpretation = zone2 < 60
+          ? 'normal easy'
+          : zone2 <= 75
+            ? 'upper-easy / aerobic steady'
+            : 'potentially too close to LT1 for a routine easy day';
+        const guidance = zone2 < 60
+          ? 'Keep the opening relaxed and let heart rate rise naturally.'
+          : `For a routine easy day, ease the opening kilometres and aim nearer ${targetHigh} bpm.`;
+        return `${prefix}you never crossed the ${input.lt1Hr} bpm LT1 ceiling, and ${zone2.toFixed(1)}% of your running time sat in the top of Zone 2 (${bandLow}-${input.lt1Hr} bpm)${tail}. That is ${interpretation}. ${guidance}`;
       }
       return `${prefix}${above.toFixed(1)}% of your running time sat above the ${input.lt1Hr} bpm LT1 ceiling (${(audit?.firstHalfAboveCeilingPct ?? 0).toFixed(1)}% of it in the first half)${tail}. Set a watch alert at ${bandLow} bpm and walk any climb that pushes you over it — for an easy day, keeping the ceiling is the whole session.`;
     }

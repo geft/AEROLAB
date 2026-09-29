@@ -128,7 +128,7 @@ describe('Coach debrief insight tones', () => {
       records: records([{ hr: 136, sec: 900 }, { hr: 130, sec: 900 }])
     } as any);
 
-    expect(toneOf(summary, 'Aerobic Intensity Discipline')).toBe('positive');
+    expect(toneOf(summary, 'Clearly Easy:')).toBe('positive');
   });
 
   it('classes an aborted quality session as a fix and its structure as context', () => {
