@@ -12,6 +12,7 @@ import path from 'path';
 import { getDatabasePath } from '../src/backend/db/path.js';
 import Database from 'better-sqlite3';
 import { realignDatabase } from '../src/backend/db/realign.js';
+import { openDatabase } from '../src/backend/db/client.js';
 
 const dbPath = getDatabasePath();
 const onlyIds = process.argv.slice(2).filter(a => !a.startsWith('-'));
@@ -22,7 +23,7 @@ if (!fs.existsSync(dbPath)) {
 }
 
 // Open with a busy timeout so a running dev server doesn't cause SQLITE_BUSY.
-const db = new Database(dbPath, { timeout: 30000 });
+let db = new Database(dbPath, { timeout: 30000 });
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
@@ -36,6 +37,10 @@ if (onlyIds.length === 0) {
   console.log(`Backup written to ${backupPath}`);
 }
 
+// Upgrade schema only after the backup exists, just as application startup does.
+db.close();
+db = openDatabase(dbPath);
+db.pragma('busy_timeout = 30000');
 const stats = realignDatabase(db, {
   logger: (msg) => console.log(`[realign] ${msg}`),
   activityIds: onlyIds.length > 0 ? onlyIds : undefined

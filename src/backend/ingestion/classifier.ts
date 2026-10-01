@@ -47,8 +47,9 @@ export function qualityWorkoutFailed(
  * Pace-free workout classifier.
  *
  * Rules:
- * - Never uses pace/speed (absolute or relative) for classification, so slower
- *   athletes and improving fitness over time cannot skew results.
+ * - Quality intensity uses HR, not pace. Upstream segmentation uses within-run
+ *   speed contrast; walking detection below uses cadence and walking speed.
+ *   Neither uses a fixed training pace to distinguish threshold from VO2.
  * - Intervals are defined by structure (rep count, work/recovery durations,
  *   regularity) + heart rate relative to the athlete profile (LT1/LT2/max,
  *   never hardcoded bpm).
@@ -160,10 +161,27 @@ export function classifyRun(
 
     const vo2RepCount = workIntervals.filter(i => i.maxHeartRate >= vo2HrFloor || i.maxHeartRate >= effMax * 0.91).length;
     const hasVo2Intensity = vo2RepCount >= 2 || (vo2RepCount >= 1 && vo2HrPct >= 4) || (vo2HrPct >= 6 && vo2HrSeconds >= 120);
+    // Distance-based or slower VO2 reps can exceed six minutes. Require sustained
+    // near-max HR in two separate reps for this exception; peaks alone are not
+    // enough to turn long threshold work into VO2. No training pace is involved.
+    const sustainedVo2Reps = workIntervals.filter(interval => {
+      // Prolonged threshold bouts can drift toward max HR too. Keep the
+      // exception within interval-length efforts, not 15–20 minute blocks.
+      if (interval.durationSeconds > 600) return false;
+      const end = interval.startSeconds + interval.durationSeconds;
+      const highSeconds = records.reduce((sum, record, index) => {
+        if (record.elapsedSeconds < interval.startSeconds || record.elapsedSeconds >= end ||
+            record.heartRate == null || record.heartRate < effMax * 0.91 || record.heartRate > effMax) return sum;
+        return sum + Math.min(recordDurationSeconds(records, index), end - record.elapsedSeconds);
+      }, 0);
+      return highSeconds >= 120 && highSeconds >= interval.durationSeconds * 0.25;
+    });
+    const hasSustainedVo2Structure = sustainedVo2Reps.length >= 2 && hasRepeatedQualityWork;
     const isSporadicSurges =
       (totalWorkDurationSec < 300 || totalWorkDurationSec < metadata.totalDurationSeconds * 0.22) &&
       vo2RepCount < 2 && vo2HrPct < 4;
-    const isVo2Intervals = !isSporadicSurges && workIntervals.length >= 2 && medianWorkSec <= 360 && hasVo2Intensity;
+    const isVo2Intervals = !isSporadicSurges && workIntervals.length >= 2 &&
+      ((medianWorkSec <= 360 && hasVo2Intensity) || hasSustainedVo2Structure);
 
     const repInThresholdBand = (hr: number): boolean => hr >= thresholdHrFloor;
     const thresholdRepCount = workIntervals.filter(i =>
@@ -190,8 +208,8 @@ export function classifyRun(
       };
     }
 
-    // B. VO2 Max Intervals: short repeated structure (median work <= 6 min,
-    //    2+ reps) with Z5 spikes (profile-relative max-HR attainment).
+    // B. VO2 Max Intervals: short repeated structure with max-HR attainment,
+    //    or longer repeated bouts with sustained near-max HR evidence.
     if (isVo2Intervals) {
       const isFailed = qualityWorkoutFailed('intervals_vo2', workIntervals, profileWithMeta);
 

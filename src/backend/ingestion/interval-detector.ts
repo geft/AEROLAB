@@ -370,7 +370,8 @@ export function detectIntervals(
       next && next.type === 'work' &&
       dur <= 60 &&
       prevDur >= 150 &&
-      nextDur >= 150 &&
+      (nextDur >= 150 || (dur <= 20 && nextDur >= 60 &&
+        blockRecs.every(r => (r.cadence ?? 0) >= 128))) &&
       hrDrop < 15;
 
     const isStrideDip = b.type === 'recovery' &&

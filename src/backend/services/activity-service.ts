@@ -590,6 +590,7 @@ export async function refreshActivityWeatherService(db: Database.Database, id: s
 
 export interface UpdateActivityInput {
   run_type?: string;
+  is_failed_workout?: boolean;
   name?: string;
   tags?: unknown;
 }
@@ -600,14 +601,18 @@ export type UpdateActivityResult =
 
 /** PATCH /api/activities/:id - manual override for run_type or notes */
 export function updateActivityService(db: Database.Database, id: string, input: UpdateActivityInput): UpdateActivityResult {
-  const { run_type, name, tags } = input;
+  const { run_type, is_failed_workout, name, tags } = input;
 
   const updates: string[] = [];
   const params: string[] = [];
 
   if (run_type) {
-    updates.push('run_type = ?');
-    params.push(run_type);
+    updates.push('run_type = ?', 'manual_run_type = ?');
+    params.push(run_type, run_type);
+  }
+  if (is_failed_workout !== undefined) {
+    updates.push('manual_failed_workout = ?');
+    params.push(is_failed_workout ? '1' : '0');
   }
   if (name) {
     updates.push('name = ?');
@@ -661,7 +666,8 @@ export function updateActivityService(db: Database.Database, id: string, input: 
 export function parseActivityUpdate(value: unknown): UpdateActivityInput | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
-  if (Object.keys(row).some(key => !['run_type', 'name', 'tags'].includes(key))) return null;
+  if (Object.keys(row).some(key => !['run_type', 'is_failed_workout', 'name', 'tags'].includes(key))) return null;
+  if (row.is_failed_workout !== undefined && typeof row.is_failed_workout !== 'boolean') return null;
   if (row.run_type !== undefined && typeof row.run_type !== 'string') return null;
   if (row.name !== undefined && typeof row.name !== 'string') return null;
   if (row.tags !== undefined && typeof row.tags !== 'string' &&

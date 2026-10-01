@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS activities (
   sport TEXT DEFAULT 'running',
   run_type TEXT,
   auto_run_type TEXT,
+  manual_run_type TEXT,
+  manual_failed_workout INTEGER,
   distance_meters REAL,
   duration_seconds REAL,
   elapsed_seconds REAL,

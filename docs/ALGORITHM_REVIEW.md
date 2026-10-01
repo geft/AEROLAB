@@ -76,3 +76,20 @@ acquire the corrected stored metrics. These changes do not automatically mutate
 the user's database. The existing `npm run realign` command backs up the selected
 database before recomputing all activity analysis, including classification and
 calibration; it is broader than a split-only refresh.
+
+## Athlete-confirmed historical cases (October 2, 2026)
+
+The [confirmed-run catalog](CONFIRMED_RUNS.md) records the failed July 5 time trial,
+November 27's three VO2 reps, April 30 and May 14 VO2 sessions, and the May 21 and
+September 10 threshold controls. Original sparse telemetry is checked into the
+test fixtures without GPS. Confirmed intent survives replay and force reimport;
+the independent automatic prediction remains available. Confirmed failures do
+not supply threshold calibrations.
+
+Longer VO2 bouts of up to ten minutes can qualify when two separate reps each spend at least 120
+seconds and 25% of their duration at or above 91% of athlete max HR. This is an
+explicit evidence policy, not a validated physiological boundary; it avoids a
+six-minute duration ceiling and does not infer VO2 from isolated peaks. A brief
+running dip before a shorter finishing portion no longer invents another rep.
+April, May and failed time-trial intent still require confirmation where recorded
+HR cannot support automatic inference.

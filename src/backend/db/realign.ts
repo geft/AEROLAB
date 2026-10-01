@@ -137,9 +137,10 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
         totalDescentMeters: act.elevation_loss_m || 0
       };
       const classification = classifyRun(meta, mapped as any, economy, intervals, hrProfile);
+      const runType = act.manual_run_type || classification.runType;
       // Match ingestion: a newly inferred race needs benchmark segmentation
       // in this pass, before its tags and coach summary are rebuilt.
-      if (classification.runType === 'race') {
+      if (runType === 'race') {
         intervals = detectIntervals(mapped as any, { ...intervalOptions, isRace: true });
       }
       db.prepare('DELETE FROM activity_intervals WHERE activity_id = ?').run(act.id);
@@ -155,10 +156,10 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
         );
       }
       stats.intervalsRebuilt += intervals.length;
-      const tags = buildSessionTags(classification.runType, mapped, intervals, hrProfile);
+      const tags = buildSessionTags(runType, mapped, intervals, hrProfile);
 
-      if (act.run_type !== classification.runType) {
-        stats.runTypeChanges.push({ id: act.id, from: act.run_type, to: classification.runType });
+      if (act.run_type !== runType) {
+        stats.runTypeChanges.push({ id: act.id, from: act.run_type, to: runType });
       }
       db.prepare(`
         UPDATE activities SET
@@ -174,7 +175,7 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
           steady_stance_time = ?
         WHERE id = ?
       `).run(
-        classification.runType,
+        runType,
         classification.runType,
         JSON.stringify(tags),
         economy.efficiencyFactor,
@@ -208,7 +209,7 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
         }
       }
 
-      evaluated.push({ act, meta, mapped, economy, runType: classification.runType });
+      evaluated.push({ act, meta, mapped, economy, runType });
       stats.activitiesProcessed++;
     } catch (err: any) {
       stats.activitiesFailed.push(`${act.id}: ${err?.message || err}`);
@@ -232,6 +233,8 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
         SELECT t.source_activity_id FROM physiological_thresholds t
         JOIN activities a ON a.id = t.source_activity_id
         WHERE (
+          a.manual_failed_workout = 1
+        ) OR (
           t.lt2_hr IS NOT NULL AND a.run_type NOT IN ('threshold_lt2', 'race')
         ) OR (
           t.lt1_hr IS NOT NULL AND t.lt2_hr IS NULL AND a.run_type NOT IN ('easy_base', 'long_run')
@@ -256,6 +259,8 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
 
   for (const e of evaluated) {
     try {
+      // A confirmed failed attempt is not a threshold calibration benchmark.
+      if (e.act.manual_failed_workout === 1) continue;
       evaluateThresholdUpdate(db, e.act.id, e.act.start_time, e.runType as any, e.meta, e.mapped as any, e.economy);
     } catch (err: any) {
       stats.activitiesFailed.push(`${e.act.id} (thresholds): ${err?.message || err}`);

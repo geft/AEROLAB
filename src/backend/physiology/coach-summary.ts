@@ -595,6 +595,7 @@ export function syncActivityCoachSummary(
   const activityValue: unknown = db.prepare('SELECT * FROM activities WHERE id = ?').get(activityId);
   if (!activityValue) return null;
   const activity = activityFromRow(activityValue);
+  const confirmedFailure = objectRow(activityValue, 'activities').manual_failed_workout;
 
   const validateRows = (values: unknown[], table: string, numericFields: string[], stringFields: string[] = []): Array<Record<string, unknown>> => values.map(value => {
     const row = objectRow(value, table);
@@ -669,13 +670,13 @@ export function syncActivityCoachSummary(
     weatherPm25: activity.weather_pm25_ug_m3 ?? null,
     weatherPm25Source: activity.weather_pm25_source ?? null,
     recentAverageWeatherTempC: weatherBaselineRow?.avg_temp ?? null,
-    isFailedWorkout: overrides?.isFailedWorkout ?? qualityWorkoutFailed(
+    isFailedWorkout: overrides?.isFailedWorkout ?? (confirmedFailure == null ? qualityWorkoutFailed(
       overrides?.runType || activity.run_type || 'easy_base',
       intervals.filter(interval => interval.type === 'work').map(interval => ({
         durationSeconds: (interval.duration_seconds as number | null) ?? 0,
         maxHeartRate: (interval.max_heart_rate as number | null) ?? 0
       })), { maxHr: maxHeartRate, restingHr, lt1Hr, lt2Hr }
-    ),
+    ) : confirmedFailure === 1),
     intervals: overrides?.intervals || intervals,
     splits: overrides?.splits || splits,
     records,

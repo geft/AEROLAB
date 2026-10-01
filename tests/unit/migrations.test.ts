@@ -35,6 +35,24 @@ describe('named database migrations', () => {
     db.close();
   });
 
+  it('migrates existing manual labels and preserves them on subsequent replays', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aerolab-confirmed-migration-'));
+    roots.push(root);
+    const file = path.join(root, 'runs.db');
+    const first = openDatabase(file);
+    seedBenchmarkProfile(first);
+    const bench = getBenchmark('bench-easy-60');
+    importRunContent(first, toCsv(bench), 'run.csv');
+    first.exec('ALTER TABLE activities DROP COLUMN manual_run_type; ALTER TABLE activities DROP COLUMN manual_failed_workout');
+    first.prepare("DELETE FROM schema_migrations WHERE name='confirmed-workout-intent-v1'").run();
+    first.prepare("UPDATE activities SET run_type='intervals_vo2' WHERE id=?").run(bench.id);
+    first.close();
+    const migrated = openDatabase(file);
+    expect(migrated.prepare('SELECT run_type,manual_run_type,auto_run_type FROM activities WHERE id=?').get(bench.id))
+      .toEqual({ run_type: 'intervals_vo2', manual_run_type: 'intervals_vo2', auto_run_type: 'easy_base' });
+    migrated.close();
+  });
+
   it('maps a completed legacy migration marker to named steps', () => {
     const db = new Database(':memory:');
     db.exec('CREATE TABLE activities (id TEXT PRIMARY KEY); PRAGMA user_version = 1');

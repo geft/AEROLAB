@@ -110,6 +110,8 @@ export function importRunContent(
   }
 
   // 2. Compute Physiology & Intervals
+  const confirmed = existing ? db.prepare('SELECT manual_run_type, manual_failed_workout FROM activities WHERE id = ?').get(existing.id) as
+    { manual_run_type: import('./classifier.js').RunType | null; manual_failed_workout: number | null } : undefined;
   const economy = calculateEconomy(records);
   const splits = calculateKmSplits(records, 1000);
   const hrProfile = getAthleteHeartRateProfile(db);
@@ -124,7 +126,8 @@ export function importRunContent(
   };
   let intervals = detectIntervals(records, intervalOpts);
   const classification = classifyRun(metadata, records, economy, intervals, hrProfile);
-  if (classification.runType === 'race') {
+  const runType = confirmed?.manual_run_type || classification.runType;
+  if (runType === 'race') {
     intervals = detectIntervals(records, { ...intervalOpts, isRace: true });
   }
 
@@ -225,7 +228,7 @@ export function importRunContent(
     workoutLon = Number((sumLon / targetRecords.length).toFixed(6));
   }
 
-  const initialTags = buildSessionTags(classification.runType, records, intervals, hrProfile);
+  const initialTags = buildSessionTags(runType, records, intervals, hrProfile);
 
   const pb = economy.pauseBreakdown;
 
@@ -262,7 +265,7 @@ export function importRunContent(
       metadata.date,
       metadata.name,
       metadata.sport,
-      classification.runType,
+      runType,
       classification.runType,
       metadata.totalDistanceMeters,
       metadata.totalDurationSeconds,
@@ -299,6 +302,9 @@ export function importRunContent(
       loadResult.zones.z5Seconds
     );
 
+
+    if (confirmed) db.prepare('UPDATE activities SET manual_run_type = ?, manual_failed_workout = ? WHERE id = ?')
+      .run(confirmed.manual_run_type, confirmed.manual_failed_workout, metadata.id);
 
     // Splits
     for (const s of splits) {
@@ -367,7 +373,7 @@ export function importRunContent(
     }
 
     // Threshold updates
-    evaluateThresholdUpdate(db, metadata.id, metadata.date, classification.runType, metadata, records, economy);
+    if (confirmed?.manual_failed_workout !== 1) evaluateThresholdUpdate(db, metadata.id, metadata.date, runType, metadata, records, economy);
   });
 
   transaction();
@@ -381,7 +387,7 @@ export function importRunContent(
       activityId: metadata.id,
       name: metadata.name,
       date: metadata.date,
-      runType: classification.runType,
+      runType,
       distanceKm: Number((metadata.totalDistanceMeters / 1000).toFixed(2)),
       durationMin: Number((metadata.totalDurationSeconds / 60).toFixed(1)),
       efficiencyFactor: economy.efficiencyFactor,

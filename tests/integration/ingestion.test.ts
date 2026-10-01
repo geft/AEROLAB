@@ -25,6 +25,20 @@ describe('Database Ingestion Pipeline (Integration)', () => {
     db.close();
   });
 
+  it('preserves a confirmed failed attempt through force reimport, including an agreeing automatic label', () => {
+    const bench = getBenchmark('bench-race-5k');
+    expect(importRunContent(db, toCsv(bench), 'trial.csv').status).toBe('imported');
+    const automatic = (db.prepare('SELECT auto_run_type FROM activities WHERE id=?').get(bench.id) as { auto_run_type: string }).auto_run_type;
+    expect(updateActivityService(db, bench.id, { run_type: automatic, is_failed_workout: true }).ok).toBe(true);
+    expect(importRunContent(db, toCsv(bench), 'trial.csv', { force: true }).status).toBe('imported');
+    expect(db.prepare('SELECT run_type,manual_run_type,manual_failed_workout FROM activities WHERE id=?').get(bench.id))
+      .toEqual({ run_type: automatic, manual_run_type: automatic, manual_failed_workout: 1 });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM physiological_thresholds WHERE source_activity_id=?').get(bench.id)).toEqual({ n: 0 });
+    expect(realignDatabase(db).activitiesFailed).toEqual([]);
+    expect(db.prepare('SELECT run_type,manual_run_type,manual_failed_workout FROM activities WHERE id=?').get(bench.id))
+      .toEqual({ run_type: automatic, manual_run_type: automatic, manual_failed_workout: 1 });
+  });
+
   it('replays the same history independently of cached inferred thresholds', () => {
     for (const bench of BENCHMARKS) importRunContent(db, toCsv(bench), `${bench.id}.csv`);
     const read = () => ({

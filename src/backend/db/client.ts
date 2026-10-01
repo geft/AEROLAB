@@ -76,6 +76,15 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
   const migrations = createMigrationRunner(db);
   const deferDerivedMigrations = process.env.AEROLAB_DEFER_MIGRATIONS === '1';
 
+  migrations.run('confirmed-workout-intent-v1', () => {
+    const columns = new Set((db.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>).map(column => column.name));
+    if (!columns.has('manual_run_type')) db.exec('ALTER TABLE activities ADD COLUMN manual_run_type TEXT');
+    if (!columns.has('manual_failed_workout')) db.exec('ALTER TABLE activities ADD COLUMN manual_failed_workout INTEGER');
+    // Earlier versions represented an override by keeping the two labels apart.
+    if (columns.has('auto_run_type')) db.exec(`UPDATE activities SET manual_run_type = run_type
+      WHERE manual_run_type IS NULL AND auto_run_type IS NOT NULL AND run_type <> auto_run_type`);
+  });
+
   // Essential schema upgrades are checkpointed separately from derived-data work.
   migrations.run('schema-columns-v1', () => {
     const addMissing = (table: string, columns: Array<[string, string]>): void => {
