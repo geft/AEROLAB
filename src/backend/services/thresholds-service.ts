@@ -3,7 +3,7 @@ import type {
   CalibrationHistoryItem, ThresholdsResponse,
 } from '../../shared/thresholds.js';
 import { getAthleteHeartRateProfile } from '../physiology/athlete-profile.js';
-import { calculateRacePredictions } from '../physiology/predictions.js';
+import { BENCHMARK_FRESHNESS_DAYS, calculateRacePredictions, isFreshPredictionEvidence, type RaceBenchmark } from '../physiology/predictions.js';
 import { getCurrentThresholds } from '../physiology/threshold-tracker.js';
 import { getDefaultZones } from '../physiology/zones.js';
 import { objectRow } from '../db/rows.js';
@@ -112,12 +112,23 @@ export function getThresholdsService(db: Database.Database, runTypeFilter?: stri
   };
 
   // Average overall pace from recent runs for prediction baseline
-  const avgRecentValue: unknown = db.prepare(`
-    SELECT AVG(avg_pace_sec_km) as avg_pace
+  const predictionNow = new Date();
+  const predictionCutoff = new Date(predictionNow.getTime() - BENCHMARK_FRESHNESS_DAYS * 86400000);
+  // The coarse SQL bounds allow both local timestamps and offset-bearing ISO
+  // timestamps. Apply exact freshness in JS, where both formats parse correctly.
+  const coarseFrom = new Date(predictionCutoff.getTime() - 86400000).toISOString();
+  const coarseTo = new Date(predictionNow.getTime() + 86400000).toISOString();
+  const recentPaces = db.prepare(`
+    SELECT start_time, avg_pace_sec_km
     FROM activities
-    WHERE avg_pace_sec_km IS NOT NULL
-  `).get() as unknown;
-  const avgRecent = avgRecentValue == null ? null : activityNumber(objectRow(avgRecentValue, 'activities aggregate').avg_pace, 'avg_pace');
+    WHERE avg_pace_sec_km > 0 AND datetime(start_time) BETWEEN datetime(?) AND datetime(?)
+  `).all(coarseFrom, coarseTo).flatMap(value => {
+    const row = objectRow(value, 'activities');
+    const date = activityText(row.start_time, 'start_time');
+    const pace = activityNumber(row.avg_pace_sec_km, 'avg_pace_sec_km');
+    return pace != null && pace > 0 && isFreshPredictionEvidence(date, predictionNow) ? [pace] : [];
+  });
+  const avgRecent = recentPaces.length ? recentPaces.reduce((sum, pace) => sum + pace, 0) / recentPaces.length : null;
 
   // If LT2 has not been calibrated through a threshold workout or race:
   // Estimate LT2 pace based on aerobic turnpoint mechanics (~86% of LT1 pace),
@@ -148,45 +159,47 @@ export function getThresholdsService(db: Database.Database, runTypeFilter?: stri
   };
 
   // Check for proven 5K benchmark (from actual 5k time trial / race or profile PB)
-  let benchmark5kPace: number | null = null;
-  const race5kActValue: unknown = db.prepare(`
-    SELECT a.id, a.avg_pace_sec_km, i.avg_pace_sec_km AS benchmark_pace_sec_km
+  let benchmark5k: RaceBenchmark | null = null;
+  const race5kCandidates = db.prepare(`
+    SELECT a.id, a.start_time, a.avg_pace_sec_km, i.avg_pace_sec_km AS benchmark_pace_sec_km
     FROM activities a
     LEFT JOIN activity_intervals i ON i.activity_id = a.id AND i.type = 'work'
       AND i.distance_meters BETWEEN 4500 AND 5500 AND i.duration_seconds >= 600
-    WHERE a.run_type = 'race' AND (a.distance_meters BETWEEN 4500 AND 5500 OR i.activity_id IS NOT NULL)
-    ORDER BY a.start_time DESC, i.avg_pace_sec_km ASC
-    LIMIT 1
-  `).get();
-  const race5kAct = race5kActValue == null ? null : (() => {
-    const row = objectRow(race5kActValue, 'activities');
+      AND i.avg_pace_sec_km > 0
+    WHERE a.run_type = 'race' AND datetime(a.start_time) BETWEEN datetime(?) AND datetime(?)
+      AND ((a.distance_meters BETWEEN 4500 AND 5500 AND a.avg_pace_sec_km > 0) OR i.activity_id IS NOT NULL)
+    ORDER BY i.avg_pace_sec_km ASC
+  `).all(coarseFrom, coarseTo).map(value => {
+    const row = objectRow(value, 'activities');
     const id = activityText(row.id, 'id');
     if (!id) throw new Error('Invalid activities.id');
-    return { id, avg_pace_sec_km: activityNumber(row.avg_pace_sec_km, 'avg_pace_sec_km'),
+    return { id, start_time: activityText(row.start_time, 'start_time'), avg_pace_sec_km: activityNumber(row.avg_pace_sec_km, 'avg_pace_sec_km'),
       benchmark_pace_sec_km: activityNumber(row.benchmark_pace_sec_km, 'benchmark_pace_sec_km') };
-  })();
+  }).filter(activity => isFreshPredictionEvidence(activity.start_time, predictionNow))
+    .sort((a, b) => new Date(b.start_time!.replace(' ', 'T')).getTime() - new Date(a.start_time!.replace(' ', 'T')).getTime());
+  const race5kAct = race5kCandidates[0];
 
   if (race5kAct) {
     const workInvPace = race5kAct.benchmark_pace_sec_km;
     if (workInvPace) {
-      benchmark5kPace = workInvPace;
+      benchmark5k = { paceSecKm: workInvPace, date: race5kAct.start_time, source: 'race_segment', activityId: race5kAct.id };
     } else if (race5kAct.avg_pace_sec_km) {
-      benchmark5kPace = race5kAct.avg_pace_sec_km;
+      benchmark5k = { paceSecKm: race5kAct.avg_pace_sec_km, date: race5kAct.start_time, source: 'race_activity', activityId: race5kAct.id };
     }
   }
 
-  if (!benchmark5kPace) {
+  if (!benchmark5k) {
     const profileValue: unknown = db.prepare("SELECT pb_5k FROM athlete_profile WHERE id = 'primary'").get();
     const pb5k = profileValue == null ? null : activityText(objectRow(profileValue, 'athlete_profile').pb_5k, 'pb_5k');
     if (pb5k) {
       const match = pb5k.match(/(\d{1,2}):(\d{2})/);
       if (match) {
         const totalSec = parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
-        benchmark5kPace = Math.round(totalSec / 5);
+        benchmark5k = { paceSecKm: Math.round(totalSec / 5), date: null, source: 'profile_pb' };
       } else {
         const minMatch = pb5k.match(/(\d{1,2})\s*(?:min|m)?/i);
         if (minMatch && parseInt(minMatch[1], 10) >= 12 && parseInt(minMatch[1], 10) <= 60) {
-          benchmark5kPace = Math.round((parseInt(minMatch[1], 10) * 60) / 5);
+          benchmark5k = { paceSecKm: Math.round((parseInt(minMatch[1], 10) * 60) / 5), date: null, source: 'profile_pb' };
         }
       }
     }
@@ -197,7 +210,9 @@ export function getThresholdsService(db: Database.Database, runTypeFilter?: stri
     latestLt2?.lt2_pace_sec_km ?? null,
     latestLt1?.lt1_pace_sec_km ?? null,
     avgRecent,
-    benchmark5kPace
+    benchmark5k,
+    { asOf: predictionNow, lt2EffectiveDate: latestLt2Row?.effective_date, lt2IsEstimated: isLt2Estimated,
+      lt2EstimateSource: latestLt1Pace ? 'lt1' : 'recent_runs' }
   );
 
   // Pace-dependent economy curves:
@@ -263,6 +278,7 @@ export function getThresholdsService(db: Database.Database, runTypeFilter?: stri
     currentThresholds,
     zones,
     predictions: predictionsResult.predictions,
+    predictionEvidence: predictionsResult.evidence,
     history,
     economyTrend,
     scatterData

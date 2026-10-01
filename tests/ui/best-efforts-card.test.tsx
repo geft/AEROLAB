@@ -3,6 +3,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { BestEffortsCard } from '../../src/frontend/components/BestEffortsCard.js';
+import { LanguageProvider, useTranslation } from '../../src/frontend/i18n/LanguageContext.js';
 
 describe('BestEffortsCard UI Tests', () => {
   const currentYear = new Date().getFullYear().toString();
@@ -70,6 +71,26 @@ describe('BestEffortsCard UI Tests', () => {
       expect(screen.getByText('20:50')).toBeDefined(); // 1250s
       expect(screen.getByText(/4:10\/km/i)).toBeDefined(); // 250s/km
     });
+  });
+
+  it('distinguishes measured segments and estimates in both languages', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({
+      ...mockBestEffortsData,
+      allTime: [{ ...mockBestEffortsData.allTime[0], source: 'estimated' },
+        { ...mockBestEffortsData.allTime[0], targetId: '1k', source: 'measured' }]
+    }) })));
+    function Toggle() {
+      const { toggleLanguage } = useTranslation();
+      return <button onClick={toggleLanguage}>Toggle</button>;
+    }
+    render(<LanguageProvider><Toggle /><BestEffortsCard /></LanguageProvider>);
+    await waitFor(() => expect(screen.getByText('Estimated')).toBeDefined());
+    expect(screen.getByText('Measured segment')).toBeDefined();
+    expect(screen.getByTitle(/whole-run average pace/)).toBeDefined();
+    fireEvent.click(screen.getByText('Toggle'));
+    expect(screen.getByText('估算成绩')).toBeDefined();
+    expect(screen.getByText('实测分段')).toBeDefined();
+    expect(screen.getByTitle(/整次跑步平均配速/)).toBeDefined();
   });
 
   it('lists every tracked distance and leaves un-raced ones as empty placeholders', async () => {

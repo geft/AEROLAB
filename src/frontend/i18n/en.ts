@@ -722,7 +722,7 @@ export const en: Translations = {
   trainingLoad: {
     loading: 'Calculating training load...',
     title: 'Training Load & Optimal Tunnel',
-    subtitle: 'EPOC & cardiac impulse model: 7-day acute fatigue vs. 28-day fitness baseline',
+    subtitle: 'Scaled TRIMP: 7-day acute load vs. 28-day chronic baseline',
     acuteTitle: '7-Day Acute Load',
     acuteDesc: 'Current fatigue index',
     optimalTitle: 'Optimal Tunnel',
@@ -736,7 +736,7 @@ export const en: Translations = {
     hoverTunnel: 'Tunnel',
     legend: 'Green shaded band = Optimal Tunnel',
     guideTitle: 'Training Load & Optimal Tunnel Guide',
-    guideIntro: 'Calculates physiological workout strain based on Heart Rate Reserve (%HRR) and duration, modeling 7-day acute fatigue against 28-day chronic baseline:',
+    guideIntro: 'Uses heart rate reserve and duration to calculate scaled Banister TRIMP, comparing 7-day acute load with a 28-day chronic baseline. These are relative training-load units, not device EPOC scores:',
     guideOptimal: 'The optimal sweet spot where aerobic fitness increases with low injury risk.',
     guideMaintaining: 'Workload is steady and maintains aerobic capacity.',
     guideRecovery: 'Workload has dropped below baseline; suitable for taper weeks.',
@@ -777,9 +777,13 @@ export const en: Translations = {
     selectedChartPoint: 'Selected period: {period}'
   },
   bestEfforts: {
+    measured: 'Measured segment',
+    estimated: 'Estimated',
+    measuredDescription: 'Calculated from recorded distance and elapsed time, with interpolated boundaries.',
+    estimatedDescription: 'Estimated from whole-run average pace; no measured segment is available.',
     loading: 'Loading best efforts...',
     title: 'Personal Best Efforts',
-    subtitle: 'Fastest continuous segments from workout telemetry',
+    subtitle: 'Fastest recorded segments, with estimates labeled',
     allTime: 'All-Time PRs',
     empty: 'No benchmark records logged for this period yet.',
     // Server benchmark labels are already English, so no overrides are needed.

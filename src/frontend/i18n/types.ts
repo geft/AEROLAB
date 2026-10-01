@@ -831,6 +831,10 @@ export interface Translations {
     selectedChartPoint: string;
   };
   bestEfforts: {
+    measured: string;
+    estimated: string;
+    measuredDescription: string;
+    estimatedDescription: string;
     loading: string;
     title: string;
     subtitle: string;

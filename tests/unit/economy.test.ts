@@ -64,7 +64,8 @@ describe('Running Economy Physiology', () => {
     ];
 
     const result = calculateEconomy(records);
-    expect(result.movingDurationSeconds).toBe(15);
+    // The first sample has no preceding observed interval.
+    expect(result.movingDurationSeconds).toBe(14);
   });
 
   it('isolates stops and walk breaks from steady state running via extractSteadyStateMetrics', () => {
@@ -165,7 +166,7 @@ describe('Running Economy Physiology', () => {
     expect(pb.walkDistanceMeters).toBeCloseTo(18, 0);
 
     // Verify steady running isolation
-    expect(pb.steadyRunningDurationSeconds).toBe(60);
+    expect(pb.steadyRunningDurationSeconds).toBe(59);
     expect(pb.steadyCadence).toBe(176); // (175*30 + 177*30) / 60 = 176
     expect(pb.steadyHeartRate).toBe(141); // (140*30 + 142*30) / 60 = 141
     expect(pb.steadyStanceTimeMs).toBeCloseTo(247.5, 1);
@@ -225,7 +226,7 @@ describe('Running Economy Physiology', () => {
     expect(pb.stopCount).toBe(0);
 
     // Steady running should include all 40s of slow running
-    expect(pb.steadyRunningDurationSeconds).toBe(40);
+    expect(pb.steadyRunningDurationSeconds).toBe(39);
     expect(pb.steadyCadence).toBe(165);
     expect(pb.steadyHeartRate).toBe(130);
   });

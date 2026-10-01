@@ -9,6 +9,7 @@
  */
 
 import Database from 'better-sqlite3';
+import { distanceSeries, timeAtDistance } from './distance-series.js';
 
 export interface BestEffortTarget {
   id: '1k' | '5k' | '10k' | 'hm' | 'mar';
@@ -25,6 +26,8 @@ export const BEST_EFFORT_TARGETS: BestEffortTarget[] = [
 ];
 
 export interface BestEffortRecord {
+  /** Interpolated telemetry segment or whole-activity mean-pace fallback. */
+  source: 'measured' | 'estimated';
   targetId: string;
   label: string;
   distanceMeters: number;
@@ -42,33 +45,32 @@ export function findFastestSegment(
   records: Array<{ elapsed_seconds?: number | null; elapsedSeconds?: number | null; distance_m?: number | null; distanceMeters?: number | null }>,
   targetMeters: number
 ): number | null {
-  if (!records || records.length < 2) return null;
-
-  const n = records.length;
-  const firstDist = records[0].distance_m ?? records[0].distanceMeters ?? 0;
-  const lastDist = records[n - 1].distance_m ?? records[n - 1].distanceMeters ?? 0;
-  const totalCovered = lastDist - firstDist;
-
-  if (totalCovered < targetMeters) return null;
-
+  if (!records || records.length < 2 || !Number.isFinite(targetMeters) || targetMeters <= 0) return null;
   let minTime = Infinity;
-  let right = 0;
+  for (const points of distanceSeries(records)) {
+    if (points[points.length - 1].meters - points[0].meters < targetMeters) continue;
 
-  for (let left = 0; left < n; left++) {
-    const leftDist = records[left].distance_m ?? records[left].distanceMeters ?? 0;
-    const leftSec = records[left].elapsed_seconds ?? records[left].elapsedSeconds ?? 0;
+    // A piecewise-linear distance trace has an optimal window at a recorded
+    // start OR finish. Check both with monotone pointers: O(n), even for sparse GPS.
+    let right = 1;
+    for (let left = 0; left < points.length; left++) {
+      const finishMeters = points[left].meters + targetMeters;
+      while (right < points.length && points[right].meters < finishMeters) right++;
+      if (right === points.length) break;
+      const finishSeconds = timeAtDistance(points[right - 1], points[right], finishMeters);
+      minTime = Math.min(minTime, finishSeconds - points[left].seconds);
+    }
 
-    while (right < n) {
-      const rightDist = records[right].distance_m ?? records[right].distanceMeters ?? 0;
-      if (rightDist - leftDist >= targetMeters) {
-        const rightSec = records[right].elapsed_seconds ?? records[right].elapsedSeconds ?? 0;
-        const dt = rightSec - leftSec;
-        if (dt > 0 && dt < minTime) {
-          minTime = dt;
-        }
-        break;
-      }
-      right++;
+    let left = 0;
+    for (let right = 1; right < points.length; right++) {
+      const startMeters = points[right].meters - targetMeters;
+      if (startMeters < points[0].meters) continue;
+      // At a stationary plateau, use the departure time for a window's start.
+      while (left + 1 < right && points[left + 1].meters <= startMeters) left++;
+      const startSeconds = points[left].meters === startMeters
+        ? points[left].seconds
+        : timeAtDistance(points[left], points[left + 1], startMeters);
+      minTime = Math.min(minTime, points[right].seconds - startSeconds);
     }
   }
 
@@ -108,21 +110,23 @@ export function getAthleteBestEfforts(db: Database.Database): BestEffortsReport 
   const recStmt = db.prepare(`
     SELECT elapsed_seconds, distance_m
     FROM activity_records
-    WHERE activity_id = ? AND distance_m IS NOT NULL
+    WHERE activity_id = ?
     ORDER BY elapsed_seconds ASC
   `);
 
   for (const act of candidateActivities) {
     const isThisYear = act.start_time.startsWith(currentYearStr);
-    const records = recStmt.all(act.id) as Array<{ elapsed_seconds: number; distance_m: number }>;
+    const records = recStmt.all(act.id) as Array<{ elapsed_seconds: number; distance_m: number | null }>;
 
     for (const target of BEST_EFFORT_TARGETS) {
       if (act.distance_meters < target.distanceMeters) continue;
 
       let fastestSec: number | null = null;
-      if (records.length > 5) {
+      if (records.length >= 2) {
         fastestSec = findFastestSegment(records, target.distanceMeters);
       }
+
+      const source = fastestSec != null ? 'measured' : 'estimated';
 
       // Fallback approximation if records don't have cumulative distance
       if (!fastestSec && act.distance_meters >= target.distanceMeters && act.duration_seconds > 0) {
@@ -133,6 +137,7 @@ export function getAthleteBestEfforts(db: Database.Database): BestEffortsReport 
 
       const paceSecKm = Math.round((fastestSec / target.distanceMeters) * 1000);
       const recordItem: BestEffortRecord = {
+        source,
         targetId: target.id,
         label: target.label,
         distanceMeters: target.distanceMeters,

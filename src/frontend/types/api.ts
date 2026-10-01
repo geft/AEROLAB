@@ -285,6 +285,8 @@ export interface VolumeEntry {
 
 /** GET /api/activities/best-efforts */
 export interface BestEffortRecord {
+  /** Missing only in older offline snapshots. */
+  source?: 'measured' | 'estimated';
   targetId: string;
   label: string;
   distanceMeters: number;

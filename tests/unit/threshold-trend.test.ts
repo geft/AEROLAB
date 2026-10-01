@@ -18,4 +18,27 @@ describe('Historical rolling threshold', () => {
     const rows = [observation('2025-11-01', 500), observation('2026-05-01', 360)];
     expect(rollingThreshold(rows, '2026-05-01')?.pace).toBe(360);
   });
+
+  it('does not promote zero-confidence observations to 85% confidence', () => {
+    const trusted = observation('2026-05-01', 400);
+    const rejected = { ...observation('2026-05-10', 250, 180), confidence: 0 };
+    expect(rollingThreshold([trusted, rejected], '2026-05-10')).toEqual(rollingThreshold([trusted], '2026-05-10'));
+    expect(rollingThreshold([rejected], '2026-05-10')).toBeNull();
+  });
+
+  it('does not let invalid or rejected entries crowd out usable evidence', () => {
+    const trusted = observation('2026-05-01', 400);
+    const rows = [trusted, ...Array.from({ length: 6 }, () => ({ ...observation('2026-05-10', 250), confidence: 0 }))];
+    rows.push({ ...observation('2026-05-10', 200), hr: NaN });
+    rows.push({ ...observation('2026-05-10', 200), confidence: Infinity });
+    rows.push(observation('invalid-date', 200));
+    expect(rollingThreshold(rows, '2026-05-10')).toEqual(rollingThreshold([trusted], '2026-05-10'));
+  });
+
+  it('ignores invalid pace without discarding valid HR evidence', () => {
+    const result = rollingThreshold([{ ...observation('2026-05-01', Infinity), hr: 150 }], '2026-05-01');
+    expect(result?.hr).toBe(150);
+    expect(result?.pace).toBeNull();
+    expect(rollingThreshold([observation('2026-05-01', 400)], 'invalid-date')).toBeNull();
+  });
 });

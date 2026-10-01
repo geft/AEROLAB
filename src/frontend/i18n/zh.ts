@@ -732,7 +732,7 @@ export const zh: Translations = {
   trainingLoad: {
     loading: '正在计算训练负荷...',
     title: '训练负荷与最适区间',
-    subtitle: '基于心率储备与EPOC模型，对比7天急性负荷与28天基础体能',
+    subtitle: '基于缩放后的TRIMP，对比7天急性负荷与28天长期基线',
     acuteTitle: '7天急性负荷',
     acuteDesc: '当前疲劳指数',
     optimalTitle: '最适负荷区间',
@@ -746,7 +746,7 @@ export const zh: Translations = {
     hoverTunnel: '最适区间',
     legend: '绿色阴影 = 最适负荷区间 (Optimal Tunnel)',
     guideTitle: '训练负荷与最适区间说明',
-    guideIntro: '本功能根据每场跑步的心率储备强度与时长（Firstbeat EPOC / Bannister TRIMP模型），实时计算您的7天急性负荷与28天体能基线：',
+    guideIntro: '根据心率储备强度与时长计算缩放后的Banister TRIMP，对比7天急性负荷与28天长期基线。这些是相对训练负荷单位，并非设备的EPOC评分：',
     guideOptimal: '最佳训练区间（绿色阴影隧道），有氧体能稳步提升且伤病风险最低。',
     guideMaintaining: '负荷适中，保持当前体能水平。',
     guideRecovery: '负荷低于基线，适合减量周或赛前调整。',
@@ -800,9 +800,13 @@ export const zh: Translations = {
     selectedChartPoint: '所选周期：{period}'
   },
   bestEfforts: {
+    measured: '实测分段',
+    estimated: '估算成绩',
+    measuredDescription: '根据记录的距离与经过时间计算，分段边界使用插值。',
+    estimatedDescription: '根据整次跑步平均配速估算，暂无可用的实测分段。',
     loading: '正在加载最佳成绩...',
     title: '个人最佳成绩',
-    subtitle: '基于历史跑步GPS与秒级分段数据',
+    subtitle: '展示最快实测分段，并标注估算成绩',
     allTime: '历史最佳',
     empty: '暂无匹配的标准距离成绩',
     distanceLabels: {

@@ -3,7 +3,7 @@ import { getDefaultZones } from './zones.js';
 /**
  * AEROLAB Physiological Training Load & ACWR Engine
  *
- * Implements Banister's cardiac impulse (TRIMP) and Firstbeat EPOC equivalent models
+ * Computes Banister's cardiac impulse (TRIMP), scaled into relative load units
  * to calculate per-activity Training Load, 7-Day Acute Load (Fatigue), 28-Day Chronic Load
  * (Fitness Baseline), and the Optimal Training Load Tunnel (ACWR) for Garmin 165 users.
  */
@@ -57,7 +57,7 @@ export interface TrainingStatusResult {
 }
 
 /**
- * Calculates per-activity training load (EPOC / TRIMP) and zone duration breakdown.
+ * Calculates per-activity scaled TRIMP and zone duration breakdown.
  */
 export function calculateActivityTrainingLoad(
   records: Array<{ elapsed_seconds?: number | null; elapsedSeconds?: number | null; heart_rate?: number | null; heartRate?: number | null }>,
@@ -133,7 +133,7 @@ export function calculateActivityTrainingLoad(
     }
   }
 
-  // Scale TRIMP into standard Garmin EPOC equivalent units (e.g. 30 - 350+ range)
+  // Scale TRIMP into relative training-load units; this is not a calibrated EPOC model.
   const trainingLoad = Math.max(1, Math.round(accumulatedTrimp));
 
   return {
@@ -155,37 +155,41 @@ export function calculateTrainingStatus(
   db: Database.Database,
   daysHistory: number = 90
 ): TrainingStatusResult {
-  // Fetch activities from the past N days plus a 28-day warm-up window for stable chronic load
-  const totalDaysToFetch = daysHistory + 35;
+  const historyDays = Number.isFinite(daysHistory) ? Math.max(1, Math.trunc(daysHistory)) : 90;
+  const today = new Date().toISOString().substring(0, 10);
+  const todayTime = Date.parse(today);
+  // Aggregate all prior training. A chart's display window must not determine
+  // the starting fitness baseline, and SQLite 'now' must not use a separate clock.
   const rows = db.prepare(`
-    SELECT start_time, duration_seconds, training_load
+    SELECT substr(start_time, 1, 10) AS date,
+      SUM(CASE WHEN training_load > 0 THEN training_load
+        ELSE ROUND(MAX(0, COALESCE(duration_seconds, 0)) / 60.0 * 1.1) END) AS daily_load,
+      COUNT(*) AS activity_count
     FROM activities
-    WHERE start_time >= datetime('now', '-${totalDaysToFetch} days')
-    ORDER BY start_time ASC
-  `).all() as Array<{ start_time: string; duration_seconds: number; training_load: number | null }>;
+    WHERE julianday(start_time) < julianday(?, '+1 day')
+    GROUP BY substr(start_time, 1, 10)
+    ORDER BY date ASC
+  `).all(today) as Array<{ date: string; daily_load: number; activity_count: number }>;
 
   // Aggregate daily load into a map: YYYY-MM-DD -> totalDailyLoad
   const dailyLoads = new Map<string, number>();
-
+  let recentActivityCount = 0;
   for (const r of rows) {
-    const dateStr = r.start_time.substring(0, 10);
-    const load = r.training_load && r.training_load > 0
-      ? r.training_load
-      : Math.round((r.duration_seconds || 0) / 60 * 1.1); // Fallback estimate if not yet computed
-
-    dailyLoads.set(dateStr, (dailyLoads.get(dateStr) || 0) + load);
+    dailyLoads.set(r.date, r.daily_load);
+    // Keep readiness to establish a baseline independent of chart length too.
+    if (Date.parse(r.date) >= todayTime - 35 * 86400000) recentActivityCount += r.activity_count;
   }
 
-  // Generate continuous daily timeline from (today - totalDaysToFetch) to today
-  const now = new Date();
+  // Only materialize the displayed days (at least seven for last7DaysLoad).
+  const totalDaysToDisplay = Math.max(7, historyDays);
   const timelineDates: string[] = [];
-  for (let d = totalDaysToFetch; d >= 0; d--) {
-    const date = new Date(now.getTime() - d * 24 * 60 * 60 * 1000);
+  for (let d = totalDaysToDisplay - 1; d >= 0; d--) {
+    const date = new Date(todayTime - d * 86400000);
     timelineDates.push(date.toISOString().substring(0, 10));
   }
 
   // Exponential decay constants
-  // Acute decay: 7 days half-life (decay factor ~ 0.8669 per day)
+  // Acute decay: 7-day time constant (decay factor ~ 0.8669 per day)
   const decayAcute = Math.exp(-1 / 7);
   // Chronic decay: 28 days baseline (decay factor ~ 0.9649 per day)
   const decayChronic = Math.exp(-1 / 28);
@@ -199,6 +203,17 @@ export function calculateTrainingStatus(
 
   let runningAcute = 0;
   let runningChronic = 0;
+
+  // Seed the day before the chart using exact decayed contributions from older
+  // training, without iterating over years of rest days or truncating the tail.
+  const seedTime = Date.parse(timelineDates[0]) - 86400000;
+  for (const [date, load] of dailyLoads) {
+    const time = Date.parse(date);
+    if (time > seedTime) continue;
+    const daysAgo = (seedTime - time) / 86400000;
+    runningAcute += load * Math.exp(-daysAgo / 7);
+    runningChronic += load * Math.exp(-daysAgo / 28);
+  }
 
   const fullPoints: DayLoadPoint[] = [];
 
@@ -227,7 +242,7 @@ export function calculateTrainingStatus(
   }
 
   // Take only the requested history window for the client timeline
-  const resultTimeline = fullPoints.slice(-daysHistory);
+  const resultTimeline = fullPoints.slice(-historyDays);
   const latestPoint = fullPoints[fullPoints.length - 1] || {
     acuteLoad: 0,
     chronicLoad: 0,
@@ -252,7 +267,7 @@ export function calculateTrainingStatus(
   let statusLabel = 'Optimal';
   let statusDescription = 'Your training load is productive and well-matched to your fitness baseline.';
 
-  if (currentChronic < 40 && rows.length < 5) {
+  if (currentChronic < 40 && recentActivityCount < 5) {
     status = 'establishing';
     statusLabel = 'Establishing';
     statusDescription = 'Logging more runs will establish your long-term fitness baseline and optimal load tunnel.';

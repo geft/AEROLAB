@@ -11,6 +11,8 @@ export interface BestEffortTarget {
 
 /** A personal best effort over a benchmark distance. */
 export interface BestEffortRecord {
+  /** Missing only in older offline snapshots. */
+  source?: 'measured' | 'estimated';
   targetId: string;
   label: string;
   distanceMeters: number;

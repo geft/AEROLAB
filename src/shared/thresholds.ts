@@ -94,6 +94,12 @@ export interface ThresholdsResponse {
   latest: ThresholdsLatest;
   currentThresholds: CurrentThresholds;
   zones: HeartRateZones;
+  predictionEvidence?: {
+    source: 'lt2' | 'benchmark_5k' | 'lt1' | 'recent_runs' | null;
+    thresholdPaceSecKm: number | null;
+    benchmark: { paceSecKm: number; date: string | null; source: 'race_segment' | 'race_activity' | 'profile_pb'; activityId?: string } | null;
+    benchmarkUsed: boolean;
+  };
   predictions: RacePrediction[];
   history: CalibrationHistoryItem[];
   economyTrend: EconomyTrendPoint[];

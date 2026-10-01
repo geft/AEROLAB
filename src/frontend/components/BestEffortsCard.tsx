@@ -5,6 +5,8 @@ import { useTranslation } from '../i18n/LanguageContext.js';
 import { getBestEfforts } from '../api/client.js';
 
 export interface BestEffortRecord {
+  /** Missing only in older offline snapshots. */
+  source?: 'measured' | 'estimated';
   targetId: string;
   label: string;
   distanceMeters: number;
@@ -165,6 +167,13 @@ export const BestEffortsCard: React.FC = () => {
                 <div style={{ fontSize: '1.25rem', fontWeight: 700, color: isEmpty ? 'var(--text-muted)' : 'var(--text-primary)' }}>
                   {formatSeconds(e ? e.timeSeconds : 0)}
                 </div>
+
+                {e?.source && (
+                  <span title={e.source === 'estimated' ? t.bestEfforts.estimatedDescription : t.bestEfforts.measuredDescription}
+                    style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                    {e.source === 'estimated' ? t.bestEfforts.estimated : t.bestEfforts.measured}
+                  </span>
+                )}
 
                 <div style={{ fontSize: '0.74rem', color: isEmpty ? 'var(--text-muted)' : 'var(--accent-cyan)', fontWeight: 600 }}>
                   {isEmpty ? '—' : formatPace(e!.paceSecKm)}

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { calculateActivityTrainingLoad, calculateTrainingStatus } from '../../src/backend/physiology/training-load.js';
 
@@ -66,5 +66,52 @@ describe('Training Load & ACWR Engine Unit Tests', () => {
     expect(status.timeline.length).toBe(30);
 
     db.close();
+  });
+
+  it('keeps current load independent of the requested chart history and includes old training', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-01T12:00:00Z'));
+    const db = new Database(':memory:');
+    try {
+      db.exec('CREATE TABLE activities (id TEXT PRIMARY KEY, start_time TEXT, duration_seconds INTEGER, training_load REAL)');
+      const insert = db.prepare('INSERT INTO activities VALUES (?, ?, 3600, 60)');
+      for (let day = 365; day >= 0; day--) {
+        insert.run(`run-${day}`, new Date(Date.now() - day * 86400000).toISOString());
+      }
+      const short = calculateTrainingStatus(db, 7);
+      const long = calculateTrainingStatus(db, 180);
+      expect(short.currentChronicLoad).toBe(long.currentChronicLoad);
+      expect(short.currentAcuteLoad).toBe(long.currentAcuteLoad);
+      expect(short.acwr).toBe(1);
+      expect(short.timeline).toEqual(long.timeline.slice(-7));
+      expect(short.currentChronicLoad).toBe(Math.round(60 / (1 - Math.exp(-1 / 7))));
+      expect(short.last7DaysLoad).toBe(420);
+    } finally {
+      db.close();
+      vi.useRealTimers();
+    }
+  });
+
+  it('decays training before the display window and excludes future activities', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-01T12:00:00Z'));
+    const db = new Database(':memory:');
+    try {
+      db.exec('CREATE TABLE activities (id TEXT PRIMARY KEY, start_time TEXT, duration_seconds INTEGER, training_load REAL)');
+      const insert = db.prepare('INSERT INTO activities VALUES (?, ?, 3600, ?)');
+      insert.run('old', '2026-07-01T12:00:00Z', 1000);
+      insert.run('future', '2026-10-02T12:00:00Z', 10000);
+      for (let i = 0; i < 5; i++) insert.run(`stale-${i}`, '2020-01-01T12:00:00Z', 100);
+      const status = calculateTrainingStatus(db, 7);
+      const daysAgo = (Date.parse('2026-10-01') - Date.parse('2026-07-01')) / 86400000;
+      const chronicScale = (1 - Math.exp(-1 / 28)) / (1 - Math.exp(-1 / 7));
+      expect(status.currentChronicLoad).toBe(Math.round(1000 * Math.exp(-daysAgo / 28) * chronicScale));
+      expect(status.last7DaysLoad).toBe(0);
+      expect(status.timeline.every(point => point.dailyLoad === 0)).toBe(true);
+      expect(status.status).toBe('establishing');
+    } finally {
+      db.close();
+      vi.useRealTimers();
+    }
   });
 });

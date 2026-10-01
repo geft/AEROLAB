@@ -1,3 +1,4 @@
+import { observedDuration, timeWeightedMean } from './time-series.js';
 import { getAthleteHeartRateProfile } from './athlete-profile.js';
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { rollingThreshold, type ThresholdObservation } from '../../shared/threshold-trend.js';
@@ -494,18 +495,27 @@ export function evaluateThresholdUpdate(
           });
         } catch { /* optional query: schema may predate this table */ }
 
-        if (repRecs.length >= 30) {
+        if (observedDuration(repRecs, r => r.elapsed_seconds) >= 30) {
           // 1. Pace: strip initial acceleration ramp if starting from walk/stop (< 2.2 m/s)
           const startsFromSlow = (repRecs[0]?.speed_mps ?? 0) < 2.2;
           const paceSkipSec = startsFromSlow ? Math.min(12, Math.floor(durToTake * 0.1)) : 0;
-          const paceRecs = repRecs.filter(r => r.elapsed_seconds >= inv.start_seconds + paceSkipSec && r.speed_mps !== null && r.speed_mps > 1.5);
-          const repAvgSpeed = paceRecs.length > 0
-            ? paceRecs.reduce((s, r) => s + r.speed_mps!, 0) / paceRecs.length
-            : ((inv.distance_meters ?? 0) / (inv.duration_seconds || 1));
+          const paceStart = inv.start_seconds + paceSkipSec;
+          const repEnd = inv.start_seconds + durToTake;
+          const repAvgSpeed = timeWeightedMean(repRecs, r => r.elapsed_seconds, r => r.speed_mps,
+            v => v > 1.5 && v <= 8.5, paceStart, repEnd);
 
           // 2. HR: strip initial cardiac lag (60-90s) if rep >= 300s
           const tRamp = inv.duration_seconds >= 300 ? Math.min(90, Math.max(45, Math.round(avgRestDrop * 1.5))) : 0;
-          const hrRecs = repRecs.filter(r => r.elapsed_seconds >= inv.start_seconds + tRamp && r.heart_rate !== null && r.heart_rate > 100);
+          const hrStart = inv.start_seconds + tRamp;
+          const repAvgHr = timeWeightedMean(repRecs, r => r.elapsed_seconds, r => r.heart_rate,
+            v => v > 100, hrStart, repEnd);
+          const paceCoverage = observedDuration(repRecs, r => r.elapsed_seconds,
+            r => r.speed_mps != null && r.speed_mps > 1.5 && r.speed_mps <= 8.5, paceStart, repEnd);
+          const hrCoverage = observedDuration(repRecs, r => r.elapsed_seconds,
+            r => r.heart_rate != null && r.heart_rate > 100, hrStart, repEnd);
+          // Partial sensor evidence must not be extrapolated over an entire rep.
+          if (repAvgSpeed == null || repAvgHr == null || paceCoverage < (repEnd - paceStart) * 0.8 ||
+              hrCoverage < (repEnd - hrStart) * 0.8) continue;
           // A single long rep can provide the entire calibration. Check its
           // internal efficiency decline too, after the cardiac ramp, using
           // elapsed-time weighting rather than the number of samples.
@@ -514,13 +524,17 @@ export function evaluateThresholdUpdate(
           const halves = [{ distance: 0, beats: 0, duration: 0 }, { distance: 0, beats: 0, duration: 0 }];
           for (let r = 1; r < repRecs.length; r++) {
             const a = repRecs[r - 1], b = repRecs[r];
-            if (b.elapsed_seconds - a.elapsed_seconds > 15 || b.heart_rate === null || b.speed_mps === null || b.heart_rate <= 40 || b.speed_mps <= 0) continue;
+            const intervalSeconds = b.elapsed_seconds - a.elapsed_seconds;
+            if (intervalSeconds <= 0 || intervalSeconds > 15 || a.heart_rate == null || b.heart_rate == null ||
+                a.speed_mps == null || b.speed_mps == null || a.heart_rate <= 40 || b.heart_rate <= 40 ||
+                a.speed_mps <= 0 || b.speed_mps <= 0 || a.speed_mps > 8.5 || b.speed_mps > 8.5) continue;
             for (let half = 0; half < 2; half++) {
               const from = Math.max(a.elapsed_seconds, half === 0 ? steadyStart : midpoint);
               const to = Math.min(b.elapsed_seconds, half === 0 ? midpoint : inv.start_seconds + durToTake);
               const dt = Math.max(0, to - from);
-              halves[half].distance += b.speed_mps * dt;
-              halves[half].beats += b.heart_rate * dt;
+              const interpolate = (start: number, end: number, at: number) => start + (end - start) * (at - a.elapsed_seconds) / intervalSeconds;
+              halves[half].distance += (interpolate(a.speed_mps, b.speed_mps, from) + interpolate(a.speed_mps, b.speed_mps, to)) / 2 * dt;
+              halves[half].beats += (interpolate(a.heart_rate, b.heart_rate, from) + interpolate(a.heart_rate, b.heart_rate, to)) / 2 * dt;
               halves[half].duration += dt;
             }
           }
@@ -529,15 +543,13 @@ export function evaluateThresholdUpdate(
             const secondEf = halves[1].distance / halves[1].beats;
             if (secondEf < firstEf * 0.95) withinRepDrift = true;
           }
-          const repAvgHr = hrRecs.length > 0
-            ? hrRecs.reduce((s, r) => s + r.heart_rate!, 0) / hrRecs.length
-            : (inv.avg_heart_rate ?? 0);
 
           evalDur += durToTake;
           evalDist += repAvgSpeed * durToTake;
           evalHrWeighted += repAvgHr * durToTake;
         } else {
-          // Fallback when records are absent (e.g. tests or synthetic data)
+          // Stored interval summaries are a fallback only when telemetry is absent.
+          if (repRecs.length > 0) continue;
           const hrComp = (avgRestDrop > 35 && inv.duration_seconds >= 300)
             ? Math.min(5, 0.5 * avgRestDrop * (Math.min(120, avgRestDrop * 1.8) / inv.duration_seconds))
             : 0;

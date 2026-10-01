@@ -1,6 +1,11 @@
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { inferWorkoutPrescription, type WorkoutPrescription } from '../../shared/prescription.js';
 import { ActivityRecord } from './csv-parser';
+import { MAX_OBSERVED_GAP_SECONDS, observedIntervals, timeDistribution, timeWeightedMean } from '../physiology/time-series.js';
+
+const time = (r: ActivityRecord) => r.elapsedSeconds;
+const mean = (records: ActivityRecord[], value: (r: ActivityRecord) => number | null, floor = 0) =>
+  timeWeightedMean(records, time, value, v => v > floor) ?? 0;
 
 // The prescription hint is computed by the shared helper so the run-detail table
 // and the coach summary text can never disagree. Re-exported for existing callers.
@@ -36,7 +41,7 @@ function hasStrideRecovery(records: ActivityRecord[], endIndex: number): boolean
     const walking = validSpeed
       ? speed <= 1.8 && (!validCadence || cadence < 128)
       : validCadence && cadence > 0 && cadence < 128;
-    if (!walking || seconds <= 0 || seconds > 10) {
+    if (!walking || seconds <= 0 || seconds > MAX_OBSERVED_GAP_SECONDS) {
       slowStart = null;
       slowSeconds = 0;
       continue;
@@ -91,7 +96,29 @@ export function detectIntervals(
   records: ActivityRecord[],
   options: DetectIntervalsOptions = {}
 ): DetectedInterval[] {
-  if (!records || records.length < 60) return [];
+  if (!records || records.length < 2) return [];
+  // Missing time, reversals and long gaps separate workouts rather than creating
+  // sustained evidence through unobserved portions of a recording.
+  const traces: ActivityRecord[][] = [];
+  let trace: ActivityRecord[] = [];
+  for (const record of records) {
+    if (!Number.isFinite(record.elapsedSeconds)) {
+      if (trace.length) traces.push(trace);
+      trace = [];
+      continue;
+    }
+    const previous = trace.at(-1);
+    if (previous && (record.elapsedSeconds <= previous.elapsedSeconds || record.elapsedSeconds - previous.elapsedSeconds > MAX_OBSERVED_GAP_SECONDS)) {
+      traces.push(trace);
+      trace = [];
+    }
+    trace.push(record);
+  }
+  if (trace.length) traces.push(trace);
+  if (traces.length !== 1 || traces[0].length !== records.length) {
+    return traces.flatMap(part => detectIntervals(part, options)).map((interval, index) => ({ ...interval, intervalIndex: index + 1 }));
+  }
+  if (observedIntervals(records, time).reduce((sum, i) => sum + i.seconds, 0) < 59) return [];
 
   // Continuous time trials and races consist of 1 dominant benchmark work effort.
   // We identify the primary sustained running segment by cadence onset through to finish line deceleration.
@@ -99,18 +126,12 @@ export function detectIntervals(
     return detectRaceInterval(records, options);
   }
 
-  const cadences = records.map(r => r.cadence ?? 0).filter(c => c > 0).sort((a, b) => a - b);
-  const hrs = records.map(r => r.heartRate ?? 0).filter(h => h > 0).sort((a, b) => a - b);
-  const movingSpeeds = records.map(r => r.speedMps ?? 0).filter(s => s > 0.5).sort((a, b) => a - b);
-  if (cadences.length < 30) return [];
-
-  const p90Cad = cadences[Math.floor(cadences.length * 0.90)];
-  const p50Cad = cadences[Math.floor(cadences.length * 0.50)];
-  const p20Cad = cadences[Math.floor(cadences.length * 0.20)];
-
-  const p85Spd = movingSpeeds.length > 0 ? movingSpeeds[Math.floor(movingSpeeds.length * 0.85)] : 0;
-  const p50Spd = movingSpeeds.length > 0 ? movingSpeeds[Math.floor(movingSpeeds.length * 0.50)] : 0;
-  const p20Spd = movingSpeeds.length > 0 ? movingSpeeds[Math.floor(movingSpeeds.length * 0.20)] : 0;
+  const cadences = timeDistribution(records, time, r => r.cadence, v => v > 0);
+  const hrs = timeDistribution(records, time, r => r.heartRate, v => v > 0);
+  const movingSpeeds = timeDistribution(records, time, r => r.speedMps, v => v > 0.5);
+  if (cadences.seconds < 30) return [];
+  const p90Cad = cadences.quantile(0.90), p50Cad = cadences.quantile(0.50), p20Cad = cadences.quantile(0.20);
+  const p85Spd = movingSpeeds.quantile(0.85), p50Spd = movingSpeeds.quantile(0.50), p20Spd = movingSpeeds.quantile(0.20);
 
   const baseSpeed = p50Spd > 0.5 ? p50Spd : 2.5;
   const baseCad = p50Cad > 100 ? p50Cad : 160;
@@ -123,21 +144,18 @@ export function detectIntervals(
   const strideSpeedThreshold = Math.max(baseSpeed * 1.20, baseSpeed + 0.35, stridePaceAnchorSpeed);
   const strideCadThreshold = Math.max(162, baseCad + 8);
 
-  const sessionMaxHr = hrs.length > 0 ? hrs[hrs.length - 1] : 0;
-  const p80Hr = hrs.length > 0 ? hrs[Math.floor(hrs.length * 0.80)] : 0;
-  const p20Hr = hrs.length > 0 ? hrs[Math.floor(hrs.length * 0.20)] : 0;
+  const sessionMaxHr = hrs.quantile(1);
+  const p80Hr = hrs.quantile(0.80);
+  const p20Hr = hrs.quantile(0.20);
 
   const { lt1Hr: athleteLt1, lt2Hr: athleteLt2 } = resolveHeartRateProfile(options);
 
   // Running cadence vs walking/rest (running jog >= 128 spm, walking recovery < 128 spm)
   const isRunningCadence = (c: number) => c >= 128;
-  const runningRecs = records.filter(r => isRunningCadence(r.cadence ?? 0));
-  const avgRunningHr = runningRecs.length > 0
-    ? runningRecs.reduce((sum, r) => sum + (r.heartRate ?? 0), 0) / runningRecs.length
-    : 0;
+  const avgRunningHr = mean(records, r => isRunningCadence(r.cadence ?? 0) ? r.heartRate : null);
 
   // Speed contrast between work and recovery
-  const hasSpeedContrast = movingSpeeds.length > 30 && (
+  const hasSpeedContrast = movingSpeeds.seconds > 30 && (
     p85Spd - p50Spd >= 0.5 ||
     p85Spd - p20Spd >= 0.6 ||
     (p50Spd > 0 && (p85Spd - p50Spd) / p50Spd >= 0.18)
@@ -155,9 +173,9 @@ export function detectIntervals(
     : (athleteLt2 - 5);
 
   // Check if this run is an easy base run (running HR below LT1 ceiling, no prolonged rest walks)
-  const walkingCount = records.filter(r => (r.cadence ?? 0) < 125).length;
+  const walkingSeconds = timeDistribution(records, time, r => r.cadence, v => v >= 0 && v < 125).seconds;
   const lt1Ceiling = athleteLt1;
-  const isEasyBaseSession = avgRunningHr <= lt1Ceiling + 2 && walkingCount < 60;
+  const isEasyBaseSession = avgRunningHr <= lt1Ceiling + 2 && walkingSeconds < 60;
 
   // Label each second as active effort or recovery
   const states: ('work' | 'recovery')[] = records.map(r => {
@@ -221,11 +239,9 @@ export function detectIntervals(
       const durSec = (records[b.endIndex]?.elapsedSeconds ?? 0) - (records[b.startIndex]?.elapsedSeconds ?? 0);
       const blockRecs = records.slice(b.startIndex, b.endIndex + 1);
       const maxSpd = Math.max(...blockRecs.map(r => r?.speedMps ?? 0));
-      const fastSpeeds = blockRecs.map(r => r.speedMps ?? 0).filter(speed => speed >= strideSpeedThreshold);
-      const avgFastSpeed = fastSpeeds.length > 0
-        ? fastSpeeds.reduce((sum, speed) => sum + speed, 0) / fastSpeeds.length
-        : 0;
-      const fastShare = blockRecs.filter(r => (r.speedMps ?? 0) >= strideSpeedThreshold).length / blockRecs.length;
+      const fast = timeDistribution(blockRecs, time, r => r.speedMps, v => v >= strideSpeedThreshold);
+      const avgFastSpeed = mean(blockRecs, r => r.speedMps, strideSpeedThreshold - Number.EPSILON);
+      const fastShare = durSec > 0 ? fast.seconds / durSec : 0;
       const _minStance = Math.min(...blockRecs.map(r => (r?.stanceTime && r.stanceTime > 100) ? r.stanceTime : 9999));
       // Promote a provisional burst from sustained fast samples, without
       // letting acceleration/deceleration dilute its calibrated pace. Validate
@@ -408,7 +424,7 @@ export function detectIntervals(
     const sustainedCandidates = workBlocks.filter(b => records[b.endIndex].elapsedSeconds - records[b.startIndex].elapsedSeconds >= 180);
     const sustainedSpeeds = sustainedCandidates.map(b => {
       const recs = records.slice(b.startIndex, b.endIndex + 1);
-      return recs.reduce((sum, r) => sum + (r.speedMps ?? 0), 0) / recs.length;
+      return mean(recs, r => r.speedMps);
     }).sort((a, b) => a - b);
     // Establish the quality set from the fast sustained cluster first. A long
     // cooldown can itself be a work-shaped block when cadence stays elevated;
@@ -416,13 +432,13 @@ export function detectIntervals(
     const fastestSustainedSpeed = sustainedSpeeds[sustainedSpeeds.length - 1] ?? 0;
     const sustained = sustainedCandidates.filter(b => {
       const recs = records.slice(b.startIndex, b.endIndex + 1);
-      const avgSpeed = recs.reduce((sum, r) => sum + (r.speedMps ?? 0), 0) / recs.length;
+      const avgSpeed = mean(recs, r => r.speedMps);
       return fastestSustainedSpeed <= 0 || avgSpeed >= fastestSustainedSpeed * 0.85;
     });
     const referenceSpeed = sustained.length > 0
       ? sustained.reduce((sum, b) => {
           const recs = records.slice(b.startIndex, b.endIndex + 1);
-          return sum + recs.reduce((inner, r) => inner + (r.speedMps ?? 0), 0) / recs.length;
+          return sum + mean(recs, r => r.speedMps);
         }, 0) / sustained.length
       : 0;
     const firstWork = sustained[0]?.startIndex;
@@ -432,8 +448,8 @@ export function detectIntervals(
     for (const b of validBlocks) {
       if (b.type === 'work') {
         const blockRecs = records.slice(b.startIndex, b.endIndex + 1);
-        const avgHr = blockRecs.reduce((sum, r) => sum + (r.heartRate ?? 0), 0) / blockRecs.length;
-        const avgSpeed = blockRecs.reduce((sum, r) => sum + (r.speedMps ?? 0), 0) / blockRecs.length;
+        const avgHr = mean(blockRecs, r => r.heartRate);
+        const avgSpeed = mean(blockRecs, r => r.speedMps);
         const outsideSet = sustained.length >= 2 && (b.endIndex < firstWork || b.startIndex > lastWork);
         if (outsideSet && referenceSpeed > 0 && avgSpeed < referenceSpeed * 0.85 && avgHr < athleteLt2 - 5) {
           pruned.push({ ...b, type: 'recovery' });
@@ -477,7 +493,7 @@ function detectRaceInterval(records: ActivityRecord[], options: DetectIntervalsO
       const windowEnd = records[i].elapsedSeconds + 20;
       for (let j = i; j < records.length - 1 && records[j].elapsedSeconds < windowEnd; j++) {
         const sampleSeconds = records[j + 1].elapsedSeconds - records[j].elapsedSeconds;
-        if ((records[j].cadence ?? 0) < 128 && sampleSeconds > 0 && sampleSeconds <= 10) {
+        if ((records[j].cadence ?? 0) < 128 && sampleSeconds > 0 && sampleSeconds <= MAX_OBSERVED_GAP_SECONDS) {
           restSeconds += Math.min(sampleSeconds, windowEnd - records[j].elapsedSeconds);
         }
       }
@@ -485,8 +501,8 @@ function detectRaceInterval(records: ActivityRecord[], options: DetectIntervalsO
         inRun = false;
         const dur = records[i - 1].elapsedSeconds - records[start].elapsedSeconds;
         const sub = records.slice(start, i);
-        const avgHr = sub.reduce((s, r) => s + (r.heartRate ?? 0), 0) / (sub.length || 1);
-        const avgCad = sub.reduce((s, r) => s + (r.cadence ?? 0), 0) / (sub.length || 1);
+        const avgHr = mean(sub, r => r.heartRate);
+        const avgCad = mean(sub, r => r.cadence);
         if (dur >= 60) segs.push({ start, end: i - 1, dur, avgHr, avgCad });
       }
     }
@@ -494,8 +510,8 @@ function detectRaceInterval(records: ActivityRecord[], options: DetectIntervalsO
   if (inRun) {
     const dur = records[records.length - 1].elapsedSeconds - records[start].elapsedSeconds;
     const sub = records.slice(start);
-    const avgHr = sub.reduce((s, r) => s + (r.heartRate ?? 0), 0) / (sub.length || 1);
-    const avgCad = sub.reduce((s, r) => s + (r.cadence ?? 0), 0) / (sub.length || 1);
+    const avgHr = mean(sub, r => r.heartRate);
+    const avgCad = mean(sub, r => r.cadence);
     if (dur >= 60) segs.push({ start, end: records.length - 1, dur, avgHr, avgCad });
   }
 
@@ -564,42 +580,35 @@ function buildFinalIntervals(
     const endDist = recs[recs.length - 1].distanceMeters ?? startDist;
     const distM = Math.max(0, endDist - startDist);
 
-    let hrSum = 0, hrCount = 0, maxHr = 0, minHr = 999;
-    let cadSum = 0, cadCount = 0, maxCad = 0;
-    let speedSum = 0, speedCount = 0, maxSpeed = 0;
-    let minStance = 9999, stanceSum = 0, stanceCount = 0;
-    let voSum = 0, voCount = 0;
+    let maxHr = 0;
+    let maxCad = 0;
+    let maxSpeed = 0;
+    let minStance = 9999;
 
     for (const r of recs) {
       if (r.heartRate) {
-        hrSum += r.heartRate; hrCount++;
         if (r.heartRate > maxHr) maxHr = r.heartRate;
-        if (r.heartRate < minHr) minHr = r.heartRate;
       }
       if (r.cadence) {
-        cadSum += r.cadence; cadCount++;
         if (r.cadence > maxCad) maxCad = r.cadence;
       }
       if (r.speedMps) {
-        speedSum += r.speedMps; speedCount++;
         if (r.speedMps > maxSpeed) maxSpeed = r.speedMps;
       }
       if (r.stanceTime && r.stanceTime > 100) {
-        stanceSum += r.stanceTime; stanceCount++;
         if (r.stanceTime < minStance) minStance = r.stanceTime;
-      }
-      if (r.verticalOscillation && r.verticalOscillation > 0) {
-        voSum += r.verticalOscillation; voCount++;
       }
     }
 
-    const avgHr = hrCount > 0 ? Math.round(hrSum / hrCount) : 0;
-    const avgCad = cadCount > 0 ? Math.round(cadSum / cadCount) : 0;
-    const avgSpeed = speedCount > 0 ? speedSum / speedCount : distM / durSec;
+    const avgHr = Math.round(mean(recs, r => r.heartRate));
+    const avgCad = Math.round(mean(recs, r => r.cadence));
+    const avgSpeed = timeWeightedMean(recs, time, r => r.speedMps) ?? distM / durSec;
     const avgPace = avgSpeed > 0 ? Math.round(1000 / avgSpeed) : 0;
     const peakPace = maxSpeed > 0 ? Math.round(1000 / maxSpeed) : avgPace;
-    const avgStance = stanceCount > 0 ? Number((stanceSum / stanceCount).toFixed(1)) : undefined;
-    const avgVo = voCount > 0 ? Number((voSum / voCount).toFixed(1)) : undefined;
+    const stance = timeWeightedMean(recs, time, r => r.stanceTime, v => v > 100);
+    const vo = timeWeightedMean(recs, time, r => r.verticalOscillation);
+    const avgStance = stance != null ? Number(stance.toFixed(1)) : undefined;
+    const avgVo = vo != null ? Number(vo.toFixed(1)) : undefined;
 
     let avgStepLength: number | undefined;
     let avgStrideLength: number | undefined;
@@ -617,7 +626,7 @@ function buildFinalIntervals(
     }
 
     let hrDrop: number | undefined;
-    if (block.type === 'recovery' && recs.length > 3) {
+    if (block.type === 'recovery' && durSec >= 3) {
       const initialHr = recs[0].heartRate ?? avgHr;
       const validHrs = recs.map(r => r.heartRate || 999).filter(h => h < 999);
       const minHrInBlock = validHrs.length > 0 ? Math.min(...validHrs) : initialHr;

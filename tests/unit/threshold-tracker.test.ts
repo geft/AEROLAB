@@ -489,6 +489,35 @@ describe('Threshold Tracker Unit Tests', () => {
   });
 
   describe('LT2 Interval Dynamics & Tropical Adaptation Tests', () => {
+    it('uses duration rather than 30 samples for sparse 5-minute reps, and rejects sensor gaps', () => {
+      const calibrate = (id: string, sampleStep: number, withGap = false) => {
+        insertParentActivity(id);
+        const insertInterval = db.prepare(`INSERT INTO activity_intervals
+          (activity_id, interval_index, type, start_seconds, duration_seconds, distance_meters, avg_heart_rate, avg_pace_sec_km)
+          VALUES (?, ?, 'work', ?, 300, 900, 170, 340)`);
+        const insertRecord = db.prepare(`INSERT INTO activity_records
+          (activity_id, timestamp, elapsed_seconds, speed_mps, heart_rate) VALUES (?, '2026-09-10', ?, ?, ?)`);
+        for (let rep = 0; rep < 4; rep++) {
+          const start = rep * 360;
+          insertInterval.run(id, rep + 1, start);
+          for (let t = 0; t <= 300; t += sampleStep) {
+            if (withGap && t > 60 && t < 240) continue;
+            insertRecord.run(id, start + t, t < 15 ? 1.2 : 3, t < 45 ? 130 : 170);
+          }
+        }
+        return evaluateThresholdUpdate(db, id, dummyMetadata.date, 'threshold_lt2', dummyMetadata, [], {
+          movingDurationSeconds: 1200, movingDistanceMeters: 3600, avgMovingHeartRate: 160,
+          avgMovingPaceSecKm: 340, efficiencyFactor: 1, metersPerBeat: 1, aerobicDecouplingPct: 0
+        });
+      };
+      const dense = calibrate('duration-dense', 1);
+      const sparse = calibrate('duration-sparse', 15); // 21 records per rep, below the former gate
+      expect(dense.lt2PaceSecKm).toBe(333);
+      expect(sparse.lt2PaceSecKm).toBe(dense.lt2PaceSecKm);
+      expect(sparse.lt2Hr).toBe(dense.lt2Hr);
+      expect(calibrate('duration-gap', 15, true).lt2PaceSecKm).toBeNull();
+    });
+
     const insertWorkInterval = (
       activityId: string,
       index: number,
