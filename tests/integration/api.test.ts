@@ -127,6 +127,28 @@ describe('API Server Integration Tests', () => {
     db.prepare('DELETE FROM activities WHERE id = ?').run('marathon-race-test');
   });
 
+  it('uses recorded race distance for benchmarks and ignores activity titles', async () => {
+    const db = getDatabase();
+    db.prepare(`INSERT INTO activities (id,name,start_time,run_type,distance_meters,duration_seconds,avg_pace_sec_km)
+      VALUES ('named-benchmark','5k Time Trial','2026-09-30','easy_base',5000,1000,200)`).run();
+    try {
+      const named = (await request(app).get('/api/thresholds')).body.predictions;
+      db.prepare("UPDATE activities SET name='Evening Running' WHERE id='named-benchmark'").run();
+      expect((await request(app).get('/api/thresholds')).body.predictions).toEqual(named);
+      db.prepare("UPDATE activities SET name='Evening Running', run_type='race', distance_meters=11000, avg_pace_sec_km=350 WHERE id='named-benchmark'").run();
+      db.prepare(`INSERT INTO activity_intervals (activity_id,interval_index,type,start_seconds,duration_seconds,distance_meters,avg_pace_sec_km)
+        VALUES ('named-benchmark',1,'work',1800,1000,5000,200)`).run();
+      const race = await request(app).get('/api/thresholds');
+      expect(race.status).toBe(200);
+      expect(race.body.predictions.find((prediction: { distanceName: string }) => prediction.distanceName === '5K').paceSecKm).toBeLessThanOrEqual(200);
+      db.prepare("UPDATE activities SET name='Recovery Failed MP Tempo' WHERE id='named-benchmark'").run();
+      expect((await request(app).get('/api/thresholds')).body.predictions).toEqual(race.body.predictions);
+    } finally {
+      db.prepare("DELETE FROM activity_intervals WHERE activity_id='named-benchmark'").run();
+      db.prepare("DELETE FROM activities WHERE id='named-benchmark'").run();
+    }
+  });
+
   it('persists AI coach summary in activity_coach_summaries table upon ingestion and returns it', async () => {
     const db = getDatabase();
     const row = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get('bench-easy-60') as any;

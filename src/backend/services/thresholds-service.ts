@@ -29,6 +29,7 @@ function historyRow(value: unknown): CalibrationHistoryItem {
   if (estimated != null && typeof estimated !== 'boolean' && estimated !== 0 && estimated !== 1) throw new Error('Invalid physiological_thresholds.is_estimated');
   const activityName = row.activity_name;
   if (activityName != null && typeof activityName !== 'string') throw new Error('Invalid activities.name');
+  const activityRunType = activityText(row.activity_run_type, 'run_type');
   const distance = row.distance_meters;
   const duration = row.duration_seconds;
   for (const [key, metric] of [['distance_meters', distance], ['duration_seconds', duration]] as const) {
@@ -37,6 +38,7 @@ function historyRow(value: unknown): CalibrationHistoryItem {
   return {
     ...(id == null ? {} : { id }), effective_date: effectiveDate,
     source_activity_id: thresholdText(row, 'source_activity_id'), activity_name: activityName as string | null,
+    activity_run_type: activityRunType,
     lt1_hr: thresholdNumber(row, 'lt1_hr'), lt1_pace_sec_km: thresholdNumber(row, 'lt1_pace_sec_km'),
     lt2_hr: thresholdNumber(row, 'lt2_hr'), lt2_pace_sec_km: thresholdNumber(row, 'lt2_pace_sec_km'),
     baseline_economy_ef: thresholdNumber(row, 'baseline_economy_ef'), confidence: thresholdNumber(row, 'confidence'),
@@ -61,6 +63,7 @@ export function getThresholdsService(db: Database.Database, runTypeFilter?: stri
     SELECT
       p.*,
       a.name as activity_name,
+      a.run_type as activity_run_type,
       a.distance_meters,
       a.duration_seconds
     FROM physiological_thresholds p
@@ -147,26 +150,24 @@ export function getThresholdsService(db: Database.Database, runTypeFilter?: stri
   // Check for proven 5K benchmark (from actual 5k time trial / race or profile PB)
   let benchmark5kPace: number | null = null;
   const race5kActValue: unknown = db.prepare(`
-    SELECT a.id, a.duration_seconds, a.distance_meters, a.avg_pace_sec_km
+    SELECT a.id, a.avg_pace_sec_km, i.avg_pace_sec_km AS benchmark_pace_sec_km
     FROM activities a
-    WHERE (a.run_type = 'race' AND a.distance_meters BETWEEN 4500 AND 5500)
-       OR (a.distance_meters BETWEEN 4500 AND 5500 AND (a.name LIKE '%5k%' OR a.name LIKE '%5 km%' OR a.name LIKE '%Time Trial%'))
-       OR ((a.name LIKE '%5k%' OR a.name LIKE '%5 km%') AND a.distance_meters <= 10000)
-    ORDER BY a.start_time DESC
+    LEFT JOIN activity_intervals i ON i.activity_id = a.id AND i.type = 'work'
+      AND i.distance_meters BETWEEN 4500 AND 5500 AND i.duration_seconds >= 600
+    WHERE a.run_type = 'race' AND (a.distance_meters BETWEEN 4500 AND 5500 OR i.activity_id IS NOT NULL)
+    ORDER BY a.start_time DESC, i.avg_pace_sec_km ASC
     LIMIT 1
   `).get();
   const race5kAct = race5kActValue == null ? null : (() => {
     const row = objectRow(race5kActValue, 'activities');
     const id = activityText(row.id, 'id');
     if (!id) throw new Error('Invalid activities.id');
-    return { id, avg_pace_sec_km: activityNumber(row.avg_pace_sec_km, 'avg_pace_sec_km') };
+    return { id, avg_pace_sec_km: activityNumber(row.avg_pace_sec_km, 'avg_pace_sec_km'),
+      benchmark_pace_sec_km: activityNumber(row.benchmark_pace_sec_km, 'benchmark_pace_sec_km') };
   })();
 
   if (race5kAct) {
-    const workInvValue: unknown = db.prepare(`
-      SELECT avg_pace_sec_km FROM activity_intervals WHERE activity_id = ? AND type = 'work' AND duration_seconds >= 600 ORDER BY avg_speed_mps DESC LIMIT 1
-    `).get(race5kAct.id);
-    const workInvPace = workInvValue == null ? null : activityNumber(objectRow(workInvValue, 'activity_intervals').avg_pace_sec_km, 'avg_pace_sec_km');
+    const workInvPace = race5kAct.benchmark_pace_sec_km;
     if (workInvPace) {
       benchmark5kPace = workInvPace;
     } else if (race5kAct.avg_pace_sec_km) {

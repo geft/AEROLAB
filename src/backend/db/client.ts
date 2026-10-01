@@ -7,6 +7,7 @@ import { extractSteadyStateMetrics, calculateEconomy } from '../physiology/econo
 import { syncAllCoachSummaries } from '../physiology/coach-summary.js';
 import { calculateActivityTrainingLoad } from '../physiology/training-load.js';
 import { realignDatabase } from './realign.js';
+import { continuousRaceEffort } from '../ingestion/continuous-effort.js';
 import { deduplicateRuns } from './deduplicate.js';
 import { logger } from '../utils/logger.js';
 import { getDatabasePath } from './path.js';
@@ -286,6 +287,39 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
       const result = realignDatabase(db, { logger: (msg) => logger.info('DB', `[realign] ${msg}`) });
       if (result.activitiesFailed.length > 0) throw new Error(`${result.activitiesFailed.length} activities failed to realign`);
       db.pragma('user_version = 1');
+    });
+
+    if (!deferDerivedMigrations) migrations.run('continuous-race-v1', () => {
+      const profile = getAthleteHeartRateProfile(db);
+      const candidates = db.prepare("SELECT id FROM activities WHERE run_type IS NULL OR run_type <> 'race'").all() as { id: string }[];
+      const readRecords = db.prepare('SELECT elapsed_seconds, heart_rate, cadence FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds');
+      const activityIds = candidates.filter(activity => {
+        const rows = readRecords.all(activity.id) as { elapsed_seconds: number; heart_rate: number | null; cadence: number | null }[];
+        return continuousRaceEffort(rows.map(row => ({ elapsedSeconds: row.elapsed_seconds, heartRate: row.heart_rate, cadence: row.cadence })), profile);
+      }).map(activity => activity.id);
+      if (activityIds.length === 0) return;
+      const result = realignDatabase(db, { activityIds });
+      if (result.activitiesFailed.length > 0) throw new Error(`${result.activitiesFailed.length} continuous efforts failed to realign`);
+    });
+
+    // Remove title-derived analysis from existing histories once, with the
+    // migration runner's snapshot and rollback boundary protecting the replay.
+    if (!deferDerivedMigrations) migrations.run('signal-classification-v1', () => {
+      const result = realignDatabase(db);
+      if (result.activitiesFailed.length > 0) throw new Error(`${result.activitiesFailed.length} activities failed signal-based reanalysis`);
+    });
+
+    // Restore race preparation strides and quality reps previously merged by
+    // residual recovery HR. Snapshot and replay once for existing databases.
+    if (!deferDerivedMigrations) migrations.run('effort-structure-v1', () => {
+      const result = realignDatabase(db);
+      if (result.activitiesFailed.length > 0) throw new Error(`${result.activitiesFailed.length} activities failed effort-structure reanalysis`);
+    });
+
+    // Remove stride labels from running surges lacking walking recovery.
+    if (!deferDerivedMigrations) migrations.run('stride-recovery-v1', () => {
+      const result = realignDatabase(db);
+      if (result.activitiesFailed.length > 0) throw new Error(`${result.activitiesFailed.length} activities failed stride-recovery reanalysis`);
     });
   } catch (err: any) {
     // Migrations are non-fatal so a bad row cannot block startup, but the failure

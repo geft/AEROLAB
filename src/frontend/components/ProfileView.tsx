@@ -446,12 +446,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
           </span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.85rem' }}>
+        <div className="profile-training-zones-grid">
           {/* Zone 1 */}
-          <div style={{ padding: '0.85rem', borderRadius: 8, background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8' }}>{t.profile.zone1Title}</span>
-              <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#94a3b8' }}>&lt; {liveZones.z2[0]} bpm</span>
+          <div className="profile-training-zone-card" style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)' }}>
+            <div className="profile-training-zone-header">
+              <span className="profile-training-zone-title" style={{ color: '#94a3b8' }}>{t.profile.zone1Title}</span>
+              <span className="profile-training-zone-range" style={{ color: '#94a3b8' }}>&lt; {liveZones.z2[0]} bpm</span>
             </div>
             <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.2rem' }}>{t.profile.zone1Name}</div>
             <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
@@ -460,10 +460,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
           </div>
 
           {/* Zone 2 */}
-          <div style={{ padding: '0.85rem', borderRadius: 8, background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#34d399' }}>{t.profile.zone2Title}</span>
-              <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#34d399' }}>{liveZones.z2[0]}–{liveZones.z2[1]} bpm</span>
+          <div className="profile-training-zone-card" style={{ background: 'rgba(16, 185, 129, 0.08)', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+            <div className="profile-training-zone-header">
+              <span className="profile-training-zone-title" style={{ color: '#34d399' }}>{t.profile.zone2Title}</span>
+              <span className="profile-training-zone-range" style={{ color: '#34d399' }}>{liveZones.z2[0]}–{liveZones.z2[1]} bpm</span>
             </div>
             <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#34d399', marginBottom: '0.2rem' }}>{t.profile.zone2Name}</div>
             <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
@@ -472,10 +472,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
           </div>
 
           {/* Zone 3 */}
-          <div style={{ padding: '0.85rem', borderRadius: 8, background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#38bdf8' }}>{t.profile.zone3Title}</span>
-              <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#38bdf8' }}>{liveZones.z3[0]}–{liveZones.z3[1]} bpm</span>
+          <div className="profile-training-zone-card" style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-subtle)' }}>
+            <div className="profile-training-zone-header">
+              <span className="profile-training-zone-title" style={{ color: '#38bdf8' }}>{t.profile.zone3Title}</span>
+              <span className="profile-training-zone-range" style={{ color: '#38bdf8' }}>{liveZones.z3[0]}–{liveZones.z3[1]} bpm</span>
             </div>
             <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.2rem' }}>{t.profile.zone3Name}</div>
             <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
@@ -484,10 +484,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
           </div>
 
           {/* Zone 4 */}
-          <div style={{ padding: '0.85rem', borderRadius: 8, background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#fbbf24' }}>{t.profile.zone4Title}</span>
-              <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#fbbf24' }}>{liveZones.z4[0]}–{liveZones.z4[1]} bpm</span>
+          <div className="profile-training-zone-card" style={{ background: 'rgba(245, 158, 11, 0.08)', borderColor: 'rgba(245, 158, 11, 0.3)' }}>
+            <div className="profile-training-zone-header">
+              <span className="profile-training-zone-title" style={{ color: '#fbbf24' }}>{t.profile.zone4Title}</span>
+              <span className="profile-training-zone-range" style={{ color: '#fbbf24' }}>{liveZones.z4[0]}–{liveZones.z4[1]} bpm</span>
             </div>
             <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#fbbf24', marginBottom: '0.2rem' }}>{t.profile.zone4Name}</div>
             <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>
@@ -496,10 +496,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
           </div>
 
           {/* Zone 5 */}
-          <div style={{ padding: '0.85rem', borderRadius: 8, background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f87171' }}>{t.profile.zone5Title}</span>
-              <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#f87171' }}>&gt; {liveZones.z4[1]} bpm</span>
+          <div className="profile-training-zone-card" style={{ background: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+            <div className="profile-training-zone-header">
+              <span className="profile-training-zone-title" style={{ color: '#f87171' }}>{t.profile.zone5Title}</span>
+              <span className="profile-training-zone-range" style={{ color: '#f87171' }}>&gt; {liveZones.z4[1]} bpm</span>
             </div>
             <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#f87171', marginBottom: '0.2rem' }}>{t.profile.zone5Name}</div>
             <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.35 }}>

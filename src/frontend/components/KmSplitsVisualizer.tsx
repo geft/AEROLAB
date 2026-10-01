@@ -1,6 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Gauge, Heart, Zap, Mountain, TrendingUp, TrendingDown, Award, Clock, Activity, Minus } from 'lucide-react';
-import { formatPace, formatDuration, formatEfficiency } from '../utils/formatters.js';
+import React, { useMemo } from 'react';
+import { formatPace } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 
 export interface SplitItem {
@@ -21,24 +20,15 @@ export interface SplitItem {
 interface KmSplitsVisualizerProps {
   splits: SplitItem[];
   overallAvgPace?: number | null;
-  overallAvgHr?: number | null;
-  lt1Hr?: number;
-  lt2Hr?: number;
   compact?: boolean;
 }
-
-export type SplitMetric = 'pace' | 'hr' | 'ef' | 'elevation';
 
 export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
   splits,
   overallAvgPace,
-  overallAvgHr,
-  lt1Hr,
-  lt2Hr,
   compact = false
 }) => {
-  const { t, format } = useTranslation();
-  const [selectedMetric, setSelectedMetric] = useState<SplitMetric>('pace');
+  const { t } = useTranslation();
 
   // Filter out invalid splits
   const validSplits = useMemo(() => {
@@ -51,61 +41,14 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
     if (validSplits.length === 0) return null;
 
     const paces = validSplits.map(s => s.avg_pace_sec_km).filter((p): p is number => p !== null && p > 0);
-    const hrs = validSplits.map(s => s.avg_heart_rate).filter((h): h is number => h !== null && h > 0);
-    const efs = validSplits.map(s => s.split_efficiency_factor).filter((e): e is number => e !== null && e > 0);
-    const elevs = validSplits.map(s => s.elevation_change_m || 0);
-
     const minPace = paces.length > 0 ? Math.min(...paces) : 0;
     const maxPace = paces.length > 0 ? Math.max(...paces) : 0;
     const avgPace = paces.length > 0 ? paces.reduce((a, b) => a + b, 0) / paces.length : (overallAvgPace || 0);
-
-    const minHr = hrs.length > 0 ? Math.min(...hrs) : 0;
-    const maxHr = hrs.length > 0 ? Math.max(...hrs) : 0;
-    const avgHr = hrs.length > 0 ? hrs.reduce((a, b) => a + b, 0) / hrs.length : (overallAvgHr || 0);
-
-    const minEf = efs.length > 0 ? Math.min(...efs) : 0;
-    const maxEf = efs.length > 0 ? Math.max(...efs) : 0;
-
-    const maxElevChange = elevs.length > 0 ? Math.max(...elevs.map(Math.abs), 5) : 10;
 
     // Identify fastest split index
     const fastestSplit = paces.length > 0 ? validSplits.find(s => s.avg_pace_sec_km === minPace) : null;
     const slowestSplit = paces.length > 0 ? validSplits.find(s => s.avg_pace_sec_km === maxPace) : null;
     const paceSpreadSec = maxPace - minPace;
-
-    // Pacing Strategy (Negative vs Positive Split)
-    let pacingStrategy: { type: 'negative' | 'positive' | 'even'; label: string; diffSec: number; desc: string } | null = null;
-    if (paces.length >= 3) {
-      const mid = Math.floor(paces.length / 2);
-      const firstHalfPaces = paces.slice(0, mid);
-      const secondHalfPaces = paces.slice(mid);
-      const firstAvg = firstHalfPaces.reduce((a, b) => a + b, 0) / firstHalfPaces.length;
-      const secondAvg = secondHalfPaces.reduce((a, b) => a + b, 0) / secondHalfPaces.length;
-      const diff = Math.round(secondAvg - firstAvg); // Negative means second half is faster
-
-      if (diff <= -3) {
-        pacingStrategy = {
-          type: 'negative',
-          label: t.splits.negativeSplitTitle.replace('{diff}', String(Math.abs(diff))),
-          diffSec: diff,
-          desc: t.splits.negativeSplitDesc
-        };
-      } else if (diff >= 4) {
-        pacingStrategy = {
-          type: 'positive',
-          label: t.splits.positiveSplitTitle.replace('{diff}', String(diff)),
-          diffSec: diff,
-          desc: t.splits.positiveSplitDesc
-        };
-      } else {
-        pacingStrategy = {
-          type: 'even',
-          label: t.splits.evenPacingTitle.replace('{diff}', String(Math.abs(diff))),
-          diffSec: diff,
-          desc: t.splits.evenPacingDesc
-        };
-      }
-    }
 
     // Consistency Standard Deviation
     const paceStdDev = paces.length > 1
@@ -116,75 +59,28 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
       minPace,
       maxPace,
       avgPace,
-      minHr,
-      maxHr,
-      avgHr,
-      minEf,
-      maxEf,
-      maxElevChange,
       fastestSplit,
       slowestSplit,
       paceSpreadSec,
-      pacingStrategy,
       paceStdDev
     };
-  }, [validSplits, overallAvgPace, overallAvgHr, t]);
+  }, [validSplits, overallAvgPace]);
 
   if (validSplits.length === 0 || !stats) {
     return (
       <div className="splits-empty-state">
-        <Clock size={28} color="var(--text-muted)" />
-        <p>{t.splits.noSplits || 'No kilometer split data available'}</p>
+        <p>{t.splits.noSplits}</p>
       </div>
     );
   }
 
   return (
     <div className={`km-splits-container ${compact ? 'compact' : ''}`}>
-      {/* Visualizer Controls Header */}
+      {/* Split Header */}
       <div className="splits-controls-header">
         <div className="splits-title-area">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Activity size={18} color="var(--accent-cyan)" />
-            <span className="splits-section-title">{t.splits.title}</span>
-          </div>
+          <span className="splits-section-title">{t.splits.title}</span>
           <span className="splits-count-badge">{validSplits.length} {t.splits.split}</span>
-        </div>
-
-        {/* Metric Selector Pills */}
-        <div className="splits-metric-pills">
-          <button
-            className={`metric-pill-btn ${selectedMetric === 'pace' ? 'active' : ''}`}
-            onClick={() => setSelectedMetric('pace')}
-            title={t.splits.pace}
-          >
-            <Gauge size={13} />
-            <span>{t.splits.pace}</span>
-          </button>
-          <button
-            className={`metric-pill-btn ${selectedMetric === 'hr' ? 'active' : ''}`}
-            onClick={() => setSelectedMetric('hr')}
-            title={t.splits.heartRate}
-          >
-            <Heart size={13} />
-            <span>{t.splits.heartRate}</span>
-          </button>
-          <button
-            className={`metric-pill-btn ${selectedMetric === 'ef' ? 'active' : ''}`}
-            onClick={() => setSelectedMetric('ef')}
-            title={t.splits.efficiency}
-          >
-            <Zap size={13} />
-            <span>{t.splits.efficiency}</span>
-          </button>
-          <button
-            className={`metric-pill-btn ${selectedMetric === 'elevation' ? 'active' : ''}`}
-            onClick={() => setSelectedMetric('elevation')}
-            title={t.splits.elevation}
-          >
-            <Mountain size={13} />
-            <span>{t.splits.elevation}</span>
-          </button>
         </div>
       </div>
 
@@ -220,18 +116,6 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
               {t.splits.stdDev}: ±{stats.paceStdDev}s/km
             </span>
           </div>
-
-          {stats.pacingStrategy && (
-            <div className={`split-insight-card strategy ${stats.pacingStrategy.type}`}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                {stats.pacingStrategy.type === 'negative' && <TrendingDown size={15} color="#10b981" />}
-                {stats.pacingStrategy.type === 'positive' && <TrendingUp size={15} color="#f59e0b" />}
-                {stats.pacingStrategy.type === 'even' && <Minus size={15} color="#06b6d4" />}
-                <span className="strategy-title">{stats.pacingStrategy.label}</span>
-              </div>
-              <p className="strategy-desc">{stats.pacingStrategy.desc}</p>
-            </div>
-          )}
         </div>
       )}
 
@@ -239,87 +123,23 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
       <div className="splits-bar-list">
         {validSplits.map((split) => {
           const pace = split.avg_pace_sec_km;
-          const hr = split.avg_heart_rate;
-          const ef = split.split_efficiency_factor;
-          const elev = split.elevation_change_m ?? 0;
           const isPartial = split.distance_meters > 0 && split.distance_meters < 900;
-          const isFastest = stats.fastestSplit && split.split_index === stats.fastestSplit.split_index;
-
-          // Bar width calculations per metric
-          let barWidthPct = 50;
-          let barColor = 'var(--accent-cyan)';
-          let metricDisplayVal = '';
-          let deltaFromAvg: { val: string; isBetter: boolean; isNeutral: boolean } | null = null;
-
-          if (selectedMetric === 'pace') {
-            if (pace && stats.minPace && stats.maxPace) {
-              // Faster pace = longer bar
-              barWidthPct = stats.minPace === stats.maxPace
-                ? 80
-                : 35 + ((stats.maxPace - pace) / (stats.maxPace - stats.minPace)) * 65;
-
-              const diff = Math.round(pace - stats.avgPace);
-              deltaFromAvg = {
-                val: diff === 0 ? '±0s' : diff < 0 ? `${diff}s` : `+${diff}s`,
-                isBetter: diff < 0,
-                isNeutral: Math.abs(diff) <= 2
-              };
-
-              if (isFastest) {
-                barColor = 'linear-gradient(90deg, rgba(6, 182, 212, 0.4), #06b6d4)';
-              } else if (diff < -2) {
-                barColor = 'linear-gradient(90deg, rgba(16, 185, 129, 0.4), #10b981)';
-              } else if (diff > 4) {
-                barColor = 'linear-gradient(90deg, rgba(245, 158, 11, 0.4), #f59e0b)';
-              } else {
-                barColor = 'linear-gradient(90deg, rgba(56, 189, 248, 0.3), #38bdf8)';
-              }
-            }
-            metricDisplayVal = formatPace(pace);
-          } else if (selectedMetric === 'hr') {
-            if (hr && stats.minHr && stats.maxHr) {
-              barWidthPct = stats.minHr === stats.maxHr
-                ? 75
-                : 40 + ((hr - stats.minHr) / (stats.maxHr - stats.minHr)) * 60;
-
-              const diff = Math.round(hr - stats.avgHr);
-              deltaFromAvg = {
-                val: format(t.splits.hrDelta, { delta: diff === 0 ? '0' : diff > 0 ? `+${diff}` : `${diff}` }),
-                isBetter: diff <= 0,
-                isNeutral: Math.abs(diff) <= 1
-              };
-
-              if (lt1Hr == null || lt2Hr == null) {
-                barColor = 'var(--text-muted)';
-              } else if (hr <= lt1Hr) {
-                barColor = 'linear-gradient(90deg, rgba(16, 185, 129, 0.4), #10b981)'; // Z1/Z2
-              } else if (hr < lt2Hr) {
-                barColor = 'linear-gradient(90deg, rgba(6, 182, 212, 0.4), #06b6d4)'; // Z3
-              } else {
-                barColor = 'linear-gradient(90deg, rgba(245, 158, 11, 0.4), #f59e0b)'; // Z4/Z5
-              }
-            }
-            metricDisplayVal = hr ? `${Math.round(hr)} bpm` : '—';
-          } else if (selectedMetric === 'ef') {
-            if (ef && stats.minEf && stats.maxEf) {
-              barWidthPct = stats.minEf === stats.maxEf
-                ? 70
-                : 35 + ((ef - stats.minEf) / (stats.maxEf - stats.minEf)) * 65;
-              barColor = 'linear-gradient(90deg, rgba(6, 182, 212, 0.4), #06b6d4)';
-            }
-            metricDisplayVal = formatEfficiency(ef) ? `${formatEfficiency(ef)} EF` : '—';
-          } else if (selectedMetric === 'elevation') {
-            const absElev = Math.abs(elev);
-            barWidthPct = Math.min(100, 20 + (absElev / stats.maxElevChange) * 80);
-            if (elev > 0.5) {
-              barColor = 'linear-gradient(90deg, rgba(245, 158, 11, 0.4), #f59e0b)';
-            } else if (elev < -0.5) {
-              barColor = 'linear-gradient(90deg, rgba(16, 185, 129, 0.4), #10b981)';
-            } else {
-              barColor = 'linear-gradient(90deg, rgba(148, 163, 184, 0.3), #94a3b8)';
-            }
-            metricDisplayVal = elev > 0 ? `+${elev.toFixed(1)}m` : `${elev.toFixed(1)}m`;
-          }
+          const isFastest = Boolean(stats.fastestSplit && split.split_index === stats.fastestSplit.split_index);
+          const diff = pace != null && pace > 0 ? Math.round(pace - stats.avgPace) : null;
+          const barWidthPct = pace != null && stats.minPace !== stats.maxPace
+            ? 35 + ((stats.maxPace - pace) / (stats.maxPace - stats.minPace)) * 65
+            : 80;
+          const barColor = diff != null && diff < -2
+            ? 'linear-gradient(90deg, rgba(16, 185, 129, 0.4), #10b981)'
+              : diff != null && diff > 4
+                ? 'linear-gradient(90deg, rgba(245, 158, 11, 0.4), #f59e0b)'
+                : 'linear-gradient(90deg, rgba(6, 182, 212, 0.4), #06b6d4)';
+          const strideLength = pace != null && pace > 0 && split.avg_cadence != null && split.avg_cadence > 0
+            ? 120_000 / (pace * split.avg_cadence)
+            : null;
+          const verticalOscillationCm = split.avg_vert_osc != null
+            ? (split.avg_vert_osc < 25 ? split.avg_vert_osc : split.avg_vert_osc / 10)
+            : null;
 
           return (
             <div key={split.split_index} className={`split-bar-row ${isFastest ? 'is-fastest' : ''}`}>
@@ -329,84 +149,41 @@ export const KmSplitsVisualizer: React.FC<KmSplitsVisualizerProps> = ({
                   KM {split.split_index}
                   {isPartial && <span className="partial-tag">({Math.round(split.distance_meters)}m)</span>}
                 </span>
-                {isFastest && selectedMetric === 'pace' && (
-                  <span className="fastest-indicator" title="Fastest Kilometer Split">
-                    <Award size={12} />
-                  </span>
-                )}
               </div>
 
-              {/* Primary Metric Number */}
-              <div className="split-primary-val">
-                {metricDisplayVal}
+              <div className="split-primary-val" title={t.splits.pace}>
+                {formatPace(pace)}
               </div>
 
-              {/* Bar Visual Track */}
-              <div className="split-bar-track-area">
+              <div className="split-bar-track-area" aria-hidden="true">
                 <div className="split-bar-bg-track">
-                  <div
-                    className="split-bar-fill"
-                    style={{
-                      width: `${Math.max(8, Math.min(100, barWidthPct))}%`,
-                      background: barColor
-                    }}
-                  />
+                  {pace != null && pace > 0 && (
+                    <div
+                      className="split-bar-fill"
+                      style={{
+                        width: `${Math.max(8, Math.min(100, barWidthPct))}%`,
+                        background: barColor
+                      }}
+                    />
+                  )}
                 </div>
-
-                {/* Delta Badge */}
-                {deltaFromAvg && (
-                  <span className={`split-delta-pill ${deltaFromAvg.isNeutral ? 'neutral' : deltaFromAvg.isBetter ? 'better' : 'slower'}`}>
-                    {deltaFromAvg.val}
-                  </span>
-                )}
               </div>
-
-              {/* Secondary Telemetry Chips */}
-              <div className="split-secondary-stats">
-                {selectedMetric !== 'pace' && (
-                  <span className="sec-chip pace" title={t.splits.pace}>
-                    <Gauge size={11} /> {formatPace(pace)}
-                  </span>
+              <span className="split-heart-rate">
+                {split.avg_heart_rate != null && split.avg_heart_rate > 0 ? `${Math.round(split.avg_heart_rate)} bpm` : '—'}
+              </span>
+              <div className="split-telemetry">
+                {split.avg_cadence != null && split.avg_cadence > 0 && (
+                  <span><b>{t.browse.cadenceShort}</b> {Math.round(split.avg_cadence)} spm</span>
                 )}
-                {selectedMetric !== 'hr' && hr && (
-                  <span className="sec-chip hr" title={t.splits.heartRate}>
-                    <Heart size={11} color={lt1Hr == null || lt2Hr == null ? 'var(--text-muted)' : hr >= lt2Hr ? '#f59e0b' : hr > lt1Hr ? '#06b6d4' : '#10b981'} />
-                    {Math.round(hr)}
-                  </span>
+                {split.avg_stance_time != null && split.avg_stance_time > 0 && (
+                  <span><b>{t.browse.gctShort}</b> {Math.round(split.avg_stance_time)} ms</span>
                 )}
-                {selectedMetric !== 'ef' && ef && (
-                  <span className="sec-chip ef" title={t.splits.efficiency}>
-                    <Zap size={11} /> {formatEfficiency(ef)}
-                  </span>
+                {verticalOscillationCm != null && verticalOscillationCm > 0 && (
+                  <span><b>{t.browse.verticalOscLabelShort}</b> {verticalOscillationCm.toFixed(1)} cm</span>
                 )}
-                {selectedMetric !== 'elevation' && elev !== 0 && (
-                  <span className="sec-chip elev" title={t.splits.elevation}>
-                    <Mountain size={11} /> {elev > 0 ? `+${Math.round(elev)}m` : `${Math.round(elev)}m`}
-                  </span>
+                {strideLength != null && (
+                  <span><b>{t.browse.strideLengthShort}</b> {strideLength.toFixed(2)} m</span>
                 )}
-                {split.avg_cadence && (
-                  <span className="sec-chip" style={{ color: 'var(--text-secondary)' }} title={t.splits.cadence}>
-                    {Math.round(split.avg_cadence)} spm
-                  </span>
-                )}
-                {split.avg_stance_time && (
-                  <span className="sec-chip" style={{ color: '#a78bfa' }} title={t.browse.groundContactTime}>
-                    {Math.round(split.avg_stance_time)} ms
-                  </span>
-                )}
-                {split.avg_vert_osc && (
-                  <span className="sec-chip" style={{ color: '#818cf8' }} title={t.browse.verticalOscillation}>
-                    {(split.avg_vert_osc / 10).toFixed(1)} cm
-                  </span>
-                )}
-                {split.avg_vert_ratio && (
-                  <span className="sec-chip" style={{ color: '#c084fc' }} title={t.browse.verticalRatio}>
-                    VR {split.avg_vert_ratio.toFixed(1)}%
-                  </span>
-                )}
-                <span className="sec-chip time" title={t.common.duration}>
-                  <Clock size={11} /> {formatDuration(split.duration_seconds)}
-                </span>
               </div>
             </div>
           );

@@ -670,9 +670,6 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               <KmSplitsVisualizer
                 splits={detailData.splits || []}
                 overallAvgPace={act.avg_pace_sec_km}
-                overallAvgHr={act.avg_heart_rate}
-                lt1Hr={detailData.heartRateThresholds?.lt1Hr ?? undefined}
-                lt2Hr={detailData.heartRateThresholds?.lt2Hr ?? undefined}
                 compact={false}
               />
             )}

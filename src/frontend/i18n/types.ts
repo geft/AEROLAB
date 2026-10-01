@@ -98,7 +98,6 @@ export interface Translations {
     cadence: string;
     distance: string;
     duration: string;
-    elevation: string;
     notes: string;
     km: string;
     min: string;
@@ -186,7 +185,6 @@ export interface Translations {
     metersPerBeat: string;
     groundContactTime: string;
     verticalOscillation: string;
-    verticalRatio: string;
     biomechanicalDynamics: string;
     dynamicsTitle: string;
     biomechanicalDesc: string;
@@ -286,25 +284,13 @@ export interface Translations {
   };
   splits: {
     title: string;
-    /** Template with a `{delta}` token, e.g. `+5 bpm`. */
-    hrDelta: string;
     split: string;
     pace: string;
-    heartRate: string;
-    cadence: string;
-    elevation: string;
-    efficiency: string;
     fastestSplit: string;
     slowestSplit: string;
     noSplits: string;
     paceSpread: string;
     stdDev: string;
-    negativeSplitTitle: string;
-    negativeSplitDesc: string;
-    positiveSplitTitle: string;
-    positiveSplitDesc: string;
-    evenPacingTitle: string;
-    evenPacingDesc: string;
   };
   progress: {
     chartPointSelector: string;

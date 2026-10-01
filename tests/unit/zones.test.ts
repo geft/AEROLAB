@@ -101,4 +101,21 @@ describe('Heart Rate Zones & Distribution Unit Tests', () => {
     expect(dist.z4Pct).toBe(0);
     expect(dist.z5Pct).toBe(0);
   });
+
+  it('weights variable-rate recordings by elapsed seconds and ignores unobserved gaps', () => {
+    const zones = getDefaultZones(185);
+    const records = [
+      { elapsedSeconds: 0, heartRate: 120 },
+      { elapsedSeconds: 10, heartRate: 175 },
+      { elapsedSeconds: 11, heartRate: 175 },
+      { elapsedSeconds: 12, heartRate: 175 },
+      { elapsedSeconds: 100, heartRate: 135 },
+      { elapsedSeconds: 110, heartRate: 135 }
+    ] as ActivityRecord[];
+    const result = calculateZoneDistribution(records, zones);
+    expect(result.z1Seconds).toBe(10);
+    expect(result.z2Seconds).toBe(20);
+    expect(result.z5Seconds).toBe(2);
+    expect(result.z5Pct).toBe(6.3);
+  });
 });

@@ -89,7 +89,7 @@ export const TrainingLoadCard: React.FC = () => {
 
   // SVG Chart Metrics (responsive & generous breathing room)
   const timeline = data.timeline || [];
-  const activeDayIndex = selectedDayIndex ?? 0;
+  const activeDayIndex = selectedDayIndex ?? -1;
   const chartHeight = 185;
   const chartWidth = 800;
   const paddingLeft = 44;
@@ -293,6 +293,19 @@ export const TrainingLoadCard: React.FC = () => {
           className="training-load-chart"
           viewBox={`0 0 ${chartWidth} ${chartHeight}`}
           style={{ width: '100%', height: 'auto', maxHeight: 230, display: 'block' }}
+          onPointerMove={event => {
+            if (timeline.length < 2) return;
+            const rect = event.currentTarget.getBoundingClientRect();
+            const x = ((event.clientX - rect.left) / rect.width) * chartWidth;
+            const index = Math.max(0, Math.min(timeline.length - 1,
+              Math.round(((x - paddingLeft) / innerWidth) * (timeline.length - 1))));
+            setSelectedDayIndex(index);
+            setHoveredDay(timeline[index] ?? null);
+          }}
+          onPointerLeave={() => {
+            setSelectedDayIndex(null);
+            setHoveredDay(null);
+          }}
         >
           <defs>
             <linearGradient id="tunnelGrad" x1="0" y1="0" x2="0" y2="1">

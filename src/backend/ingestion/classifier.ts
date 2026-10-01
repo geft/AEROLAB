@@ -2,7 +2,8 @@ import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { ActivityMetadata, ActivityRecord } from './csv-parser';
 import { EconomyMetrics } from '../physiology/economy';
 import { DetectedInterval, inferWorkoutPrescription } from './interval-detector';
-import { getDefaultZones, calculateZoneDistribution } from '../physiology/zones';
+import { getDefaultZones, getLt2TrainingBand, calculateZoneDistribution, recordDurationSeconds } from '../physiology/zones';
+import { continuousRaceEffort } from './continuous-effort.js';
 
 export type RunType = 'easy_base' | 'long_run' | 'threshold_lt2' | 'intervals_vo2' | 'race' | 'recovery';
 
@@ -18,6 +19,28 @@ export interface AthleteHrProfile {
   restingHr?: number | null;
   lt1Hr?: number | null;
   lt2Hr?: number | null;
+}
+
+/** The same quality-session failure evidence is used by import and coaching. */
+export function qualityWorkoutFailed(
+  runType: string,
+  workIntervals: Pick<DetectedInterval, 'durationSeconds' | 'maxHeartRate'>[],
+  profile?: AthleteHrProfile
+): boolean {
+  if (!['threshold_lt2', 'intervals_vo2'].includes(runType) || workIntervals.length === 0) return false;
+  const totalWork = workIntervals.reduce((sum, interval) => sum + interval.durationSeconds, 0);
+  const peaks = workIntervals.map(interval => interval.maxHeartRate).filter(hr => hr > 40 && Number.isFinite(hr));
+  const { lt2Hr } = resolveHeartRateProfile(profile);
+  const missedStimulus = peaks.length > 0 && Math.max(...peaks) < lt2Hr - (runType === 'threshold_lt2' ? 8 : 6);
+  let hrFade = false;
+  if (peaks.length >= 3) {
+    const half = Math.floor(peaks.length / 2);
+    const early = peaks.slice(0, half).reduce((sum, hr) => sum + hr, 0) / half;
+    const late = peaks.slice(-half).reduce((sum, hr) => sum + hr, 0) / half;
+    hrFade = early - late >= 8;
+  }
+  return missedStimulus || hrFade || (runType === 'intervals_vo2'
+    ? totalWork < 360 : workIntervals.length === 1 && totalWork < 480);
 }
 
 /**
@@ -41,7 +64,6 @@ export function classifyRun(
 ): ClassificationResult {
   const durationMin = metadata.totalDurationSeconds / 60;
   const avgHr = metadata.avgHeartRate;
-  const nameLower = (metadata.name || '').toLowerCase();
 
   const profileWithMeta = profile ?? (metadata.maxHeartRate && metadata.maxHeartRate >= 100 ? { maxHr: metadata.maxHeartRate } : undefined);
   const { maxHr: effMax, restingHr: resting, lt1Hr: lt1, lt2Hr: lt2 } = resolveHeartRateProfile(profileWithMeta);
@@ -50,28 +72,42 @@ export function classifyRun(
   const zones = getDefaultZones(effMax, lt1, lt2, resting);
   const zoneDist = calculateZoneDistribution(records, zones);
   const lt2Anchor = lt2;
+  const [thresholdHrFloor] = getLt2TrainingBand(lt2Anchor);
   // Zone 5 now means above LT2. Keep VO2 detection tied to the former
   // high-intensity HRR ceiling so threshold HR alone does not imply VO2 work.
   const vo2HrFloor = Math.min(effMax - 1, Math.max(lt2, Math.round(resting + (effMax - resting) * 0.90))) + 1;
-  const validHrRecords = records.filter(r => r.heartRate != null && r.heartRate > 40);
-  const vo2HrPct = validHrRecords.length > 0
-    ? (validHrRecords.filter(r => r.heartRate! >= vo2HrFloor).length / validHrRecords.length) * 100
+  let validHrSeconds = 0;
+  let vo2HrSeconds = 0;
+  let thresholdHrSeconds = 0;
+  for (let index = 0; index < records.length; index++) {
+    const hr = records[index].heartRate;
+    if (hr == null || !Number.isFinite(hr) || hr <= 40 || hr > 240) continue;
+    const seconds = recordDurationSeconds(records, index);
+    validHrSeconds += seconds;
+    if (hr >= vo2HrFloor) vo2HrSeconds += seconds;
+    if (hr >= thresholdHrFloor) thresholdHrSeconds += seconds;
+  }
+  const vo2HrPct = validHrSeconds > 0
+    ? vo2HrSeconds / validHrSeconds * 100
     : 0;
 
-  // 1. Race / Continuous Time Trial Detection (title-only, pace-free)
-  const isRaceByName =
-    nameLower.includes('time trial') ||
-    nameLower.includes(' tt') ||
-    nameLower.includes('race') ||
-    nameLower.includes('parkrun');
-
   const workIntervals = detectedIntervals.filter(i => i.type === 'work');
+  const qualityWorkIndexes = detectedIntervals.map((interval, index) => ({ interval, index })).filter(({ interval }) =>
+    interval.type === 'work' && interval.durationSeconds >= 120 && interval.avgHeartRate >= thresholdHrFloor);
+  const hasRepeatedQualityWork = qualityWorkIndexes.some((work, index) => {
+    const previous = qualityWorkIndexes[index - 1];
+    return previous && detectedIntervals.slice(previous.index + 1, work.index).some(interval =>
+      interval.type === 'recovery' && interval.durationSeconds >= 30);
+  });
 
-  if (isRaceByName) {
+  // Whole-session averages dilute a benchmark with its warmup/cooldown.
+  // Evaluate sustained high-intensity bouts before threshold/interval rules.
+  const raceEffort = continuousRaceEffort(records, { maxHr: effMax, restingHr: resting, lt2Hr: lt2 });
+  if (raceEffort && !hasRepeatedQualityWork) {
     return {
       runType: 'race',
-      confidence: 0.95,
-      reason: `Race / Benchmark effort identified by activity title: "${metadata.name}"`
+      confidence: 0.88,
+      reason: `Continuous race-intensity effort (${(raceEffort.durationSeconds / 60).toFixed(1)}m above the threshold band, ${raceEffort.nearMaxPct.toFixed(0)}% at near-maximal cardiovascular intensity)`
     };
   }
 
@@ -87,16 +123,17 @@ export function classifyRun(
   let recordWalkBouts = 0;
   let inWalk = false;
   let walkStreak = 0;
-  for (const r of records) {
+  for (let index = 0; index < records.length; index++) {
+    const r = records[index];
     const cad = r.cadence ?? 0;
     const spd = r.speedMps ?? 0;
     if (cad > 0 && cad < 125 && spd < 1.8) {
-      walkStreak++;
+      walkStreak += recordDurationSeconds(records, index);
       if (walkStreak >= 15 && !inWalk) {
         inWalk = true;
         recordWalkBouts++;
       }
-    } else if (cad >= 128) {
+    } else {
       inWalk = false;
       walkStreak = 0;
     }
@@ -107,15 +144,6 @@ export function classifyRun(
     (zoneDist.z5Pct < 15) &&
     (avgHr <= lt1 + 6 || (zoneDist.z1Pct + zoneDist.z2Pct >= 50));
 
-  if (isGallowaySession) {
-    const isLong = durationMin >= 100;
-    return {
-      runType: isLong ? 'long_run' : 'easy_base',
-      confidence: 0.92,
-      reason: `Aerobic base run with Galloway run/walk intervals (${gallowayWalkCount} walk breaks, avg HR ${avgHr} bpm)`
-    };
-  }
-
   // 2. Evaluate Structured Work Intervals (Threshold vs VO2 Max vs Failed)
   //    Structure = rep count + work/recovery durations + regularity.
   //    Intensity = profile-relative HR zone occupancy.
@@ -125,25 +153,19 @@ export function classifyRun(
       .map(i => i.durationSeconds)
       .sort((a, b) => a - b);
     const medianWorkSec = sortedWork[Math.floor(sortedWork.length / 2)];
-    const avgWorkDurationSec = totalWorkDurationSec / workIntervals.length;
     const maxWorkHr = Math.max(...workIntervals.map(i => i.maxHeartRate));
 
     const prescription = inferWorkoutPrescription(detectedIntervals);
     const prescLabel = prescription ? ` (${prescription.label})` : '';
 
-    // HR fade across reps (late-rep peak HR drops while structure holds) — no pace.
-    let hrFade = false;
-    if (workIntervals.length >= 3) {
-      const peaks = workIntervals.map(i => i.maxHeartRate).filter(h => h > 0);
-      if (peaks.length >= 3) {
-        const half = Math.floor(peaks.length / 2);
-        const early = peaks.slice(0, half).reduce((a, b) => a + b, 0) / half;
-        const late = peaks.slice(-half).reduce((a, b) => a + b, 0) / half;
-        if (early - late >= 8) hrFade = true;
-      }
-    }
+    const vo2RepCount = workIntervals.filter(i => i.maxHeartRate >= vo2HrFloor || i.maxHeartRate >= effMax * 0.91).length;
+    const hasVo2Intensity = vo2RepCount >= 2 || (vo2RepCount >= 1 && vo2HrPct >= 4) || (vo2HrPct >= 6 && vo2HrSeconds >= 120);
+    const isSporadicSurges =
+      (totalWorkDurationSec < 300 || totalWorkDurationSec < metadata.totalDurationSeconds * 0.22) &&
+      vo2RepCount < 2 && vo2HrPct < 4;
+    const isVo2Intervals = !isSporadicSurges && workIntervals.length >= 2 && medianWorkSec <= 360 && hasVo2Intensity;
 
-    const repInThresholdBand = (hr: number): boolean => hr >= lt2Anchor - 8;
+    const repInThresholdBand = (hr: number): boolean => hr >= thresholdHrFloor;
     const thresholdRepCount = workIntervals.filter(i =>
       repInThresholdBand(i.avgHeartRate)
     ).length;
@@ -152,16 +174,11 @@ export function classifyRun(
     //    with threshold-band HR occupancy (profile-relative).
     const isThresholdIntervals =
       (medianWorkSec >= 360 &&
-        (thresholdRepCount >= Math.max(1, Math.ceil(workIntervals.length / 2)) ||
-          zoneDist.z4Pct >= 25)) ||
+        thresholdRepCount >= Math.max(1, Math.ceil(workIntervals.length / 2))) ||
       workIntervals.some(i => i.durationSeconds >= 450 && repInThresholdBand(i.avgHeartRate));
 
-    if (isThresholdIntervals) {
-        const stimulusMissed = maxWorkHr < lt2Anchor - 8;
-      const isFailed =
-        stimulusMissed ||
-        (workIntervals.length === 1 && totalWorkDurationSec < 480) ||
-        hrFade;
+    if (isThresholdIntervals && !isVo2Intervals) {
+      const isFailed = qualityWorkoutFailed('threshold_lt2', workIntervals, profileWithMeta);
 
       return {
         runType: 'threshold_lt2',
@@ -175,31 +192,8 @@ export function classifyRun(
 
     // B. VO2 Max Intervals: short repeated structure (median work <= 6 min,
     //    2+ reps) with Z5 spikes (profile-relative max-HR attainment).
-    const vo2RepCount = workIntervals.filter(i => i.maxHeartRate >= vo2HrFloor || i.maxHeartRate >= effMax * 0.91).length;
-    const vo2HrSamples = validHrRecords.filter(r => r.heartRate! >= vo2HrFloor).length;
-    const hasVo2Intensity = vo2RepCount >= 2 || (vo2RepCount >= 1 && vo2HrPct >= 4) || (vo2HrPct >= 6 && vo2HrSamples >= 120);
-    const hasExplicitVo2 = nameLower.includes('vo2') || nameLower.includes('v02');
-
-    // Surges check: If work intervals are sporadic brief bursts in a steady tempo/base run,
-    // do not classify as VO2 max without explicit VO2 name or actual sustained VO2 intensity.
-    const isSporadicSurges =
-      !hasExplicitVo2 &&
-      (totalWorkDurationSec < 300 || totalWorkDurationSec < metadata.totalDurationSeconds * 0.22) &&
-      vo2RepCount < 2 &&
-      vo2HrPct < 4;
-
-    const isVo2Intervals =
-      !isSporadicSurges &&
-      workIntervals.length >= 2 &&
-      medianWorkSec <= 360 &&
-      (hasExplicitVo2 || hasVo2Intensity);
-
     if (isVo2Intervals) {
-      const stimulusMissed = maxWorkHr < lt2Anchor - 6;
-      const isFailed =
-        stimulusMissed ||
-        totalWorkDurationSec < 360 ||
-        hrFade;
+      const isFailed = qualityWorkoutFailed('intervals_vo2', workIntervals, profileWithMeta);
 
       return {
         runType: 'intervals_vo2',
@@ -210,16 +204,25 @@ export function classifyRun(
           : `Detected ${workIntervals.length} VO2 work intervals${prescLabel} (median ${(medianWorkSec / 60).toFixed(1)}m, peak HR ${maxWorkHr})`
       };
     }
+  }
 
-    void avgWorkDurationSec;
+  // Walking recoveries also occur in genuine quality sessions. Evaluate their
+  // work bouts first so aerobic warmups cannot hide the interval stimulus.
+  if (isGallowaySession) {
+    return {
+      runType: durationMin >= 110 ? 'long_run' : 'easy_base',
+      confidence: 0.92,
+      reason: `Aerobic base run with Galloway run/walk intervals (${gallowayWalkCount} walk breaks, avg HR ${avgHr} bpm)`
+    };
   }
 
   // 3. Continuous Threshold / Tempo check (profile-relative zone occupancy)
-  if (zoneDist.z4Pct >= 35 || zoneDist.z5Pct >= 45) {
+  const thresholdHrPct = validHrSeconds > 0 ? thresholdHrSeconds / validHrSeconds * 100 : 0;
+  if (thresholdHrPct >= 35) {
     return {
       runType: 'threshold_lt2',
       confidence: 0.88,
-      reason: `Sustained lactate threshold tempo effort (${zoneDist.z4Pct.toFixed(0)}% in Zone 4, profile-relative)`
+      reason: `Sustained lactate threshold tempo effort (${thresholdHrPct.toFixed(0)}% near or above the LT2 training band, profile-relative)`
     };
   }
 
@@ -238,15 +241,12 @@ export function classifyRun(
   // low average HR and most recorded time in the athlete-relative recovery zone.
   // Do not use a fraction of max HR here; for some athletes that labels steady
   // Zone 2 running as recovery, especially when a short session limits HR lag.
-  const isExplicitRecovery = nameLower.includes('recovery');
   const isRecoveryHr = avgHr <= zones.z1[1] && zoneDist.z1Pct >= 50;
-  if (isExplicitRecovery || (durationMin <= 50 && isRecoveryHr)) {
+  if (durationMin <= 50 && isRecoveryHr) {
     return {
       runType: 'recovery',
       confidence: 0.88,
-      reason: isExplicitRecovery
-        ? `Recovery run identified by title: "${metadata.name}"`
-        : `Very low cardiovascular strain recovery jog (${durationMin.toFixed(0)} min, avg HR ${avgHr} bpm, ${zoneDist.z1Pct.toFixed(0)}% in Zone 1)`
+      reason: `Very low cardiovascular strain recovery jog (${durationMin.toFixed(0)} min, avg HR ${avgHr} bpm, ${zoneDist.z1Pct.toFixed(0)}% in Zone 1)`
     };
   }
 

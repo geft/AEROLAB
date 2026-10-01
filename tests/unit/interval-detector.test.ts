@@ -131,8 +131,9 @@ describe('Interval & Stride Detector (Unit)', () => {
     for (let i = 0; i < sampleTimes.length; i++) {
       const sec = sampleTimes[i];
       const isCandidate = sec >= 627 && sec <= 638;
-      const speed = isCandidate ? 2.92 : 2.2;
-      const cadence = isCandidate ? 178 : 169;
+      const walking = sec > 638 && sec <= 680;
+      const speed = isCandidate ? 2.92 : walking ? 1.2 : 2.2;
+      const cadence = isCandidate ? 178 : walking ? 100 : 169;
       if (i > 0) distance += speed * (sec - sampleTimes[i - 1]);
       records.push({ ...makeRecord(sec, cadence, speed, 140), distanceMeters: distance });
     }
@@ -247,6 +248,9 @@ describe('Interval & Stride Detector (Unit)', () => {
     // Stride 2: 25s explosive acceleration (198 spm, 5.4 m/s, min stance 180ms)
     for (let i = 0; i < 25; i++, sec++) {
       records.push(makeRecord(sec, 198, 5.4, 160, 180));
+    }
+    for (let i = 0; i < 30; i++, sec++) {
+      records.push(makeRecord(sec, 100, 1.2, 165));
     }
 
     const intervals = detectIntervals(records);

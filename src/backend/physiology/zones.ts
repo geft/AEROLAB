@@ -62,21 +62,23 @@ export function calculateZoneDistribution(records: ActivityRecord[], zones: Hear
   let z1 = 0, z2 = 0, z3 = 0, z4 = 0, z5 = 0;
   let total = 0;
 
-  for (const r of records) {
+  for (let index = 0; index < records.length; index++) {
+    const r = records[index];
     const hr = r.heartRate;
-    if (!hr || hr <= 40) continue;
+    if (!hr || !Number.isFinite(hr) || hr <= 40 || hr > 240) continue;
+    const seconds = recordDurationSeconds(records, index);
 
-    total++;
+    total += seconds;
     if (hr <= zones.z1[1]) {
-      z1++;
+      z1 += seconds;
     } else if (hr <= zones.z2[1]) {
-      z2++;
+      z2 += seconds;
     } else if (hr <= zones.z3[1]) {
-      z3++;
+      z3 += seconds;
     } else if (hr <= zones.z4[1]) {
-      z4++;
+      z4 += seconds;
     } else {
-      z5++;
+      z5 += seconds;
     }
   }
 
@@ -92,4 +94,16 @@ export function calculateZoneDistribution(records: ActivityRecord[], zones: Hear
     z4Pct: total > 0 ? Number(((z4 / total) * 100).toFixed(1)) : 0,
     z5Pct: total > 0 ? Number(((z5 / total) * 100).toFixed(1)) : 0
   };
+}
+
+/** Smart recording samples represent elapsed time, rather than one second each.
+ * Long gaps have no usable intensity evidence. The final sample uses the last
+ * recording interval, or one second when that interval is unavailable.
+ */
+export function recordDurationSeconds(records: Pick<ActivityRecord, 'elapsedSeconds'>[], index: number): number {
+  const current = records[index].elapsedSeconds;
+  const next = records[index + 1]?.elapsedSeconds;
+  const seconds = next == null ? current - (records[index - 1]?.elapsedSeconds ?? current - 1) : next - current;
+  if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 10) return next == null ? 1 : 0;
+  return seconds;
 }

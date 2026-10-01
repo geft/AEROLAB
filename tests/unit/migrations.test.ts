@@ -5,6 +5,8 @@ import path from 'path';
 import Database from 'better-sqlite3';
 import { createMigrationRunner } from '../../src/backend/db/migrations.js';
 import { openDatabase } from '../../src/backend/db/client.js';
+import { importRunContent } from '../../src/backend/ingestion/importer.js';
+import { getBenchmark, seedBenchmarkProfile, toCsv } from '../fixtures/benchmark-runs.js';
 
 describe('named database migrations', () => {
   const roots: string[] = [];
@@ -38,7 +40,60 @@ describe('named database migrations', () => {
     db.exec('CREATE TABLE activities (id TEXT PRIMARY KEY); PRAGMA user_version = 1');
     const runner = createMigrationRunner(db);
     expect(runner.run('centroid-v1', () => { throw new Error('already complete'); })).toBe(true);
+    let applied = false;
+    expect(runner.run('continuous-race-v1', () => { applied = true; })).toBe(true);
+    expect(applied).toBe(true);
+    expect(runner.run('signal-classification-v1', () => { applied = false; })).toBe(true);
+    expect(applied).toBe(false);
     db.close();
+  });
+
+  it('rebuilds stale title-derived analysis once and preserves the activity name', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aerolab-signal-migration-'));
+    roots.push(root);
+    const file = path.join(root, 'runs.db');
+    const first = openDatabase(file);
+    seedBenchmarkProfile(first);
+    const benchmark = { ...getBenchmark('bench-easy-60'), name: 'Race Time Trial VO2 Recovery Failed DNF Tempo MP' };
+    expect(importRunContent(first, toCsv(benchmark), 'run.csv').status).toBe('imported');
+    first.prepare("UPDATE activities SET run_type='race', auto_run_type='race', tags='[\"Race\"]' WHERE id=?").run(benchmark.id);
+    first.prepare("DELETE FROM schema_migrations WHERE name='signal-classification-v1'").run();
+    first.close();
+
+    const migrated = openDatabase(file);
+    const read = () => migrated.prepare('SELECT name,run_type,tags FROM activities WHERE id=?').get(benchmark.id);
+    expect(read()).toEqual({ name: benchmark.name, run_type: 'easy_base', tags: '["Easy Base"]' });
+    expect(migrated.prepare("SELECT 1 FROM schema_migrations WHERE name='signal-classification-v1'").get()).toBeTruthy();
+    expect(fs.readdirSync(path.join(root, 'backups')).some(name => name.startsWith('pre-migration-'))).toBe(true);
+    const coach = migrated.prepare('SELECT headline,updated_at FROM activity_coach_summaries WHERE activity_id=?').get(benchmark.id);
+    migrated.close();
+    const reopened = openDatabase(file);
+    expect(reopened.prepare('SELECT headline,updated_at FROM activity_coach_summaries WHERE activity_id=?').get(benchmark.id)).toEqual(coach);
+    reopened.close();
+  });
+
+  it.each(['effort-structure-v1', 'stride-recovery-v1'])('restores missing strides once with a backup: %s', migration => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aerolab-effort-migration-'));
+    roots.push(root);
+    const file = path.join(root, 'runs.db');
+    const first = openDatabase(file);
+    seedBenchmarkProfile(first);
+    const benchmark = { ...getBenchmark('bench-easy-strides'), name: 'Evening Running' };
+    expect(importRunContent(first, toCsv(benchmark), 'run.csv').status).toBe('imported');
+    first.prepare("DELETE FROM activity_intervals WHERE activity_id=? AND type='stride'").run(benchmark.id);
+    first.prepare("UPDATE activities SET tags='[\"Easy Base\"]' WHERE id=?").run(benchmark.id);
+    first.prepare('DELETE FROM schema_migrations WHERE name=?').run(migration);
+    first.close();
+    const migrated = openDatabase(file);
+    expect(migrated.prepare("SELECT COUNT(*) AS count FROM activity_intervals WHERE activity_id=? AND type='stride'").get(benchmark.id)).toEqual({ count: 4 });
+    expect(migrated.prepare('SELECT name,tags FROM activities WHERE id=?').get(benchmark.id)).toEqual({ name: benchmark.name, tags: '["Easy Base","Strides"]' });
+    expect(migrated.prepare('SELECT 1 FROM schema_migrations WHERE name=?').get(migration)).toBeTruthy();
+    expect(fs.readdirSync(path.join(root, 'backups')).some(name => name.startsWith('pre-migration-'))).toBe(true);
+    const coach = migrated.prepare('SELECT headline,updated_at FROM activity_coach_summaries WHERE activity_id=?').get(benchmark.id);
+    migrated.close();
+    const reopened = openDatabase(file);
+    expect(reopened.prepare('SELECT headline,updated_at FROM activity_coach_summaries WHERE activity_id=?').get(benchmark.id)).toEqual(coach);
+    reopened.close();
   });
 
   it('checkpoints legacy column additions and does not rerun them on reopen', () => {

@@ -17,6 +17,38 @@ export type { WorkoutPrescription };
 const STRIDE_MIN_DISTANCE_M = 25;
 const STRIDE_MIN_DURATION_SECONDS = 8;
 
+/** A stride is followed promptly by sustained walking/rest, rather than a jog.
+ * HR may peak in this recovery, so it must not define the burst's end or require
+ * an immediate HR drop. Confirm elapsed time, not a count of sparse samples.
+ */
+function hasStrideRecovery(records: ActivityRecord[], endIndex: number): boolean {
+  const burstEnd = records[endIndex].elapsedSeconds;
+  let slowStart: number | null = null;
+  let slowSeconds = 0;
+  for (let index = endIndex + 1; index < records.length - 1; index++) {
+    const record = records[index];
+    if (record.elapsedSeconds > burstEnd + 30) break;
+    const seconds = records[index + 1].elapsedSeconds - record.elapsedSeconds;
+    const speed = record.speedMps;
+    const cadence = record.cadence;
+    const validSpeed = speed != null && Number.isFinite(speed) && speed >= 0;
+    const validCadence = cadence != null && Number.isFinite(cadence) && cadence >= 0;
+    const walking = validSpeed
+      ? speed <= 1.8 && (!validCadence || cadence < 128)
+      : validCadence && cadence > 0 && cadence < 128;
+    if (!walking || seconds <= 0 || seconds > 10) {
+      slowStart = null;
+      slowSeconds = 0;
+      continue;
+    }
+    slowStart ??= record.elapsedSeconds;
+    if (slowStart - burstEnd > 12) return false;
+    slowSeconds += Math.min(seconds, burstEnd + 30 - record.elapsedSeconds);
+    if (slowSeconds >= 15) return true;
+  }
+  return false;
+}
+
 export interface DetectedInterval {
   intervalIndex: number;
   type: 'work' | 'recovery' | 'stride';
@@ -53,7 +85,7 @@ export interface DetectIntervalsOptions {
  * Detects workout intervals (reps, recoveries, strides) using physiological and biomechanical telemetry:
  * - Cadence & ground contact time (stance time) for kinematic running vs walking/resting
  * - Heart rate relative to athlete maximum / session distribution
- * - Strides require sustained speed contrast relative to the runner, not cadence alone.
+ * - Strides require sustained speed contrast and prompt walking recovery.
  */
 export function detectIntervals(
   records: ActivityRecord[],
@@ -64,7 +96,7 @@ export function detectIntervals(
   // Continuous time trials and races consist of 1 dominant benchmark work effort.
   // We identify the primary sustained running segment by cadence onset through to finish line deceleration.
   if (options.isRace) {
-    return detectRaceInterval(records);
+    return detectRaceInterval(records, options);
   }
 
   const cadences = records.map(r => r.cadence ?? 0).filter(c => c > 0).sort((a, b) => a - b);
@@ -154,7 +186,11 @@ export function detectIntervals(
     }
 
     // 4. Physiological HR contrast (indoor hills / treadmill with flat GPS)
-    if (hasHrContrast && hr >= hrWorkThreshold && isRunningCadence(cad)) {
+    // HR can remain elevated through a jogging recovery. Where recorded speed
+    // separates work and recovery, residual HR must not erase that structure.
+    if (hasHrContrast && hr >= hrWorkThreshold && isRunningCadence(cad) &&
+        (!hasSpeedContrast || spd >= workSpeedThreshold) &&
+        (!hasCadenceContrast || cad >= workCadenceThreshold)) {
       return 'work';
     }
 
@@ -185,20 +221,17 @@ export function detectIntervals(
       const durSec = (records[b.endIndex]?.elapsedSeconds ?? 0) - (records[b.startIndex]?.elapsedSeconds ?? 0);
       const blockRecs = records.slice(b.startIndex, b.endIndex + 1);
       const maxSpd = Math.max(...blockRecs.map(r => r?.speedMps ?? 0));
-      const recordedSpeeds = blockRecs.map(r => r.speedMps ?? 0).filter(speed => speed > 0);
-      const avgRecordedSpeed = recordedSpeeds.length > 0
-        ? recordedSpeeds.reduce((sum, speed) => sum + speed, 0) / recordedSpeeds.length
+      const fastSpeeds = blockRecs.map(r => r.speedMps ?? 0).filter(speed => speed >= strideSpeedThreshold);
+      const avgFastSpeed = fastSpeeds.length > 0
+        ? fastSpeeds.reduce((sum, speed) => sum + speed, 0) / fastSpeeds.length
         : 0;
       const fastShare = blockRecs.filter(r => (r.speedMps ?? 0) >= strideSpeedThreshold).length / blockRecs.length;
       const _minStance = Math.min(...blockRecs.map(r => (r?.stanceTime && r.stanceTime > 100) ? r.stanceTime : 9999));
-      const startDist = blockRecs[0]?.distanceMeters ?? 0;
-      const endDist = blockRecs[blockRecs.length - 1]?.distanceMeters ?? startDist;
-      const distM = Math.max(0, endDist - startDist);
-
-      // Stride requires short duration, real ground covered and sustained speed
-      // contrast; cadence alone is not evidence of a stride
-      const clearsPaceAnchor = stridePaceAnchorSpeed === 0 || avgRecordedSpeed > stridePaceAnchorSpeed;
-      if (durSec <= 45 && distM >= STRIDE_MIN_DISTANCE_M && maxSpd >= strideSpeedThreshold && fastShare >= 0.6 && clearsPaceAnchor) {
+      // Promote a provisional burst from sustained fast samples, without
+      // letting acceleration/deceleration dilute its calibrated pace. Validate
+      // duration and ground covered after expanding the complete stride below.
+      const clearsPaceAnchor = stridePaceAnchorSpeed === 0 || avgFastSpeed > stridePaceAnchorSpeed;
+      if (durSec <= 45 && maxSpd >= strideSpeedThreshold && fastShare >= 0.6 && clearsPaceAnchor) {
         b.type = 'stride';
       } else if (isEasyBaseSession && !hasSpeedContrast && !hasCadenceContrast && durSec < 90) {
         b.type = 'recovery';
@@ -243,7 +276,7 @@ export function detectIntervals(
           let backfilledStart = rawBlocks[i].startIndex;
           while (
             backfilledStart > prevRec.startIndex &&
-            rawBlocks[i].startIndex - backfilledStart <= 12
+            records[rawBlocks[i].startIndex].elapsedSeconds - records[backfilledStart - 1].elapsedSeconds <= 12
           ) {
             const r = records[backfilledStart - 1];
             if (!r) break;
@@ -268,13 +301,13 @@ export function detectIntervals(
           let forwardEnd = rawBlocks[i].endIndex;
           while (
             forwardEnd < nextRec.endIndex &&
-            forwardEnd - rawBlocks[i].endIndex <= 8
+            records[forwardEnd + 1].elapsedSeconds - records[rawBlocks[i].endIndex].elapsedSeconds <= 8
           ) {
             const r = records[forwardEnd + 1];
             if (!r) break;
             const cad = r.cadence ?? 0;
             const spd = r.speedMps ?? 0;
-            const isDecelDropout = (cad === 0 || cad < 130) && spd >= stridePeakSpeed * 0.65;
+            const isDecelDropout = (cad === 0 || cad < 130) && spd >= stridePeakSpeed * 0.60;
             if (isDecelDropout) {
               forwardEnd++;
             } else {
@@ -291,6 +324,11 @@ export function detectIntervals(
   }
 
   // Filter out any blocks fully consumed by expansions and ensure bounds
+  // A brief acceleration followed by continued running is a surge. Delayed HR
+  // rise can persist into genuine walking recovery and must not veto a stride.
+  for (const block of rawBlocks) {
+    if (block.type === 'stride' && !hasStrideRecovery(records, block.endIndex)) block.type = 'work';
+  }
   const validRawBlocks = rawBlocks.filter(
     b => b.startIndex <= b.endIndex && b.startIndex >= 0 && b.endIndex < records.length
   );
@@ -341,8 +379,7 @@ export function detectIntervals(
       const startDist = records[b.startIndex]?.distanceMeters ?? 0;
       const endDist = records[b.endIndex]?.distanceMeters ?? startDist;
       const dist = Math.max(0, endDist - startDist);
-      // Same floor as promotion, so a stride can never be promoted and then
-      // silently discarded by validation.
+      // Reject provisional bursts without enough duration or actual movement.
       return dur >= STRIDE_MIN_DURATION_SECONDS && dur <= 45 && dist >= STRIDE_MIN_DISTANCE_M;
     }
     if (b.type === 'work') return dur >= 15;
@@ -396,7 +433,6 @@ export function detectIntervals(
       if (b.type === 'work') {
         const blockRecs = records.slice(b.startIndex, b.endIndex + 1);
         const avgHr = blockRecs.reduce((sum, r) => sum + (r.heartRate ?? 0), 0) / blockRecs.length;
-        const duration = records[b.endIndex].elapsedSeconds - records[b.startIndex].elapsedSeconds;
         const avgSpeed = blockRecs.reduce((sum, r) => sum + (r.speedMps ?? 0), 0) / blockRecs.length;
         const outsideSet = sustained.length >= 2 && (b.endIndex < firstWork || b.startIndex > lastWork);
         if (outsideSet && referenceSpeed > 0 && avgSpeed < referenceSpeed * 0.85 && avgHr < athleteLt2 - 5) {
@@ -417,7 +453,7 @@ export function detectIntervals(
   return buildFinalIntervals(records, validBlocks);
 }
 
-function detectRaceInterval(records: ActivityRecord[]): DetectedInterval[] {
+function detectRaceInterval(records: ActivityRecord[], options: DetectIntervalsOptions): DetectedInterval[] {
   interface Seg {
     start: number;
     end: number;
@@ -437,11 +473,15 @@ function detectRaceInterval(records: ActivityRecord[]): DetectedInterval[] {
       inRun = true;
       start = i;
     } else if (!isRunning && inRun) {
-      let restCount = 0;
-      for (let j = i; j < Math.min(records.length, i + 20); j++) {
-        if ((records[j].cadence ?? 0) < 128) restCount++;
+      let restSeconds = 0;
+      const windowEnd = records[i].elapsedSeconds + 20;
+      for (let j = i; j < records.length - 1 && records[j].elapsedSeconds < windowEnd; j++) {
+        const sampleSeconds = records[j + 1].elapsedSeconds - records[j].elapsedSeconds;
+        if ((records[j].cadence ?? 0) < 128 && sampleSeconds > 0 && sampleSeconds <= 10) {
+          restSeconds += Math.min(sampleSeconds, windowEnd - records[j].elapsedSeconds);
+        }
       }
-      if (restCount >= 15 || i === records.length - 1) {
+      if (restSeconds >= 15 || i === records.length - 1) {
         inRun = false;
         const dur = records[i - 1].elapsedSeconds - records[start].elapsedSeconds;
         const sub = records.slice(start, i);
@@ -465,9 +505,31 @@ function detectRaceInterval(records: ActivityRecord[]): DetectedInterval[] {
   const best = segs[0];
 
   const blocks: { type: 'work' | 'recovery' | 'stride'; startIndex: number; endIndex: number }[] = [];
-  if (best.start > 0) blocks.push({ type: 'recovery', startIndex: 0, endIndex: best.start - 1 });
+  // Evaluate preparation and cooldown against their own easy-running baseline.
+  // The much faster benchmark must not raise the stride threshold for these
+  // segments, and its finishing acceleration must remain part of the race.
+  const appendOutsideRace = (startIndex: number, endIndex: number) => {
+    if (startIndex > endIndex) return;
+    const outside = records.slice(startIndex, endIndex + 1);
+    const strides = detectIntervals(outside, { ...options, isRace: false })
+      .filter(interval => interval.type === 'stride');
+    let start = startIndex;
+    let type: 'recovery' | 'stride' = 'recovery';
+    for (let index = startIndex; index <= endIndex; index++) {
+      const elapsed = records[index].elapsedSeconds;
+      const nextType = strides.some(stride => elapsed >= stride.startSeconds - 0.05 &&
+        elapsed <= stride.startSeconds + stride.durationSeconds + 0.1) ? 'stride' : 'recovery';
+      if (nextType !== type) {
+        if (start < index) blocks.push({ type, startIndex: start, endIndex: index - 1 });
+        start = index;
+        type = nextType;
+      }
+    }
+    blocks.push({ type, startIndex: start, endIndex });
+  };
+  appendOutsideRace(0, best.start - 1);
   blocks.push({ type: 'work', startIndex: best.start, endIndex: best.end });
-  if (best.end < records.length - 1) blocks.push({ type: 'recovery', startIndex: best.end + 1, endIndex: records.length - 1 });
+  appendOutsideRace(best.end + 1, records.length - 1);
 
   return buildFinalIntervals(records, blocks);
 }

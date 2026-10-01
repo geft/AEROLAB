@@ -125,6 +125,24 @@ describe('ProgressView UI Tests', () => {
     vi.restoreAllMocks();
   });
 
+  it('uses the source run type for race cards and filtering, independent of names and notes', async () => {
+    const history = [
+      { ...mockThresholdData.history[0], activity_name: 'Time Trial Race', activity_run_type: 'easy_base', notes: 'Race in a sentence' },
+      { ...mockThresholdData.history[1], activity_name: 'Neutral Evening Activity', activity_run_type: 'race', notes: '' }
+    ];
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({ ok: true,
+      json: () => Promise.resolve(url.includes('/api/thresholds') ? { ...mockThresholdData, history } : mockProgressHistory)
+    })));
+    const { container } = render(<ProgressView />);
+    await waitFor(() => expect(container.querySelectorAll('.calibration-milestone-card')).toHaveLength(2));
+    const cards = container.querySelectorAll('.calibration-milestone-card');
+    expect(cards[0].classList.contains('race-card')).toBe(false);
+    expect(cards[1].classList.contains('race-card')).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Race' }));
+    expect(container.querySelectorAll('.calibration-milestone-card')).toHaveLength(1);
+    expect(container.querySelector('.calibration-milestone-card')?.textContent).toContain('Neutral Evening Activity');
+  });
+
   it('renders benchmark cards and threshold markers', async () => {
     const { container } = render(<ProgressView />);
 
@@ -225,6 +243,24 @@ describe('ProgressView UI Tests', () => {
     const selection = container.querySelector('.period-chart-selection');
     expect(selection?.textContent).toContain('Jan 2026');
     expect(selection?.textContent).toContain('23.8 km');
+  });
+
+  it('shows the period-chart readout while hovering a point and retains its layout slot', async () => {
+    const { container } = render(<ProgressView />);
+    const point = await waitFor(() => {
+      const chartPoint = container.querySelector<SVGGElement>('.period-progress-svg g[aria-label*="Jan 2026"]');
+      expect(chartPoint).toBeTruthy();
+      return chartPoint!;
+    });
+    const slot = container.querySelector('.period-chart-selection-slot');
+
+    fireEvent.mouseEnter(point);
+    expect(container.querySelector('.period-chart-selection')?.textContent).toContain('Jan 2026');
+    expect(container.querySelector('.period-chart-selection')?.textContent).toContain('23.8 km');
+
+    fireEvent.mouseLeave(point);
+    expect(container.querySelector('.period-chart-selection')).toBeNull();
+    expect(container.querySelector('.period-chart-selection-slot')).toBe(slot);
   });
 
   it('renders the Show All in Chart action with the shared rounded outline button style', async () => {

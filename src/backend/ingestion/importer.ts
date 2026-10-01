@@ -7,6 +7,7 @@ import { convertFitToCsv, isFitBuffer } from './fit-parser.js';
 import { calculateEconomy, calculateKmSplits } from '../physiology/economy.js';
 import { detectIntervals } from './interval-detector.js';
 import { classifyRun } from './classifier.js';
+import { buildSessionTags } from './session-tags.js';
 import { evaluateThresholdUpdate, getStridePaceAnchorSecKmAtDate } from '../physiology/threshold-tracker.js';
 import { syncActivityCoachSummary } from '../physiology/coach-summary.js';
 import { calculateActivityTrainingLoad } from '../physiology/training-load.js';
@@ -111,17 +112,10 @@ export function importRunContent(
   // 2. Compute Physiology & Intervals
   const economy = calculateEconomy(records);
   const splits = calculateKmSplits(records, 1000);
-  const nameLower = (metadata.name || '').toLowerCase();
-  const isRace =
-    nameLower.includes('time trial') ||
-    nameLower.includes(' tt') ||
-    nameLower.includes('race') ||
-    nameLower.includes('parkrun');
   const hrProfile = getAthleteHeartRateProfile(db);
   const stridePaceAnchorSecKm = getStridePaceAnchorSecKmAtDate(db, metadata.date);
 
   const intervalOpts = {
-    isRace,
     lt1Hr: hrProfile.lt1Hr ?? undefined,
     lt2Hr: hrProfile.lt2Hr ?? undefined,
     stridePaceAnchorSecKm: stridePaceAnchorSecKm ?? undefined,
@@ -130,7 +124,7 @@ export function importRunContent(
   };
   let intervals = detectIntervals(records, intervalOpts);
   const classification = classifyRun(metadata, records, economy, intervals, hrProfile);
-  if (classification.runType === 'race' && !isRace) {
+  if (classification.runType === 'race') {
     intervals = detectIntervals(records, { ...intervalOpts, isRace: true });
   }
 
@@ -231,36 +225,7 @@ export function importRunContent(
     workoutLon = Number((sumLon / targetRecords.length).toFixed(6));
   }
 
-  const initialTags: string[] = [];
-  if (classification.runType === 'easy_base') initialTags.push('Easy Base');
-  else if (classification.runType === 'threshold_lt2') initialTags.push('Threshold');
-  else if (classification.runType === 'intervals_vo2') initialTags.push('VO2 Max');
-  else if (classification.runType === 'long_run') initialTags.push('Long Run');
-  else if (classification.runType === 'recovery') initialTags.push('Recovery');
-  else if (classification.runType === 'race') initialTags.push('Race');
-
-  // Marathon Pace check: long run containing sustained upper-Z3 blocks (profile-relative)
-  const mpLt1 = hrProfile.lt1Hr;
-  const mpLt2 = hrProfile.lt2Hr;
-  const hasMpBlocks =
-    classification.runType === 'long_run' &&
-    (intervals.some(i => i.type === 'work' && i.durationSeconds >= 600 && i.avgHeartRate >= mpLt1 - 2 && i.avgHeartRate <= mpLt2) ||
-      nameLower.includes('marathon pace') || nameLower.includes('mp'));
-  if (hasMpBlocks && !initialTags.includes('Marathon Pace')) {
-    initialTags.push('Marathon Pace');
-  }
-
-  // Tempo check
-  if (nameLower.includes('tempo') && !initialTags.includes('Tempo')) {
-    initialTags.push('Tempo');
-  }
-
-  // Strides tag only from actually detected stride intervals — never from the
-  // activity name, so runs can't carry a phantom Strides tag with an empty tab.
-  const hasStrides = intervals.some(i => i.type === 'stride');
-  if (hasStrides && !initialTags.includes('Strides')) {
-    initialTags.push('Strides');
-  }
+  const initialTags = buildSessionTags(classification.runType, records, intervals, hrProfile);
 
   const pb = economy.pauseBreakdown;
 

@@ -196,9 +196,9 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme =
 
     // Keep the selected sample visible on the chart so the range control has
     // an obvious point-to-line relationship, including its initial position.
-    const selectedIndex = hoverData?.index ?? 0;
-    const selectedRecord = displayRecords[selectedIndex];
-    if (selectedRecord) {
+    const selectedIndex = hoverData?.index;
+    const selectedRecord = selectedIndex === undefined ? null : displayRecords[selectedIndex];
+    if (selectedRecord && selectedIndex !== undefined) {
       const x = displayRecords.length > 1
         ? padding.left + (selectedIndex / (displayRecords.length - 1)) * chartW
         : padding.left + chartW / 2;
@@ -262,6 +262,18 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme =
 
   const formatElapsed = (timeSec: number) => `${Math.floor(timeSec / 60)}:${String(timeSec % 60).padStart(2, '0')}`;
 
+  const handleChartPointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (displayRecords.length < 2) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const plotLeft = 40;
+    const plotRight = 64;
+    const plotWidth = rect.width - plotLeft - plotRight;
+    const x = event.clientX - rect.left - plotLeft;
+    const index = Math.max(0, Math.min(displayRecords.length - 1,
+      Math.round((x / plotWidth) * (displayRecords.length - 1))));
+    setHoverData(getReadout(index));
+  };
+
   return (
     <div style={{ position: 'relative', width: '100%' }}>
       {/* Legend & Hover readout bar */}
@@ -281,19 +293,26 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme =
           </div>
         </div>
 
-        {hoverData && (
-          <div className="telemetry-chart-readout" role="status" aria-live="polite">
-            <span>{format(t.browse.telemetrySamplePosition, { current: hoverData.index + 1, total: displayRecords.length })} · {formatElapsed(hoverData.timeSec)}</span>
-            <span>{t.common.distance}: <b>{hoverData.distKm} {t.common.km}</b></span>
-            <span>{t.common.pace}: <b>{hoverData.paceStr}</b></span>
-            <span>{t.common.heartRate}: <b>{hoverData.hr ?? '—'} bpm</b></span>
-            <span>{t.browse.telemetryChartAltitude}: <b>{hoverData.alt !== null ? `${hoverData.alt} m` : '—'}</b></span>
-          </div>
-        )}
+        <div className="telemetry-chart-readout-slot">
+          {hoverData && (
+            <div className="telemetry-chart-readout" role="status" aria-live="polite">
+              <span>{format(t.browse.telemetrySamplePosition, { current: hoverData.index + 1, total: displayRecords.length })} · {formatElapsed(hoverData.timeSec)}</span>
+              <span>{t.common.distance}: <b>{hoverData.distKm} {t.common.km}</b></span>
+              <span>{t.common.pace}: <b>{hoverData.paceStr}</b></span>
+              <span>{t.common.heartRate}: <b>{hoverData.hr ?? '—'} bpm</b></span>
+              <span>{t.browse.telemetryChartAltitude}: <b>{hoverData.alt !== null ? `${hoverData.alt} m` : '—'}</b></span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="chart-canvas-wrapper">
-        <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
+        <canvas
+          ref={canvasRef}
+          style={{ width: '100%', height: '100%', display: 'block' }}
+          onPointerMove={handleChartPointerMove}
+          onPointerLeave={() => setHoverData(null)}
+        />
       </div>
       {displayRecords.length > 1 && (
         <label className="telemetry-chart-sample-control">

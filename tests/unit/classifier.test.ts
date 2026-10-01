@@ -51,15 +51,63 @@ describe('Run Classifier Engine (Unit)', () => {
     }));
   }
 
-  it('classifies as race / benchmark when title contains race keywords', () => {
-    const titles = ['5k Time Trial', 'Morning 10k TT', 'Sunday Race Day', 'Bedok Reservoir Parkrun'];
+  it('classifies sustained race intensity identically under arbitrary titles', () => {
+    const titles = ['', 'Evening Running', '5k Time Trial', 'Morning 10k TT', 'Sunday Race Day', 'Bedok Reservoir Parkrun', 'Recovery VO2 Tempo'];
     for (const name of titles) {
       const meta = { ...baseMetadata, name };
       const records = createMockRecords(1200, 175);
       const res = classifyRun(meta, records, baseEconomy, []);
       expect(res.runType).toBe('race');
-      expect(res.confidence).toBe(0.95);
+      expect(res.confidence).toBe(0.88);
     }
+  });
+
+  it('ignores race, recovery, VO2 and failure words when the recorded effort is aerobic', () => {
+    const records = createMockRecords(2400, 140);
+    const profile = { maxHr: 203, restingHr: 55, lt1Hr: 148, lt2Hr: 167 };
+    const baseline = classifyRun(baseMetadata, records, baseEconomy, [], profile);
+    expect(baseline.runType).toBe('easy_base');
+    for (const name of ['Parkrun Race Time Trial TT', 'VO2 V02 Intervals', 'Recovery', 'Graceful Marathon Pace Tempo Failed Aborted DNF']) {
+      expect(classifyRun({ ...baseMetadata, name }, records, baseEconomy, [], profile)).toEqual(baseline);
+    }
+  });
+
+  it('does not let VO2 keywords elevate short low-intensity reps', () => {
+    const work = { intervalIndex: 1, type: 'work' as const, startSeconds: 200, durationSeconds: 60, distanceMeters: 200, avgSpeedMps: 3.3, avgPaceSecKm: 303, avgHeartRate: 145, maxHeartRate: 155, avgCadence: 175 };
+    const records = createMockRecords(2400, 140);
+    const intervals = [work, { ...work, intervalIndex: 2, startSeconds: 400 }];
+    expect(classifyRun({ ...baseMetadata, name: 'VO2 Max Intervals' }, records, baseEconomy, intervals,
+      { maxHr: 203, restingHr: 55, lt1Hr: 148, lt2Hr: 167 }).runType).toBe('easy_base');
+  });
+
+  it('recognizes six-minute VO2 reps before the overlapping threshold duration rule', () => {
+    const work = { intervalIndex: 1, type: 'work' as const, startSeconds: 200, durationSeconds: 360, distanceMeters: 1200, avgSpeedMps: 3.3, avgPaceSecKm: 303, avgHeartRate: 190, maxHeartRate: 195, avgCadence: 175 };
+    const intervals = [work, { ...work, intervalIndex: 2, startSeconds: 800 }];
+    expect(classifyRun(baseMetadata, createMockRecords(1800, 150), baseEconomy, intervals,
+      { maxHr: 203, restingHr: 55, lt1Hr: 148, lt2Hr: 167 }).runType).toBe('intervals_vo2');
+  });
+
+  it('does not demote hard reps with walking recoveries to an aerobic run/walk session', () => {
+    const records = createMockRecords(7200, 140);
+    const intervals: DetectedInterval[] = [];
+    for (let rep = 0; rep < 5; rep++) {
+      const start = 3000 + rep * 300;
+      intervals.push({ intervalIndex: rep * 2 + 1, type: 'work', startSeconds: start, durationSeconds: 180, distanceMeters: 600, avgSpeedMps: 3.3, avgPaceSecKm: 303, avgHeartRate: 190, maxHeartRate: 195, avgCadence: 175 });
+      intervals.push({ intervalIndex: rep * 2 + 2, type: 'recovery', startSeconds: start + 180, durationSeconds: 120, distanceMeters: 180, avgSpeedMps: 1.5, avgPaceSecKm: 667, avgHeartRate: 140, maxHeartRate: 190, avgCadence: 110 });
+      for (let index = start; index < start + 180; index++) records[index].heartRate = 190;
+    }
+    const result = classifyRun({ ...baseMetadata, avgHeartRate: 146, totalDurationSeconds: 7200 }, records, baseEconomy, intervals,
+      { maxHr: 203, restingHr: 55, lt1Hr: 148, lt2Hr: 167 });
+    expect(result.runType).toBe('intervals_vo2');
+    expect(result.isFailedWorkout).toBe(false);
+  });
+
+  it('does not call an upper-aerobic block inside a long run threshold work', () => {
+    const records = createMockRecords(7200, 150);
+    for (let index = 5000; index < 6200; index++) records[index].heartRate = 169;
+    const interval: DetectedInterval = { intervalIndex: 1, type: 'work', startSeconds: 5000, durationSeconds: 1200, distanceMeters: 4000, avgSpeedMps: 3.3, avgPaceSecKm: 303, avgHeartRate: 169, maxHeartRate: 175, avgCadence: 175 };
+    expect(classifyRun({ ...baseMetadata, totalDurationSeconds: 7200 }, records, baseEconomy, [interval],
+      { maxHr: 203, restingHr: 54, lt1Hr: 151, lt2Hr: 176 }).runType).toBe('long_run');
   });
 
   it('classifies as intervals_vo2 when 2+ work reps are detected', () => {
@@ -105,7 +153,7 @@ describe('Run Classifier Engine (Unit)', () => {
       { intervalIndex: 2, type: 'recovery', startSeconds: 280, durationSeconds: 60, distanceMeters: 100, avgSpeedMps: 1.6, avgPaceSecKm: 600, avgHeartRate: 135, maxHeartRate: 150, avgCadence: 110 },
       { intervalIndex: 3, type: 'work', startSeconds: 340, durationSeconds: 180, distanceMeters: 700, avgSpeedMps: 3.9, avgPaceSecKm: 256, avgHeartRate: 149, maxHeartRate: 153, avgCadence: 170 }
     ];
-    const resFlat = classifyRun(baseMetadata, recs, baseEconomy, flatIntervals);
+    const resFlat = classifyRun(baseMetadata, createMockRecords(1200, 148), baseEconomy, flatIntervals);
     expect(resFlat.runType).not.toBe('intervals_vo2');
     expect(resFlat.runType).not.toBe('threshold_lt2');
   });
@@ -219,7 +267,7 @@ describe('Run Classifier Engine (Unit)', () => {
     expect(result.runType).toBe('recovery');
   });
 
-  it('classifies as recovery when title explicitly includes recovery keyword', () => {
+  it('does not infer recovery intent from a title', () => {
     const meta: ActivityMetadata = {
       ...baseMetadata,
       name: 'Easy Recovery Jog After Long Run',
@@ -228,8 +276,8 @@ describe('Run Classifier Engine (Unit)', () => {
     };
     const records = createMockRecords(3600, 142);
     const result = classifyRun(meta, records, baseEconomy, []);
-    expect(result.runType).toBe('recovery');
-    expect(result.reason).toContain('Recovery run identified by title');
+    expect(result.runType).toBe('easy_base');
+    expect(result).toEqual(classifyRun({ ...meta, name: '' }, records, baseEconomy, []));
   });
 
   it('does not infer recovery from a short Zone 2 run when session max HR is missing', () => {

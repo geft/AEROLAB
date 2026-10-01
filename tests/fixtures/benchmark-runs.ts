@@ -122,15 +122,15 @@ function longRun120(): BenchmarkRun {
     'long_run', ['Long Run'], '120min endurance, duration-driven long_run');
 }
 
-/** 20 min hard effort titled as parkrun — race (title-driven). */
+/** 20 min continuous near-maximal effort — race from recorded intensity. */
 function race5k(): BenchmarkRun {
   const rows: BenchRow[] = [];
   let t = 0;
-  t = ramp(rows, t, 120, 140, 175, 180, 4.2);
-  t = hold(rows, t, 960, 175, 180, 4.2);
-  ramp(rows, t, 120, 175, 150, 160, 2.5);
-  return build(rows, 'bench-race-5k', 'Benchmark Parkrun 5K', '2026-09-15 07:00:00',
-    'race', ['Race'], 'All-out benchmark identified by title');
+  t = ramp(rows, t, 120, 140, 193, 180, 4.2);
+  t = hold(rows, t, 960, 193, 180, 4.2);
+  ramp(rows, t, 120, 193, 150, 160, 2.5);
+  return build(rows, 'bench-race-5k', 'Benchmark Continuous Effort', '2026-09-15 07:00:00',
+    'race', ['Race'], 'All-out benchmark identified by sustained cardiovascular intensity');
 }
 
 /** ~59 min easy with 4x20s strides — easy_base + Strides tag, strides tab visible. */
@@ -139,8 +139,10 @@ function easyStrides(): BenchmarkRun {
   let t = 0;
   t = steady(rows, t, 2400, 140, 170, 3.2);
   for (let s = 0; s < 4; s++) {
-    t = hold(rows, t, 20, 158, 196, 5.0); // stride burst
-    t = steady(rows, t, 180, 140, 170, 3.2); // roll on
+    t = ramp(rows, t, 20, 140, 150, 196, 5.0); // short burst, HR still catching up
+    t = ramp(rows, t, 20, 150, 164, 105, 1.2); // HR peaks after slowing to a walk
+    t = ramp(rows, t, 40, 164, 140, 105, 1.2);
+    t = steady(rows, t, 120, 140, 170, 3.2);
   }
   t = steady(rows, t, 340, 138, 168, 3.1);
   return build(rows, 'bench-easy-strides', 'Benchmark Easy Plus Strides', '2026-09-16 07:00:00',

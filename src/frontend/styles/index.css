@@ -1552,6 +1552,11 @@ body {
   gap: 0.45rem 1rem;
 }
 
+.telemetry-chart-readout-slot {
+  flex: 1 1 100%;
+  min-height: calc(2.4em + 1.1rem + 2px);
+}
+
 .telemetry-chart-readout {
   flex: 1 1 100%;
   padding: 0.55rem 0.7rem;
@@ -1588,12 +1593,16 @@ body {
   outline-offset: 3px;
 }
 
+.period-chart-selection-slot {
+  min-height: 3rem;
+  margin-top: 0.75rem;
+}
+
 .period-chart-selection {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.5rem 1rem;
-  margin-top: 0.75rem;
   padding: 0.7rem 0.85rem;
   color: var(--text-secondary);
   background: var(--bg-card-hover);
@@ -1629,11 +1638,19 @@ body {
 
 .goal-card-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.goal-card-header > svg {
+  flex: 0 0 auto;
+  margin-top: 0.1rem;
 }
 
 .goal-card-title {
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--text-secondary);
@@ -1652,6 +1669,43 @@ body {
   font-size: 0.8rem;
   color: var(--text-secondary);
   line-height: 1.4;
+}
+
+.profile-training-zones-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.85rem;
+}
+
+.profile-training-zone-card {
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid;
+  border-radius: 8px;
+}
+
+.profile-training-zone-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem;
+  min-width: 0;
+  margin-bottom: 0.2rem;
+}
+
+.profile-training-zone-title {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.profile-training-zone-range {
+  min-width: 0;
+  white-space: nowrap;
+  text-align: right;
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 /* AI / Coach Summary Card */
@@ -2535,6 +2589,13 @@ body {
   touch-action: pan-x;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .chart-point-selector,
+  .telemetry-chart-sample-control {
+    display: none;
+  }
+}
+
 .training-load-chart-scroll {
   width: 100%;
   position: relative;
@@ -2543,6 +2604,19 @@ body {
 .training-load-axis-label,
 .threshold-chart-axis-label,
 .period-chart-axis-label {
+  font-size: 0.72rem !important;
+}
+
+.period-progress-svg .period-chart-axis-label {
+  font-size: 0.82rem !important;
+}
+
+.period-progress-svg .period-chart-data-label,
+.period-progress-svg .period-chart-point-value {
+  font-size: 0.78rem !important;
+}
+
+.period-progress-svg .period-chart-secondary-label {
   font-size: 0.72rem !important;
 }
 
@@ -4401,50 +4475,6 @@ body {
   padding: 0.15rem 0.55rem;
 }
 
-.splits-metric-pills {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  background: rgba(255, 255, 255, 0.04);
-  padding: 0.2rem;
-  border-radius: 8px;
-  border: 1px solid var(--border-subtle);
-}
-
-[data-theme="light"] .splits-metric-pills {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.metric-pill-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  font-family: var(--font-body);
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.35rem 0.7rem;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.metric-pill-btn:hover {
-  color: var(--text-primary);
-}
-
-.metric-pill-btn.active {
-  background: var(--accent-action-bg);
-  color: var(--accent-action-fg);
-  box-shadow: 0 0 10px rgba(6, 182, 212, 0.35);
-}
-
-[data-theme="light"] .metric-pill-btn.active {
-  color: var(--accent-action-fg);
-}
-
 /* Pacing Dynamics Insights Banner */
 .splits-insights-banner {
   display: grid;
@@ -4495,29 +4525,6 @@ body {
   color: var(--text-secondary);
 }
 
-.split-insight-card.strategy {
-  grid-column: span 2;
-}
-
-@media (max-width: 640px) {
-  .split-insight-card.strategy {
-    grid-column: span 1;
-  }
-}
-
-.strategy-title {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.strategy-desc {
-  font-size: 0.72rem;
-  color: var(--text-secondary);
-  margin-top: 0.2rem;
-  line-height: 1.35;
-}
-
 /* Split Bar List Rows */
 .splits-bar-list {
   display: flex;
@@ -4527,10 +4534,10 @@ body {
 
 .split-bar-row {
   display: grid;
-  grid-template-columns: 85px 75px 1fr auto;
+  grid-template-columns: 4.25rem 5rem minmax(3rem, 1fr) auto;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 0.75rem;
+  gap: 0.55rem;
+  padding: 0.35rem 0.6rem;
   background: rgba(255, 255, 255, 0.015);
   border: 1px solid rgba(255, 255, 255, 0.04);
   border-radius: 8px;
@@ -4576,18 +4583,50 @@ body {
   margin-left: 0.2rem;
 }
 
-.fastest-indicator {
-  display: flex;
-  align-items: center;
-  color: #f59e0b;
-}
-
 .split-primary-val {
   font-family: var(--font-mono);
   font-size: 0.88rem;
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.01em;
+}
+
+.split-heart-rate {
+  justify-self: end;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.split-heart-rate b {
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-weight: 600;
+}
+
+.split-telemetry {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  padding-left: 0.1rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.split-telemetry span {
+  white-space: nowrap;
+}
+
+.split-telemetry b {
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-weight: 600;
 }
 
 .split-bar-track-area {
@@ -4643,43 +4682,6 @@ body {
 
 [data-theme="light"] .split-delta-pill.neutral {
   background: rgba(0, 0, 0, 0.05);
-}
-
-.split-secondary-stats {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-
-.sec-chip {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.03);
-  padding: 0.18rem 0.45rem;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.03);
-}
-
-[data-theme="light"] .sec-chip {
-  background: rgba(0, 0, 0, 0.03);
-  border-color: rgba(0, 0, 0, 0.03);
-}
-
-/* Per-metric chip accents — previously undefined modifier classes, so every
-   chip inherited the same neutral tone. */
-.sec-chip.pace { color: #38bdf8; }
-.sec-chip.hr { color: #f87171; }
-.sec-chip.ef { color: #10b981; }
-.sec-chip.elev { color: #a3e635; }
-.sec-chip.time { color: var(--text-secondary); }
-
-.sec-chip svg {
-  flex-shrink: 0;
 }
 
 .splits-empty-state {
@@ -5149,7 +5151,7 @@ body {
   }
 
   .period-progress-svg .period-chart-axis-label {
-    font-size: 0.75rem !important;
+    font-size: 0.82rem !important;
   }
 
   .period-progress-svg g[role="button"],
@@ -5164,25 +5166,6 @@ body {
 
   .splits-controls-header {
     align-items: flex-start;
-  }
-
-  .splits-metric-pills {
-    width: 100%;
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.2rem;
-  }
-
-  .splits-metric-pills .metric-pill-btn {
-    min-width: 0;
-    justify-content: center;
-    padding-inline: 0.3rem;
-    text-align: center;
-  }
-
-  .splits-metric-pills .metric-pill-btn span {
-    min-width: 0;
-    overflow-wrap: anywhere;
   }
 
   .backup-snapshot-section {
@@ -5285,13 +5268,9 @@ body {
   }
 
   .split-bar-row {
-    grid-template-columns: 70px 65px 1fr;
-  }
-
-  .split-secondary-stats {
-    grid-column: span 3;
-    justify-content: flex-end;
-    margin-top: 0.25rem;
+    grid-template-columns: 3.25rem 4.25rem minmax(2rem, 1fr) auto;
+    gap: 0.35rem;
+    padding: 0.3rem 0.4rem;
   }
 }
 
@@ -6145,4 +6124,15 @@ body {
 
 @keyframes snapshot-deploy-spin {
   to { transform: rotate(360deg); }
+}
+
+@media (hover: hover) and (pointer: fine) and (min-width: 769px) {
+  .threshold-trend-tooltip {
+    position: absolute !important;
+    width: min(17rem, calc(100% - 1rem));
+    min-width: 0 !important;
+    margin: 0;
+    pointer-events: none !important;
+    z-index: 10;
+  }
 }

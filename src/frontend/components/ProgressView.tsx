@@ -73,7 +73,7 @@ export const ProgressView: React.FC = () => {
   const filteredHistory = React.useMemo(() => {
     const typeFiltered = uniqueHistory.filter(h => {
       const isLt2 = !!h.lt2_pace_sec_km;
-      const isRace = h.notes?.toLowerCase().includes('race') || h.activity_name?.toLowerCase().includes('time trial');
+      const isRace = h.activity_run_type === 'race';
       if (calFilter === 'lt1') return !isLt2 && !isRace;
       if (calFilter === 'lt2') return isLt2 && !isRace;
       if (calFilter === 'race') return isRace;
@@ -338,7 +338,7 @@ export const ProgressView: React.FC = () => {
             <div className="calibration-timeline">
               {paginatedHistory.map((h, idx) => {
                 const isLt2 = !!h.lt2_pace_sec_km;
-                const isRace = h.notes?.toLowerCase().includes('race') || h.activity_name?.toLowerCase().includes('time trial');
+                const isRace = h.activity_run_type === 'race';
                 const cardClass = isRace ? 'race-card' : (isLt2 ? 'lt2-card' : 'lt1-card');
                 const distKm = h.distance_meters ? (h.distance_meters / 1000).toFixed(1) : null;
 

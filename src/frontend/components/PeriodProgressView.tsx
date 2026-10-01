@@ -312,7 +312,6 @@ export const PeriodProgressView: React.FC = () => {
                     x={paddingLeft - (isMobileChart ? 14 : 8)}
                     y={y + 4}
                     fill="var(--text-muted)"
-                    fontSize="10"
                     textAnchor="end"
                   >
                     {distVal} {t.common.km}
@@ -331,7 +330,6 @@ export const PeriodProgressView: React.FC = () => {
                   x={chartWidth - paddingRight + 8}
                   y={y + 4}
                   fill="var(--chart-series-green)"
-                  fontSize="10"
                   textAnchor="start"
                   fontWeight="600"
                 >
@@ -402,10 +400,10 @@ export const PeriodProgressView: React.FC = () => {
 
                   {/* Bar Value on Top */}
                   <text
+                    className="period-chart-data-label"
                     x={xCenter}
                     y={barY - 6}
                     fill={isHovered ? 'var(--chart-series-cyan)' : 'var(--text-secondary)'}
-                    fontSize="10"
                     fontWeight="600"
                     textAnchor="middle"
                   >
@@ -418,7 +416,6 @@ export const PeriodProgressView: React.FC = () => {
                     x={xCenter}
                     y={paddingTop + innerHeight + 16}
                     fill={isHovered ? 'var(--text-primary)' : 'var(--text-secondary)'}
-                    fontSize="11"
                     fontWeight={isHovered ? '700' : '600'}
                     textAnchor="middle"
                   >
@@ -428,10 +425,10 @@ export const PeriodProgressView: React.FC = () => {
                   {/* Secondary Line: Year transition marker or run count */}
                   {yearBadge ? (
                     <text
+                      className="period-chart-secondary-label"
                       x={xCenter}
                       y={paddingTop + innerHeight + 28}
                       fill="var(--chart-series-cyan)"
-                      fontSize="9"
                       fontWeight="700"
                       textAnchor="middle"
                     >
@@ -439,10 +436,10 @@ export const PeriodProgressView: React.FC = () => {
                     </text>
                   ) : (
                     <text
+                      className="period-chart-secondary-label"
                       x={xCenter}
                       y={paddingTop + innerHeight + 28}
                       fill="var(--text-muted)"
-                      fontSize="9"
                       textAnchor="middle"
                     >
                       {plural(p.runCount, t.periodProgress.chartRunCount)}
@@ -452,10 +449,10 @@ export const PeriodProgressView: React.FC = () => {
                   {/* Tertiary Line: Run count when Year transition marker is active */}
                   {yearBadge && (
                     <text
+                      className="period-chart-secondary-label"
                       x={xCenter}
                       y={paddingTop + innerHeight + 39}
                       fill="var(--text-muted)"
-                      fontSize="8.5"
                       textAnchor="middle"
                     >
                       {plural(p.runCount, t.periodProgress.chartRunCount)}
@@ -494,10 +491,10 @@ export const PeriodProgressView: React.FC = () => {
                   {/* Subtle point value if hovered or endpoints */}
                   {(isHovered || idx === 0 || idx === efPoints.length - 1) && (
                     <text
+                      className="period-chart-point-value"
                       x={pt.x}
                       y={pt.y - 10}
                       fill="var(--chart-series-green)"
-                      fontSize="10.5"
                       fontWeight="700"
                       textAnchor="middle"
                     >
@@ -509,18 +506,21 @@ export const PeriodProgressView: React.FC = () => {
             })}
           </svg>
         </div>
-        {selectedChartPeriod && (() => {
-          const selected = periods.find(period => period.period === selectedChartPeriod);
-          if (!selected) return null;
-          return (
-            <div className="period-chart-selection" role="status" aria-live="polite">
-              <strong>{format(t.periodProgress.selectedChartPoint, { period: formatPeriodLabel(selected) })}</strong>
-              <span>{selected.totalDistanceKm} {t.common.km}</span>
-              <span>{plural(selected.runCount, t.periodProgress.chartRunCount)}</span>
-              {selected.avgEfficiencyFactor != null && <span>{selected.avgEfficiencyFactor.toFixed(2)} EF</span>}
-            </div>
-          );
-        })()}
+        <div className="period-chart-selection-slot">
+          {(selectedChartPeriod || hoveredIndex !== null) && (() => {
+            const selected = periods.find(period => period.period === selectedChartPeriod)
+              ?? (hoveredIndex !== null ? periods[hoveredIndex] : null);
+            if (!selected) return null;
+            return (
+              <div className="period-chart-selection" role="status" aria-live="polite">
+                <strong>{format(t.periodProgress.selectedChartPoint, { period: formatPeriodLabel(selected) })}</strong>
+                <span>{selected.totalDistanceKm} {t.common.km}</span>
+                <span>{plural(selected.runCount, t.periodProgress.chartRunCount)}</span>
+                {selected.avgEfficiencyFactor != null && <span>{selected.avgEfficiencyFactor.toFixed(2)} EF</span>}
+              </div>
+            );
+          })()}
+        </div>
         {periods.length > 1 && (
           <label className="chart-point-selector">
             <span>{t.progress.chartPointSelector}</span>

@@ -1,7 +1,7 @@
 import { getAthleteHeartRateProfile } from '../physiology/athlete-profile.js';
-import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { detectIntervals } from '../ingestion/interval-detector.js';
 import { classifyRun } from '../ingestion/classifier.js';
+import { buildSessionTags } from '../ingestion/session-tags.js';
 import { calculateEconomy, calculateKmSplits } from '../physiology/economy.js';
 import { evaluateThresholdUpdate, getCurrentThresholds, getStridePaceAnchorSecKmAtDate } from '../physiology/threshold-tracker.js';
 import { syncAllCoachSummaries } from '../physiology/coach-summary.js';
@@ -38,33 +38,6 @@ function mapRecords(rows: any[]): any[] {
     verticalOscillation: r.vert_osc,
     stanceTime: r.stance_time
   }));
-}
-
-function buildTags(runType: string, name: string, intervals: any[], hrProfile: { maxHr?: number | null; restingHr?: number | null; lt1Hr: number | null; lt2Hr: number | null }): string[] {
-  const tags: string[] = [];
-  if (runType === 'easy_base') tags.push('Easy Base');
-  else if (runType === 'threshold_lt2') tags.push('Threshold');
-  else if (runType === 'intervals_vo2') tags.push('VO2 Max');
-  else if (runType === 'long_run') tags.push('Long Run');
-  else if (runType === 'recovery') tags.push('Recovery');
-  else if (runType === 'race') tags.push('Race');
-
-  const nameLower = (name || '').toLowerCase();
-  const { lt1Hr: mpLt1, lt2Hr: mpLt2 } = resolveHeartRateProfile(hrProfile);
-  const hasMpBlocks =
-    runType === 'long_run' &&
-    (intervals.some((i: any) => i.type === 'work' && i.durationSeconds >= 600 && i.avgHeartRate >= mpLt1 - 2 && i.avgHeartRate <= mpLt2) ||
-      nameLower.includes('marathon pace') || nameLower.includes('mp'));
-  if (hasMpBlocks && !tags.includes('Marathon Pace')) tags.push('Marathon Pace');
-
-  if (nameLower.includes('tempo') && !tags.includes('Tempo')) tags.push('Tempo');
-
-  // Strides tag only from actually detected stride intervals — never from the
-  // activity name, so runs can't carry a phantom Strides tag with an empty tab.
-  if (intervals.some((i: any) => i.type === 'stride') && !tags.includes('Strides')) {
-    tags.push('Strides');
-  }
-  return tags;
 }
 
 /**
@@ -135,37 +108,16 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
         continue;
       }
       const mapped = mapRecords(records);
-      const nameLower = (act.name || '').toLowerCase();
-      const isRace =
-        act.run_type === 'race' ||
-        nameLower.includes('time trial') ||
-        nameLower.includes(' tt') ||
-        nameLower.includes('race') ||
-        nameLower.includes('parkrun');
       const hrProfile = replayProfile;
       const stridePaceAnchorSecKm = getStridePaceAnchorSecKmAtDate(db, act.start_time);
-      const intervals = detectIntervals(mapped as any, {
-        isRace,
+      const intervalOptions = {
         lt1Hr: hrProfile?.lt1Hr ?? undefined,
         lt2Hr: hrProfile?.lt2Hr ?? undefined,
         stridePaceAnchorSecKm: stridePaceAnchorSecKm ?? undefined,
         maxHr: hrProfile?.maxHr ?? undefined,
         restingHr: hrProfile?.restingHr ?? undefined
-      });
-
-      db.prepare('DELETE FROM activity_intervals WHERE activity_id = ?').run(act.id);
-      for (const inv of intervals) {
-        insertInterval.run(
-          act.id, inv.intervalIndex, inv.type, inv.startSeconds, inv.durationSeconds,
-          inv.distanceMeters, inv.avgSpeedMps, inv.avgPaceSecKm, inv.avgHeartRate,
-          inv.maxHeartRate, inv.avgCadence, inv.peakCadence ?? null, inv.peakSpeedMps ?? null,
-          inv.peakPaceSecKm ?? null, inv.minStanceTime ?? null, inv.hrDrop ?? null,
-          (inv as any).avgVertOsc ?? null, (inv as any).avgStanceTime ?? null,
-          (inv as any).avgStepLength ?? null, (inv as any).avgStrideLength ?? null,
-          (inv as any).avgVertRatio ?? null
-        );
-      }
-      stats.intervalsRebuilt += intervals.length;
+      };
+      let intervals = detectIntervals(mapped as any, intervalOptions);
 
       const economy = calculateEconomy(mapped as any);
       const meta = {
@@ -185,7 +137,25 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
         totalDescentMeters: act.elevation_loss_m || 0
       };
       const classification = classifyRun(meta, mapped as any, economy, intervals, hrProfile);
-      const tags = buildTags(classification.runType, act.name, intervals, hrProfile);
+      // Match ingestion: a newly inferred race needs benchmark segmentation
+      // in this pass, before its tags and coach summary are rebuilt.
+      if (classification.runType === 'race') {
+        intervals = detectIntervals(mapped as any, { ...intervalOptions, isRace: true });
+      }
+      db.prepare('DELETE FROM activity_intervals WHERE activity_id = ?').run(act.id);
+      for (const inv of intervals) {
+        insertInterval.run(
+          act.id, inv.intervalIndex, inv.type, inv.startSeconds, inv.durationSeconds,
+          inv.distanceMeters, inv.avgSpeedMps, inv.avgPaceSecKm, inv.avgHeartRate,
+          inv.maxHeartRate, inv.avgCadence, inv.peakCadence ?? null, inv.peakSpeedMps ?? null,
+          inv.peakPaceSecKm ?? null, inv.minStanceTime ?? null, inv.hrDrop ?? null,
+          (inv as any).avgVertOsc ?? null, (inv as any).avgStanceTime ?? null,
+          (inv as any).avgStepLength ?? null, (inv as any).avgStrideLength ?? null,
+          (inv as any).avgVertRatio ?? null
+        );
+      }
+      stats.intervalsRebuilt += intervals.length;
+      const tags = buildSessionTags(classification.runType, mapped, intervals, hrProfile);
 
       if (act.run_type !== classification.runType) {
         stats.runTypeChanges.push({ id: act.id, from: act.run_type, to: classification.runType });

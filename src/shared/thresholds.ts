@@ -31,6 +31,7 @@ export interface CalibrationHistoryItem {
   effective_date?: string | null;
   source_activity_id?: string | null;
   activity_name?: string | null;
+  activity_run_type?: string | null;
   lt1_hr?: number | null;
   lt1_pace_sec_km?: number | null;
   lt2_hr?: number | null;

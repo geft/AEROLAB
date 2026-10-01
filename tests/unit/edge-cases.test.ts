@@ -109,15 +109,16 @@ describe('Physiological & Sensor Edge Cases Unit Tests', () => {
     const records: ActivityRecord[] = Array.from({ length: 1000 }, (_, i) => {
       // Cadence changes from warmup 160 to fast strides 195
       const isStride = i >= 300 && i <= 330;
+      const isWalkingRecovery = i > 330 && i <= 390;
       return createRecord(i, {
-        cadence: isStride ? 195 : 162,
-        speedMps: isStride ? 6.0 : 2.5,
-        heartRate: 142 // Flat HR still permits strides when speed confirms the burst.
+        cadence: isStride ? 195 : isWalkingRecovery ? 100 : 162,
+        speedMps: isStride ? 6.0 : isWalkingRecovery ? 1.2 : 2.5,
+        heartRate: 142 // Flat HR still permits strides with a confirmed walking recovery.
       });
     });
 
     const intervals = detectIntervals(records);
-    const strideInt = intervals.find(int => int.type === 'stride' || int.avgCadence >= 190);
+    const strideInt = intervals.find(int => int.type === 'stride');
     expect(strideInt).toBeDefined();
   });
 });

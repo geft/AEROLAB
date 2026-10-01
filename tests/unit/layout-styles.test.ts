@@ -105,12 +105,28 @@ describe('Layout stylesheet contracts', () => {
     expect(ruleBody('.svg-chart-wrapper')).toMatch(/overflow-x:\s*auto/);
   });
 
-  it('keeps chart selection details readable and axis labels tied to font scaling', () => {
+  it('keeps chart selection details accessible on touch and hover-driven on desktop', () => {
     expect(ruleBody('.chart-point-selector input')).toMatch(/min-height:\s*44px/);
     expect(ruleBody('.training-load-axis-label, .threshold-chart-axis-label, .period-chart-axis-label'))
       .toMatch(/font-size:\s*0\.72rem\s*!important/);
     expect(ruleBody('.threshold-trend-tooltip')).toMatch(/position:\s*static\s*!important/);
     expect(ruleBody('.period-metrics-grid')).toMatch(/background:\s*var\(--bg-card-hover\)/);
+    expect(css).toMatch(/@media\s*\(hover:\s*hover\)\s+and\s*\(pointer:\s*fine\)[\s\S]*?\.chart-point-selector,\s*\.telemetry-chart-sample-control\s*\{\s*display:\s*none/s);
+    expect(css).toMatch(/@media\s*\(hover:\s*hover\)\s+and\s*\(pointer:\s*fine\)\s+and\s*\(min-width:\s*769px\)[\s\S]*?\.threshold-trend-tooltip\s*\{[^}]*position:\s*absolute\s*!important[^}]*width:\s*min\(17rem/s);
+    expect(ruleBody('.period-chart-selection-slot')).toMatch(/min-height:\s*3rem/);
+    expect(ruleBody('.period-progress-svg .period-chart-axis-label')).toMatch(/font-size:\s*0\.82rem\s*!important/);
+    expect(ruleBody('.period-progress-svg .period-chart-data-label, .period-progress-svg .period-chart-point-value'))
+      .toMatch(/font-size:\s*0\.78rem\s*!important/);
+  });
+
+  it('keeps split telemetry compact and profile zone headers aligned at larger font sizes', () => {
+    expect(ruleBody('.split-heart-rate')).toMatch(/justify-self:\s*end/);
+    expect(ruleBody('.split-telemetry')).toMatch(/flex-wrap:\s*wrap/);
+    expect(ruleBody('.profile-training-zone-header')).toMatch(/justify-content:\s*space-between/);
+    expect(ruleBody('.profile-training-zone-title')).toMatch(/white-space:\s*nowrap/);
+    expect(ruleBody('.profile-training-zone-range')).toMatch(/white-space:\s*nowrap/);
+    expect(ruleBody('.goal-card-header > svg')).toMatch(/flex:\s*0 0 auto/);
+    expect(ruleBody('.goal-card-title')).toMatch(/min-width:\s*0/);
   });
 
   it('makes the custom month picker and mobile training chart independently scrollable', () => {

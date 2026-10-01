@@ -8,6 +8,7 @@ import { getDatabase } from '../../src/backend/db/client';
 import { importRunContent, importRunFile, importDirectory } from '../../src/backend/ingestion/importer';
 import { BENCHMARKS, getBenchmark, toCsv } from '../fixtures/benchmark-runs';
 import { realignDatabase } from '../../src/backend/db/realign.js';
+import { updateActivityService } from '../../src/backend/services/activity-service.js';
 
 describe('Database Ingestion Pipeline (Integration)', () => {
   let db: Database.Database;
@@ -66,6 +67,80 @@ describe('Database Ingestion Pipeline (Integration)', () => {
     }
   });
 
+  it('infers an unnamed continuous benchmark and rebuilds race segmentation on realignment', () => {
+    const benchmark = {
+      ...getBenchmark('bench-race-5k'), name: 'Evening Running',
+      rows: getBenchmark('bench-race-5k').rows.map(row => ({ ...row, hr: row.t >= 120 && row.t < 1080 ? 195 : row.hr }))
+    };
+    expect(importRunContent(db, toCsv(benchmark), 'evening.csv')).toMatchObject({ status: 'imported', runType: 'race' });
+    const read = () => ({
+      activity: db.prepare('SELECT name,run_type,auto_run_type,tags FROM activities WHERE id=?').get(benchmark.id),
+      intervals: db.prepare('SELECT type,start_seconds,duration_seconds FROM activity_intervals WHERE activity_id=? ORDER BY interval_index').all(benchmark.id),
+      analysis: JSON.parse((db.prepare('SELECT analysis_json FROM activity_coach_summaries WHERE activity_id=?').get(benchmark.id) as { analysis_json: string }).analysis_json)
+    });
+    const imported = read();
+    expect(imported.analysis.rubricFamily).toBe('race');
+    db.prepare("UPDATE activities SET run_type='threshold_lt2', auto_run_type='threshold_lt2', tags='[\"Threshold\",\"Strides\"]' WHERE id=?").run(benchmark.id);
+    expect(realignDatabase(db, { activityIds: [benchmark.id] })).toMatchObject({ activitiesFailed: [], runTypeChanges: [{ id: benchmark.id, from: 'threshold_lt2', to: 'race' }] });
+    const rebuilt = read();
+    expect(rebuilt.activity).toEqual(imported.activity);
+    expect(rebuilt.intervals).toEqual(imported.intervals);
+    expect(rebuilt.analysis.rubricFamily).toBe('race');
+    expect(realignDatabase(db, { activityIds: [benchmark.id] }).runTypeChanges).toEqual([]);
+  });
+
+  it('imports and replays three preparation strides without splitting the main race or using its name', () => {
+    const benchmark = { ...getBenchmark('bench-race-5k'), id: 'race-preparation', name: 'Evening Running' };
+    const rows: typeof benchmark.rows = [];
+    const append = (seconds: number, hr: number, cad: number, spd: number) => {
+      for (let i = 0; i < seconds; i++) rows.push({ t: rows.length, hr, cad, spd });
+    };
+    append(900, 140, 170, 2.5);
+    append(60, 135, 100, 1.2);
+    for (let stride = 0; stride < 3; stride++) {
+      append(4, 135, 0, 4);
+      append(16, 145, 196, 4);
+      append(60, 135, 100, 1.2);
+    }
+    append(1180, 193, 185, 3.8);
+    append(20, 195, 205, 5);
+    append(60, 150, 100, 1.2);
+    append(300, 140, 170, 2.5);
+    benchmark.rows = rows;
+    expect(importRunContent(db, toCsv(benchmark), 'evening.csv')).toMatchObject({ status: 'imported', runType: 'race' });
+    const read = () => ({
+      activity: db.prepare('SELECT run_type,auto_run_type,tags FROM activities WHERE id=?').get(benchmark.id),
+      intervals: db.prepare('SELECT type,start_seconds,duration_seconds,distance_meters FROM activity_intervals WHERE activity_id=? ORDER BY interval_index').all(benchmark.id) as { type: string; start_seconds: number; duration_seconds: number }[]
+    });
+    const imported = read();
+    expect(imported.activity).toMatchObject({ run_type: 'race', tags: '["Race","Strides"]' });
+    expect(imported.intervals.filter(interval => interval.type === 'stride')).toHaveLength(3);
+    expect(imported.intervals.filter(interval => interval.type === 'work')).toMatchObject([{ start_seconds: 1200, duration_seconds: 1199 }]);
+    db.prepare("UPDATE activities SET name='Recovery DNF VO2 TT', run_type='threshold_lt2', auto_run_type='threshold_lt2', tags='[]' WHERE id=?").run(benchmark.id);
+    db.prepare("DELETE FROM activity_intervals WHERE activity_id=? AND type='stride'").run(benchmark.id);
+    for (let replay = 0; replay < 2; replay++) {
+      expect(realignDatabase(db, { activityIds: [benchmark.id] }).activitiesFailed).toEqual([]);
+      expect(read()).toEqual(imported);
+    }
+  });
+
+  it('keeps rolling long-run surges out of the Strides tag on import and stale-analysis replay', () => {
+    const benchmark = { ...getBenchmark('bench-long-120'), name: 'Strides',
+      rows: getBenchmark('bench-long-120').rows.map(row => [900, 3600, 6100].some(start => row.t >= start && row.t < start + 20)
+        ? { ...row, spd: 5, cad: 196, hr: 145 } : row) };
+    expect(importRunContent(db, toCsv(benchmark), 'long-run.csv')).toMatchObject({ status: 'imported', runType: 'long_run' });
+    const read = () => ({
+      activity: db.prepare('SELECT run_type,tags FROM activities WHERE id=?').get(benchmark.id),
+      strides: db.prepare("SELECT COUNT(*) AS count FROM activity_intervals WHERE activity_id=? AND type='stride'").get(benchmark.id)
+    });
+    const imported = read();
+    expect(imported).toEqual({ activity: { run_type: 'long_run', tags: '["Long Run"]' }, strides: { count: 0 } });
+    db.prepare("UPDATE activities SET tags='[\"Long Run\",\"Strides\"]' WHERE id=?").run(benchmark.id);
+    db.prepare("UPDATE activity_intervals SET type='stride' WHERE activity_id=?").run(benchmark.id);
+    expect(realignDatabase(db, { activityIds: [benchmark.id] }).activitiesFailed).toEqual([]);
+    expect(read()).toEqual(imported);
+  });
+
   it('classifies every benchmark run as documented (living classification benchmark)', () => {
     for (const bench of BENCHMARKS) {
       const res = importRunContent(db, toCsv(bench), `${bench.id}.csv`);
@@ -79,6 +154,28 @@ describe('Database Ingestion Pipeline (Integration)', () => {
         expect(tags).toContain(expected);
       }
     }
+  });
+
+  it.each(BENCHMARKS)('keeps $id classification, segmentation, tags and coaching independent of its name', benchmark => {
+    const read = () => ({
+      activity: db.prepare('SELECT run_type,auto_run_type,tags FROM activities WHERE id=?').get(benchmark.id),
+      intervals: db.prepare('SELECT type,start_seconds,duration_seconds FROM activity_intervals WHERE activity_id=? ORDER BY interval_index').all(benchmark.id),
+      coach: db.prepare('SELECT headline,effectiveness_score,analysis_json FROM activity_coach_summaries WHERE activity_id=?').get(benchmark.id)
+    });
+    expect(importRunContent(db, toCsv(benchmark), 'workout.csv').status).toBe('imported');
+    const baseline = read();
+    for (const name of ['', 'Graceful Recovery', 'VO2 V02 Race Parkrun Time Trial TT Tempo MP Marathon Pace Failed Aborted DNF Bailed Strides']) {
+      expect(updateActivityService(db, benchmark.id, { name: name || 'Untitled' }).ok).toBe(true);
+      expect(read()).toEqual(baseline);
+      seedBenchmarkProfile(db);
+      expect(importRunContent(db, toCsv({ ...benchmark, name }), 'workout.csv', { force: true }).status).toBe('imported');
+      expect(read()).toEqual(baseline);
+    }
+    // A stale stored type must not direct segmentation before classification.
+    db.prepare("UPDATE activities SET run_type='race', auto_run_type='race' WHERE id=?").run(benchmark.id);
+    expect(realignDatabase(db, { activityIds: [benchmark.id] }).activitiesFailed).toEqual([]);
+    expect(read().activity).toEqual(baseline.activity);
+    expect(read().intervals).toEqual(baseline.intervals);
   });
 
   it('detects threshold work reps with dynamics and a rounded prescription', () => {
@@ -296,7 +393,7 @@ timestamp,heart_rate,cadence,speed,distance,ground_contact_time
     } catch { /* best-effort cleanup: safe to ignore */ }
   });
 
-  it('assigns tags for Marathon Pace, Tempo, Strides, and Failed Workouts', () => {
+  it('rejects title-only tags and detects limited quality stimulus from the recorded reps', () => {
     // 1. Long run with Marathon Pace
     const mpCsv = `
 # Activity: Sunday Long Run with Marathon Pace MP
@@ -312,7 +409,7 @@ timestamp,heart_rate,cadence,speed,distance
     const resMp = importRunContent(db, mpCsv, 'mp-run.csv');
     expect(resMp.status).toBe('imported');
     const actMp = db.prepare('SELECT tags FROM activities WHERE id = ?').get('mp-run-999') as any;
-    expect(actMp.tags).toContain('Marathon Pace');
+    expect(JSON.parse(actMp.tags)).toEqual(['Long Run']);
 
     // 2. Short aborted VO2-style reps: no real strides here (60s reps are work,
     //    not <=45s bursts), so no Strides tag despite the activity name.
@@ -330,7 +427,7 @@ timestamp,heart_rate,cadence,speed,distance
     for (let rep = 0; rep < 2; rep++) {
       for (let s = 0; s < 60; s++, t2++) {
         dist2 += 5.2;
-        failedCsv += `${ts2(t2)},170,185,5.2,${dist2}\n`;
+        failedCsv += `${ts2(t2)},190,185,5.2,${dist2}\n`;
       }
       for (let s = 0; s < 60; s++, t2++) {
         dist2 += 2.0;

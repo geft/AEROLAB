@@ -32,6 +32,8 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
     x: number;
     y: number;
   } | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<{ left: number; top: number } | null>(null);
+  const cardRef = React.useRef<HTMLElement>(null);
   const activePoint = selectedPoint;
 
   // 1. Deduplicate & sort chronologically (oldest -> newest)
@@ -242,7 +244,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
   };
 
   return (
-    <section className="threshold-trends-card" style={{
+    <section ref={cardRef} className="threshold-trends-card" style={{
       background: 'var(--bg-card)',
       border: '1px solid var(--border-subtle)',
       borderRadius: 12,
@@ -361,6 +363,28 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
             className="threshold-trends-svg"
             viewBox={`0 0 ${width} ${height}`}
             style={{ width: '100%', minWidth: 650, height: 'auto', maxHeight: 300, display: 'block' }}
+            onPointerMove={event => {
+              if (selectablePoints.length === 0) return;
+              const cardRect = cardRef.current?.getBoundingClientRect();
+              if (cardRect) {
+                setTooltipPosition({
+                  left: Math.max(8, Math.min(event.clientX - cardRect.left + 14, cardRect.width - 280)),
+                  top: Math.max(8, Math.min(event.clientY - cardRect.top + 14, cardRect.height - 190))
+                });
+              }
+              const rect = event.currentTarget.getBoundingClientRect();
+              const x = ((event.clientX - rect.left) / rect.width) * width;
+              const nearestIndex = selectablePoints.reduce((bestIndex, point, index) =>
+                Math.abs(getX(point.item.effective_date) - x)
+                  < Math.abs(getX(selectablePoints[bestIndex].item.effective_date) - x)
+                  ? index
+                  : bestIndex, 0);
+              selectPointByIndex(nearestIndex);
+            }}
+            onPointerLeave={() => {
+              setSelectedPoint(null);
+              setTooltipPosition(null);
+            }}
           >
             {/* Gridlines & Y-Axis Labels */}
             {yTicks.map(val => {
@@ -559,6 +583,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
               role="status"
               aria-live="polite"
               style={{
+                ...(tooltipPosition ? { left: tooltipPosition.left, top: tooltipPosition.top } : {}),
                 border: `1px solid var(${activePoint.type === 'lt1' ? '--chart-series-green' : '--chart-series-amber'})`,
               }}
             >

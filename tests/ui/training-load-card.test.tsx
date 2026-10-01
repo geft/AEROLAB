@@ -98,6 +98,25 @@ describe('TrainingLoadCard UI Tests', () => {
     expect(container.querySelector('line[stroke-dasharray="4 4"]')).toBeTruthy();
   });
 
+  it('shows the hovered day in the telemetry readout and clears it on leave', async () => {
+    const { container } = render(<TrainingLoadCard />);
+    const svg = await waitFor(() => {
+      const chart = container.querySelector<SVGSVGElement>('.training-load-chart');
+      expect(chart).toBeTruthy();
+      return chart!;
+    });
+    vi.spyOn(svg, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 0, left: 0, top: 0, right: 800, bottom: 185, width: 800, height: 185, toJSON: () => ({})
+    });
+
+    fireEvent.pointerMove(svg, { clientX: 800 });
+    expect(container.textContent).toContain('2026-09-19');
+    expect(container.textContent).toContain('80');
+
+    fireEvent.pointerLeave(svg);
+    expect(container.textContent).not.toContain('2026-09-19');
+  });
+
   it('renders time filter buttons and triggers fetch with chosen range', async () => {
     render(<TrainingLoadCard />);
 

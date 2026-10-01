@@ -61,6 +61,21 @@ describe('CanvasRunChart', () => {
     expect(context.arc).toHaveBeenCalled();
   });
 
+  it('updates the telemetry readout on desktop hover and clears it on pointer leave', () => {
+    setCanvasBounds();
+    const { container } = render(<CanvasRunChart records={points} theme="light" />);
+
+    const canvas = container.querySelector('canvas')!;
+    fireEvent.pointerMove(canvas, { clientX: 238 });
+    expect(screen.getByText('0.17 km')).toBeTruthy();
+    expect(screen.getByText('5:57/km')).toBeTruthy();
+    expect(screen.getByText('145 bpm')).toBeTruthy();
+
+    fireEvent.pointerLeave(canvas);
+    expect(container.querySelector('.telemetry-chart-readout')).toBeNull();
+    expect(container.querySelector('.telemetry-chart-readout-slot')).toBeTruthy();
+  });
+
   it('uses fallback ranges when telemetry is missing and redraws after resize', () => {
     setCanvasBounds();
     render(<CanvasRunChart records={[

@@ -10,6 +10,7 @@ import { verifiedAmbientTemperature } from './weather.js';
 import Database from 'better-sqlite3';
 import { activityFromRow, coachSummaryFromRow, objectRow } from '../db/rows.js';
 import { parseSessionVerdict } from '../../shared/session-verdict.js';
+import { qualityWorkoutFailed } from '../ingestion/classifier.js';
 
 /** One graded line of the weighted execution rubric. */
 export type ScoreFactor = RubricFactor;
@@ -668,7 +669,13 @@ export function syncActivityCoachSummary(
     weatherPm25: activity.weather_pm25_ug_m3 ?? null,
     weatherPm25Source: activity.weather_pm25_source ?? null,
     recentAverageWeatherTempC: weatherBaselineRow?.avg_temp ?? null,
-    isFailedWorkout: overrides?.isFailedWorkout ?? new RegExp('failed|aborted|dnf|bailed', 'i').test(activity.name || ''),
+    isFailedWorkout: overrides?.isFailedWorkout ?? qualityWorkoutFailed(
+      overrides?.runType || activity.run_type || 'easy_base',
+      intervals.filter(interval => interval.type === 'work').map(interval => ({
+        durationSeconds: (interval.duration_seconds as number | null) ?? 0,
+        maxHeartRate: (interval.max_heart_rate as number | null) ?? 0
+      })), { maxHr: maxHeartRate, restingHr, lt1Hr, lt2Hr }
+    ),
     intervals: overrides?.intervals || intervals,
     splits: overrides?.splits || splits,
     records,

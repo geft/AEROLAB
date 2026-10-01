@@ -3,7 +3,7 @@ import path from 'path';
 import Database from 'better-sqlite3';
 import { logger } from '../utils/logger.js';
 
-export const DERIVED_MIGRATIONS = [
+const LEGACY_DERIVED_MIGRATIONS = [
   'centroid-v1',
   'steady-state-v1',
   'decoupling-v1',
@@ -11,6 +11,8 @@ export const DERIVED_MIGRATIONS = [
   'training-load-v1',
   'realign-v1'
 ] as const;
+
+export const DERIVED_MIGRATIONS = [...LEGACY_DERIVED_MIGRATIONS, 'continuous-race-v1', 'signal-classification-v1', 'effort-structure-v1', 'stride-recovery-v1'] as const;
 
 /** Run each data change once, with a rollback boundary and a pre-change snapshot. */
 export function createMigrationRunner(db: Database.Database) {
@@ -22,7 +24,7 @@ export function createMigrationRunner(db: Database.Database) {
   // Version 1 was the old all-in-one migration. Preserve its completed work.
   if ((db.pragma('user_version', { simple: true }) as number) >= 1) {
     const mark = db.prepare('INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)');
-    db.transaction(() => { for (const name of DERIVED_MIGRATIONS) mark.run(name); })();
+    db.transaction(() => { for (const name of LEGACY_DERIVED_MIGRATIONS) mark.run(name); })();
   }
 
   let failed = false;
