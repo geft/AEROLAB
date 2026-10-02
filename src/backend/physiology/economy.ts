@@ -95,6 +95,35 @@ function runningEvidence(records: SensorRecord[]) {
   });
 }
 
+/** Running-only HR evidence; walking, stops and recording gaps cannot dilute intensity. */
+export function calculateRunningHrExposure(records: ActivityRecord[], ceilingHr: number, lt1Hr: number) {
+  let runningSeconds = 0, validHrSeconds = 0, hrSum = 0;
+  let aboveCeilingSeconds = 0, atOrAboveLt1Seconds = 0;
+  for (const item of runningEvidence(normalize(records))) {
+    if (item.type !== 'run') continue;
+    runningSeconds += item.seconds;
+    const { hrA, hrB } = item;
+    if (hrA == null || hrB == null || !Number.isFinite(hrA) || !Number.isFinite(hrB) ||
+        hrA <= 40 || hrB <= 40 || hrA > 240 || hrB > 240) continue;
+    validHrSeconds += item.seconds;
+    hrSum += (hrA + hrB) / 2 * item.seconds;
+    // Integrate boundary crossings rather than rounding HR or percentages.
+    const fractionAbove = (boundary: number, inclusive: boolean) => {
+      if (hrA === hrB) return (inclusive ? hrA >= boundary : hrA > boundary) ? 1 : 0;
+      const low = Math.min(hrA, hrB), high = Math.max(hrA, hrB);
+      return Math.max(0, Math.min(1, (high - boundary) / (high - low)));
+    };
+    aboveCeilingSeconds += fractionAbove(ceilingHr, false) * item.seconds;
+    atOrAboveLt1Seconds += fractionAbove(lt1Hr, true) * item.seconds;
+  }
+  return {
+    runningSeconds,
+    avgHr: validHrSeconds > 0 ? hrSum / validHrSeconds : null,
+    aboveCeilingPct: validHrSeconds > 0 ? aboveCeilingSeconds / validHrSeconds * 100 : null,
+    atOrAboveLt1Pct: validHrSeconds > 0 ? atOrAboveLt1Seconds / validHrSeconds * 100 : null
+  };
+}
+
 /** Pauses and walking are classified before integration, using original adjacent records. */
 export function extractSteadyStateMetrics(records: any[]): PauseBreakdown {
   const evidence = runningEvidence(normalize(records));

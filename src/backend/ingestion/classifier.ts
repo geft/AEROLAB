@@ -1,6 +1,6 @@
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { ActivityMetadata, ActivityRecord } from './csv-parser';
-import { EconomyMetrics } from '../physiology/economy';
+import { calculateRunningHrExposure, EconomyMetrics } from '../physiology/economy';
 import { DetectedInterval, inferWorkoutPrescription } from './interval-detector';
 import { getDefaultZones, getLt2TrainingBand, calculateZoneDistribution, recordDurationSeconds } from '../physiology/zones';
 import { continuousRaceEffort } from './continuous-effort.js';
@@ -258,17 +258,19 @@ export function classifyRun(
   }
 
   // 5. Recovery run check.
-  // Short duration alone is not evidence of recovery intent: a run can be cut
-  // short by schedule, weather, or air quality. For unnamed runs, require both
-  // low average HR and most recorded time in the athlete-relative recovery zone.
-  // Do not use a fraction of max HR here; for some athletes that labels steady
-  // Zone 2 running as recovery, especially when a short session limits HR lag.
-  const isRecoveryHr = avgHr <= zones.z1[1] && zoneDist.z1Pct >= 50;
-  if (durationMin <= 50 && isRecoveryHr) {
+  // Recovery depends on dose and negligible intensity, not Zone 1 occupancy.
+  // Use observed running evidence so walking/stops cannot lower average HR.
+  const recoveryCeilingHr = resting + (effMax - resting) * 0.60;
+  const recovery = calculateRunningHrExposure(records, recoveryCeilingHr, lt1);
+  const avgHrrPct = recovery.avgHr == null ? null : (recovery.avgHr - resting) / (effMax - resting) * 100;
+  if (recovery.runningSeconds > 0 && recovery.runningSeconds <= 50 * 60 &&
+      avgHrrPct != null && avgHrrPct <= 60 &&
+      recovery.aboveCeilingPct != null && recovery.aboveCeilingPct <= 10 &&
+      recovery.atOrAboveLt1Pct != null && recovery.atOrAboveLt1Pct <= 1) {
     return {
       runType: 'recovery',
       confidence: 0.88,
-      reason: `Very low cardiovascular strain recovery jog (${durationMin.toFixed(0)} min, avg HR ${avgHr} bpm, ${zoneDist.z1Pct.toFixed(0)}% in Zone 1)`
+      reason: `Very low cardiovascular strain recovery jog (${(recovery.runningSeconds / 60).toFixed(0)} min running, ${avgHrrPct.toFixed(1)}% avg HRR, ${recovery.aboveCeilingPct.toFixed(1)}% above 60% HRR, ${recovery.atOrAboveLt1Pct.toFixed(1)}% at or above LT1)`
     };
   }
 

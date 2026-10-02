@@ -354,6 +354,11 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
       const result = realignDatabase(db);
       if (result.activitiesFailed.length > 0) throw new Error(`${result.activitiesFailed.length} activities failed historical-fitness reanalysis`);
     });
+    // Apply the running-dose / HRR recovery rule to saved histories once.
+    if (!deferDerivedMigrations) migrations.run('recovery-hrr-v1', () => {
+      const result = realignDatabase(db);
+      if (result.activitiesFailed.length > 0) throw new Error(`${result.activitiesFailed.length} activities failed recovery-HRR reanalysis`);
+    });
   } catch (err: any) {
     // Migrations are non-fatal so a bad row cannot block startup, but the failure
     // must be visible — this previously swallowed errors silently (see audit).

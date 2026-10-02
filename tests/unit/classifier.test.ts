@@ -63,7 +63,7 @@ describe('Run Classifier Engine (Unit)', () => {
   });
 
   it('ignores race, recovery, VO2 and failure words when the recorded effort is aerobic', () => {
-    const records = createMockRecords(2400, 140);
+    const records = createMockRecords(2400, 145);
     const profile = { maxHr: 203, restingHr: 55, lt1Hr: 148, lt2Hr: 167 };
     const baseline = classifyRun(baseMetadata, records, baseEconomy, [], profile);
     expect(baseline.runType).toBe('easy_base');
@@ -74,7 +74,7 @@ describe('Run Classifier Engine (Unit)', () => {
 
   it('does not let VO2 keywords elevate short low-intensity reps', () => {
     const work = { intervalIndex: 1, type: 'work' as const, startSeconds: 200, durationSeconds: 60, distanceMeters: 200, avgSpeedMps: 3.3, avgPaceSecKm: 303, avgHeartRate: 145, maxHeartRate: 155, avgCadence: 175 };
-    const records = createMockRecords(2400, 140);
+    const records = createMockRecords(2400, 145);
     const intervals = [work, { ...work, intervalIndex: 2, startSeconds: 400 }];
     expect(classifyRun({ ...baseMetadata, name: 'VO2 Max Intervals' }, records, baseEconomy, intervals,
       { maxHr: 203, restingHr: 55, lt1Hr: 148, lt2Hr: 167 }).runType).toBe('easy_base');
@@ -254,7 +254,7 @@ describe('Run Classifier Engine (Unit)', () => {
     expect(result.runType).toBe('threshold_lt2');
   });
 
-  it('classifies as recovery when short duration (<=50 min) and low HR (<72% max HR)', () => {
+  it('classifies a short low-HRR jog as recovery', () => {
     const meta: ActivityMetadata = {
       ...baseMetadata,
       totalDurationSeconds: 1500, // 25 min
@@ -280,7 +280,7 @@ describe('Run Classifier Engine (Unit)', () => {
     expect(result).toEqual(classifyRun({ ...meta, name: '' }, records, baseEconomy, []));
   });
 
-  it('does not infer recovery from a short Zone 2 run when session max HR is missing', () => {
+  it('uses the athlete profile for a low-HRR Zone 2 recovery when session max HR is missing', () => {
     const meta: ActivityMetadata = {
       ...baseMetadata,
       avgHeartRate: 135,
@@ -288,7 +288,7 @@ describe('Run Classifier Engine (Unit)', () => {
     };
     const records = createMockRecords(1800, 135);
     const result = classifyRun(meta, records, { ...baseEconomy, aerobicDecouplingPct: null }, [], { maxHr: 190, restingHr: 55, lt1Hr: 148, lt2Hr: 167 });
-    expect(result.runType).toBe('easy_base');
+    expect(result.runType).toBe('recovery');
   });
 
   it('classifies threshold intervals when zoneDist.z4Pct >= 20 even if work HR is lower', () => {
@@ -366,12 +366,99 @@ describe('Run Classifier Engine (Unit)', () => {
     expect(res.reason).toContain('Galloway');
   });
 
-  it('does not classify a short Zone 2 run as recovery based on max-HR percentage alone', () => {
-    // maxHr = 200, 72% is 144. HR 140 remains Zone 2, not recovery effort.
+  it('allows a short Zone 2 run with low HRR and no LT1 exposure to be recovery', () => {
+    // HR 140 is above Zone 1 but only 58.6% of the athlete's HR reserve.
     const meta = { ...baseMetadata, maxHeartRate: 200, avgHeartRate: 140, totalDurationSeconds: 1800 };
     const records = createMockRecords(1800, 140);
     const res = classifyRun(meta, records, baseEconomy, [], { maxHr: 200, restingHr: 55 });
-    expect(res.runType).toBe('easy_base');
+    expect(res.runType).toBe('recovery');
+  });
+
+  describe('running-dose recovery criteria', () => {
+    const profile = { maxHr: 200, restingHr: 50, lt1Hr: 153, lt2Hr: 175 };
+    const classify = (records: ActivityRecord[], durationSeconds = records.at(-1)!.elapsedSeconds) =>
+      classifyRun({ ...baseMetadata, totalDurationSeconds: durationSeconds, avgHeartRate: 100 }, records, baseEconomy, [], profile);
+
+    it('recovers the 27-minute boundary case with only about 30% Zone 1', () => {
+      const records = createMockRecords(1621, 133);
+      records.forEach((record, i) => { record.heartRate = i < 486 ? 130 : i < 1587 ? 135 : 142; });
+      expect(classify(records).runType).toBe('recovery');
+    });
+
+    it.each([50, 75, 90, 110])('respects running dose at %i minutes', minutes => {
+      expect(classify(createMockRecords(minutes * 60 + 1, 135)).runType)
+        .toBe(minutes <= 50 ? 'recovery' : minutes >= 110 ? 'long_run' : 'easy_base');
+    });
+
+    it('rejects recovery one second past the 50-minute running limit', () => {
+      expect(classify(createMockRecords(3002, 135)).runType).toBe('easy_base');
+    });
+
+    it.each([100, 101])('enforces the exact 10%% HRR exposure cutoff (%i seconds)', seconds => {
+      const records = createMockRecords(1001, 130);
+      const boundary = 1000 - seconds;
+      records.forEach((record, i) => {
+        if (i === boundary) record.heartRate = 140;
+        if (i > boundary) record.heartRate = 150;
+      });
+      expect(classify(records).runType).toBe(seconds === 100 ? 'recovery' : 'easy_base');
+    });
+
+    it.each([10, 11])('enforces the exact 1%% LT1 exposure cutoff (%i seconds)', seconds => {
+      const records = createMockRecords(1001, 130);
+      records.forEach((record, i) => { if (i >= 1000 - seconds) record.heartRate = profile.lt1Hr; });
+      expect(classify(records).runType).toBe(seconds === 10 ? 'recovery' : 'easy_base');
+    });
+
+    it('accepts exactly 60% HRR and rejects a higher average independently of exposure', () => {
+      expect(classify(createMockRecords(1001, 140)).runType).toBe('recovery');
+      const records = createMockRecords(1001, 139);
+      records.forEach((record, i) => { if (i >= 901) record.heartRate = 152; });
+      expect(classify(records).runType).toBe('easy_base');
+    });
+
+    it.each([100, 110])('limits above-60%% HRR exposure to 10%% (%i seconds)', seconds => {
+      const records = createMockRecords(1001, 130);
+      records.forEach((record, i) => { if (i >= 1001 - seconds) record.heartRate = 150; });
+      expect(classify(records).runType).toBe(seconds === 100 ? 'recovery' : 'easy_base');
+    });
+
+    it.each([10, 20])('counts HR exactly at LT1 toward the 1%% limit (%i seconds)', seconds => {
+      const records = createMockRecords(1001, 130);
+      records.forEach((record, i) => { if (i >= 1001 - seconds) record.heartRate = profile.lt1Hr; });
+      expect(classify(records).runType).toBe(seconds === 10 ? 'recovery' : 'easy_base');
+    });
+
+    it('does not let low-HR walking or stops dilute hard running', () => {
+      const records = createMockRecords(1801, 100);
+      records.forEach((record, i) => {
+        record.cadence = i < 600 ? 0 : i < 1200 ? 110 : 165;
+        record.speedMps = i < 600 ? 0 : i < 1200 ? 1.2 : 3.3;
+        if (i >= 1200) record.heartRate = 150;
+      });
+      expect(classify(records).runType).toBe('easy_base');
+    });
+
+    it('uses running duration even when walking extends total duration beyond 50 minutes', () => {
+      const records = createMockRecords(3601, 130);
+      records.forEach((record, i) => { if (i <= 600) { record.cadence = 110; record.speedMps = 1.2; } });
+      expect(classify(records).runType).toBe('recovery');
+    });
+
+    it('weights irregular samples by duration and excludes long recording gaps', () => {
+      const records = createMockRecords(1001, 130).filter((_, i) => i <= 900 ? i % 10 === 0 : true);
+      records.forEach(record => { if (record.elapsedSeconds > 900) record.heartRate = 150; });
+      expect(classify(records).runType).toBe('recovery');
+      const sparse = createMockRecords(3601, 130).filter((_, i) => i % 60 === 0);
+      expect(classify(sparse).runType).toBe('easy_base');
+    });
+
+    it('requires valid running HR evidence', () => {
+      const records = createMockRecords(1001, 130);
+      records.forEach(record => { record.heartRate = null; });
+      expect(classify(records).runType).toBe('easy_base');
+      expect(classifyRun(baseMetadata, [], baseEconomy, [], profile).runType).toBe('easy_base');
+    });
   });
 
   it('handles empty activity name and non-recovery low maxHr gracefully', () => {

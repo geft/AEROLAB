@@ -139,6 +139,30 @@ describe('named database migrations', () => {
     reopened.close();
   });
 
+  it('reclassifies saved low-HRR Zone 2 runs once with a backup', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aerolab-recovery-migration-'));
+    roots.push(root);
+    const file = path.join(root, 'runs.db');
+    const first = openDatabase(file);
+    seedBenchmarkProfile(first);
+    const source = getBenchmark('bench-recovery-25');
+    const benchmark = { ...source, rows: source.rows.map(row => ({ ...row, hr: 135 })) };
+    expect(importRunContent(first, toCsv(benchmark), 'run.csv').status).toBe('imported');
+    first.prepare("UPDATE activities SET run_type='easy_base', auto_run_type='easy_base', tags='[\"Easy Base\"]' WHERE id=?").run(benchmark.id);
+    first.prepare("DELETE FROM schema_migrations WHERE name='recovery-hrr-v1'").run();
+    first.close();
+    const migrated = openDatabase(file);
+    expect(migrated.prepare('SELECT run_type,auto_run_type,tags FROM activities WHERE id=?').get(benchmark.id))
+      .toEqual({ run_type: 'recovery', auto_run_type: 'recovery', tags: '["Recovery"]' });
+    expect(migrated.prepare("SELECT 1 FROM schema_migrations WHERE name='recovery-hrr-v1'").get()).toBeTruthy();
+    expect(fs.readdirSync(path.join(root, 'backups')).some(name => name.startsWith('pre-migration-'))).toBe(true);
+    const coach = migrated.prepare('SELECT headline,updated_at FROM activity_coach_summaries WHERE activity_id=?').get(benchmark.id);
+    migrated.close();
+    const reopened = openDatabase(file);
+    expect(reopened.prepare('SELECT headline,updated_at FROM activity_coach_summaries WHERE activity_id=?').get(benchmark.id)).toEqual(coach);
+    reopened.close();
+  });
+
   it('checkpoints legacy column additions and does not rerun them on reopen', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aerolab-schema-migration-'));
     roots.push(root);
