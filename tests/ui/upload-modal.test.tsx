@@ -60,15 +60,11 @@ describe('UploadModal Multi-File UI Component Tests', () => {
     const onClose = vi.fn();
     const onUploadSuccess = vi.fn();
 
-    // Mock fetch responses for 2 files
+    // Both files share one request and one historical replay.
     const fetchMock = vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ result: { status: 'imported', activityId: 'act-1' } })
-      } as any)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ result: { status: 'skipped_duplicate', activityId: 'act-2' } })
+        json: async () => ({ results: [{ status: 'imported', activityId: 'act-1' }, { status: 'skipped_duplicate', activityId: 'act-2' }] })
       } as any);
 
     render(
@@ -90,8 +86,9 @@ describe('UploadModal Multi-File UI Component Tests', () => {
       expect(screen.getByText(/batch ingestion completed/i)).toBeTruthy();
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(JSON.parse(fetchMock.mock.calls[1][1]!.body as string)).toMatchObject({ filename: 'run2.zip', content: btoa('ZIP bytes') });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/ingest/upload-batch');
+    expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string).files[1]).toMatchObject({ filename: 'run2.zip', content: btoa('ZIP bytes') });
     expect(onUploadSuccess).toHaveBeenCalledTimes(1);
 
     // Verify summary values
@@ -251,11 +248,7 @@ describe('UploadModal Multi-File UI Component Tests', () => {
     vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ result: { status: 'imported', activityId: 'batch-1' } })
-      } as any)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ result: { status: 'imported', activityId: 'batch-2' } })
+        json: async () => ({ results: [{ status: 'imported', activityId: 'batch-1' }, { status: 'imported', activityId: 'batch-2' }] })
       } as any);
 
     render(
@@ -274,5 +267,71 @@ describe('UploadModal Multi-File UI Component Tests', () => {
     await waitFor(() => {
       expect(onUploadSuccess).toHaveBeenCalledWith(undefined);
     });
+  });
+
+  it('bounds batches, forwards overwrite, and keeps individual failures in the summary', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, options) => {
+      const payload = JSON.parse(options!.body as string);
+      return { ok: true, json: async () => ({ results: payload.files.map((file: { filename: string }) =>
+        file.filename === 'run8.fit' ? { status: 'error', error: 'Broken FIT file' } : { status: 'imported' }) }) } as Response;
+    });
+    const onUploadSuccess = vi.fn();
+    render(<UploadModal isOpen={true} onClose={vi.fn()} onUploadSuccess={onUploadSuccess} />);
+    fireEvent.click(screen.getByLabelText(/overwrite \/ re-calculate/i));
+    const files = Array.from({ length: 10 }, (_, index) => new File(['data'], `run${index}.fit`));
+    fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files } });
+    await waitFor(() => expect(screen.getByText(/error details/i)).toBeTruthy());
+    expect(screen.getByText(/run8\.fit/)).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.map(call => JSON.parse(call[1]!.body as string).files.length)).toEqual([8, 2]);
+    expect(fetchMock.mock.calls.every(call => JSON.parse(call[1]!.body as string).force)).toBe(true);
+    expect(onUploadSuccess).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('9')).toBeTruthy();
+  });
+
+  it('continues with readable files when one file cannot be read', async () => {
+    const broken = new File(['data'], 'unreadable.fit');
+    broken.arrayBuffer = () => Promise.reject(new Error('Read failed'));
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true,
+      json: async () => ({ results: [{ status: 'imported' }] }) } as Response);
+    render(<UploadModal isOpen={true} onClose={vi.fn()} onUploadSuccess={vi.fn()} />);
+    fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [broken, new File(['good'], 'good.fit')] } });
+    await waitFor(() => expect(screen.getByText(/error details/i)).toBeTruthy());
+    expect(screen.getByText(/unreadable\.fit/)).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string).files.map((file: { filename: string }) => file.filename)).toEqual(['good.fit']);
+  });
+
+  it('splits large files across requests to stay under the batch byte budget', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true,
+      json: async () => ({ results: [{ status: 'imported' }] }) } as Response);
+    const onUploadSuccess = vi.fn();
+    render(<UploadModal isOpen={true} onClose={vi.fn()} onUploadSuccess={onUploadSuccess} />);
+    const files = ['large1.fit', 'large2.fit'].map(name => {
+      const file = new File(['data'], name);
+      Object.defineProperty(file, 'size', { value: 20 * 1024 * 1024 });
+      return file;
+    });
+    fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files } });
+    await waitFor(() => expect(onUploadSuccess).toHaveBeenCalledTimes(1));
+    expect(fetchMock.mock.calls.map(call => JSON.parse(call[1]!.body as string).files.length)).toEqual([1, 1]);
+  });
+
+  it('starts reading the next file before the first file finishes', async () => {
+    const first = new File(['first'], 'first.fit');
+    const second = new File(['second'], 'second.fit');
+    let finishFirst!: (buffer: ArrayBuffer) => void;
+    first.arrayBuffer = vi.fn(() => new Promise<ArrayBuffer>(resolve => { finishFirst = resolve; }));
+    const secondRead = vi.spyOn(second, 'arrayBuffer');
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true,
+      json: async () => ({ results: [{ status: 'imported' }, { status: 'imported' }] }) } as Response);
+    const onUploadSuccess = vi.fn();
+    render(<UploadModal isOpen={true} onClose={vi.fn()} onUploadSuccess={onUploadSuccess} />);
+    fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [first, second] } });
+    expect(secondRead).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+    finishFirst(new TextEncoder().encode('first').buffer);
+    await waitFor(() => expect(onUploadSuccess).toHaveBeenCalledTimes(1));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

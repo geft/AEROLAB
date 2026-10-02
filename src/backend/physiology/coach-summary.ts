@@ -808,8 +808,11 @@ export function syncActivityCoachSummary(
  * Re-evaluates and updates all coach summaries across all activities.
  * Useful when athlete profile thresholds, gear, or baseline changes.
  */
-export function syncAllCoachSummaries(db: Database.Database): number {
-  const activities = db.prepare('SELECT id FROM activities').all().map(value => {
+export function syncAllCoachSummaries(db: Database.Database, activityIds?: string[]): number {
+  const rows = activityIds?.length
+    ? db.prepare(`SELECT id FROM activities WHERE id IN (${activityIds.map(() => '?').join(',')})`).all(...activityIds)
+    : db.prepare('SELECT id FROM activities').all();
+  const activities = rows.map(value => {
     const row = objectRow(value, 'activities');
     if (typeof row.id !== 'string' || row.id.length === 0) throw new Error('Invalid activities.id');
     return { id: row.id };

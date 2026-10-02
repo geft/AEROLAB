@@ -280,7 +280,7 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
   }
 
   try {
-    const synced = syncAllCoachSummaries(db);
+    const synced = syncAllCoachSummaries(db, options.activityIds);
     log(`  coach summaries re-synced for ${synced} activities`);
   } catch (err: any) {
     log(`  coach re-sync skipped: ${err?.message || err}`);

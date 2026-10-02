@@ -78,6 +78,36 @@ describe('native FIT and Garmin ZIP ingestion', () => {
     expect(bad.body.code).toBe('ERR_ZIP_INVALID');
   });
 
+  it('batch imports valid FIT alongside malformed files and honours overwrite while preserving metadata', async () => {
+    process.env.DATABASE_PATH = ':memory:';
+    const db = getDatabase(':memory:');
+    const app = createServer();
+    const file = { content: richFit().toString('base64'), filename: 'run.fit' };
+    const response = await request(app).post('/api/ingest/upload-batch').send({ files: [file, { content: 'bad', filename: 'bad.fit' }] });
+    expect(response.status).toBe(200);
+    expect(response.body.results.map((result: { status: string }) => result.status)).toEqual(['imported', 'error']);
+    const id = response.body.results[0].activityId;
+    expect((await request(app).post('/api/ingest/upload-batch').send({ files: [file] })).body.results[0].status).toBe('skipped_duplicate');
+    db.prepare('UPDATE activity_records SET step_length_m=NULL WHERE activity_id=?').run(id);
+    const overwrite = await request(app).post('/api/ingest/upload-batch').send({ files: [file], force: true });
+    expect(overwrite.status).toBe(200);
+    expect(overwrite.body.results[0]).toMatchObject({ status: 'imported', activityId: id });
+    expect(db.prepare('SELECT step_length_m FROM activity_records WHERE activity_id=? ORDER BY elapsed_seconds LIMIT 1').get(id)).toEqual({ step_length_m: 1.1 });
+    const details = db.prepare('SELECT metadata_json,source_fit FROM activity_fit_details WHERE activity_id=?').get(id) as { metadata_json: string; source_fit: Buffer };
+    expect(JSON.parse(details.metadata_json).events).toHaveLength(4);
+    expect(details.source_fit).toEqual(richFit());
+  });
+
+  it('rejects empty, oversized and malformed upload batches before importing', async () => {
+    process.env.DATABASE_PATH = ':memory:';
+    const db = getDatabase(':memory:');
+    const app = createServer();
+    for (const files of [[], Array.from({ length: 9 }, () => ({ content: 'bad', filename: 'bad.fit' })), [null], [{ filename: 'missing.fit' }]]) {
+      expect((await request(app).post('/api/ingest/upload-batch').send({ files })).status).toBe(400);
+    }
+    expect(db.prepare('SELECT COUNT(*) n FROM activities').get()).toEqual({ n: 0 });
+  });
+
   it('folder import accepts ZIP alongside FIT and ignores CSV exports', () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'aerolab-fit-zip-'));
     const db = openDatabase(':memory:');

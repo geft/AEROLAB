@@ -71,6 +71,7 @@ export const updateProfile = (_patch: unknown): never => readOnly();
 export const patchActivity = (_id: string, _patch: ActivityPatchInput): never => readOnly();
 export const refreshActivityWeather = (_id: string): never => readOnly();
 export const uploadActivity = (_payload: unknown): never => readOnly();
+export const uploadActivities = (_payload: unknown): never => readOnly();
 export const saveImportFolder = (_directory: string): never => readOnly();
 export const selectImportFolder = (_title: string): never => readOnly();
 export const scanImportFolder = (): never => readOnly();

@@ -174,6 +174,15 @@ export function uploadActivity(payload: { content: string; filename: string; for
   });
 }
 
+/** POST /api/ingest/upload-batch — replay affected history once per batch. */
+export function uploadActivities(payload: { files: Array<{ content: string; filename: string }>; force?: boolean }): Promise<{ results: UploadResponse['result'][] }> {
+  return requestJson('/api/ingest/upload-batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+}
+
 /** GET /api/ingest/settings — configured Garmin export folder. */
 export function getImportFolder(): Promise<{ directory: string; exists: boolean }> {
   return requestJson('/api/ingest/settings');

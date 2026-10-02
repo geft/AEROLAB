@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type Database from 'better-sqlite3';
 import { openDatabase } from '../../src/backend/db/client.js';
 import { realignDatabase } from '../../src/backend/db/realign.js';
-import { importRunContent } from '../../src/backend/ingestion/importer.js';
+import { importRunContent, importParsedRuns } from '../../src/backend/ingestion/importer.js';
+import { parseRunCSV } from '../../src/backend/ingestion/csv-parser.js';
 import { getHeartRateProfileAtDate } from '../../src/backend/physiology/threshold-tracker.js';
 import { getVolumeService } from '../../src/backend/services/activity-service.js';
 import { recomputeProfileDerivedData } from '../../src/backend/physiology/profile-recompute.js';
@@ -215,6 +216,55 @@ describe('Historical fitness with stable athlete max HR', () => {
     const earlier = workoutTrace([{ seconds: 2400, hr: 158 }], { id: 'backfill', date: '2026-01-02' });
     expect(importRunContent(db, traceCsv(earlier), 'backfill.csv')).toMatchObject({ status: 'error', error: expect.stringContaining('downstream calibration failure') });
     expect(read()).toEqual(before);
+  });
+
+  it('batch overwrite matches chronological replay regardless of file order and rebuilds each run once', () => {
+    measurement('2026-01-01', 130, 155);
+    importSteady('older', '2026-01-01', 140);
+    importSteady('later', '2026-01-04', 153);
+    importSteady('middle', '2026-01-03', 159);
+    importSteady('earlier', '2026-01-02', 170);
+    realignDatabase(db);
+    const before = read();
+    db.exec(`CREATE TEMP TRIGGER keep_older_summary BEFORE UPDATE ON activity_coach_summaries
+      WHEN OLD.activity_id='older' BEGIN SELECT RAISE(ABORT,'unaffected summary rewritten'); END;
+      CREATE TEMP TABLE replay_counts(activity_id TEXT);
+      CREATE TEMP TRIGGER count_replay AFTER UPDATE OF run_type ON activities
+      BEGIN INSERT INTO replay_counts VALUES(NEW.id); END;`);
+    const files = [ ['later', '2026-01-04', 153], ['earlier', '2026-01-02', 170], ['middle', '2026-01-03', 159] ] as const;
+    const results = importParsedRuns(db, files.map(([id, date, hr]) => ({
+      parsed: parseRunCSV(traceCsv(workoutTrace([{ seconds: 2400, hr }], { id, date })), `${id}.csv`), filename: `${id}.csv`
+    })), { force: true });
+    expect(results.map(result => result.activityId)).toEqual(['later', 'earlier', 'middle']);
+    expect(results.every(result => result.status === 'imported')).toBe(true);
+    expect(read()).toEqual(before);
+    expect(db.prepare('SELECT activity_id,COUNT(*) n FROM replay_counts GROUP BY activity_id ORDER BY activity_id').all())
+      .toEqual([{ activity_id: 'earlier', n: 1 }, { activity_id: 'later', n: 1 }, { activity_id: 'middle', n: 1 }]);
+  });
+
+  it('rolls back the whole batch when dependent reanalysis fails', () => {
+    measurement('2026-01-01', 130, 155);
+    importSteady('later', '2026-01-03', 159);
+    const before = read();
+    db.exec(`CREATE TRIGGER fail_batch_downstream BEFORE INSERT ON physiological_thresholds
+      WHEN NEW.source_activity_id='later' BEGIN SELECT RAISE(ABORT,'downstream batch failure'); END`);
+    const parsed = parseRunCSV(traceCsv(workoutTrace([{ seconds: 2400, hr: 158 }], { id: 'backfill', date: '2026-01-02' })), 'backfill.csv');
+    expect(() => importParsedRuns(db, [{ parsed, filename: 'backfill.csv' }])).toThrow('downstream batch failure');
+    expect(read()).toEqual(before);
+    expect(db.prepare("SELECT COUNT(*) n FROM activity_records WHERE activity_id='backfill'").get()).toEqual({ n: 0 });
+  });
+
+  it('rolls back a failed file savepoint while retaining successful files in the batch', () => {
+    db.exec(`CREATE TRIGGER fail_file BEFORE INSERT ON activity_records
+      WHEN NEW.activity_id='bad' BEGIN SELECT RAISE(ABORT,'record insertion failed'); END`);
+    const results = importParsedRuns(db, ['bad', 'good'].map(id => ({
+      parsed: parseRunCSV(traceCsv(workoutTrace([{ seconds: 2400, hr: 140 }], { id, date: '2026-01-02' })), `${id}.csv`), filename: `${id}.csv`
+    })));
+    expect(results[0]).toMatchObject({ status: 'error', error: 'record insertion failed' });
+    expect(results[1]).toMatchObject({ status: 'imported', activityId: 'good' });
+    expect(db.prepare('SELECT id FROM activities').all()).toEqual([{ id: 'good' }]);
+    expect(db.prepare("SELECT COUNT(*) n FROM activity_records WHERE activity_id='bad'").get()).toEqual({ n: 0 });
+    expect(db.prepare('SELECT activity_id FROM activity_coach_summaries').all()).toEqual([{ activity_id: 'good' }]);
   });
 
   it('ignores a corrupt confidence row without losing trustworthy observations', () => {

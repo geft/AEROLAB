@@ -3,7 +3,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { getDatabase } from '../db/client.js';
-import { importParsedRun, importRunFile } from '../ingestion/importer.js';
+import { importParsedRun, importParsedRuns, importRunFile, type ImportResult } from '../ingestion/importer.js';
+import { IMPORT_BATCH_SIZE } from '../../shared/import-batch.js';
 import { parseRunFit, isFitBuffer, isZipBuffer } from '../ingestion/fit-parser.js';
 import { isSafeBackupDirectory, selectLocalFolder } from './database.js';
 import { logger } from '../utils/logger.js';
@@ -96,6 +97,38 @@ ingestRouter.post('/scan', (req, res) => {
 });
 
 // POST /api/ingest/upload - native FIT or single-activity Garmin ZIP
+ingestRouter.post('/upload-batch', (req, res) => {
+  const { files, force } = req.body;
+  if (!Array.isArray(files) || !files.length || files.length > IMPORT_BATCH_SIZE ||
+      files.some(file => !file || typeof file.content !== 'string' || !file.content || typeof file.filename !== 'string')) {
+    return res.status(400).json({ error: 'Invalid import batch.' });
+  }
+  try {
+    const results: ImportResult[] = new Array(files.length);
+    const parsedFiles: Array<{ parsed: NonNullable<ReturnType<typeof parseRunFit>>; filename: string; index: number }> = [];
+    for (let index = 0; index < files.length; index++) {
+      const { content, filename } = files[index];
+      try {
+        const buffer = Buffer.from(content.includes(';base64,') ? content.split(';base64,')[1] : content, 'base64');
+        if (!/\.(fit|zip)$/i.test(filename) && !isFitBuffer(buffer) && !isZipBuffer(buffer)) throw new Error('Import a FIT or Garmin activity ZIP file.');
+        const parsed = parseRunFit(buffer, filename);
+        if (parsed) parsedFiles.push({ parsed, filename, index });
+        else results[index] = { status: 'skipped_non_running', reason: 'non_run' };
+      } catch (error) {
+        results[index] = { status: 'error', error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+    if (parsedFiles.length) {
+      const imported = importParsedRuns(getDatabase(), parsedFiles, { force: Boolean(force) });
+      parsedFiles.forEach((file, index) => { results[file.index] = imported[index]; });
+    }
+    return res.json({ results });
+  } catch (error) {
+    logger.error('Ingest', 'Batch import failed', error);
+    return res.status(422).json({ error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
 ingestRouter.post('/upload', (req, res) => {
   const { content, filename, force } = req.body;
   if (!content) return res.status(400).json({ error: 'Missing content field' });

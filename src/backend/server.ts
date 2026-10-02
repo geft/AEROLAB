@@ -95,6 +95,7 @@ export function createServer(options: { sessionToken?: string } = {}) {
   // API calls use a much smaller global JSON parser.
   app.use('/api/database/restore', express.json({ limit: '160mb' }));
   app.use('/api/ingest/upload', express.json({ limit: '64mb' }));
+  app.use('/api/ingest/upload-batch', express.json({ limit: '64mb' }));
   app.use(express.json({ limit: '1mb' }));
   app.use(requestLogger);
 

@@ -30,6 +30,8 @@ export interface ImportResult {
 
 export interface ImportOptions {
   force?: boolean;
+  /** Internal batch context: replay history only after all files are stored. */
+  deferredReplay?: { earliestTime: number };
 }
 
 export function importRunFile(db: Database.Database, filePath: string, options: ImportOptions = {}): ImportResult {
@@ -401,10 +403,11 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
     // workouts. Rebuild those in the same transaction so file order cannot
     // leave their labels/zones stale or commit only half of an affected history.
     const ref = Math.min(thresholdTime(metadata.date), thresholdTime(existing?.start_time ?? metadata.date));
-    const laterIds = (db.prepare('SELECT id,start_time FROM activities WHERE id <> ?').all(metadata.id) as
+    if (options.deferredReplay) options.deferredReplay.earliestTime = Math.min(options.deferredReplay.earliestTime, ref);
+    const laterIds = options.deferredReplay ? [] : (db.prepare('SELECT id,start_time FROM activities WHERE id <> ?').all(metadata.id) as
       Array<{ id: string; start_time: string }>)
       .filter(activity => thresholdTime(activity.start_time) > ref).map(activity => activity.id);
-    if (laterIds.length) {
+    if (laterIds.length && !options.deferredReplay) {
       // Include the corrected run too: moving its date later can first change
       // intervening workouts, whose evidence must then precede its own analysis.
       const replay = realignDatabase(db, { activityIds: [metadata.id, ...laterIds] });
@@ -419,7 +422,7 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
   transaction();
 
   // Continuously populate and persist the AI coach summary into activity_coach_summaries
-  syncActivityCoachSummary(db, metadata.id);
+  if (!options.deferredReplay) syncActivityCoachSummary(db, metadata.id);
 
 
     return {
@@ -437,6 +440,46 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
   } catch (err: any) {
     return { status: 'error', error: err.message || 'Failed to parse and import run' };
   }
+}
+
+/** Store a bounded batch atomically, then rebuild its affected history once. */
+export function importParsedRuns(db: Database.Database, files: Array<{ parsed: ParsedCSV; filename: string }>, options: Pick<ImportOptions, 'force'> = {}): ImportResult[] {
+  return db.transaction(() => {
+    const deferredReplay = { earliestTime: Infinity };
+    const results: ImportResult[] = new Array(files.length);
+    const ordered = files.map((file, index) => ({ ...file, index }))
+      .sort((a, b) => thresholdTime(a.parsed.metadata.date) - thresholdTime(b.parsed.metadata.date));
+    for (const file of ordered) {
+      try {
+        // A failed file rolls back its own writes without discarding good files.
+        results[file.index] = db.transaction(() => {
+          const result = importParsedRun(db, file.parsed, file.filename, { ...options, deferredReplay });
+          if (result.status === 'error') throw new Error(result.error);
+          return result;
+        })();
+      } catch (error) {
+        results[file.index] = { status: 'error', error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+    if (results.some(result => result.status === 'imported')) {
+      const affected = (db.prepare('SELECT id,start_time FROM activities').all() as Array<{ id: string; start_time: string }>)
+        .filter(activity => thresholdTime(activity.start_time) >= deferredReplay.earliestTime).map(activity => activity.id);
+      const replay = realignDatabase(db, { activityIds: affected });
+      if (replay.activitiesFailed.length) throw new Error(`Dependent reanalysis failed: ${replay.activitiesFailed.join('; ')}`);
+      for (const result of results) {
+        if (result.status !== 'imported') continue;
+        const refreshed = db.prepare(`SELECT run_type, efficiency_factor, aerobic_decoupling_pct,
+          (SELECT COUNT(*) FROM activity_intervals WHERE activity_id=activities.id) AS interval_count
+          FROM activities WHERE id=?`).get(result.activityId) as
+          { run_type: string; efficiency_factor: number | null; aerobic_decoupling_pct: number | null; interval_count: number };
+        result.runType = refreshed.run_type;
+        result.efficiencyFactor = refreshed.efficiency_factor;
+        result.aerobicDecouplingPct = refreshed.aerobic_decoupling_pct;
+        result.intervalsDetected = refreshed.interval_count;
+      }
+    }
+    return results;
+  })();
 }
 
 export function importDirectory(db: Database.Database, dirPath: string, options: ImportOptions = {}): ImportResult[] {
