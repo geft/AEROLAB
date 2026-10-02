@@ -269,27 +269,19 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
                 value={dob}
                 onChange={e => setDob(e.target.value)}
               />
-              <span className="form-hint">{t.profile.dob}</span>
             </div>
 
             {/* 2. Current Age */}
             <div className="form-group">
               <label className="form-label">{t.profile.age}</label>
-              <div className="form-input" style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                background: 'rgba(255, 255, 255, 0.02)',
-                userSelect: 'none'
-              }}>
-                <span style={{ fontWeight: 700, color: '#38bdf8' }}>
+              <div className="form-input age-summary">
+                <span className="age-summary-value">
                   {dob ? `${computedAge} ${t.profile.yearsUnit}` : '—'}
                 </span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                <span className="age-summary-max">
                   {format(t.profile.tanakaMaxShort, { hr: liveTanaka ?? '—' })}
                 </span>
               </div>
-              <span className="form-hint">{t.profile.age}</span>
             </div>
 
             {/* 3. Biological Gender */}
@@ -304,7 +296,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
                 <option value="Female">{t.profile.genderFemale}</option>
                 <option value="Male">{t.profile.genderMale}</option>
               </select>
-              <span className="form-hint">{t.profile.gender}</span>
             </div>
 
             {/* 4. Resting Heart Rate */}
@@ -319,7 +310,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
                 min="35"
                 max="100"
               />
-              <span className="form-hint">{t.profile.restingHr}</span>
             </div>
           </div>
         </section>
