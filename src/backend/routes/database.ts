@@ -31,6 +31,8 @@ const MAX_ENCODED_RESTORE_BYTES = 150 * 1024 * 1024;
  */
 const MAX_BINARY_RESTORE_BYTES = Number(process.env.MAX_RESTORE_BYTES) || 256 * 1024 * 1024;
 
+const AUTOMATIC_BACKUP_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+
 /** Every SQLite database file starts with this 16-byte header. */
 const SQLITE_MAGIC = 'SQLite format 3\0';
 
@@ -344,6 +346,23 @@ export function createDatabaseBackup(db: Database.Database, targetDirectory?: st
     sizeBytes: stats.size,
     createdAt
   };
+}
+
+/** Create a rolling snapshot on app startup when the latest one is at least a week old. */
+export function createAutomaticBackupIfDue(
+  db: Database.Database,
+  now = new Date()
+): ReturnType<typeof createDatabaseBackup> | null {
+  const { backupDirectory } = getBackupSettings(db);
+  const latest = listBackups(backupDirectory)[0];
+  if (latest) {
+    const latestTime = Date.parse(latest.createdAt);
+    if (Number.isFinite(latestTime) && now.getTime() - latestTime < AUTOMATIC_BACKUP_INTERVAL_MS) {
+      return null;
+    }
+  }
+
+  return createDatabaseBackup(db, backupDirectory);
 }
 
 // GET /api/database/status

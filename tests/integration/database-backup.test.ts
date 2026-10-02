@@ -7,6 +7,7 @@ import Database from 'better-sqlite3';
 import { createServer } from '../../src/backend/server.js';
 import { getDatabase } from '../../src/backend/db/client.js';
 import {
+  createAutomaticBackupIfDue,
   createDatabaseBackup,
   getBackupSettings,
   getDefaultBackupDir,
@@ -116,6 +117,59 @@ describe('Database Backup & Cloud Sync Integration Tests', () => {
 
     const backups = listBackups(rotateDir);
     expect(backups.length).toBeLessThanOrEqual(3);
+  });
+
+  it('creates an automatic snapshot when none exists in the configured folder', () => {
+    const db = getDatabase();
+    const automaticDir = path.join(testDir, 'automatic-empty');
+    const originalSettings = getBackupSettings(db);
+    const now = new Date();
+
+    try {
+      saveBackupSettings(db, { backupDirectory: automaticDir });
+
+      const backup = createAutomaticBackupIfDue(db, now);
+
+      expect(backup).not.toBeNull();
+      expect(backup?.filePath).toContain(automaticDir);
+      expect(listBackups(automaticDir)).toHaveLength(1);
+      expect(createAutomaticBackupIfDue(db, now)).toBeNull();
+    } finally {
+      saveBackupSettings(db, originalSettings);
+    }
+  });
+
+  it('waits until seven days have passed and then adds to the configured rolling snapshots', () => {
+    const db = getDatabase();
+    const automaticDir = path.join(testDir, 'automatic-aged');
+    const originalSettings = getBackupSettings(db);
+    const now = new Date();
+
+    try {
+      saveBackupSettings(db, { backupDirectory: automaticDir });
+      const existing = [
+        createDatabaseBackup(db, automaticDir),
+        createDatabaseBackup(db, automaticDir),
+        createDatabaseBackup(db, automaticDir)
+      ];
+      const recentTime = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+      for (const backup of existing) fs.utimesSync(backup.filePath, recentTime, recentTime);
+
+      expect(createAutomaticBackupIfDue(db, now)).toBeNull();
+      expect(listBackups(automaticDir)).toHaveLength(3);
+
+      const oldTime = new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000);
+      for (const backup of existing) fs.utimesSync(backup.filePath, oldTime, oldTime);
+
+      const automatic = createAutomaticBackupIfDue(db, now);
+
+      expect(automatic).not.toBeNull();
+      expect(automatic?.filePath).toContain(automaticDir);
+      expect(listBackups(automaticDir)).toHaveLength(3);
+      expect(listBackups(automaticDir).some(backup => backup.filePath === automatic?.filePath)).toBe(true);
+    } finally {
+      saveBackupSettings(db, originalSettings);
+    }
   });
 
   it('handles folder selection for valid, cancelled, and invalid choices', async () => {

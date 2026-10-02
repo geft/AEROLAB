@@ -9,7 +9,7 @@ import { thresholdsRouter } from './routes/thresholds.js';
 import { ingestRouter } from './routes/ingest.js';
 import { profileRouter } from './routes/profile.js';
 import { devRouter, snapshotDeploymentRouter } from './routes/dev.js';
-import { databaseRouter } from './routes/database.js';
+import { createAutomaticBackupIfDue, databaseRouter } from './routes/database.js';
 import { requestLogger, globalErrorHandler } from './utils/logger.js';
 import { isDevToolsEnabled } from './utils/dev-mode.js';
 import { getMaintenanceStatus, startMaintenance } from './jobs/maintenance.js';
@@ -188,6 +188,12 @@ if (process.env.NODE_ENV !== 'test') {
   const db = getDatabase();
 
   listenOnLoopback(app, PORT, () => {
+    try {
+      const backup = createAutomaticBackupIfDue(db);
+      if (backup) console.log(`🗄️ Automatic database snapshot created: ${backup.filename}`);
+    } catch (error) {
+      console.error('Automatic database snapshot failed:', error);
+    }
     startMaintenance(db.name);
     console.log(`\n🚀 Run Progress API server running at http://localhost:${PORT}`);
     if (launchToken && !process.env.AEROLAB_SESSION_TOKEN) {
