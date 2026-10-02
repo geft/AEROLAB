@@ -1,3 +1,4 @@
+import { sealFit } from '../fixtures/fit-binary.mjs';
 import { seedBenchmarkProfile } from '../fixtures/benchmark-runs.js';
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import request from 'supertest';
@@ -379,7 +380,7 @@ describe('API Server Integration Tests', () => {
     header.writeUInt32LE(payload.length, 4);
     header.write('.FIT', 8, 'ascii');
 
-    const fitBase64 = Buffer.concat([header, payload]).toString('base64');
+    const fitBase64 = sealFit(Buffer.concat([header, payload])).toString('base64');
 
     const res = await request(app)
       .post('/api/ingest/upload')
@@ -424,7 +425,7 @@ describe('API Server Integration Tests', () => {
     header.writeUInt32LE(payload.length, 4);
     header.write('.FIT', 8, 'ascii');
 
-    const fitBase64 = Buffer.concat([header, payload]).toString('base64');
+    const fitBase64 = sealFit(Buffer.concat([header, payload])).toString('base64');
 
     const res = await request(app)
       .post('/api/ingest/upload')
@@ -447,14 +448,14 @@ describe('API Server Integration Tests', () => {
     expect(res.body.error).toContain('Missing content field');
   });
 
-  it('rejects unsupported ZIP uploads with the documented response', async () => {
+  it('rejects malformed ZIP uploads with the documented response', async () => {
     const res = await request(app)
       .post('/api/ingest/upload')
       .send({ content: 'UEsDBA==', filename: 'garmin-export.zip' });
 
-    expect(res.status).toBe(415);
-    expect(res.body.code).toBe('ERR_ZIP_UNSUPPORTED');
-    expect(res.body.error).toContain('individual .fit or .csv files');
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe('ERR_ZIP_INVALID');
+    expect(res.body.error).toContain('ZIP');
   });
 
   it('stores and returns a valid Garmin import folder and rejects invalid folder paths', async () => {
@@ -510,7 +511,7 @@ describe('API Server Integration Tests', () => {
     header.writeUInt32LE(cyclePayload.length, 4);
     header.write('.FIT', 8, 'ascii');
 
-    const cycleBase64 = Buffer.concat([header, cyclePayload]).toString('base64');
+    const cycleBase64 = sealFit(Buffer.concat([header, cyclePayload])).toString('base64');
     const res = await request(app)
       .post('/api/ingest/upload')
       .send({ content: cycleBase64, filename: 'cycling.fit' });
@@ -562,7 +563,7 @@ describe('API Server Integration Tests', () => {
     header.writeUInt32LE(payload.length, 4);
     header.write('.FIT', 8, 'ascii');
 
-    const dataUri = `data:application/octet-stream;base64,${Buffer.concat([header, payload]).toString('base64')}`;
+    const dataUri = `data:application/octet-stream;base64,${sealFit(Buffer.concat([header, payload])).toString('base64')}`;
     const res = await request(app)
       .post('/api/ingest/upload')
       .send({ content: dataUri, filename: 'data_uri_workout.fit', force: true });

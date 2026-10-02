@@ -88,6 +88,7 @@ export interface ActivityDetailResponse {
   coachSummary: ActivityCoachSummary | null;
   heartRateThresholds: { lt1Hr: number | null; lt2Hr: number | null };
   pauseBreakdown: PauseBreakdown;
+  fitMetadata?: Record<string, unknown> | null;
 }
 
 /** GET /api/activities/:id/coach-summary */

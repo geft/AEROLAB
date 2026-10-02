@@ -48,7 +48,7 @@ The preferences live in `%APPDATA%\aerolab\development-database-location.json` a
 AEROLAB supports both native Garmin binary `.fit` files and exported `.csv` files:
 - **Direct FIT Decoding**: Built-in FIT binary stream parser (`fit-decoder`) decodes native compressed Garmin FIT files directly without third-party cloud uploaders.
 - **Web UI Ingestion**: Drag-and-drop CSV or FIT files are parsed **in-memory** in the browser and transmitted directly to SQLite. No raw files linger on disk.
-- **Garmin Export Folder Scan**: Point Settings to the folder where Garmin Connect or a compatible extension saves FIT/CSV exports. Use **Scan & Import** in the navbar to import new activities; duplicates and non-running files are reported and skipped. This reads local exports and does not sync with a Garmin account.
+- **Garmin Export Folder Scan**: Point Settings to your Garmin FIT, original activity ZIP, or CSV download folder. Use **Scan & Import** in the navbar to import new activities; duplicates and non-running files are reported and skipped. No extension is required. **Export Run CSV** remains available for AI analysis. See [FIT import details](docs/fit-import.md).
 - **CLI Ingestion**: The CLI importer supports the `--clean` flag, which ingests files from `data/raw/` and immediately deletes source files once safely committed to SQLite.
 - **Git Protection**: `.gitignore` strictly ignores `*.csv`, `*.fit`, and `data/*.db` to keep your git repo ultra-lightweight.
 
@@ -245,7 +245,7 @@ npm run ingest -- --clean
 ```
 
 ### Method C: Scan a Garmin export folder
-1. In **Settings → Import Garmin Runs**, choose and save the folder where Garmin Connect or a compatible extension saves FIT/CSV exports.
+1. In **Settings → Import Garmin Runs**, choose and save your Garmin FIT, original activity ZIP, or CSV download folder. No conversion or extension is required.
 2. Select **Scan & Import** in the navbar. AEROLAB imports new supported activities and reports duplicates, non-running files, and errors.
 
 ### Method D: Python Batch Ingestion Script

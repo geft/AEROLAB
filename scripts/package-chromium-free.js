@@ -119,6 +119,7 @@ copyRecursive(npmPackageSource, path.join(targetDir, 'bin', 'node_modules', 'npm
 copyRecursive(path.join(rootDir, 'dist'), path.join(targetDir, 'dist'));
 copyRecursive(path.join(rootDir, 'dist-backend'), path.join(targetDir, 'dist-backend'));
 copyRecursive(path.join(rootDir, 'dist-snapshot-template'), path.join(targetDir, 'dist-snapshot-template'));
+copyRecursive(path.join(rootDir, 'licenses'), path.join(targetDir, 'licenses'));
 
 const scriptsDest = path.join(targetDir, 'scripts');
 fs.mkdirSync(scriptsDest, { recursive: true });

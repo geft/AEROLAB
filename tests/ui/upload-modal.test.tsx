@@ -31,12 +31,12 @@ describe('UploadModal Multi-File UI Component Tests', () => {
     );
 
     expect(screen.getByText(/Import Garmin Runs/i)).toBeTruthy();
-    expect(screen.getByText(/drag & drop one or multiple/i)).toBeTruthy();
+    expect(screen.getByText(/drag & drop FIT, Garmin activity ZIP/i)).toBeTruthy();
     expect(screen.getByText(/supports multi-file batch upload/i)).toBeTruthy();
     expect(screen.getByLabelText(/overwrite \/ re-calculate if activity was already imported/i)).toBeTruthy();
   });
 
-  it('rejects non-CSV files and displays error message', async () => {
+  it('rejects unsupported files and displays error message', async () => {
     render(
       <UploadModal
         isOpen={true}
@@ -52,7 +52,7 @@ describe('UploadModal Multi-File UI Component Tests', () => {
     fireEvent.change(input, { target: { files: [badFile] } });
 
     await waitFor(() => {
-      expect(screen.getByText(/please upload \.fit or \.csv file\(s\)/i)).toBeTruthy();
+      expect(screen.getByText(/please upload FIT, Garmin activity ZIP, or CSV/i)).toBeTruthy();
     });
   });
 

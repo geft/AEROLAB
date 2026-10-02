@@ -12,7 +12,7 @@ describe('API error translation', () => {
     ['ERR_INVALID_ACTIVITY_INPUT', 'invalidActivityInput'], ['ERR_NO_FIELDS_TO_UPDATE', 'noFieldsToUpdate'],
     ['ERR_ACTIVITY_NOT_FOUND', 'activityNotFound'], ['ERR_PROFILE_NOT_FOUND', 'profileNotFound'],
     ['ERR_COACH_SUMMARY_NOT_FOUND', 'coachSummaryNotFound'], ['ERR_INVALID_RESPONSE', 'invalidResponse'],
-    ['ERR_NO_GPS', 'noGps'], ['ERR_ZIP_UNSUPPORTED', 'zipUnsupported'],
+    ['ERR_NO_GPS', 'noGps'], ['ERR_ZIP_INVALID', 'zipInvalid'],
     ['ERR_DEV_DIAGNOSTICS_FAILED', 'devDiagnosticsFailed'],
   ] as const;
 

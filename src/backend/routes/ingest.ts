@@ -3,8 +3,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { getDatabase } from '../db/client.js';
-import { importRunContent, importRunFile } from '../ingestion/importer.js';
-import { convertFitToCsv, isFitBuffer } from '../ingestion/fit-parser.js';
+import { importParsedRun, importRunContent, importRunFile } from '../ingestion/importer.js';
+import { parseRunFit, isFitBuffer, isZipBuffer } from '../ingestion/fit-parser.js';
 import { isSafeBackupDirectory, selectLocalFolder } from './database.js';
 import { logger } from '../utils/logger.js';
 
@@ -84,7 +84,7 @@ ingestRouter.post('/scan', (req, res) => {
     if (!fs.existsSync(directory) || !fs.statSync(directory).isDirectory()) {
       return res.status(400).json({ code: 'IMPORT_FOLDER_UNAVAILABLE', error: 'The selected import folder is unavailable.' });
     }
-    const files = fs.readdirSync(directory).filter(name => /\.(csv|fit)$/i.test(name));
+    const files = fs.readdirSync(directory).filter(name => /\.(csv|fit|zip)$/i.test(name));
     const results = files.map(filename => ({
       ...importRunFile(db, path.join(directory, filename)),
       filename
@@ -115,23 +115,14 @@ ingestRouter.post('/upload', (req, res) => {
       } catch { /* malformed input: caller falls back to a default */ }
     }
 
-    // ZIP archives are intentionally not supported: bulk "Export All Data" imports
-    // grow the database faster than it can be maintained. Single .fit / .csv only.
-    if (filename && filename.toLowerCase().endsWith('.zip')) {
-      return res.status(415).json({
-        error: 'ZIP archives are no longer supported. Please import individual .fit or .csv files.',
-        code: 'ERR_ZIP_UNSUPPORTED'
-      });
-    }
-
     let csvContent = content;
-    let isFit = Boolean(filename && filename.toLowerCase().endsWith('.fit'));
-    let fitBuffer: Buffer | null = rawBuffer && isFitBuffer(rawBuffer) ? rawBuffer : null;
+    let isFit = Boolean(filename && /\.(fit|zip)$/i.test(filename));
+    let fitBuffer: Buffer | null = rawBuffer && (isFitBuffer(rawBuffer) || isZipBuffer(rawBuffer)) ? rawBuffer : null;
 
     // Auto-detect algorithm based on buffer magic bytes (.FIT at offset 8)
     if (Buffer.isBuffer(content)) {
       fitBuffer = content;
-      if (isFitBuffer(fitBuffer)) isFit = true;
+      if (isFitBuffer(fitBuffer) || isZipBuffer(fitBuffer)) isFit = true;
     } else if (typeof content === 'string') {
       const rawBase64 = content.includes(';base64,') ? content.split(';base64,')[1] : content;
       if (isFit) {
@@ -145,7 +136,7 @@ ingestRouter.post('/upload', (req, res) => {
           // metadata, and decoding that plain text can accidentally look like CSV.
           if (/^[A-Za-z0-9+/]+={0,2}$/.test(rawBase64.replace(/\s/g, ''))) {
             const probe = Buffer.from(rawBase64.slice(0, 64), 'base64');
-            if (isFitBuffer(probe)) {
+            if (isFitBuffer(probe) || isZipBuffer(probe)) {
               isFit = true;
               fitBuffer = Buffer.from(rawBase64, 'base64');
             } else {
@@ -173,8 +164,8 @@ ingestRouter.post('/upload', (req, res) => {
           }
         }
 
-        const fitResult = convertFitToCsv(fitBuffer, filename || 'activity.fit');
-        if (!fitResult.csv) {
+        const fitResult = parseRunFit(fitBuffer, filename || 'activity.fit');
+        if (!fitResult) {
           return res.json({
             result: {
               status: 'skipped_non_running',
@@ -182,9 +173,12 @@ ingestRouter.post('/upload', (req, res) => {
             }
           });
         }
-        csvContent = fitResult.csv;
+        const result = importParsedRun(db, fitResult, filename || 'activity.fit', { force: Boolean(force) });
+        if (result.status === 'error') return res.status(422).json({ error: result.error, result });
+        return res.json({ result });
       } catch (fitErr: any) {
-        return res.status(422).json({ error: `FIT parser error: ${fitErr.message}`, filename });
+        return res.status(422).json({ error: `FIT parser error: ${fitErr.message}`, filename,
+          ...(/\.zip$/i.test(filename ?? '') || (fitBuffer && isZipBuffer(fitBuffer)) ? { code: 'ERR_ZIP_INVALID' } : {}) });
       }
     }
 

@@ -19,6 +19,7 @@ const COMMON_TAG_PRESETS = [
 interface ActivityDetailHeaderProps {
   act: Activity;
   records: ActivityRecord[];
+  fitMetadata?: Record<string, unknown> | null;
   getDisplayTitle: DisplayTitleFn;
   formatPace: (secKm: number | null) => string;
   formatTime: (sec: number) => string;
@@ -36,6 +37,7 @@ interface ActivityDetailHeaderProps {
 export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
   act,
   records,
+  fitMetadata,
   getDisplayTitle,
   formatPace,
   formatTime,
@@ -153,7 +155,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
 
           <button
             type="button"
-            onClick={() => downloadSessionCsv(act, records)}
+            onClick={() => downloadSessionCsv(act, records, fitMetadata)}
             className="filter-pill-btn"
             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.65rem' }}
           >

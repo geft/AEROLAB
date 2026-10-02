@@ -167,11 +167,11 @@ export const zh: Translations = {
     strideLengthShort: '步幅',
     verticalRatioShort: '垂直比',
     verticalOscShort: 'cm 振幅',
-    dropOrImportCsv: '+ 拖拽或导入新跑步数据 (FIT/CSV)',
+    dropOrImportCsv: '+ 拖拽或导入新跑步数据 (FIT / ZIP / CSV)',
     noRunsMatchingFilter: '没有符合所选筛选条件的跑步记录。',
     readyFirstRunTitle: '准备好记录您的第一次跑步',
-    readyFirstRunDesc: '您的心血管基线已校准完毕。导入 Garmin .fit 或 .csv 训练文件即可查看有氧脱钩率、跑步经济性以及训练分析。',
-    importFirstWorkoutBtn: '导入第一份训练数据 (.FIT / .CSV)',
+    readyFirstRunDesc: '您的心血管基线已校准完毕。导入 Garmin FIT 文件、原始活动 ZIP 下载文件或 CSV 文件，即可查看有氧脱钩率、跑步经济性以及训练分析。',
+    importFirstWorkoutBtn: '导入第一份训练数据 (.FIT / .ZIP / .CSV)',
     existingTags: '已有标签',
     activeCount: '生效中',
     showAll: '显示完整跑步',
@@ -508,9 +508,9 @@ export const zh: Translations = {
     saveFailed: '无法保存跑者档案。'
   },
   upload: {
-    title: '导入 Garmin 跑步记录 (FIT 或 CSV)',
-    dragDrop: '将 .fit 或 .csv 文件拖拽至此处即可批量导入',
-    selectFiles: '选择文件',
+    title: '导入 Garmin 跑步记录 (FIT、ZIP 或 CSV)',
+    dragDrop: '将 FIT、Garmin 活动 ZIP 或 CSV 文件拖拽至此处即可批量导入',
+    selectFiles: '支持批量上传 Garmin FIT、活动 ZIP 和 CSV 文件',
     overwriteTip: '若该训练已存在，强制覆盖并重新计算生理指标',
     importingCount: '正在导入训练记录...',
     importedCard: '成功导入',
@@ -525,7 +525,7 @@ export const zh: Translations = {
     batchSuccess: '批量跑步记录导入成功',
     batchWarnings: '批量导入完成（包含警告）',
     batchFailed: '批量导入失败',
-    fitCsvOnly: '请上传从 Garmin 导出的 .fit 或 .csv 跑步数据文件。',
+    fitCsvOnly: '请上传 FIT、Garmin 活动 ZIP 或 CSV 文件。每个 ZIP 必须包含一个 FIT 活动。',
     importFailed: '导入失败。',
     dupTip: '💡 提示：该训练已存在于数据库中。勾选“强制覆盖并重新计算”选项以替换。',
     skippedFiles: {
@@ -709,7 +709,7 @@ export const zh: Translations = {
   garminImport: {
     title: '导入 Garmin 跑步记录',
     modalTitle: '扫描下载文件',
-    description: '选择 Garmin Connect 扩展程序保存 FIT 或 CSV 导出的文件夹，然后扫描并导入新跑步记录。',
+    description: '从 Garmin Connect 下载 FIT 或 ZIP 格式的原始活动，再扫描下载文件夹以导入跑步记录。也支持 CSV 文件，无需安装扩展程序。',
     pickerTitle: '选择 Garmin 下载文件夹',
     folderLabel: '导入文件夹',
     chooseFolder: '选择文件夹',
@@ -721,8 +721,8 @@ export const zh: Translations = {
     chooseFolderFailed: '无法打开文件夹选择器。',
     saveFailed: '无法保存导入文件夹。',
     scanFailed: '无法扫描导入文件夹。',
-    noFiles: '此文件夹中没有找到 FIT 或 CSV 文件。',
-    filesScanned: '已检查 {count} 个 FIT 或 CSV 文件。',
+    noFiles: '此文件夹中没有找到 FIT、ZIP 或 CSV 文件。',
+    filesScanned: '已检查 {count} 个 FIT、ZIP 或 CSV 文件。',
     resultDetails: '文件结果',
     resultImported: '已导入',
     resultDuplicate: '重复',
@@ -843,7 +843,7 @@ export const zh: Translations = {
     coachSummaryNotFound: '该训练暂无教练总结。',
     invalidResponse: '本地服务器返回了意外的响应。',
     noGps: '该训练没有 GPS 数据。',
-    zipUnsupported: '不支持 ZIP 压缩包，请上传 FIT 或 CSV 文件。',
+    zipInvalid: '无法读取 Garmin ZIP。每个 ZIP 必须包含一个 FIT 活动，且解压后的大小不超过 64 MB。',
     devDiagnosticsFailed: '无法加载服务器诊断信息。'
   }
 };

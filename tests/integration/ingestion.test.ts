@@ -1,3 +1,4 @@
+import { sealFit } from '../fixtures/fit-binary.mjs';
 import { seedBenchmarkProfile } from '../fixtures/benchmark-runs.js';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
@@ -356,7 +357,7 @@ timestamp,heart_rate,cadence,speed,distance,ground_contact_time
     header.write('.FIT', 8, 'ascii');
 
     const runningFitPath = path.join(tmpDir, 'test_run.fit');
-    fs.writeFileSync(runningFitPath, Buffer.concat([header, runPayload]));
+    fs.writeFileSync(runningFitPath, sealFit(Buffer.concat([header, runPayload])));
 
     const runRes = importRunFile(db, runningFitPath);
     expect(runRes.status).toBe('imported');
@@ -379,7 +380,7 @@ timestamp,heart_rate,cadence,speed,distance,ground_contact_time
     cycleHeader.write('.FIT', 8, 'ascii');
 
     const cyclingFitPath = path.join(tmpDir, 'test_cycle.fit');
-    fs.writeFileSync(cyclingFitPath, Buffer.concat([cycleHeader, cyclePayload]));
+    fs.writeFileSync(cyclingFitPath, sealFit(Buffer.concat([cycleHeader, cyclePayload])));
 
     const cycleRes = importRunFile(db, cyclingFitPath);
     expect(cycleRes.status).toBe('skipped_non_running');

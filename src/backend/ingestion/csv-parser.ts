@@ -32,12 +32,20 @@ export interface ActivityRecord {
   stanceTime: number | null;
   stepLength?: number | null;
   fractionalCadence?: number | null;
+  power?: number | null;
+  verticalRatio?: number | null;
+  stanceTimeBalance?: number | null;
+  respirationRate?: number | null;
+  coreTemperature?: number | null;
+  fitFields?: Record<string, unknown>;
 }
 
 export interface ParsedCSV {
   fileHash: string;
   metadata: ActivityMetadata;
   records: ActivityRecord[];
+  fitMetadata?: Record<string, unknown>;
+  sourceFit?: Buffer;
 }
 
 export function parseRunCSV(content: string, filename: string): ParsedCSV {
@@ -83,8 +91,8 @@ export function parseRunCSV(content: string, filename: string): ParsedCSV {
     ? metric('Total Elapsed Time (s)') : totalDurationSeconds;
   const avgHeartRate = metric('Avg Heart Rate (bpm)', true);
   const maxHeartRate = metric('Max Heart Rate (bpm)', true);
-  const avgCadence = metric('Avg Cadence (spm)', true);
-  const maxCadence = metric('Max Cadence (spm)', true);
+  const avgCadence = metric('Avg Cadence (spm)');
+  const maxCadence = metric('Max Cadence (spm)');
   const calories = metric('Calories', true);
   const totalAscentMeters = metric('Total Ascent (m)');
   const totalDescentMeters = metric('Total Descent (m)');
@@ -109,20 +117,20 @@ export function parseRunCSV(content: string, filename: string): ParsedCSV {
   const records: ActivityRecord[] = [];
 
   if (headerIndex !== -1 && headerIndex < lines.length) {
-    const headers = lines[headerIndex].split(',').map(h => h.trim().toLowerCase());
+    const headers = splitCsvLine(lines[headerIndex]).map(h => h.trim().toLowerCase());
     
     // Header mappings
     const timeIdx = headers.indexOf('timestamp');
     const hrIdx = headers.indexOf('heart_rate');
     const cadIdx = headers.findIndex(h => h.includes('cadence'));
-    const speedIdx = headers.findIndex(h => h.includes('speed'));
+    const speedIdx = headers.includes('enhanced_speed') ? headers.indexOf('enhanced_speed') : headers.findIndex(h => h.includes('speed'));
     const distIdx = headers.indexOf('distance');
-    const altIdx = headers.findIndex(h => h.includes('altitude'));
+    const altIdx = headers.includes('enhanced_altitude') ? headers.indexOf('enhanced_altitude') : headers.findIndex(h => h.includes('altitude'));
     const latIdx = headers.findIndex(h => h.includes('lat'));
     const lonIdx = headers.findIndex(h => h.includes('long') || h.includes('lon'));
     const tempIdx = headers.indexOf('temperature');
     const vertOscIdx = headers.findIndex(h => h.includes('vertical_oscillation'));
-    const stanceIdx = headers.findIndex(h => h.includes('stance_time'));
+    const stanceIdx = headers.indexOf('stance_time');
     const stepLenIdx = headers.findIndex(h => h.includes('step_length'));
 
     let startTimestampMs = 0;
@@ -131,7 +139,7 @@ export function parseRunCSV(content: string, filename: string): ParsedCSV {
       const line = lines[i].trim();
       if (!line || line.startsWith('#')) continue;
 
-      const cols = line.split(',');
+      const cols = splitCsvLine(line);
       const tsStr = timeIdx !== -1 ? cols[timeIdx]?.trim() : '';
       if (!tsStr) continue;
 
@@ -146,7 +154,7 @@ export function parseRunCSV(content: string, filename: string): ParsedCSV {
         timestamp: tsStr,
         elapsedSeconds,
         heartRate: parseNullableInt(hrIdx !== -1 ? cols[hrIdx] : undefined),
-        cadence: parseNullableInt(cadIdx !== -1 ? cols[cadIdx] : undefined),
+        cadence: parseNullableFloat(cadIdx !== -1 ? cols[cadIdx] : undefined),
         speedMps: parseNullableFloat(speedIdx !== -1 ? cols[speedIdx] : undefined),
         distanceMeters: parseNullableFloat(distIdx !== -1 ? cols[distIdx] : undefined),
         altitudeMeters: parseNullableFloat(altIdx !== -1 ? cols[altIdx] : undefined),
@@ -155,11 +163,25 @@ export function parseRunCSV(content: string, filename: string): ParsedCSV {
         temperature: parseNullableFloat(tempIdx !== -1 ? cols[tempIdx] : undefined),
         verticalOscillation: parseNullableFloat(vertOscIdx !== -1 ? cols[vertOscIdx] : undefined),
         stanceTime: parseNullableFloat(stanceIdx !== -1 ? cols[stanceIdx] : undefined),
-        stepLength: parseNullableFloat(stepLenIdx !== -1 ? cols[stepLenIdx] : undefined)
+        stepLength: parseNullableFloat(stepLenIdx !== -1 ? cols[stepLenIdx] : undefined),
+        fractionalCadence: parseNullableFloat(cols[headers.indexOf('fractional_cadence')]),
+        power: parseNullableFloat(cols[headers.indexOf('power')]),
+        verticalRatio: parseNullableFloat(cols[headers.indexOf('vertical_ratio')]),
+        stanceTimeBalance: parseNullableFloat(cols[headers.indexOf('stance_time_balance')]),
+        respirationRate: parseNullableFloat(cols[headers.indexOf('respiration_rate')]),
+        coreTemperature: parseNullableFloat(cols[headers.indexOf('core_temperature')]),
+        fitFields: rawMeta['FIT Export Version'] ? decodeFitFields(headers, cols) : undefined,
       });
     }
   }
 
+  const fitMetadata = rawMeta['FIT Metadata'] ? JSON.parse(rawMeta['FIT Metadata']) as Record<string, unknown> : undefined;
+  repairSpeedTelemetry(records);
+  return { fileHash, metadata, records, fitMetadata };
+}
+
+/** Both native FIT and legacy CSV ingestion use the same telemetry repair. */
+export function repairSpeedTelemetry(records: ActivityRecord[]): void {
   // Detect and repair broken/flat speed telemetry (e.g. FIT exports where speed was recorded as a static cumulative average)
   if (records.length >= 20) {
     const validSpeeds = records.map(r => r.speedMps).filter((s): s is number => s !== null && s > 0);
@@ -209,7 +231,35 @@ export function parseRunCSV(content: string, filename: string): ParsedCSV {
     }
   }
 
-  return { fileHash, metadata, records };
+}
+
+/** Keep raw fields flat across repeated database CSV exports and reimports. */
+function decodeFitFields(headers: string[], cells: string[]): Record<string, unknown> {
+  const fields = Object.fromEntries(headers.map((key, index) => {
+    const value = cells[index];
+    if (value?.startsWith('{') || value?.startsWith('[')) return [key, JSON.parse(value)];
+    return [key, value === '' || value === undefined ? null : Number.isFinite(Number(value)) ? Number(value) : value];
+  }));
+  const { fit_fields: saved, ...columns } = fields;
+  return saved && typeof saved === 'object' && !Array.isArray(saved) ? { ...columns, ...saved } : columns;
+}
+
+/** RFC 4180 cells, including JSON developer fields containing commas/quotes. */
+function splitCsvLine(line: string): string[] {
+  const cells: string[] = [];
+  let cell = '';
+  let quoted = false;
+  for (let index = 0; index < line.length; index++) {
+    const char = line[index];
+    if (char === '"') {
+      if (quoted && line[index + 1] === '"') { cell += '"'; index++; }
+      else quoted = !quoted;
+    } else if (char === ',' && !quoted) { cells.push(cell); cell = ''; }
+    else cell += char;
+  }
+  if (quoted) throw new Error('Unterminated CSV quoted field');
+  cells.push(cell);
+  return cells;
 }
 
 function parseNullableFloat(val?: string): number | null {

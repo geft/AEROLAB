@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
-import { parseRunCSV } from './csv-parser';
-import { convertFitToCsv, isFitBuffer } from './fit-parser.js';
+import { parseRunCSV, type ParsedCSV } from './csv-parser';
+import { parseRunFit, isFitBuffer, isZipBuffer } from './fit-parser.js';
 import { calculateEconomy, calculateKmSplits } from '../physiology/economy.js';
 import { detectIntervals } from './interval-detector.js';
 import { classifyRun } from './classifier.js';
@@ -42,15 +42,15 @@ export function importRunFile(db: Database.Database, filePath: string, options: 
     const buffer = fs.readFileSync(filePath);
 
     // Auto-detect algorithm: Garmin FIT binary vs standard CSV
-    if (isFitBuffer(buffer) || filename.toLowerCase().endsWith('.fit')) {
-      const fitResult = convertFitToCsv(buffer, filename);
-      if (!fitResult.csv) {
+    if (isFitBuffer(buffer) || isZipBuffer(buffer) || /\.(fit|zip)$/i.test(filename)) {
+      const fitResult = parseRunFit(buffer, filename);
+      if (!fitResult) {
         return {
           status: 'skipped_non_running',
           reason: 'FIT file is not a supported running session (e.g. daily wellness, sleep, or non-running activity)'
         };
       }
-      return importRunContent(db, fitResult.csv, filename, options);
+      return importParsedRun(db, fitResult, filename, options);
     }
 
     const content = buffer.toString('utf8');
@@ -67,7 +67,14 @@ export function importRunContent(
   options: ImportOptions = {}
 ): ImportResult {
   try {
-    const parsed = parseRunCSV(content, filename);
+    return importParsedRun(db, parseRunCSV(content, filename), filename, options);
+  } catch (err: any) {
+    return { status: 'error', error: err.message };
+  }
+}
+
+export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filename: string, options: ImportOptions = {}): ImportResult {
+  try {
     const { fileHash, metadata, records } = parsed;
 
     if (!records || records.length === 0) {
@@ -200,8 +207,10 @@ export function importRunContent(
   const insertRecord = db.prepare(`
     INSERT INTO activity_records (
       activity_id, timestamp, elapsed_seconds, heart_rate, cadence,
-      speed_mps, distance_m, altitude_m, lat, lon, temp, vert_osc, stance_time
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      speed_mps, distance_m, altitude_m, lat, lon, temp, vert_osc, stance_time,
+      power_w, vertical_ratio, stance_time_balance, step_length_m,
+      respiration_rate, core_temperature_c, fractional_cadence, fit_fields_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   // Compute geographic centroid of the core workout segment (excluding warmup and cooldown)
@@ -250,6 +259,8 @@ export function importRunContent(
 
   let refreshed: { run_type: string; interval_count: number } | undefined;
   const transaction = db.transaction(() => {
+    const previousFit = existing && options.force ? db.prepare('SELECT metadata_json, source_fit FROM activity_fit_details WHERE activity_id = ?')
+      .get(existing.id) as { metadata_json: string; source_fit: Buffer | null } | undefined : undefined;
     // If force re-importing, purge old rows for this activity first
     if (existing && options.force) {
       const targetId = existing.id;
@@ -370,9 +381,18 @@ export function importRunContent(
         index === 0 ? workoutLon : null,
         r.temperature,
         r.verticalOscillation,
-        r.stanceTime
+        r.stanceTime,
+        r.power ?? null, r.verticalRatio ?? null, r.stanceTimeBalance ?? null, r.stepLength ?? null,
+        r.respirationRate ?? null, r.coreTemperature ?? null, r.fractionalCadence ?? null,
+        r.fitFields ? JSON.stringify(r.fitFields) : null
       );
     }
+
+    const fitMetadataJson = parsed.fitMetadata ? JSON.stringify(parsed.fitMetadata) : previousFit?.metadata_json;
+    if (fitMetadataJson) db.prepare(`INSERT INTO activity_fit_details (activity_id, metadata_json, source_fit)
+      VALUES (?, ?, ?) ON CONFLICT(activity_id) DO UPDATE SET metadata_json = excluded.metadata_json,
+      source_fit = COALESCE(excluded.source_fit, activity_fit_details.source_fit)`)
+      .run(metadata.id, fitMetadataJson, parsed.sourceFit ?? previousFit?.source_fit ?? null);
 
     // Threshold updates
     if (confirmed?.manual_failed_workout !== 1) evaluateThresholdUpdate(db, metadata.id, metadata.date, runType, metadata, records, economy, hrProfile);
@@ -423,7 +443,7 @@ export function importDirectory(db: Database.Database, dirPath: string, options:
   if (!fs.existsSync(dirPath)) return [];
   const files = fs.readdirSync(dirPath).filter(f => {
     const l = f.toLowerCase();
-    return l.endsWith('.csv') || l.endsWith('.fit');
+    return l.endsWith('.csv') || l.endsWith('.fit') || l.endsWith('.zip');
   });
   const results: ImportResult[] = [];
   for (const file of files) {
