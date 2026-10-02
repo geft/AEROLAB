@@ -53,7 +53,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     const allFiles = Array.from(fileList);
     const validFiles = allFiles.filter(f => {
       const l = f.name.toLowerCase();
-      return l.endsWith('.csv') || l.endsWith('.fit');
+      return l.endsWith('.csv') || l.endsWith('.fit') || l.endsWith('.zip');
     });
 
     if (validFiles.length === 0) {
@@ -89,7 +89,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
       try {
         let content: string;
-        if (file.name.toLowerCase().endsWith('.fit')) {
+        if (/\.(fit|zip)$/i.test(file.name)) {
           const buffer = await file.arrayBuffer();
           let binary = '';
           const bytes = new Uint8Array(buffer);
@@ -225,7 +225,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileSelect}
-                accept=".csv,.fit,.FIT"
+                accept=".csv,.fit,.FIT,.zip,.ZIP"
                 multiple
                 style={{ display: 'none' }}
               />

@@ -1,3 +1,4 @@
+import { sealFit } from '../fixtures/fit-binary.mjs';
 import { describe, it, expect } from 'vitest';
 import { convertFitToCsv, isFitBuffer, detectFileFormat } from '../../src/backend/ingestion/fit-parser.js';
 
@@ -54,8 +55,8 @@ describe('FIT Parser Unit Tests', () => {
     //      - Field 5 (sport): size 1, baseType 0x00 (uint8) -> 1 = running
     //      - Field 9 (total_distance): size 4, baseType 0x86 (uint32, scale 100) -> 500000 = 5000m
     //      - Field 8 (total_timer_time): size 4, baseType 0x86 (uint32, scale 1000) -> 1500000 = 1500s
-    //      - Field 44 (avg_vertical_oscillation): size 2, baseType 0x84 (uint16, scale 10) -> 820 (8.2cm)
-    //      - Field 46 (avg_stance_time): size 2, baseType 0x84 (uint16, scale 10) -> 2450 (245ms)
+    //      - Field 89 (avg_vertical_oscillation): size 2, baseType 0x84 (uint16, scale 10) -> 820 (8.2cm)
+    //      - Field 91 (avg_stance_time): size 2, baseType 0x84 (uint16, scale 10) -> 2450 (245ms)
     const defSession = [
       0x40, // record header
       0x00, // reserved
@@ -67,8 +68,8 @@ describe('FIT Parser Unit Tests', () => {
       5, 1, 0x00,   // sport (1 = running)
       9, 4, 0x86,   // total_distance
       8, 4, 0x86,   // total_timer_time
-      44, 2, 0x84,  // avg_vertical_oscillation
-      46, 2, 0x84   // avg_stance_time
+      89, 2, 0x84,  // avg_vertical_oscillation
+      91, 2, 0x84   // avg_stance_time
     ];
 
     // Data Message for Session:
@@ -138,7 +139,7 @@ describe('FIT Parser Unit Tests', () => {
     header.write('.FIT', 8, 'ascii'); // signature
     header.writeUInt16LE(0, 12); // CRC
 
-    const fitBuffer = Buffer.concat([header, dataPayload]);
+    const fitBuffer = sealFit(Buffer.concat([header, dataPayload]));
 
     const result = convertFitToCsv(fitBuffer, 'workout_run_2026.fit');
 
@@ -182,7 +183,7 @@ describe('FIT Parser Unit Tests', () => {
     header.writeUInt32LE(dataPayload.length, 4);
     header.write('.FIT', 8, 'ascii');
 
-    const fitBuffer = Buffer.concat([header, dataPayload]);
+    const fitBuffer = sealFit(Buffer.concat([header, dataPayload]));
     const result = convertFitToCsv(fitBuffer, 'cycling.fit');
 
     expect(result.isRunning).toBe(false);

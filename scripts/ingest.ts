@@ -33,7 +33,7 @@ function runIngestion() {
   console.log(`\n📂 Scanning folder for CSV & FIT files: ${rawDir}`);
   const allFiles = fs.readdirSync(rawDir).filter(f => {
     const l = f.toLowerCase();
-    return l.endsWith('.csv') || l.endsWith('.fit');
+    return l.endsWith('.csv') || l.endsWith('.fit') || l.endsWith('.zip');
   });
 
   console.log(`Found ${allFiles.length} file(s) to process.\n--- Ingestion Results ---`);

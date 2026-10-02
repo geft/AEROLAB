@@ -66,6 +66,30 @@ describe('named database migrations', () => {
     db.close();
   });
 
+  it('adds native FIT telemetry columns to an existing database without losing its runs', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aerolab-fit-migration-'));
+    roots.push(root);
+    const file = path.join(root, 'runs.db');
+    const first = openDatabase(file);
+    seedBenchmarkProfile(first);
+    const bench = getBenchmark('bench-easy-60');
+    expect(importRunContent(first, toCsv(bench), 'run.csv').status).toBe('imported');
+    const count = (first.prepare('SELECT count(*) AS count FROM activity_records').get() as { count: number }).count;
+    for (const name of ['power_w', 'vertical_ratio', 'stance_time_balance', 'step_length_m', 'respiration_rate', 'core_temperature_c', 'fractional_cadence', 'fit_fields_json']) {
+      first.exec(`ALTER TABLE activity_records DROP COLUMN ${name}`);
+    }
+    first.exec('DROP TABLE activity_fit_details');
+    first.prepare("DELETE FROM schema_migrations WHERE name = 'fit-telemetry-v2'").run();
+    first.close();
+    const migrated = openDatabase(file);
+    expect((migrated.prepare('SELECT count(*) AS count FROM activity_records').get() as { count: number }).count).toBe(count);
+    const columns = (migrated.prepare('PRAGMA table_info(activity_records)').all() as Array<{ name: string }>).map(column => column.name);
+    expect(columns).toContain('power_w');
+    expect(columns).toContain('fit_fields_json');
+    expect(migrated.prepare('SELECT count(*) AS count FROM activity_fit_details').get()).toEqual({ count: 0 });
+    migrated.close();
+  });
+
   it('rebuilds stale title-derived analysis once and preserves the activity name', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aerolab-signal-migration-'));
     roots.push(root);

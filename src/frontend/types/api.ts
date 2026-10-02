@@ -91,6 +91,14 @@ export interface ActivityRecord {
   temp?: number | null;
   vert_osc?: number | null;
   stance_time?: number | null;
+  power_w?: number | null;
+  vertical_ratio?: number | null;
+  stance_time_balance?: number | null;
+  step_length_m?: number | null;
+  fractional_cadence?: number | null;
+  respiration_rate?: number | null;
+  core_temperature_c?: number | null;
+  fit_fields_json?: string | null;
 }
 
 /** One itemised line in the execution score. */
@@ -212,6 +220,7 @@ export interface ActivityDetailResponse {
   coachSummary: CoachSummary | null;
   heartRateThresholds?: { lt1Hr: number | null; lt2Hr: number | null } | null;
   weather?: ActivityWeather | null;
+  fitMetadata?: Record<string, unknown> | null;
 }
 
 /** A calibration point in the threshold history. */

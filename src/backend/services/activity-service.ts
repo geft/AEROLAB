@@ -520,7 +520,11 @@ export function getActivityDetailService(db: Database.Database, id: string, opti
     records,
     coachSummary: (coachSummary as ActivityCoachSummary) || null,
     heartRateThresholds: { lt1Hr, lt2Hr },
-    pauseBreakdown
+    pauseBreakdown,
+    fitMetadata: (() => {
+      const row = db.prepare('SELECT metadata_json FROM activity_fit_details WHERE activity_id = ?').get(id) as { metadata_json: string } | undefined;
+      return row ? JSON.parse(row.metadata_json) as Record<string, unknown> : null;
+    })()
   };
 }
 

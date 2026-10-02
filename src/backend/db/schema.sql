@@ -122,10 +122,26 @@ CREATE TABLE IF NOT EXISTS activity_records (
   temp REAL,
   vert_osc REAL,
   stance_time REAL,
+  power_w REAL,
+  vertical_ratio REAL,
+  stance_time_balance REAL,
+  step_length_m REAL,
+  respiration_rate REAL,
+  core_temperature_c REAL,
+  fractional_cadence REAL,
+  fit_fields_json TEXT,
   FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_records_activity ON activity_records(activity_id, elapsed_seconds);
+
+-- Original FIT and additional decoded messages remain local and reprocessable.
+CREATE TABLE IF NOT EXISTS activity_fit_details (
+  activity_id TEXT PRIMARY KEY,
+  metadata_json TEXT NOT NULL,
+  source_fit BLOB,
+  FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE
+);
 
 CREATE TABLE IF NOT EXISTS physiological_thresholds (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

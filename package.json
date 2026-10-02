@@ -40,9 +40,11 @@
     "process:fit": "tsx scripts/batch-process-fit.ts"
   },
   "dependencies": {
+    "@garmin/fitsdk": "21.217.0",
     "better-sqlite3": "^13.0.3",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "fflate": "0.8.3",
     "lucide-react": "^1.16.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

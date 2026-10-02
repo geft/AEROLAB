@@ -76,6 +76,18 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
   const migrations = createMigrationRunner(db);
   const deferDerivedMigrations = process.env.AEROLAB_DEFER_MIGRATIONS === '1';
 
+  migrations.run('fit-telemetry-v2', () => {
+    const existing = new Set((db.prepare('PRAGMA table_info(activity_records)').all() as Array<{ name: string }>).map(column => column.name));
+    for (const name of ['power_w', 'vertical_ratio', 'stance_time_balance', 'step_length_m', 'respiration_rate', 'core_temperature_c', 'fractional_cadence']) {
+      if (!existing.has(name)) db.exec(`ALTER TABLE activity_records ADD COLUMN ${name} REAL`);
+    }
+    if (!existing.has('fit_fields_json')) db.exec('ALTER TABLE activity_records ADD COLUMN fit_fields_json TEXT');
+    db.exec(`CREATE TABLE IF NOT EXISTS activity_fit_details (
+      activity_id TEXT PRIMARY KEY, metadata_json TEXT NOT NULL, source_fit BLOB,
+      FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE
+    )`);
+  });
+
   migrations.run('confirmed-workout-intent-v1', () => {
     const columns = new Set((db.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>).map(column => column.name));
     if (!columns.has('manual_run_type')) db.exec('ALTER TABLE activities ADD COLUMN manual_run_type TEXT');

@@ -167,11 +167,11 @@ export const en: Translations = {
     strideLengthShort: 'Stride',
     verticalRatioShort: 'VR',
     verticalOscShort: 'cm Osc',
-    dropOrImportCsv: '+ Drop or Import New Run CSV',
+    dropOrImportCsv: '+ Drop or Import New Run (FIT / ZIP / CSV)',
     noRunsMatchingFilter: 'No runs matching selected filter.',
     readyFirstRunTitle: 'Ready for Your First Run',
-    readyFirstRunDesc: 'Your cardiovascular baselines are calibrated and ready. Import your Garmin .fit or .csv workout files to inspect aerobic decoupling, running economy, and session analysis.',
-    importFirstWorkoutBtn: 'Import First Workout (.FIT / .CSV)',
+    readyFirstRunDesc: 'Your cardiovascular baselines are calibrated and ready. Import Garmin FIT files, original activity ZIP downloads, or CSV files to inspect aerobic decoupling, running economy, and session analysis.',
+    importFirstWorkoutBtn: 'Import First Workout (.FIT / .ZIP / .CSV)',
     existingTags: 'Existing Tags',
     activeCount: 'active',
     showAll: 'Show Full Run',
@@ -498,9 +498,9 @@ export const en: Translations = {
     saveFailed: 'Failed to save the athlete profile.'
   },
   upload: {
-    title: 'Import Garmin Runs (FIT or CSV)',
-    dragDrop: 'Drag & Drop one or multiple FIT or CSV files here',
-    selectFiles: 'Supports multi-file batch upload — native Garmin .FIT and exported .CSV',
+    title: 'Import Garmin Runs (FIT, ZIP or CSV)',
+    dragDrop: 'Drag & Drop FIT, Garmin activity ZIP, or CSV files here',
+    selectFiles: 'Supports multi-file batch upload — Garmin FIT, activity ZIP, and CSV files',
     overwriteTip: 'Overwrite / re-calculate if activity was already imported',
     importingCount: 'Importing workouts...',
     importedCard: 'Imported',
@@ -515,7 +515,7 @@ export const en: Translations = {
     batchSuccess: 'Batch Ingestion Completed Successfully',
     batchWarnings: 'Batch Ingestion Completed with Warnings',
     batchFailed: 'Batch Ingestion Failed',
-    fitCsvOnly: 'Please upload .fit or .csv file(s) exported from your Garmin device or run-parser.',
+    fitCsvOnly: 'Please upload FIT, Garmin activity ZIP, or CSV files. Each ZIP must contain one FIT activity.',
     importFailed: 'Import failed.',
     dupTip: '💡 Tip: This activity already exists in the database. Enable the "Overwrite / re-calculate" option to replace it.',
     skippedFiles: {
@@ -699,7 +699,7 @@ export const en: Translations = {
   garminImport: {
     title: 'Import Garmin Runs',
     modalTitle: 'Scan Downloads',
-    description: 'Choose the folder where your Garmin Connect extension saves FIT or CSV exports, then scan it to import new runs.',
+    description: 'Download original activities from Garmin Connect as FIT or ZIP files, then scan their folder to import new runs. CSV files are also supported; no extension is required.',
     pickerTitle: 'Choose Garmin download folder',
     folderLabel: 'Import folder',
     chooseFolder: 'Choose folder',
@@ -711,8 +711,8 @@ export const en: Translations = {
     chooseFolderFailed: 'Could not open the folder chooser.',
     saveFailed: 'Could not save the import folder.',
     scanFailed: 'Could not scan the import folder.',
-    noFiles: 'No FIT or CSV files found in this folder.',
-    filesScanned: 'Checked {count} FIT or CSV files.',
+    noFiles: 'No FIT, ZIP, or CSV files found in this folder.',
+    filesScanned: 'Checked {count} FIT, ZIP, or CSV files.',
     resultDetails: 'File results',
     resultImported: 'Imported',
     resultDuplicate: 'Duplicate',
@@ -815,7 +815,7 @@ export const en: Translations = {
     coachSummaryNotFound: 'No coach summary is available for this workout.',
     invalidResponse: 'The local server returned an unexpected response.',
     noGps: 'This workout has no GPS data.',
-    zipUnsupported: 'ZIP archives are not supported. Please upload a FIT or CSV file.',
+    zipInvalid: 'Could not read the Garmin ZIP. Each ZIP must contain one FIT activity and be no larger than 64 MB when extracted.',
     devDiagnosticsFailed: 'Server diagnostics could not be loaded.'
   }
 };

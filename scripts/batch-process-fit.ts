@@ -1,8 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { getDatabase } from '../src/backend/db/client.js';
-import { convertFitToCsv } from '../src/backend/ingestion/fit-parser.js';
-import { importRunContent } from '../src/backend/ingestion/importer.js';
+import { convertFitToCsv, parseRunFit } from '../src/backend/ingestion/fit-parser.js';
+import { importParsedRun } from '../src/backend/ingestion/importer.js';
+import type { ParsedCSV } from '../src/backend/ingestion/csv-parser.js';
 
 interface BatchOptions {
   force?: boolean;
@@ -34,7 +35,7 @@ export function runBatchProcessing(options: BatchOptions = {}) {
 
   const fitFiles = fs
     .readdirSync(fitDir)
-    .filter(f => f.toLowerCase().endsWith('.fit'))
+    .filter(f => /\.(fit|zip)$/i.test(f))
     .sort();
 
   console.log(`📂 Found ${fitFiles.length} .fit files in ${fitDir}\n`);
@@ -73,6 +74,7 @@ export function runBatchProcessing(options: BatchOptions = {}) {
     fitFile: string;
     csvFile: string;
     csvContent: string;
+    nativeData: ParsedCSV;
     dateStr: string;
     distanceKm: number;
     durationMin: number;
@@ -105,7 +107,7 @@ export function runBatchProcessing(options: BatchOptions = {}) {
       }
 
       convertedCount++;
-      const csvFileName = file.replace(/\.fit$/i, '.csv');
+      const csvFileName = file.replace(/\.(fit|zip)$/i, '.csv');
       const csvFilePath = path.join(csvDir, csvFileName);
 
       if (!dryRun && parsed.csv) {
@@ -116,6 +118,7 @@ export function runBatchProcessing(options: BatchOptions = {}) {
         fitFile: file,
         csvFile: csvFileName,
         csvContent: parsed.csv!,
+        nativeData: parseRunFit(buffer, file, matchInfo?.id, matchInfo?.name)!,
         dateStr: parsed.dateStr,
         distanceKm: Number((parsed.distanceM / 1000).toFixed(2)),
         durationMin: Number((parsed.durationS / 60).toFixed(1)),
@@ -154,7 +157,7 @@ export function runBatchProcessing(options: BatchOptions = {}) {
     const w = runningWorkouts[i];
 
     try {
-      const res = importRunContent(db, w.csvContent, w.csvFile, { force });
+      const res = importParsedRun(db, w.nativeData, w.fitFile, { force });
 
       if (res.status === 'imported') {
         importedCount++;

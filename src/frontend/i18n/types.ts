@@ -878,7 +878,7 @@ export interface Translations {
     coachSummaryNotFound: string;
     invalidResponse: string;
     noGps: string;
-    zipUnsupported: string;
+    zipInvalid: string;
     devDiagnosticsFailed: string;
   };
 }

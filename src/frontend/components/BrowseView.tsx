@@ -549,6 +549,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
             <ActivityDetailHeader
               act={act}
               records={detailData.records}
+              fitMetadata={detailData.fitMetadata}
               getDisplayTitle={getDisplayTitle}
               formatPace={formatPace}
               formatTime={formatTime}
