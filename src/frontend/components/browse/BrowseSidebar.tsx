@@ -358,7 +358,7 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
       </div>
 
       {!readOnly && <button type="button" className="dropzone-inline" onClick={onOpenUpload}>
-        {t.browse.dropOrImportCsv}
+        {t.browse.dropOrImportRun}
       </button>}
     </aside>
   );

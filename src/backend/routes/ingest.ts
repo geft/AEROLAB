@@ -3,7 +3,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { getDatabase } from '../db/client.js';
-import { importParsedRun, importRunContent, importRunFile } from '../ingestion/importer.js';
+import { importParsedRun, importRunFile } from '../ingestion/importer.js';
 import { parseRunFit, isFitBuffer, isZipBuffer } from '../ingestion/fit-parser.js';
 import { isSafeBackupDirectory, selectLocalFolder } from './database.js';
 import { logger } from '../utils/logger.js';
@@ -84,7 +84,7 @@ ingestRouter.post('/scan', (req, res) => {
     if (!fs.existsSync(directory) || !fs.statSync(directory).isDirectory()) {
       return res.status(400).json({ code: 'IMPORT_FOLDER_UNAVAILABLE', error: 'The selected import folder is unavailable.' });
     }
-    const files = fs.readdirSync(directory).filter(name => /\.(csv|fit|zip)$/i.test(name));
+    const files = fs.readdirSync(directory).filter(name => /\.(fit|zip)$/i.test(name));
     const results = files.map(filename => ({
       ...importRunFile(db, path.join(directory, filename)),
       filename
@@ -95,100 +95,32 @@ ingestRouter.post('/scan', (req, res) => {
   }
 });
 
-// POST /api/ingest/upload - upload a single CSV or FIT run
+// POST /api/ingest/upload - native FIT or single-activity Garmin ZIP
 ingestRouter.post('/upload', (req, res) => {
   const { content, filename, force } = req.body;
+  if (!content) return res.status(400).json({ error: 'Missing content field' });
+  if (!Buffer.isBuffer(content) && typeof content !== 'string') {
+    return res.status(400).json({ error: 'Invalid FIT content format' });
+  }
+  const buffer = Buffer.isBuffer(content) ? content : Buffer.from(
+    content.includes(';base64,') ? content.split(';base64,')[1] : content, 'base64');
+  const nativeExtension = typeof filename === 'string' && /\.(fit|zip)$/i.test(filename);
+  if (!nativeExtension && !isFitBuffer(buffer) && !isZipBuffer(buffer)) {
+    return res.status(415).json({ code: 'ERR_IMPORT_FORMAT', error: 'Import a FIT or Garmin activity ZIP file. CSV is available for export only.' });
+  }
   try {
-    const db = getDatabase();
-    if (!content) {
-      return res.status(400).json({ error: 'Missing content field' });
-    }
-
-    // Decode buffer if provided as base64 string
-    let rawBuffer: Buffer | null = null;
-    if (Buffer.isBuffer(content)) {
-      rawBuffer = content;
-    } else if (typeof content === 'string') {
-      const rawBase64 = content.includes(';base64,') ? content.split(';base64,')[1] : content;
-      try {
-        rawBuffer = Buffer.from(rawBase64, 'base64');
-      } catch { /* malformed input: caller falls back to a default */ }
-    }
-
-    let csvContent = content;
-    let isFit = Boolean(filename && /\.(fit|zip)$/i.test(filename));
-    let fitBuffer: Buffer | null = rawBuffer && (isFitBuffer(rawBuffer) || isZipBuffer(rawBuffer)) ? rawBuffer : null;
-
-    // Auto-detect algorithm based on buffer magic bytes (.FIT at offset 8)
-    if (Buffer.isBuffer(content)) {
-      fitBuffer = content;
-      if (isFitBuffer(fitBuffer) || isZipBuffer(fitBuffer)) isFit = true;
-    } else if (typeof content === 'string') {
-      const rawBase64 = content.includes(';base64,') ? content.split(';base64,')[1] : content;
-      if (isFit) {
-        try {
-          fitBuffer = Buffer.from(rawBase64, 'base64');
-        } catch { /* malformed input: caller falls back to a default */ }
-      } else {
-        // Probe if string is base64-encoded FIT binary or base64-encoded CSV
-        try {
-          // Only decode actual base64. Garmin CSV exports can start with '#'
-          // metadata, and decoding that plain text can accidentally look like CSV.
-          if (/^[A-Za-z0-9+/]+={0,2}$/.test(rawBase64.replace(/\s/g, ''))) {
-            const probe = Buffer.from(rawBase64.slice(0, 64), 'base64');
-            if (isFitBuffer(probe) || isZipBuffer(probe)) {
-              isFit = true;
-              fitBuffer = Buffer.from(rawBase64, 'base64');
-            } else {
-              // Decode base64 to check if it represents CSV text
-              const decoded = Buffer.from(rawBase64, 'base64').toString('utf8');
-              if (decoded.includes(',') && (decoded.includes('\n') || decoded.includes('\r'))) {
-                csvContent = decoded;
-              }
-            }
-          }
-        } catch { /* malformed input: caller falls back to a default */ }
-      }
-    }
-
-    if (isFit) {
-      try {
-        if (!fitBuffer) {
-          if (Buffer.isBuffer(content)) {
-            fitBuffer = content;
-          } else if (typeof content === 'string') {
-            const rawBase64 = content.includes(';base64,') ? content.split(';base64,')[1] : content;
-            fitBuffer = Buffer.from(rawBase64, 'base64');
-          } else {
-            return res.status(400).json({ error: 'Invalid FIT content format' });
-          }
-        }
-
-        const fitResult = parseRunFit(fitBuffer, filename || 'activity.fit');
-        if (!fitResult) {
-          return res.json({
-            result: {
-              status: 'skipped_non_running',
-              reason: 'FIT file is not a supported running session (e.g. daily wellness, sleep, or non-running activity)'
-            }
-          });
-        }
-        const result = importParsedRun(db, fitResult, filename || 'activity.fit', { force: Boolean(force) });
-        if (result.status === 'error') return res.status(422).json({ error: result.error, result });
-        return res.json({ result });
-      } catch (fitErr: any) {
-        return res.status(422).json({ error: `FIT parser error: ${fitErr.message}`, filename,
-          ...(/\.zip$/i.test(filename ?? '') || (fitBuffer && isZipBuffer(fitBuffer)) ? { code: 'ERR_ZIP_INVALID' } : {}) });
-      }
-    }
-
-    const result = importRunContent(db, csvContent, filename || 'uploaded_run.csv', { force: Boolean(force) });
-    if (result.status === 'error') {
-      return res.status(422).json({ error: result.error || 'Failed to process run content', result });
-    }
-    res.json({ result });
-  } catch (err: any) {
-    logger.error('Ingest', `Failed to import "${filename || 'unknown'}"`, err);
-    res.status(500).json({ error: err.message || 'Server error during ingestion', filename });
+    const parsed = parseRunFit(buffer, filename || 'activity.fit');
+    if (!parsed) return res.json({ result: {
+      status: 'skipped_non_running',
+      reason: 'FIT file is not a supported running session (e.g. daily wellness, sleep, or non-running activity)'
+    } });
+    const result = importParsedRun(getDatabase(), parsed, filename || 'activity.fit', { force: Boolean(force) });
+    if (result.status === 'error') return res.status(422).json({ error: result.error, result });
+    return res.json({ result });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error('Ingest', `Failed to import "${filename || 'unknown'}"`, error);
+    return res.status(422).json({ error: `FIT parser error: ${message}`, filename,
+      ...(/\.zip$/i.test(filename ?? '') || isZipBuffer(buffer) ? { code: 'ERR_ZIP_INVALID' } : {}) });
   }
 });

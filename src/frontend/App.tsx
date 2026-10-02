@@ -53,7 +53,9 @@ export const App: React.FC = () => {
   const [isConfigured, setIsConfigured] = useState<boolean | null>(SNAPSHOT_MODE ? true : null);
   const [snapshotGeneratedAt, setSnapshotGeneratedAt] = useState<string | null>(null);
   const [snapshotReady, setSnapshotReady] = useState<boolean>(!SNAPSHOT_MODE);
-  const [, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [historyLoadFailed, setHistoryLoadFailed] = useState(false);
+  const [profileLoadFailed, setProfileLoadFailed] = useState(false);
 
   // Theme state: persisted in localStorage, defaults to dark
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -111,10 +113,13 @@ export const App: React.FC = () => {
         const p = data?.profile;
         const configured = data?.isConfigured === true && p?.is_configured !== 0 && !!p?.resting_hr && (!!p?.dob || !!p?.age);
         setIsConfigured(configured);
+        setProfileLoadFailed(false);
         localStorage.setItem('aerolab_profile_configured', String(configured));
       }
     } catch (err) {
       console.error('Failed to check profile configuration status:', err);
+      setProfileLoadFailed(true);
+      setLoading(false);
       const cached = localStorage.getItem('aerolab_profile_configured');
       setIsConfigured(cached === 'true');
     }
@@ -126,9 +131,11 @@ export const App: React.FC = () => {
       const data = await listActivities();
       const list = data.activities;
       setActivities(list);
+      setHistoryLoadFailed(false);
       setSelectedActivityId(resolveSelectedActivityId(list, preferredSelectedId, selectedActivityId));
     } catch (err) {
       console.error('Failed to load activities:', err);
+      setHistoryLoadFailed(true);
       clientLogger.error('App', 'Failed to load activities', { error: String(err) });
     } finally {
       setLoading(false);
@@ -141,10 +148,13 @@ export const App: React.FC = () => {
         .then(([metadata, data]) => {
           setSnapshotGeneratedAt(metadata.generatedAt);
           setActivities(data.activities);
+          setLoading(false);
           setSelectedActivityId(resolveSelectedActivityId(data.activities));
         })
         .catch(error => {
           console.error('Failed to load snapshot:', error);
+          setHistoryLoadFailed(true);
+          setLoading(false);
           clientLogger.error('App', 'Failed to load snapshot', { error: String(error) });
         })
         .finally(() => setSnapshotReady(true));
@@ -191,8 +201,24 @@ export const App: React.FC = () => {
     setActivityDataVersion(version => version + 1);
   };
 
-  // Keep the empty dashboard hidden until its initial data is ready.
-  if (isConfigured === null || !snapshotReady) {
+  if (profileLoadFailed || (historyLoadFailed && activities.length === 0)) {
+    return (
+      <div className="app-container">
+        <main className="main-content">
+          <section className="overview-card" role="alert">
+            <p>{t.browse.historyLoadFailed}</p>
+            <button type="button" onClick={() => {
+              if (!SNAPSHOT_MODE) void checkProfileConfigured();
+              void fetchActivities();
+            }}>{t.common.retry}</button>
+          </section>
+        </main>
+      </div>
+    );
+  }
+
+  // An empty dashboard is meaningful only after its history request succeeds.
+  if (isConfigured === null || !snapshotReady || (isConfigured && loading && activities.length === 0)) {
     return (
       <div style={{
         minHeight: '100vh',

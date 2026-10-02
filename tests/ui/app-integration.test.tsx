@@ -221,6 +221,37 @@ describe('AEROLAB App Full Integration Tests', () => {
     });
   });
 
+  it('shows a retryable history error instead of claiming the database is empty', async () => {
+    const fetchMock = vi.mocked(globalThis.fetch);
+    const normalFetch = fetchMock.getMockImplementation()!;
+    let historyUnavailable = true;
+    fetchMock.mockImplementation(async (url, options) => {
+      if (String(url) === '/api/activities' && historyUnavailable) {
+        throw new TypeError('Backend unavailable');
+      }
+      return normalFetch(url, options);
+    });
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Could not load your run history'));
+    expect(screen.queryByText('Ready for Your First Run')).toBeNull();
+    historyUnavailable = false;
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+    await waitFor(() => expect(screen.getByText('Easy Aerobic Base')).toBeTruthy());
+  });
+
+  it('shows a retryable error when the profile API is unreachable, without opening onboarding', async () => {
+    const fetchMock = vi.mocked(globalThis.fetch);
+    const normalFetch = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url, options) => {
+      if (String(url).includes('/api/profile')) throw new TypeError('Backend unavailable');
+      return normalFetch(url, options);
+    });
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
+    expect(screen.queryByText('Ready for Your First Run')).toBeNull();
+    expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy();
+  });
+
   it('resets scroll position when switching main tabs', async () => {
     render(<App />);
     await waitFor(() => expect(screen.getAllByText('AEROLAB').length).toBeGreaterThanOrEqual(1));
@@ -272,7 +303,7 @@ describe('AEROLAB App Full Integration Tests', () => {
     expect(themeBtn.textContent).toContain('Day Mode');
   });
 
-  it('opens and closes the multi-file Upload CSV modal from navbar', async () => {
+  it('opens and closes the multi-file FIT/ZIP modal from navbar', async () => {
     render(<App />);
 
     await waitFor(() => {
@@ -293,7 +324,7 @@ describe('AEROLAB App Full Integration Tests', () => {
     fireEvent.click(closeBtn!);
 
     await waitFor(() => {
-      expect(screen.queryByText('Import Garmin Run CSVs')).toBeNull();
+      expect(screen.queryByText('Import Garmin Runs (FIT or ZIP)')).toBeNull();
     });
   });
 

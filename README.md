@@ -1,6 +1,6 @@
 # AEROLAB 🏃‍♂️ — Physiological Running Analytics
 
-A local-first, high-performance running analytics platform and dashboard designed to ingest Garmin run data (both native `.fit` binary files and exported `.csv` files), store it in a single embedded SQLite database, and track real-time physiological adaptations over time:
+A local-first, high-performance running analytics platform and dashboard designed to ingest Garmin run data from native `.fit` files or activity `.zip` downloads, store it in a single embedded SQLite database, export CSV for analysis, and track real-time physiological adaptations over time:
 
 - **LT1 (Aerobic Threshold / VT1)** pace and heart rate progression
 - **LT2 (Lactate / Anaerobic Threshold / VT2)** pace and heart rate progression with dynamic turnpoint modeling
@@ -15,7 +15,7 @@ A local-first, high-performance running analytics platform and dashboard designe
 - **Period Progress & Training Volume**: Monthly and annual mileage breakdowns, weekly volume cadence, and 5-zone cardiovascular distribution
 - **Calibrated Race Predictions**: Jack Daniels VDOT and Critical Velocity projections for 5K, 10K, Half Marathon, and Marathon based on empirical physiological thresholds
 - **Training Load & Best Efforts**: 7-day acute load against a 28-day baseline, plus all-time and current-year best efforts and age- and gender-based race benchmarks
-- **Garmin Export Folder Scan**: Import new FIT or CSV exports from a configured local folder, with duplicate and non-run detection
+- **Garmin Export Folder Scan**: Import new FIT or Garmin activity ZIP exports from a configured local folder, with duplicate and non-run detection
 - **Installable Phone Snapshot**: Export a read-only dashboard for a phone and optionally deploy it to a protected Vercel project
 - **Ultra-Lightweight Standalone Windows App**: Compact native Windows installer (`AEROLAB-Setup-v<version>.exe`) running in isolated App Mode using your existing Chrome or Edge browser (0 MB Chromium bloat)
 
@@ -44,11 +44,11 @@ npm run db:location -- "$env:APPDATA\aerolab\runs.db"
 
 The preferences live in `%APPDATA%\aerolab\development-database-location.json` and `%APPDATA%\aerolab\desktop-database-location.json`. Run `npm run db:location` without a path to see the development location. Selecting an existing file changes which database an app opens; it does not merge histories. A `DATABASE_PATH` environment variable overrides that app's saved preference.
 
-### 2. Dual Ingestion: Native FIT & CSV Support with Zero Raw Bloat
-AEROLAB supports both native Garmin binary `.fit` files and exported `.csv` files:
-- **Direct FIT Decoding**: Built-in FIT binary stream parser (`fit-decoder`) decodes native compressed Garmin FIT files directly without third-party cloud uploaders.
-- **Web UI Ingestion**: Drag-and-drop CSV or FIT files are parsed **in-memory** in the browser and transmitted directly to SQLite. No raw files linger on disk.
-- **Garmin Export Folder Scan**: Point Settings to your Garmin FIT, original activity ZIP, or CSV download folder. Use **Scan & Import** in the navbar to import new activities; duplicates and non-running files are reported and skipped. No extension is required. **Export Run CSV** remains available for AI analysis. See [FIT import details](docs/fit-import.md).
+### 2. Native Garmin FIT & ZIP Imports
+AEROLAB imports Garmin binary `.fit` files and original activity `.zip` downloads:
+- **Direct FIT Decoding**: Garmin's pinned FIT SDK decodes activities locally. Original FIT bytes and additional telemetry are retained in SQLite.
+- **Web UI Ingestion**: Drag and drop FIT or activity ZIP files for local, in-memory ingestion. CSV is available for export only.
+- **Garmin Export Folder Scan**: Point Settings to your Garmin FIT or original activity ZIP download folder. Use **Scan & Import** in the navbar to import new activities; duplicates and non-running files are reported and skipped. No extension is required. **Export CSV** remains available for AI analysis. See [FIT import details](docs/fit-import.md).
 - **CLI Ingestion**: The CLI importer supports the `--clean` flag, which ingests files from `data/raw/` and immediately deletes source files once safely committed to SQLite.
 - **Git Protection**: `.gitignore` strictly ignores `*.csv`, `*.fit`, and `data/*.db` to keep your git repo ultra-lightweight.
 
@@ -230,12 +230,12 @@ AEROLAB offers multiple flexible ways to populate your running history:
 
 ### Method A: Drag & Drop in the Web Dashboard (Recommended)
 1. Open `http://localhost:5173` (or launch the desktop app).
-2. Click the **"Import FIT / CSV"** button in the navigation bar.
-3. Drag and drop **one or multiple `.fit` or `.csv` files** (batch multi-file upload supported).
+2. Click the **"Import FIT / ZIP"** button in the navigation bar.
+3. Drag and drop **one or multiple `.fit` or `.zip` files** (batch multi-file upload supported).
 4. Ingestion runs in-memory directly into SQLite with SHA-256 deduplication and an optional overwrite toggle. No raw files linger on disk.
 
-### Method B: Terminal Ingestion CLI (FIT & CSV)
-Drop any `.fit` or `.csv` files into `data/raw/` or specify a single file/folder, and run:
+### Method B: Terminal Ingestion CLI (FIT & ZIP)
+Drop any `.fit` or `.zip` files into `data/raw/` or specify a single file/folder, and run:
 ```bash
 npm run ingest
 ```
@@ -245,7 +245,7 @@ npm run ingest -- --clean
 ```
 
 ### Method C: Scan a Garmin export folder
-1. In **Settings → Import Garmin Runs**, choose and save your Garmin FIT, original activity ZIP, or CSV download folder. No conversion or extension is required.
+1. In **Settings → Import Garmin Runs**, choose and save your Garmin FIT or original activity ZIP download folder. No conversion or extension is required.
 2. Select **Scan & Import** in the navbar. AEROLAB imports new supported activities and reports duplicates, non-running files, and errors.
 
 ### Method D: Python Batch Ingestion Script

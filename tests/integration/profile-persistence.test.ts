@@ -5,11 +5,12 @@ import { getDatabase } from '../../src/backend/db/client.js';
 import { realignDatabase } from '../../src/backend/db/realign.js';
 import { syncAllCoachSummaries } from '../../src/backend/physiology/coach-summary.js';
 import { evaluateThresholdUpdate } from '../../src/backend/physiology/threshold-tracker.js';
-import { getBenchmark, toCsv } from '../fixtures/benchmark-runs.js';
+import { getBenchmark } from '../fixtures/benchmark-runs.js';
+import { benchmarkFit } from '../fixtures/benchmark-fit.js';
 
 describe('Athlete Profile & Resting HR Persistence Tests', () => {
   let app: any;
-  const benchmarkContent = toCsv(getBenchmark('bench-easy-60'));
+  const benchmarkContent = benchmarkFit(getBenchmark('bench-easy-60')).toString('base64');
 
   beforeAll(() => {
     process.env.DATABASE_PATH = ':memory:';
@@ -168,7 +169,7 @@ describe('Athlete Profile & Resting HR Persistence Tests', () => {
   it('does NOT reset resting HR when importing or uploading new activities', async () => {
     const res = await request(app)
       .post('/api/ingest/upload')
-      .send({ content: benchmarkContent, filename: 'bench_easy_persistence.csv' });
+      .send({ content: benchmarkContent, filename: 'bench_easy_persistence.fit' });
 
     expect(res.status).toBe(200);
 

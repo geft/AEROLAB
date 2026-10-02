@@ -1,8 +1,7 @@
 import path from 'path';
 import fs from 'fs';
 import { getDatabase } from '../src/backend/db/client.js';
-import { importRunFile, importRunContent } from '../src/backend/ingestion/importer.js';
-import { convertFitToCsv } from '../src/backend/ingestion/fit-parser.js';
+import { importRunFile } from '../src/backend/ingestion/importer.js';
 
 function runIngestion() {
   const db = getDatabase();
@@ -17,7 +16,7 @@ function runIngestion() {
   if (!fs.existsSync(rawDir)) {
     fs.mkdirSync(rawDir, { recursive: true });
     console.log(`Created directory: ${rawDir}`);
-    console.log('Drop Garmin CSV or FIT files into data/raw/ and run: npm run ingest');
+    console.log('Drop Garmin FIT or activity ZIP files into data/raw/ and run: npm run ingest');
     return;
   }
 
@@ -30,10 +29,10 @@ function runIngestion() {
     return;
   }
 
-  console.log(`\n📂 Scanning folder for CSV & FIT files: ${rawDir}`);
+  console.log(`\n📂 Scanning folder for FIT & ZIP files: ${rawDir}`);
   const allFiles = fs.readdirSync(rawDir).filter(f => {
     const l = f.toLowerCase();
-    return l.endsWith('.csv') || l.endsWith('.fit') || l.endsWith('.zip');
+    return l.endsWith('.fit') || l.endsWith('.zip');
   });
 
   console.log(`Found ${allFiles.length} file(s) to process.\n--- Ingestion Results ---`);

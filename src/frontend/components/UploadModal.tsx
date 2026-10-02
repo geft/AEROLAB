@@ -53,11 +53,11 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     const allFiles = Array.from(fileList);
     const validFiles = allFiles.filter(f => {
       const l = f.name.toLowerCase();
-      return l.endsWith('.csv') || l.endsWith('.fit') || l.endsWith('.zip');
+      return l.endsWith('.fit') || l.endsWith('.zip');
     });
 
     if (validFiles.length === 0) {
-      setError(t.upload.fitCsvOnly);
+      setError(t.upload.fitZipOnly);
       return;
     }
 
@@ -88,21 +88,16 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
       });
 
       try {
-        let content: string;
-        if (/\.(fit|zip)$/i.test(file.name)) {
-          const buffer = await file.arrayBuffer();
-          let binary = '';
-          const bytes = new Uint8Array(buffer);
-          const len = bytes.byteLength;
-          const CHUNK = 0x8000;
-          for (let b = 0; b < len; b += CHUNK) {
-            const chunk = bytes.subarray(b, Math.min(b + CHUNK, len));
-            for (let i = 0; i < chunk.length; i++) binary += String.fromCharCode(chunk[i]);
-          }
-          content = btoa(binary);
-        } else {
-          content = await file.text();
+        const buffer = await file.arrayBuffer();
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        const len = bytes.byteLength;
+        const CHUNK = 0x8000;
+        for (let b = 0; b < len; b += CHUNK) {
+          const chunk = bytes.subarray(b, Math.min(b + CHUNK, len));
+          for (let i = 0; i < chunk.length; i++) binary += String.fromCharCode(chunk[i]);
         }
+        const content = btoa(binary);
 
         const data = await uploadActivity({
           content,
@@ -225,7 +220,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileSelect}
-                accept=".csv,.fit,.FIT,.zip,.ZIP"
+                accept=".fit,.FIT,.zip,.ZIP"
                 multiple
                 style={{ display: 'none' }}
               />

@@ -156,10 +156,9 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
           <button
             type="button"
             onClick={() => downloadSessionCsv(act, records, fitMetadata)}
-            className="filter-pill-btn"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.65rem' }}
+            className="export-csv-btn"
           >
-            <Download size={14} />
+            <Download size={16} aria-hidden="true" />
             {t.browse.exportCsv}
           </button>
 

@@ -2,7 +2,7 @@
 """
 AEROLAB — Batch Raw Data Ingestion Script (Python)
 --------------------------------------------------
-Drop your Garmin .fit or .csv files into a folder (default: data/raw/)
+Drop your Garmin .fit or activity .zip files into a folder (default: data/raw/)
 and run this script to automatically import all activities into AEROLAB.
 
 Usage:
@@ -38,7 +38,7 @@ def is_fit_file(file_path: Path) -> bool:
     return False
 
 def main():
-    parser = argparse.ArgumentParser(description="Batch import Garmin FIT and CSV runs into AEROLAB.")
+    parser = argparse.ArgumentParser(description="Batch import Garmin FIT and activity ZIP runs into AEROLAB.")
     parser.add_argument(
         "target",
         nargs="?",
@@ -48,7 +48,7 @@ def main():
     parser.add_argument(
         "--dir", "-d",
         default=None,
-        help="Folder containing .fit and/or .csv files (alternative to positional target)"
+        help="Folder containing .fit and/or .zip files (alternative to positional target)"
     )
     parser.add_argument(
         "--server", "-s",
@@ -85,11 +85,11 @@ def main():
     elif not target_path.exists():
         target_path.mkdir(parents=True, exist_ok=True)
         print(f"Created target directory: {target_path}")
-        print("Please drop your Garmin .fit or .csv files into this folder and re-run.")
+        print("Please drop your Garmin .fit or activity .zip files into this folder and re-run.")
         sys.exit(0)
     else:
         # Gather files from directory
-        supported_extensions = {".fit", ".csv"}
+        supported_extensions = {".fit", ".zip"}
         files_to_process = [
             f for f in target_path.iterdir()
             if f.is_file() and (f.suffix.lower() in supported_extensions or is_fit_file(f))
@@ -97,7 +97,7 @@ def main():
         files_to_process.sort(key=lambda x: x.name)
 
     if not files_to_process:
-        print(f"No .fit or .csv files found in: {target_path}")
+        print(f"No .fit or .zip files found in: {target_path}")
         print("Drop your activity files into the folder and run this script again.")
         sys.exit(0)
 
@@ -128,18 +128,14 @@ def main():
     for idx, file_path in enumerate(files_to_process, 1):
         filename = file_path.name
         is_fit = is_fit_file(file_path)
-        algo_label = "FIT" if is_fit else "CSV"
+        algo_label = "FIT" if is_fit else "ZIP"
 
         print(f"[{idx}/{len(files_to_process)}] Processing [{algo_label}]: {filename} ...", end=" ", flush=True)
 
         try:
-            if is_fit:
-                with open(file_path, "rb") as bf:
-                    raw_bytes = bf.read()
-                    content_str = base64.b64encode(raw_bytes).decode("ascii")
-            else:
-                with open(file_path, "r", encoding="utf-8", errors="replace") as cf:
-                    content_str = cf.read()
+            with open(file_path, "rb") as bf:
+                raw_bytes = bf.read()
+                content_str = base64.b64encode(raw_bytes).decode("ascii")
 
             payload = json.dumps({
                 "content": content_str,

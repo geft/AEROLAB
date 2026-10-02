@@ -7,6 +7,7 @@ import os from 'os';
 import path from 'path';
 import { createServer } from '../../src/backend/server.js';
 import { getDatabase } from '../../src/backend/db/client.js';
+import { importRunContent } from '../../src/backend/ingestion/importer.js';
 import { getBenchmark, toCsv } from '../fixtures/benchmark-runs.js';
 
 describe('API Server Integration Tests', () => {
@@ -26,14 +27,8 @@ describe('API Server Integration Tests', () => {
     expect(res.body.status).toBe('ok');
   });
 
-  it('POST /api/ingest/upload ingests a run CSV', async () => {
-    const res = await request(app)
-      .post('/api/ingest/upload')
-      .send({ content: benchmarkContent, filename: 'bench_easy_test.csv' });
-
-    expect(res.status).toBe(200);
-    expect(res.body.result.status).toBe('imported');
-    expect(res.body.result.activityId).toBe('bench-easy-60');
+  it('loads an existing legacy CSV run for the API history fixture', () => {
+    expect(importRunContent(getDatabase(), benchmarkContent, 'bench_easy_test.csv').status).toBe('imported');
   });
 
   it('GET /api/activities lists the imported run', async () => {
@@ -478,15 +473,15 @@ describe('API Server Integration Tests', () => {
     }
   });
 
-  it('decodes base64 CSV uploads before parsing', async () => {
+  it('rejects base64 CSV uploads without changing the history', async () => {
     const csv = `# Activity: Encoded Easy Run\n# Activity ID: base64-csv-upload\n# Date: 2026-09-20 07:00:00\n# Total Duration (s): 60\n# Total Distance (m): 200\n# Avg Heart Rate (bpm): 140\ntimestamp,heart_rate,cadence,speed,distance\n2026-09-20T07:00:00,140,170,3.3,0\n2026-09-20T07:01:00,140,170,3.3,200`;
     const res = await request(app)
       .post('/api/ingest/upload')
       .send({ content: Buffer.from(csv).toString('base64'), filename: 'encoded-run.csv' });
 
-    expect(res.status).toBe(200);
-    expect(res.body.result.status).toBe('imported');
-    expect(res.body.result.activityId).toBe('base64-csv-upload');
+    expect(res.status).toBe(415);
+    expect(res.body.code).toBe('ERR_IMPORT_FORMAT');
+    expect(getDatabase().prepare('SELECT id FROM activities WHERE id = ?').get('base64-csv-upload')).toBeUndefined();
   });
 
   it('POST /api/ingest/upload rejects non-running FIT activities with 422', async () => {
@@ -572,16 +567,16 @@ describe('API Server Integration Tests', () => {
     expect(res.body.result.status).toBe('imported');
   });
 
-  it('POST /api/ingest/upload returns 422 when CSV content fails parsing', async () => {
+  it('POST /api/ingest/upload rejects plain CSV uploads', async () => {
     const res = await request(app)
       .post('/api/ingest/upload')
       .send({ content: '# comment only with no columns', filename: 'broken.csv' });
 
-    expect(res.status).toBe(422);
-    expect(res.body.error).toContain('CSV file contains no valid records');
+    expect(res.status).toBe(415);
+    expect(res.body.code).toBe('ERR_IMPORT_FORMAT');
   });
 
-  it('POST /api/ingest/upload preserves Garmin CSV metadata comments', async () => {
+  it('legacy migration helpers preserve Garmin CSV metadata comments', async () => {
     const content = `# Garmin Run Export — Parsed for AI Analysis
 # Activity: Threshold
 # Activity ID: garmin-commented-csv
@@ -591,13 +586,9 @@ describe('API Server Integration Tests', () => {
 timestamp,heart_rate,cadence (spm),enhanced_speed,distance
 2026-09-24T19:02:28.000,140,170,3.2,0
 2026-09-24T19:07:28.000,155,175,3.2,1000`;
-    const res = await request(app)
-      .post('/api/ingest/upload')
-      .send({ content, filename: 'threshold.csv' });
-
-    expect(res.status).toBe(200);
-    expect(res.body.result.status).toBe('imported');
-    expect(res.body.result.activityId).toBe('garmin-commented-csv');
+    const result = importRunContent(getDatabase(), content, 'threshold.csv');
+    expect(result.status).toBe('imported');
+    expect(result.activityId).toBe('garmin-commented-csv');
   });
 
   it('stores every telemetry sample with one workout coordinate for new imports', async () => {
@@ -612,11 +603,8 @@ timestamp,heart_rate,cadence (spm),enhanced_speed,distance
       'timestamp,heart_rate,cadence,speed,distance,position_lat,position_long',
       ...rows
     ].join('\n');
-    const res = await request(app)
-      .post('/api/ingest/upload')
-      .send({ content, filename: 'full-telemetry.csv' });
-
-    expect(res.status).toBe(200);
+    const result = importRunContent(getDatabase(), content, 'full-telemetry.csv');
+    expect(result.status).toBe('imported');
     const stored = getDatabase().prepare(
       'SELECT lat, lon FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds'
     ).all('full-telemetry-import') as Array<{ lat: number; lon: number }>;

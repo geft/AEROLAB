@@ -173,6 +173,7 @@ export interface Translations {
     telemetryChartAltitude: string;
     telemetrySampleSelector: string;
     telemetrySamplePosition: string;
+    historyLoadFailed: string;
     telemetryLoadFailed: string;
     loadingTelemetry: string;
     backToSessions: string;
@@ -194,7 +195,7 @@ export interface Translations {
     strideLengthShort: string;
     verticalRatioShort: string;
     verticalOscShort: string;
-    dropOrImportCsv: string;
+    dropOrImportRun: string;
     noRunsMatchingFilter: string;
     readyFirstRunTitle: string;
     readyFirstRunDesc: string;
@@ -570,7 +571,7 @@ export interface Translations {
     batchSuccess: string;
     batchWarnings: string;
     batchFailed: string;
-    fitCsvOnly: string;
+    fitZipOnly: string;
     /** Fallback per-file error when an upload fails with an unmapped code. */
     importFailed: string;
     dupTip: string;

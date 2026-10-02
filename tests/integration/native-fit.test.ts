@@ -78,7 +78,7 @@ describe('native FIT and Garmin ZIP ingestion', () => {
     expect(bad.body.code).toBe('ERR_ZIP_INVALID');
   });
 
-  it('folder import accepts ZIP alongside FIT and CSV', () => {
+  it('folder import accepts ZIP alongside FIT and ignores CSV exports', () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'aerolab-fit-zip-'));
     const db = openDatabase(':memory:');
     try {
@@ -86,6 +86,7 @@ describe('native FIT and Garmin ZIP ingestion', () => {
       fs.writeFileSync(path.join(directory, 'run.zip'), zipSync({ 'run.fit': fit }));
       fs.writeFileSync(path.join(directory, 'run.fit'), fit);
       fs.writeFileSync(path.join(directory, 'notes.txt'), 'ignore');
+      fs.writeFileSync(path.join(directory, 'export.csv'), 'timestamp,heart_rate\n1,140');
       const results = importDirectory(db, directory);
       expect(results.map(result => result.status).sort()).toEqual(['imported', 'skipped_duplicate']);
     } finally {

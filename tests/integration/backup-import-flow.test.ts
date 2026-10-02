@@ -10,7 +10,9 @@ import {
   listBackups,
   validateDatabaseSnapshot
 } from '../../src/backend/routes/database.js';
-import { getBenchmark, toCsv } from '../fixtures/benchmark-runs.js';
+import { getBenchmark } from '../fixtures/benchmark-runs.js';
+
+import { benchmarkFit } from '../fixtures/benchmark-fit.js';
 
 describe('Comprehensive Backup & Ingestion / Import Integration Tests', () => {
   let app: any;
@@ -185,25 +187,25 @@ describe('Comprehensive Backup & Ingestion / Import Integration Tests', () => {
   });
 
   describe('3. Ingestion & Workout Import Flow with Deduplication', () => {
-    it('imports benchmark CSV workout and populates activities and metrics', async () => {
+    it('imports benchmark FIT workout and populates activities and metrics', async () => {
       const bench = getBenchmark('bench-easy-60');
-      const csv = toCsv(bench);
+      const fit = benchmarkFit(bench);
 
       const res = await request(app)
         .post('/api/ingest/upload')
         .send({
-          content: csv,
-          filename: 'easy-run-upload.csv'
+          content: fit.toString('base64'),
+          filename: 'easy-run-upload.fit'
         });
 
       expect(res.status).toBe(200);
       expect(res.body.result).toBeDefined();
       expect(res.body.result.status).toBe('imported');
-      expect(res.body.result.activityId).toBe('bench-easy-60');
+      expect(res.body.result.activityId).toBe('fit_easy-run-upload');
 
       // Verify database record
       const db = getDatabase();
-      const activity = db.prepare('SELECT * FROM activities WHERE id = ?').get('bench-easy-60') as any;
+      const activity = db.prepare('SELECT * FROM activities WHERE id = ?').get('fit_easy-run-upload') as any;
       expect(activity).toBeDefined();
       expect(activity.duration_seconds).toBeGreaterThan(0);
       expect(activity.distance_meters).toBeGreaterThan(0);
@@ -212,65 +214,65 @@ describe('Comprehensive Backup & Ingestion / Import Integration Tests', () => {
 
     it('detects duplicate workouts and skips them when force is false', async () => {
       const bench = getBenchmark('bench-easy-60');
-      const csv = toCsv(bench);
+      const fit = benchmarkFit(bench);
 
       // Attempt to re-upload without force
       const res = await request(app)
         .post('/api/ingest/upload')
         .send({
-          content: csv,
-          filename: 'easy-run-upload.csv',
+          content: fit.toString('base64'),
+          filename: 'easy-run-upload.fit',
           force: false
         });
 
       expect(res.status).toBe(200);
       expect(res.body.result.status).toBe('skipped_duplicate');
-      expect(res.body.result.activityId).toBe('bench-easy-60');
+      expect(res.body.result.activityId).toBe('fit_easy-run-upload');
     });
 
     it('overwrites existing workout when force is true', async () => {
       const bench = getBenchmark('bench-easy-60');
-      const csv = toCsv(bench);
+      const fit = benchmarkFit(bench);
 
       const res = await request(app)
         .post('/api/ingest/upload')
         .send({
-          content: csv,
-          filename: 'easy-run-upload.csv',
+          content: fit.toString('base64'),
+          filename: 'easy-run-upload.fit',
           force: true
         });
 
       expect(res.status).toBe(200);
       expect(res.body.result.status).toBe('imported');
-      expect(res.body.result.activityId).toBe('bench-easy-60');
+      expect(res.body.result.activityId).toBe('fit_easy-run-upload');
     });
 
-    it('handles base64-encoded workout CSV payload cleanly', async () => {
+    it('handles base64-encoded workout FIT payload cleanly', async () => {
       const bench = getBenchmark('bench-threshold-3x10');
-      const csv = toCsv(bench);
-      const base64 = Buffer.from(csv).toString('base64');
+      const fit = benchmarkFit(bench);
+      const base64 = fit.toString('base64');
 
       const res = await request(app)
         .post('/api/ingest/upload')
         .send({
           content: base64,
-          filename: 'threshold-run.csv'
+          filename: 'threshold-run.fit'
         });
 
       expect(res.status).toBe(200);
       expect(res.body.result).toBeDefined();
       expect(res.body.result.status).toBe('imported');
-      expect(res.body.result.activityId).toBe('bench-threshold-3x10');
+      expect(res.body.result.activityId).toBe('fit_threshold-run');
 
       const db = getDatabase();
-      const intervals = db.prepare('SELECT count(*) as c FROM activity_intervals WHERE activity_id = ?').get('bench-threshold-3x10') as any;
+      const intervals = db.prepare('SELECT count(*) as c FROM activity_intervals WHERE activity_id = ?').get('fit_threshold-run') as any;
       expect(intervals.c).toBeGreaterThanOrEqual(1);
     });
 
     it('returns 400 Bad Request when content is missing', async () => {
       const res = await request(app)
         .post('/api/ingest/upload')
-        .send({ filename: 'empty.csv' });
+        .send({ filename: 'empty.fit' });
 
       expect(res.status).toBe(400);
       expect(res.body.error).toContain('Missing content');
@@ -282,7 +284,7 @@ describe('Comprehensive Backup & Ingestion / Import Integration Tests', () => {
         .post('/api/ingest/upload')
         .send({
           content: garbageCsv,
-          filename: 'corrupt.csv'
+          filename: 'corrupt.fit'
         });
 
       expect(res.status).toBe(422);

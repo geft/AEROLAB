@@ -443,7 +443,7 @@ export function importDirectory(db: Database.Database, dirPath: string, options:
   if (!fs.existsSync(dirPath)) return [];
   const files = fs.readdirSync(dirPath).filter(f => {
     const l = f.toLowerCase();
-    return l.endsWith('.csv') || l.endsWith('.fit') || l.endsWith('.zip');
+    return l.endsWith('.fit') || l.endsWith('.zip');
   });
   const results: ImportResult[] = [];
   for (const file of files) {

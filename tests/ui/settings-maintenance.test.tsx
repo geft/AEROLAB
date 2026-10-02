@@ -229,7 +229,7 @@ describe('Garmin scan results', () => {
     const onClose = vi.fn();
     mocks.scanImportFolder.mockResolvedValueOnce({ results: [] }).mockRejectedValueOnce(new Error('offline'));
     const { rerender } = renderWithLanguage(<GarminScanModal isOpen onClose={onClose} />);
-    expect(await screen.findByText('No FIT, ZIP, or CSV files found in this folder.')).toBeTruthy();
+    expect(await screen.findByText('No FIT or ZIP files found in this folder.')).toBeTruthy();
     rerender(<LanguageProvider><GarminScanModal isOpen={false} onClose={onClose} /></LanguageProvider>);
     rerender(<LanguageProvider><GarminScanModal isOpen onClose={onClose} /></LanguageProvider>);
     expect(await screen.findByText('Could not scan the import folder.')).toBeTruthy();

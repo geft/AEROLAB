@@ -31,7 +31,7 @@ describe('UploadModal Multi-File UI Component Tests', () => {
     );
 
     expect(screen.getByText(/Import Garmin Runs/i)).toBeTruthy();
-    expect(screen.getByText(/drag & drop FIT, Garmin activity ZIP/i)).toBeTruthy();
+    expect(screen.getByText(/drag & drop FIT or Garmin activity ZIP/i)).toBeTruthy();
     expect(screen.getByText(/supports multi-file batch upload/i)).toBeTruthy();
     expect(screen.getByLabelText(/overwrite \/ re-calculate if activity was already imported/i)).toBeTruthy();
   });
@@ -52,7 +52,7 @@ describe('UploadModal Multi-File UI Component Tests', () => {
     fireEvent.change(input, { target: { files: [badFile] } });
 
     await waitFor(() => {
-      expect(screen.getByText(/please upload FIT, Garmin activity ZIP, or CSV/i)).toBeTruthy();
+      expect(screen.getByText(/please upload FIT or Garmin activity ZIP/i)).toBeTruthy();
     });
   });
 
@@ -80,8 +80,8 @@ describe('UploadModal Multi-File UI Component Tests', () => {
     );
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-    const file1 = new File(['header\n1,2,3'], 'run1.csv', { type: 'text/csv' });
-    const file2 = new File(['header\n4,5,6'], 'run2.csv', { type: 'text/csv' });
+    const file1 = new File(['header\n1,2,3'], 'run1.fit', { type: 'application/octet-stream' });
+    const file2 = new File(['ZIP bytes'], 'run2.zip', { type: 'application/zip' });
 
     fireEvent.change(input, { target: { files: [file1, file2] } });
 
@@ -91,6 +91,7 @@ describe('UploadModal Multi-File UI Component Tests', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(fetchMock.mock.calls[1][1]!.body as string)).toMatchObject({ filename: 'run2.zip', content: btoa('ZIP bytes') });
     expect(onUploadSuccess).toHaveBeenCalledTimes(1);
 
     // Verify summary values
@@ -105,13 +106,23 @@ describe('UploadModal Multi-File UI Component Tests', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('rejects CSV exports without uploading them', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    render(<UploadModal isOpen={true} onClose={vi.fn()} onUploadSuccess={vi.fn()} />);
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input.accept).toBe('.fit,.FIT,.zip,.ZIP');
+    fireEvent.change(input, { target: { files: [new File(['timestamp,heart_rate'], 'export.csv')] } });
+    await waitFor(() => expect(screen.getByText(/please upload FIT or Garmin activity ZIP/i)).toBeTruthy());
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('displays detailed error breakdown in dialog when import fails and provides retry button', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
       ok: false,
       status: 500,
       json: async () => ({
         error: 'UNIQUE constraint failed: activities.id',
-        filename: 'failed_run.csv'
+        filename: 'failed_run.fit'
       })
     } as any);
 
@@ -124,13 +135,13 @@ describe('UploadModal Multi-File UI Component Tests', () => {
     );
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-    const file = new File(['bad-content'], 'failed_run.csv', { type: 'text/csv' });
+    const file = new File(['bad-content'], 'failed_run.fit', { type: 'application/octet-stream' });
     fireEvent.change(input, { target: { files: [file] } });
 
     await waitFor(() => {
       expect(screen.getByText(/batch ingestion failed/i)).toBeTruthy();
       expect(screen.getByText(/error details/i)).toBeTruthy();
-      expect(screen.getByText(/failed_run\.csv/i)).toBeTruthy();
+      expect(screen.getByText(/failed_run\.fit/i)).toBeTruthy();
       expect(screen.getByText(/request could not be completed/i)).toBeTruthy();
       expect(screen.getByText(/retry with overwrite/i)).toBeTruthy();
     });
@@ -166,7 +177,7 @@ describe('UploadModal Multi-File UI Component Tests', () => {
     expect(checkbox.checked).toBe(true);
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-    const file = new File(['data'], 'force_test.csv', { type: 'text/csv' });
+    const file = new File(['data'], 'force_test.fit', { type: 'application/octet-stream' });
     fireEvent.change(input, { target: { files: [file] } });
 
     await waitFor(() => {
@@ -174,7 +185,7 @@ describe('UploadModal Multi-File UI Component Tests', () => {
     });
 
     expect(sentPayload.force).toBe(true);
-    expect(sentPayload.filename).toBe('force_test.csv');
+    expect(sentPayload.filename).toBe('force_test.fit');
   });
 
   it('calls onUploadSuccess with activityId when importing a single file', async () => {

@@ -2322,6 +2322,34 @@ body {
   gap: 0.5rem;
 }
 
+.export-csv-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 38px;
+  margin-top: 0.65rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--accent-action-bg);
+  border-radius: 8px;
+  background: var(--accent-action-bg);
+  color: var(--accent-action-fg);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.export-csv-btn:hover {
+  background: var(--accent-action-hover);
+  border-color: var(--accent-action-hover);
+}
+
+.export-csv-btn:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 3px;
+}
+
 .filter-pill-btn {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);

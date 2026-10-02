@@ -41,6 +41,8 @@ export function apiErrorMessage(t: Translations, err: unknown, fallback: string)
       return t.apiErrors.invalidResponse;
     case 'ERR_NO_GPS':
       return t.apiErrors.noGps;
+    case 'ERR_IMPORT_FORMAT':
+      return t.upload.fitZipOnly;
     case 'ERR_ZIP_INVALID':
       return t.apiErrors.zipInvalid;
     case 'ERR_DEV_DIAGNOSTICS_FAILED':
