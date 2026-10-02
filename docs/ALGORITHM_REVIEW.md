@@ -93,3 +93,46 @@ six-minute duration ceiling and does not infer VO2 from isolated peaks. A brief
 running dip before a shorter finishing portion no longer invents another rep.
 April, May and failed time-trial intent still require confirmation where recorded
 HR cannot support automatic inference.
+
+
+## Date-specific fitness and regression expansion (October 2, 2026)
+
+The historical threshold contract and known inference limits are documented in
+[CONFIRMED_RUNS.md](CONFIRMED_RUNS.md). Import, replay and coaching share a strict
+prior-evidence lookup. Replay rebuilds calibration immediately after each activity,
+and import backfills/corrections atomically refresh affected later workouts. The
+`historical-fitness-v1` migration applies this once to existing databases with a
+pre-migration safety snapshot; subsequent opens do not replay unchanged history.
+
+The additional 30 tests cover both directions of LT1/LT2 change at stable max HR,
+causality, mixed timestamp formats, backfilled/corrected imports, repeat/partial
+replay, historical coaching/zones/volume, rejected and corrupt observations,
+failed calibration rollback, migration persistence, and recording-density/gap
+behavior. Normal 15-second samples now count fully in training load and zones;
+larger gaps and invalid HR do not supply invented duration or LT2 evidence.
+
+The selected 338-activity database replay completed with no failed/skipped
+activities. A second complete replay on an online backup copy reproduced labels,
+calibrations, stored zones and coaching exactly. All six athlete confirmations
+were retained. Compared with the October 2 13:34 UTC backup, these eight
+unconfirmed stored labels changed to threshold:
+
+| Local date | Previous stored label | New stored label |
+| --- | --- | --- |
+| August 28, 2025 | Easy | Threshold |
+| September 2, 2025 | Easy | Threshold |
+| October 17, 2025 | Easy | Threshold |
+| October 22, 2025 | Easy | Threshold |
+| December 20, 2025 | Long run | Threshold |
+| January 3, 2026 | Long run | Threshold |
+| January 31, 2026 | Long run | Threshold |
+| March 5, 2026 | Easy | Threshold |
+
+These are changed algorithm predictions, not newly confirmed ground truth.
+May 14's independent automatic prediction changed from easy to threshold while its
+confirmed VO2 label stayed intact. September 10's automatic prediction changed from
+threshold to easy while its confirmed threshold label stayed intact. Preserve both
+fields so disagreement remains visible rather than passing it off as accuracy.
+
+Verification: 92 test files / 981 tests, zero TypeScript errors, zero lint errors
+(115 existing warnings), all 733 dictionary keys referenced, and `git diff --check`.

@@ -1,5 +1,6 @@
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import type { ActivityRecord } from '../ingestion/csv-parser';
+import { MAX_OBSERVED_GAP_SECONDS } from './time-series.js';
 
 export interface HeartRateZones {
   z1: [number, number]; // Recovery (< 68% HRmax or < LT1 - 15)
@@ -104,6 +105,6 @@ export function recordDurationSeconds(records: Pick<ActivityRecord, 'elapsedSeco
   const current = records[index].elapsedSeconds;
   const next = records[index + 1]?.elapsedSeconds;
   const seconds = next == null ? current - (records[index - 1]?.elapsedSeconds ?? current - 1) : next - current;
-  if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 10) return next == null ? 1 : 0;
+  if (!Number.isFinite(seconds) || seconds <= 0 || seconds > MAX_OBSERVED_GAP_SECONDS) return next == null ? 1 : 0;
   return seconds;
 }

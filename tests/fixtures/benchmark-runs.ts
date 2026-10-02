@@ -222,6 +222,14 @@ export function toCsv(bench: BenchmarkRun): string {
 }
 
 /** Test-only athlete; application databases deliberately start without measurements. */
-export function seedBenchmarkProfile(db: import('better-sqlite3').Database): void {
+export function seedBenchmarkProfile(db: import('better-sqlite3').Database, options: { datedThresholds?: boolean } = {}): void {
   db.prepare("UPDATE athlete_profile SET age = 37, dob = '1989-04-15', max_hr = 203, resting_hr = 55, lt1_hr = 148, lt2_hr = 167, is_max_hr_estimated = 0 WHERE id = 'primary'").run();
+  if (options.datedThresholds) {
+    // These fixtures specify measured initial thresholds. Give those inputs a
+    // date/provenance rather than pretending today's cache is historical evidence.
+    const notes = 'Synthetic external HR baseline (test only)';
+    db.prepare("DELETE FROM physiological_thresholds WHERE source_kind = 'external' AND notes = ?").run(notes);
+    db.prepare(`INSERT INTO physiological_thresholds(effective_date,source_kind,lt1_hr,lt2_hr,confidence,notes)
+      VALUES('2026-09-01 00:00:00','external',148,167,1,?)`).run(notes);
+  }
 }

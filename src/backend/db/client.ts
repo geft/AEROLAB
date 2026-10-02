@@ -76,6 +76,12 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
   const migrations = createMigrationRunner(db);
   const deferDerivedMigrations = process.env.AEROLAB_DEFER_MIGRATIONS === '1';
 
+  migrations.run('threshold-source-kind-v1', () => {
+    const columns = db.prepare('PRAGMA table_info(physiological_thresholds)').all() as Array<{ name: string }>;
+    if (!columns.some(column => column.name === 'source_kind'))
+      db.exec("ALTER TABLE physiological_thresholds ADD COLUMN source_kind TEXT NOT NULL DEFAULT 'workout'");
+  });
+
   migrations.run('confirmed-workout-intent-v1', () => {
     const columns = new Set((db.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>).map(column => column.name));
     if (!columns.has('manual_run_type')) db.exec('ALTER TABLE activities ADD COLUMN manual_run_type TEXT');
@@ -329,6 +335,12 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
     if (!deferDerivedMigrations) migrations.run('stride-recovery-v1', () => {
       const result = realignDatabase(db);
       if (result.activitiesFailed.length > 0) throw new Error(`${result.activitiesFailed.length} activities failed stride-recovery reanalysis`);
+    });
+    // Rebuild dated HR zones, labels and calibration history once. Later opens
+    // retain the result; the migration runner backs up and rolls back failures.
+    if (!deferDerivedMigrations) migrations.run('historical-fitness-v1', () => {
+      const result = realignDatabase(db);
+      if (result.activitiesFailed.length > 0) throw new Error(`${result.activitiesFailed.length} activities failed historical-fitness reanalysis`);
     });
   } catch (err: any) {
     // Migrations are non-fatal so a bad row cannot block startup, but the failure

@@ -18,7 +18,7 @@ describe('Database Ingestion Pipeline (Integration)', () => {
   beforeEach(() => {
     // In-memory database for clean, isolated test runs
     db = getDatabase(':memory:');
-    seedBenchmarkProfile(db);
+    seedBenchmarkProfile(db, { datedThresholds: true });
   });
 
   afterEach(() => {
@@ -181,7 +181,7 @@ describe('Database Ingestion Pipeline (Integration)', () => {
     for (const name of ['', 'Graceful Recovery', 'VO2 V02 Race Parkrun Time Trial TT Tempo MP Marathon Pace Failed Aborted DNF Bailed Strides']) {
       expect(updateActivityService(db, benchmark.id, { name: name || 'Untitled' }).ok).toBe(true);
       expect(read()).toEqual(baseline);
-      seedBenchmarkProfile(db);
+      seedBenchmarkProfile(db, { datedThresholds: true });
       expect(importRunContent(db, toCsv({ ...benchmark, name }), 'workout.csv', { force: true }).status).toBe('imported');
       expect(read()).toEqual(baseline);
     }

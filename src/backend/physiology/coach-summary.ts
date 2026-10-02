@@ -1,5 +1,5 @@
 import type { SessionVerdict } from '../../shared/session-verdict.js';
-import { getAthleteHeartRateProfile } from './athlete-profile.js';
+import { getHeartRateProfileAtDate } from './threshold-tracker.js';
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { PauseBreakdown, extractSteadyStateMetrics } from './economy.js';
 import { ZoneDistribution } from './zones.js';
@@ -615,7 +615,7 @@ export function syncActivityCoachSummary(
   const splits = validateRows(db.prepare('SELECT * FROM activity_splits WHERE activity_id = ? ORDER BY split_index ASC').all(activityId), 'activity_splits',
     ['split_index', 'distance_meters', 'duration_seconds', 'avg_pace_sec_km', 'avg_heart_rate', 'split_efficiency_factor', 'elevation_change_m', 'avg_cadence', 'avg_stance_time', 'avg_vert_osc', 'avg_vert_ratio']);
 
-  const { maxHr: maxHeartRate, restingHr, lt1Hr, lt2Hr } = getAthleteHeartRateProfile(db);
+  const { maxHr: maxHeartRate, restingHr, lt1Hr, lt2Hr } = getHeartRateProfileAtDate(db, activity.start_time, activityId);
 
   // Personal baseline comparison against the athlete's own prior comparable runs.
   // Steady-state values win over the raw columns so the pace-specific comparison
@@ -627,7 +627,7 @@ export function syncActivityCoachSummary(
   });
   if (history?.lastSimilarRun) {
     const priorRecords = validateRows(db.prepare('SELECT elapsed_seconds, heart_rate, cadence FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC').all(history.lastSimilarRun.id), 'activity_records', ['elapsed_seconds', 'heart_rate', 'cadence']);
-    const threshold = resolveHeartRateProfile({ maxHr: maxHeartRate, restingHr, lt1Hr, lt2Hr }).lt1Hr;
+    const threshold = getHeartRateProfileAtDate(db, history.lastSimilarRun.startTime, history.lastSimilarRun.id).lt1Hr;
     history.lastSimilarRun.aboveCeilingPct = intensityAudit(priorRecords, { lt1Hr: threshold })?.aboveCeilingPct ?? null;
   }
 

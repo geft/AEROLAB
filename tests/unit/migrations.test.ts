@@ -6,6 +6,7 @@ import Database from 'better-sqlite3';
 import { createMigrationRunner } from '../../src/backend/db/migrations.js';
 import { openDatabase } from '../../src/backend/db/client.js';
 import { importRunContent } from '../../src/backend/ingestion/importer.js';
+import { workoutTrace, traceCsv } from '../fixtures/workout-trace.js';
 import { getBenchmark, seedBenchmarkProfile, toCsv } from '../fixtures/benchmark-runs.js';
 
 describe('named database migrations', () => {
@@ -167,4 +168,28 @@ describe('named database migrations', () => {
       else process.env.AEROLAB_DEFER_MIGRATIONS = previousDefer;
     }
   });
+  it('upgrades threshold provenance and date-specific analysis once with a safety snapshot', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aerolab-history-migration-'));
+    roots.push(root);
+    const file = path.join(root, 'runs.db');
+    const first = openDatabase(file);
+    first.prepare("UPDATE athlete_profile SET max_hr=190,resting_hr=50,is_max_hr_estimated=0 WHERE id='primary'").run();
+    const trace = workoutTrace([{ seconds: 2400, hr: 165 }], { id: 'history', date: '2026-01-02' });
+    expect(importRunContent(first, traceCsv(trace), 'run.csv').status).toBe('imported');
+    first.prepare("UPDATE activities SET run_type='easy_base',auto_run_type='easy_base',z4_seconds=0").run();
+    first.exec('ALTER TABLE physiological_thresholds DROP COLUMN source_kind');
+    first.prepare("DELETE FROM schema_migrations WHERE name IN ('threshold-source-kind-v1','historical-fitness-v1')").run();
+    first.close();
+    const migrated = openDatabase(file);
+    expect(migrated.prepare('SELECT run_type,z4_seconds FROM activities').get()).toEqual({ run_type: 'threshold_lt2', z4_seconds: 2400 });
+    expect(migrated.prepare('SELECT source_kind FROM physiological_thresholds').get()).toEqual({ source_kind: 'workout' });
+    expect(migrated.prepare("SELECT 1 FROM schema_migrations WHERE name='historical-fitness-v1'").get()).toBeTruthy();
+    expect(fs.readdirSync(path.join(root, 'backups')).some(name => name.startsWith('pre-migration-'))).toBe(true);
+    const coach = migrated.prepare('SELECT updated_at FROM activity_coach_summaries').get();
+    migrated.close();
+    const reopened = openDatabase(file);
+    expect(reopened.prepare('SELECT updated_at FROM activity_coach_summaries').get()).toEqual(coach);
+    reopened.close();
+  });
+
 });

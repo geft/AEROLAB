@@ -1,4 +1,3 @@
-import { getAthleteHeartRateProfile } from '../physiology/athlete-profile.js';
 import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
@@ -8,7 +7,9 @@ import { calculateEconomy, calculateKmSplits } from '../physiology/economy.js';
 import { detectIntervals } from './interval-detector.js';
 import { classifyRun } from './classifier.js';
 import { buildSessionTags } from './session-tags.js';
-import { evaluateThresholdUpdate, getStridePaceAnchorSecKmAtDate } from '../physiology/threshold-tracker.js';
+import { evaluateThresholdUpdate, getStridePaceAnchorSecKmAtDate, getHeartRateProfileAtDate } from '../physiology/threshold-tracker.js';
+import { realignDatabase } from '../db/realign.js';
+import { thresholdTime } from '../../shared/threshold-trend.js';
 import { syncActivityCoachSummary } from '../physiology/coach-summary.js';
 import { calculateActivityTrainingLoad } from '../physiology/training-load.js';
 
@@ -81,17 +82,17 @@ export function importRunContent(
     }
 
   // 1. Check for duplicate via hash OR matching activity ID
-  let existing = db.prepare('SELECT id, source_file_hash, name FROM activities WHERE source_file_hash = ? OR id = ?').get(fileHash, metadata.id) as { id: string; source_file_hash: string; name?: string } | undefined;
+  let existing = db.prepare('SELECT id, source_file_hash, name, start_time FROM activities WHERE source_file_hash = ? OR id = ?').get(fileHash, metadata.id) as { id: string; source_file_hash: string; name?: string; start_time: string } | undefined;
 
   // 1b. Check for duplicate via physical workout signature (start time within 60s and distance within 150m)
   if (!existing && metadata.date && metadata.totalDistanceMeters != null) {
     try {
       const match = db.prepare(`
-        SELECT id, source_file_hash, name FROM activities
+        SELECT id, source_file_hash, name, start_time FROM activities
         WHERE abs(strftime('%s', start_time) - strftime('%s', ?)) <= 60
           AND abs(distance_meters - ?) <= 150
         LIMIT 1
-      `).get(metadata.date, metadata.totalDistanceMeters) as { id: string; source_file_hash: string; name?: string } | undefined;
+      `).get(metadata.date, metadata.totalDistanceMeters) as { id: string; source_file_hash: string; name?: string; start_time: string } | undefined;
       if (match) {
         existing = match;
       }
@@ -114,8 +115,8 @@ export function importRunContent(
     { manual_run_type: import('./classifier.js').RunType | null; manual_failed_workout: number | null } : undefined;
   const economy = calculateEconomy(records);
   const splits = calculateKmSplits(records, 1000);
-  const hrProfile = getAthleteHeartRateProfile(db);
-  const stridePaceAnchorSecKm = getStridePaceAnchorSecKmAtDate(db, metadata.date);
+  const hrProfile = getHeartRateProfileAtDate(db, metadata.date, existing?.id ?? metadata.id);
+  const stridePaceAnchorSecKm = getStridePaceAnchorSecKmAtDate(db, metadata.date, existing?.id ?? metadata.id);
 
   const intervalOpts = {
     lt1Hr: hrProfile.lt1Hr ?? undefined,
@@ -247,6 +248,7 @@ export function importRunContent(
     }
   );
 
+  let refreshed: { run_type: string; interval_count: number } | undefined;
   const transaction = db.transaction(() => {
     // If force re-importing, purge old rows for this activity first
     if (existing && options.force) {
@@ -254,7 +256,7 @@ export function importRunContent(
       db.prepare('DELETE FROM activity_splits WHERE activity_id = ?').run(targetId);
       db.prepare('DELETE FROM activity_intervals WHERE activity_id = ?').run(targetId);
       db.prepare('DELETE FROM activity_records WHERE activity_id = ?').run(targetId);
-      db.prepare('DELETE FROM physiological_thresholds WHERE source_activity_id = ?').run(targetId);
+      db.prepare("DELETE FROM physiological_thresholds WHERE source_activity_id = ? AND source_kind = 'workout'").run(targetId);
       db.prepare('DELETE FROM activity_coach_summaries WHERE activity_id = ?').run(targetId);
       db.prepare('DELETE FROM activities WHERE id = ?').run(targetId);
     }
@@ -373,7 +375,25 @@ export function importRunContent(
     }
 
     // Threshold updates
-    if (confirmed?.manual_failed_workout !== 1) evaluateThresholdUpdate(db, metadata.id, metadata.date, runType, metadata, records, economy);
+    if (confirmed?.manual_failed_workout !== 1) evaluateThresholdUpdate(db, metadata.id, metadata.date, runType, metadata, records, economy, hrProfile);
+
+    // A backfill or corrected import may change evidence for existing later
+    // workouts. Rebuild those in the same transaction so file order cannot
+    // leave their labels/zones stale or commit only half of an affected history.
+    const ref = Math.min(thresholdTime(metadata.date), thresholdTime(existing?.start_time ?? metadata.date));
+    const laterIds = (db.prepare('SELECT id,start_time FROM activities WHERE id <> ?').all(metadata.id) as
+      Array<{ id: string; start_time: string }>)
+      .filter(activity => thresholdTime(activity.start_time) > ref).map(activity => activity.id);
+    if (laterIds.length) {
+      // Include the corrected run too: moving its date later can first change
+      // intervening workouts, whose evidence must then precede its own analysis.
+      const replay = realignDatabase(db, { activityIds: [metadata.id, ...laterIds] });
+      if (replay.activitiesFailed.length) throw new Error(`Dependent reanalysis failed: ${replay.activitiesFailed.join('; ')}`);
+      refreshed = db.prepare(`SELECT run_type,(SELECT COUNT(*) FROM activity_intervals WHERE activity_id=activities.id) AS interval_count
+        FROM activities WHERE id=?`).get(metadata.id) as { run_type: string; interval_count: number };
+    }
+
+
   });
 
   transaction();
@@ -387,12 +407,12 @@ export function importRunContent(
       activityId: metadata.id,
       name: metadata.name,
       date: metadata.date,
-      runType,
+      runType: refreshed?.run_type ?? runType,
       distanceKm: Number((metadata.totalDistanceMeters / 1000).toFixed(2)),
       durationMin: Number((metadata.totalDurationSeconds / 60).toFixed(1)),
       efficiencyFactor: economy.efficiencyFactor,
       aerobicDecouplingPct: economy.aerobicDecouplingPct,
-      intervalsDetected: intervals.length
+      intervalsDetected: refreshed?.interval_count ?? intervals.length
     };
   } catch (err: any) {
     return { status: 'error', error: err.message || 'Failed to parse and import run' };

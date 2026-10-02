@@ -131,6 +131,7 @@ CREATE TABLE IF NOT EXISTS physiological_thresholds (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   effective_date TEXT NOT NULL,
   source_activity_id TEXT,
+  source_kind TEXT NOT NULL DEFAULT 'workout',
   lt1_hr INTEGER,
   lt1_pace_sec_km REAL,
   lt2_hr INTEGER,

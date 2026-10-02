@@ -1,7 +1,7 @@
-import { observedDuration, timeWeightedMean } from './time-series.js';
+import { MAX_OBSERVED_GAP_SECONDS, observedDuration, timeWeightedMean } from './time-series.js';
 import { getAthleteHeartRateProfile } from './athlete-profile.js';
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
-import { rollingThreshold, type ThresholdObservation } from '../../shared/threshold-trend.js';
+import { rollingThreshold, thresholdTime, type ThresholdObservation } from '../../shared/threshold-trend.js';
 import Database from 'better-sqlite3';
 import { ActivityMetadata, ActivityRecord } from '../ingestion/csv-parser';
 import { EconomyMetrics } from './economy';
@@ -16,36 +16,34 @@ export interface ThresholdEstimate {
 }
 
 /** Fastest known LT2 or quality-rep pace near a run date, in sec/km. */
-export function getStridePaceAnchorSecKmAtDate(db: Database.Database, runDate: string): number | null {
+export function getStridePaceAnchorSecKmAtDate(db: Database.Database, runDate: string, excludeActivityId?: string): number | null {
   try {
     const candidates: number[] = [];
-    const lt2Row = db.prepare(`
-      SELECT lt2_pace_sec_km
-      FROM physiological_thresholds
-      WHERE lt2_pace_sec_km IS NOT NULL
-        AND julianday(effective_date) <= julianday(?)
-      ORDER BY julianday(effective_date) DESC, id DESC
-      LIMIT 1
-    `).get(runDate) as { lt2_pace_sec_km?: unknown } | undefined;
-    if (typeof lt2Row?.lt2_pace_sec_km === 'number' && Number.isFinite(lt2Row.lt2_pace_sec_km) && lt2Row.lt2_pace_sec_km > 0) {
-      candidates.push(lt2Row.lt2_pace_sec_km);
-    }
+    const ref = thresholdTime(runDate);
+    const prior = (date: string) => Number.isFinite(thresholdTime(date)) && thresholdTime(date) < ref;
+    const lt2Row = (db.prepare(`SELECT lt2_pace_sec_km, effective_date, confidence, source_activity_id
+      FROM physiological_thresholds WHERE lt2_pace_sec_km IS NOT NULL
+        AND (source_kind='external' OR source_activity_id NOT IN (SELECT id FROM activities WHERE manual_failed_workout=1))
+      ORDER BY id DESC`).all() as
+      Array<{ lt2_pace_sec_km: number; effective_date: string; confidence: number; source_activity_id: string | null }>)
+      .filter(row => row.source_activity_id !== excludeActivityId && prior(row.effective_date) && row.confidence > 0 && row.confidence <= 1 &&
+        Number.isFinite(row.lt2_pace_sec_km) && row.lt2_pace_sec_km >= 120 && row.lt2_pace_sec_km <= 1200)
+      .sort((a, b) => thresholdTime(b.effective_date) - thresholdTime(a.effective_date))[0];
+    if (lt2Row) candidates.push(lt2Row.lt2_pace_sec_km);
 
-    // Use the most recent threshold and VO2 sessions separately so the anchor
-    // follows fitness changes while still using both known quality paces.
-    const workRows = db.prepare(`
-      SELECT a.id, a.run_type, i.avg_pace_sec_km
-      FROM activities a
-      JOIN activity_intervals i ON i.activity_id = a.id
+    // Most recent threshold and VO2 sessions separately: parse timestamps using
+    // the same local/offset semantics as the HR history, then apply the window.
+    const workRows = (db.prepare(`
+      SELECT a.id, a.run_type, a.start_time, i.avg_pace_sec_km
+      FROM activities a JOIN activity_intervals i ON i.activity_id = a.id
       WHERE a.run_type IN ('threshold_lt2', 'intervals_vo2')
-        AND i.type = 'work'
-        AND i.duration_seconds >= 60
-        AND i.avg_pace_sec_km IS NOT NULL
-        AND i.avg_pace_sec_km > 0
-        AND julianday(a.start_time) < julianday(?)
-        AND julianday(a.start_time) >= julianday(?, '-42 days')
-      ORDER BY julianday(a.start_time) DESC, a.id DESC, i.interval_index ASC
-    `).all(runDate, runDate) as Array<{ id: string; run_type: string; avg_pace_sec_km: number }>;
+        AND COALESCE(a.manual_failed_workout, 0) = 0
+        AND i.type = 'work' AND i.duration_seconds >= 60
+        AND i.avg_pace_sec_km BETWEEN 120 AND 1200
+      ORDER BY a.id DESC, i.interval_index ASC
+    `).all() as Array<{ id: string; run_type: string; start_time: string; avg_pace_sec_km: number }>)
+      .filter(row => row.id !== excludeActivityId && prior(row.start_time) && ref - thresholdTime(row.start_time) <= 42 * 86400000)
+      .sort((a, b) => thresholdTime(b.start_time) - thresholdTime(a.start_time));
     const latestByType = new Map<string, { activityId: string; paces: number[] }>();
     for (const row of workRows) {
       const latest = latestByType.get(row.run_type);
@@ -100,12 +98,12 @@ function dbText(row: Record<string, unknown>, key: string, table: string): strin
   return value;
 }
 function thresholdObservations(values: unknown[], table: string): ThresholdObservation[] {
-  return values.map(value => {
-    const row = dbRow(value, table);
-    return {
-      hr: dbNumber(row, 'hr', table)!, pace: dbNumber(row, 'pace', table, true),
-      confidence: dbNumber(row, 'confidence', table)!, effective_date: dbText(row, 'effective_date', table)
-    };
+  return values.flatMap(value => {
+    try {
+      const row = dbRow(value, table);
+      return [{ hr: dbNumber(row, 'hr', table)!, pace: dbNumber(row, 'pace', table, true),
+        confidence: dbNumber(row, 'confidence', table)!, effective_date: dbText(row, 'effective_date', table) }];
+    } catch { return []; /* One corrupt observation must not discard usable history. */ }
   });
 }
 
@@ -286,7 +284,8 @@ export function evaluateThresholdUpdate(
   runType: RunType,
   metadata: ActivityMetadata,
   records: ActivityRecord[],
-  economy: EconomyMetrics
+  economy: EconomyMetrics,
+  historicalProfile?: ReturnType<typeof getAthleteHeartRateProfile>
 ): ThresholdEstimate {
   let estimatedLt1Hr: number | null = null;
   let estimatedLt1Pace: number | null = null;
@@ -294,26 +293,14 @@ export function evaluateThresholdUpdate(
   let estimatedLt2Pace: number | null = null;
   let lt1Confidence = 0.88;
 
-  const profile = getAthleteHeartRateProfile(db);
+  const profile = historicalProfile ?? getAthleteHeartRateProfile(db);
   const { maxHr: effMax, restingHr: effRhr, lt2Hr: profileLt2Hr } = profile;
   const reserve = effMax - effRhr;
-  let recentBaselineLt1Pace: number | null = null;
-  let baselineLt1Hr = profile.lt1Hr;
-  // Compare to a prior, recent calibration, never to this run's stale row or
-  // a future calibration during chronological replay. Normalize mixed date formats.
-  const priorValue: unknown = db.prepare(`SELECT lt1_hr, lt1_pace_sec_km FROM physiological_thresholds
-    WHERE lt1_hr IS NOT NULL AND lt1_pace_sec_km IS NOT NULL
-      AND julianday(effective_date) < julianday(?)
-      AND julianday(effective_date) >= julianday(?, '-45 days')
-    ORDER BY julianday(effective_date) DESC, id DESC LIMIT 1`).get(runDate, runDate);
-  const prior = priorValue == null ? null : (() => {
-    const row = dbRow(priorValue, 'physiological_thresholds');
-    return { lt1_hr: dbNumber(row, 'lt1_hr', 'physiological_thresholds')!, lt1_pace_sec_km: dbNumber(row, 'lt1_pace_sec_km', 'physiological_thresholds')! };
-  })();
-  if (prior) {
-    baselineLt1Hr = prior.lt1_hr;
-    recentBaselineLt1Pace = prior.lt1_pace_sec_km;
-  }
+  const priorRolling = computeRollingThresholds(db, runDate, { strictlyBefore: true, excludeActivityId: activityId });
+  const hasRecentLt1 = priorRolling.lastLt1Date != null &&
+    thresholdTime(runDate) - thresholdTime(priorRolling.lastLt1Date) <= 45 * 86400000;
+  const recentBaselineLt1Pace = hasRecentLt1 ? priorRolling.lt1PaceSecKm : null;
+  const baselineLt1Hr = hasRecentLt1 ? priorRolling.lt1Hr ?? profile.lt1Hr : profile.lt1Hr;
   // Low-drift easy running only measures LT1 if it actually approaches this
   // athlete's established ceiling. A recovery effort is not a new threshold.
   const stimulusFloorHr = baselineLt1Hr - Math.max(2, Math.round(reserve * 0.025));
@@ -390,11 +377,7 @@ export function evaluateThresholdUpdate(
   // Physiological pace validation:
   // 1. LT1 aerobic base pace cannot be faster than 120 sec/km (2:00/km) for human aerobic running.
   // 2. LT1 pace must always be slower than LT2 threshold pace.
-  let knownLt2Pace: number | null = null;
-  try {
-    const lt2Value: unknown = db.prepare('SELECT lt2_pace_sec_km FROM physiological_thresholds WHERE lt2_pace_sec_km IS NOT NULL AND julianday(effective_date) < julianday(?) ORDER BY julianday(effective_date) DESC LIMIT 1').get(runDate);
-    if (lt2Value != null) knownLt2Pace = dbNumber(dbRow(lt2Value, 'physiological_thresholds'), 'lt2_pace_sec_km', 'physiological_thresholds');
-  } catch { /* optional query: schema may predate this table */ }
+  const knownLt2Pace = priorRolling.lt2PaceSecKm;
 
   if (estimatedLt1Pace !== null) {
     if (estimatedLt1Pace < 120 || (knownLt2Pace !== null && estimatedLt1Pace <= knownLt2Pace)) {
@@ -431,7 +414,7 @@ export function evaluateThresholdUpdate(
     // Screen effort against the independent athlete baseline, not the previous
     // inferred HR: otherwise one high-HR session raises the admission bar for
     // all later workouts and creates a self-reinforcing selection bias.
-    const lt2EffortBaseline = getAthleteHeartRateProfile(db, false).lt2Hr;
+    const lt2EffortBaseline = Math.min(profile.lt2Hr, getAthleteHeartRateProfile(db, false).lt2Hr);
     const stimulusFloor = lt2EffortBaseline - 10;
     // Sustained work, not strides or short VO2 reps. Count elapsed session
     // time as well as work time so a late long-run HR rise cannot qualify.
@@ -508,11 +491,11 @@ export function evaluateThresholdUpdate(
           const tRamp = inv.duration_seconds >= 300 ? Math.min(90, Math.max(45, Math.round(avgRestDrop * 1.5))) : 0;
           const hrStart = inv.start_seconds + tRamp;
           const repAvgHr = timeWeightedMean(repRecs, r => r.elapsed_seconds, r => r.heart_rate,
-            v => v > 100, hrStart, repEnd);
+            v => v > 100 && v < effMax, hrStart, repEnd);
           const paceCoverage = observedDuration(repRecs, r => r.elapsed_seconds,
             r => r.speed_mps != null && r.speed_mps > 1.5 && r.speed_mps <= 8.5, paceStart, repEnd);
           const hrCoverage = observedDuration(repRecs, r => r.elapsed_seconds,
-            r => r.heart_rate != null && r.heart_rate > 100, hrStart, repEnd);
+            r => r.heart_rate != null && r.heart_rate > 100 && r.heart_rate < effMax, hrStart, repEnd);
           // Partial sensor evidence must not be extrapolated over an entire rep.
           if (repAvgSpeed == null || repAvgHr == null || paceCoverage < (repEnd - paceStart) * 0.8 ||
               hrCoverage < (repEnd - hrStart) * 0.8) continue;
@@ -525,8 +508,8 @@ export function evaluateThresholdUpdate(
           for (let r = 1; r < repRecs.length; r++) {
             const a = repRecs[r - 1], b = repRecs[r];
             const intervalSeconds = b.elapsed_seconds - a.elapsed_seconds;
-            if (intervalSeconds <= 0 || intervalSeconds > 15 || a.heart_rate == null || b.heart_rate == null ||
-                a.speed_mps == null || b.speed_mps == null || a.heart_rate <= 40 || b.heart_rate <= 40 ||
+            if (intervalSeconds <= 0 || intervalSeconds > MAX_OBSERVED_GAP_SECONDS || a.heart_rate == null || b.heart_rate == null ||
+                a.speed_mps == null || b.speed_mps == null || a.heart_rate <= 40 || b.heart_rate <= 40 || a.heart_rate >= effMax || b.heart_rate >= effMax ||
                 a.speed_mps <= 0 || b.speed_mps <= 0 || a.speed_mps > 8.5 || b.speed_mps > 8.5) continue;
             for (let half = 0; half < 2; half++) {
               const from = Math.max(a.elapsed_seconds, half === 0 ? steadyStart : midpoint);
@@ -591,13 +574,17 @@ export function evaluateThresholdUpdate(
       // recoveries. Without records, a whole-run average cannot establish LT2.
       let highRecords: ActivityRecord[] = [];
       let candidate: ActivityRecord[] = [];
+      const validThresholdRecord = (record: ActivityRecord) =>
+        record.elapsedSeconds <= 3600 && record.heartRate != null && Number.isFinite(record.heartRate) &&
+        record.heartRate >= lt2Floor && record.heartRate < effMax && record.speedMps != null &&
+        Number.isFinite(record.speedMps) && record.speedMps > 0 && record.speedMps <= 8.5;
       for (const record of [...records].sort((a, b) => a.elapsedSeconds - b.elapsedSeconds)) {
         const previous = candidate[candidate.length - 1];
         const gap = previous ? record.elapsedSeconds - previous.elapsedSeconds : 0;
-        if (record.elapsedSeconds > 3600 || !record.heartRate || record.heartRate < lt2Floor || !record.speedMps || record.speedMps <= 0 || gap > 5 || gap < 0) {
+        if (!validThresholdRecord(record) || gap > MAX_OBSERVED_GAP_SECONDS || gap < 0) {
           candidate = [];
         }
-        if (record.elapsedSeconds <= 3600 && record.heartRate && record.heartRate >= lt2Floor && record.speedMps && record.speedMps > 0) {
+        if (validThresholdRecord(record)) {
           candidate.push(record);
           const duration = record.elapsedSeconds - candidate[0].elapsedSeconds;
           if (duration >= 1200) { highRecords = candidate; break; }
@@ -629,21 +616,17 @@ export function evaluateThresholdUpdate(
   }
 
   // 3. Compute 30-day rolling baseline economy
-  const past30DaysQuery = db.prepare(`
-    SELECT AVG(efficiency_factor) as avg_ef
-    FROM activities
-    WHERE efficiency_factor IS NOT NULL
-      AND start_time >= datetime(?, '-30 days')
-      AND start_time <= datetime(?)
-  `);
-  const rowValue: unknown = past30DaysQuery.get(runDate, runDate);
-  const avgEf = rowValue == null ? null : dbNumber(dbRow(rowValue, 'activities aggregate'), 'avg_ef', 'activities aggregate', true);
+  const ref = thresholdTime(runDate);
+  const recentEconomy = (db.prepare(`SELECT start_time, efficiency_factor FROM activities
+    WHERE efficiency_factor IS NOT NULL`).all() as Array<{ start_time: string; efficiency_factor: number }>)
+    .filter(row => thresholdTime(row.start_time) <= ref && ref - thresholdTime(row.start_time) <= 30 * 86400000);
+  const avgEf = recentEconomy.length ? recentEconomy.reduce((sum, row) => sum + row.efficiency_factor, 0) / recentEconomy.length : null;
   const baselineEconomyEf = avgEf ? Number(avgEf.toFixed(4)) : economy.efficiencyFactor;
 
   // 4. Save to physiological_thresholds if new candidate detected
   const isLt2Candidate = runType === 'threshold_lt2' && estimatedLt2Pace !== null;
   if (qualifiesLt1 || isLt2Candidate) {
-    db.prepare('DELETE FROM physiological_thresholds WHERE source_activity_id = ?').run(activityId);
+    db.prepare("DELETE FROM physiological_thresholds WHERE source_activity_id = ? AND source_kind = 'workout'").run(activityId);
 
     const insertThreshold = db.prepare(`
       INSERT INTO physiological_thresholds (
@@ -720,7 +703,7 @@ export function evaluateThresholdUpdate(
     }
   } else {
     try {
-      db.prepare('DELETE FROM physiological_thresholds WHERE source_activity_id = ?').run(activityId);
+      db.prepare("DELETE FROM physiological_thresholds WHERE source_activity_id = ? AND source_kind = 'workout'").run(activityId);
     } catch { /* optional query: schema may predate this table */ }
   }
 
@@ -735,7 +718,8 @@ export function evaluateThresholdUpdate(
 
 export function computeRollingThresholds(
   db: Database.Database,
-  asOfDate?: string
+  asOfDate?: string,
+  options: { strictlyBefore?: boolean; excludeActivityId?: string } = {}
 ): {
   lt1Hr: number | null;
   lt1PaceSecKm: number | null;
@@ -747,58 +731,25 @@ export function computeRollingThresholds(
   lastLt2Date: string | null;
 } {
   const refDateStr = asOfDate || new Date().toISOString();
-  // 1. Fetch recent LT1 calibrations (up to 5 in last 45 days, or last 3 if none in 45 days)
-  let lt1Rows: ThresholdObservation[] = [];
+  // Filter dates and rejected evidence before selecting recent-five/historical-three.
+  // SQL LIMITs before validation can let rejected rows displace good evidence.
+  let failedSources = new Set<string>();
   try {
-    lt1Rows = thresholdObservations(db.prepare(`
-      SELECT lt1_hr as hr, lt1_pace_sec_km as pace, confidence, effective_date
-      FROM physiological_thresholds
-      WHERE lt1_hr IS NOT NULL
-        AND julianday(effective_date) <= julianday(?)
-        AND julianday(effective_date) >= julianday(?, '-45 days')
-      ORDER BY julianday(effective_date) DESC, id DESC
-      LIMIT 5
-    `).all(refDateStr, refDateStr), 'physiological_thresholds');
-
-    if (lt1Rows.length === 0) {
-      lt1Rows = thresholdObservations(db.prepare(`
-        SELECT lt1_hr as hr, lt1_pace_sec_km as pace, confidence, effective_date
-        FROM physiological_thresholds
-        WHERE lt1_hr IS NOT NULL
-          AND julianday(effective_date) <= julianday(?)
-        ORDER BY julianday(effective_date) DESC, id DESC
-        LIMIT 3
-      `).all(refDateStr), 'physiological_thresholds');
-    }
-  } catch { /* optional query: schema may predate this table */ }
-
-  // 2. Fetch recent LT2 calibrations (up to 5 in last 45 days, or last 3 if none in 45 days)
-  let lt2Rows: ThresholdObservation[] = [];
-  try {
-    lt2Rows = thresholdObservations(db.prepare(`
-      SELECT lt2_hr as hr, lt2_pace_sec_km as pace, confidence, effective_date
-      FROM physiological_thresholds
-      WHERE lt2_hr IS NOT NULL
-        AND julianday(effective_date) <= julianday(?)
-        AND julianday(effective_date) >= julianday(?, '-45 days')
-      ORDER BY julianday(effective_date) DESC, id DESC
-      LIMIT 5
-    `).all(refDateStr, refDateStr), 'physiological_thresholds');
-
-    if (lt2Rows.length === 0) {
-      lt2Rows = thresholdObservations(db.prepare(`
-        SELECT lt2_hr as hr, lt2_pace_sec_km as pace, confidence, effective_date
-        FROM physiological_thresholds
-        WHERE lt2_hr IS NOT NULL
-          AND julianday(effective_date) <= julianday(?)
-        ORDER BY julianday(effective_date) DESC, id DESC
-        LIMIT 3
-      `).all(refDateStr), 'physiological_thresholds');
-    }
-  } catch { /* optional query: schema may predate this table */ }
-
-  const rolledLt1 = rollingThreshold(lt1Rows, refDateStr);
-  const rolledLt2 = rollingThreshold(lt2Rows, refDateStr);
+    failedSources = new Set((db.prepare('SELECT id FROM activities WHERE manual_failed_workout = 1').all() as Array<{ id: string }>).map(row => row.id));
+  } catch { /* Older read-only snapshots may not have confirmation columns. */ }
+  const observations = (hr: 'lt1_hr' | 'lt2_hr', pace: 'lt1_pace_sec_km' | 'lt2_pace_sec_km'): ThresholdObservation[] => {
+    try {
+      const rows = db.prepare(`SELECT ${hr} as hr, ${pace} as pace, confidence, effective_date, source_activity_id, source_kind
+        FROM physiological_thresholds WHERE ${hr} IS NOT NULL ORDER BY id DESC`).all();
+      return thresholdObservations(rows.filter(value => {
+        const row = dbRow(value, 'physiological_thresholds');
+        return row.source_activity_id !== options.excludeActivityId &&
+          (row.source_kind === 'external' || typeof row.source_activity_id !== 'string' || !failedSources.has(row.source_activity_id));
+      }), 'physiological_thresholds');
+    } catch { return []; /* optional query: schema may predate this table */ }
+  };
+  const rolledLt1 = rollingThreshold(observations('lt1_hr', 'lt1_pace_sec_km'), refDateStr, options);
+  const rolledLt2 = rollingThreshold(observations('lt2_hr', 'lt2_pace_sec_km'), refDateStr, options);
 
   return {
     lt1Hr: rolledLt1?.hr ?? null,
@@ -809,6 +760,23 @@ export function computeRollingThresholds(
     lt2Confidence: rolledLt2?.confidence ?? 0.85,
     lastLt1Date: rolledLt1?.latestDate ?? null,
     lastLt2Date: rolledLt2?.latestDate ?? null
+  };
+}
+
+/** Thresholds available before this workout. Cached current LT fields and the
+ * workout's own observation cannot rewrite its historical classification.
+ * Missing evidence falls back to the independent max/resting-HR estimate.
+ */
+export function getHeartRateProfileAtDate(db: Database.Database, runDate: string, excludeActivityId?: string) {
+  const baseline = getAthleteHeartRateProfile(db, false);
+  const rolling = computeRollingThresholds(db, runDate, { strictlyBefore: true, excludeActivityId });
+  return {
+    ...baseline,
+    ...resolveHeartRateProfile({ ...baseline,
+      lt1Hr: rolling.lt1Hr ?? baseline.lt1Hr, lt2Hr: rolling.lt2Hr ?? baseline.lt2Hr }),
+    lt1Source: rolling.lt1Hr == null ? 'baseline' as const : 'calibrated' as const,
+    lt2Source: rolling.lt2Hr == null ? 'baseline' as const : 'calibrated' as const,
+    lastLt1Date: rolling.lastLt1Date, lastLt2Date: rolling.lastLt2Date
   };
 }
 

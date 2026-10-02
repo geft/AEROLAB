@@ -8,13 +8,14 @@ export interface ThresholdObservation {
 export const thresholdTime = (date: string) => new Date(date.replace(' ', 'T')).getTime();
 
 /** Causal estimate: only observations available at the requested date contribute. */
-export function rollingThreshold(observations: ThresholdObservation[], asOfDate: string) {
+export function rollingThreshold(observations: ThresholdObservation[], asOfDate: string,
+  options: { strictlyBefore?: boolean } = {}) {
   const refTime = thresholdTime(asOfDate);
   if (!Number.isFinite(refTime)) return null;
   // Parse each date once; rejected evidence must not displace a usable observation
   // from the recent-five / historical-three selection window.
   const eligible = observations.map(row => ({ row, time: thresholdTime(row.effective_date) }))
-    .filter(({ row, time }) => Number.isFinite(time) && time <= refTime &&
+    .filter(({ row, time }) => Number.isFinite(time) && (options.strictlyBefore ? time < refTime : time <= refTime) &&
       Number.isFinite(row.hr) && row.hr > 0 && Number.isFinite(row.confidence) && row.confidence > 0 && row.confidence <= 1)
     .sort((a, b) => b.time - a.time);
   const recent = eligible.filter(({ time }) => refTime - time <= 45 * 86400000);

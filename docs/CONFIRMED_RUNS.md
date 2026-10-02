@@ -42,27 +42,48 @@ three LT2 states, two recording densities and two speed scales (216 scenarios),
 plus a fixed-max-HR threshold-shift case. These are mechanical safeguards,
 not validation against independent real athletes.
 
-### Historical classification limitation
+### Historical LT1/LT2 support
 
-The threshold tracker smooths dated LT1/LT2 observations, but full DB replay
-currently freezes one independent HRR baseline for classification, then rebuilds
-calibrations afterwards. This prevents leakage from the final cached profile but
-does **not** classify each workout with its contemporaneous LT1/LT2. Import uses
-the current profile. Changes in threshold HR over time are therefore only
-partially supported end to end. Historical coaching also uses the current profile.
+Import, chronological replay, historical zones and coaching now resolve the
+thresholds available **strictly before** each workout. Each replayed activity
+commits its analysis and subsequent calibration together. Its own observation,
+future observations and equivalent timestamps at the same instant cannot decide
+its label. Backfilled or corrected imports also replay affected later workouts
+inside the import transaction. A calibration failure rolls that transaction back.
 
-A complete fix needs chronological, reproducible replay: classify from reliable
-observations strictly before the workout, calibrate afterwards, and fall back to
-an explicitly estimated baseline when historical evidence is missing. It must
-exclude the current workout and future observations from its own classification,
-preserve confirmed intent, and test both rising and falling thresholds at fixed
-max HR. Changing threshold estimates does not itself validate their accuracy.
+LT1 and LT2 each use up to five usable observations from the preceding 45 days,
+weighted by confidence and recency. If none are recent, the last three prior
+observations remain the historical fallback. Without usable history, thresholds
+are explicitly estimated from independent max/resting HR; cached current LT fields
+cannot rewrite old workouts. Max/resting HR remain the athlete's current baseline,
+not a reconstructed historical measurement. Old retained observations can be stale.
 
-April's longer bouts do not meet that sustained evidence test in two reps.
-May 14's work averages of 168–170 bpm and peaks of 179–183 bpm do not
-clear the fixed replay threshold/VO2 gates. July's failed attempt peaks at only
-178 bpm and lacks sustained near-maximal evidence required for automatic race
-inference. Whole-session averages further dilute work with warmup and recovery.
+Workout-derived observations are rebuilt from qualifying early sustained work;
+confirmed failures cannot calibrate thresholds. Dated external observations have
+separate provenance and survive replay without a source workout. The synthetic
+history fixtures use this provenance to represent known starting thresholds;
+they do not claim those thresholds were inferred from test workouts.
+
+`tests/integration/historical-fitness.test.ts` covers rising and falling LT1/LT2
+at fixed max HR, import/replay/coaching agreement, historical zone refresh and
+volume fallback, backfills and corrections, rejected observations, mixed timestamp
+formats, failed-source exclusion, and transactional rollback. The recording suite
+checks 1/5/15-second and uneven samples, larger unobserved gaps and sensor failures.
+No individual date, fixed training pace or athlete-specific exception enters the
+production classifier.
+
+This supplies a causal estimate of contemporaneous fitness, not laboratory
+measurement or proof of real-world classification accuracy. Easy running far below
+LT1 cannot reveal a newly lower LT1, and HR without planned intent may not distinguish
+an unsuccessful VO2 workout from achieved threshold stimulus. Independent athletes
+and dated measured thresholds remain needed for accuracy validation.
+
+In the selected full history, April and May 14 automatically predict threshold;
+July's failed time trial automatically predicts easy. September 10 also automatically
+predicts easy: prior LT2 is estimated at 178 bpm, whereas its three detected work
+reps average 168, 171 and 173 bpm. The confirmed threshold label is preserved. The
+fixed-baseline fixture still supplies two threshold controls; it is not equivalent
+to a measured historical profile.
 
 Confirmed intent therefore takes precedence in `run_type`; `auto_run_type` retains
 the classifier's independent prediction. `manual_run_type` makes confirmation

@@ -3,7 +3,9 @@ import { detectIntervals } from '../ingestion/interval-detector.js';
 import { classifyRun } from '../ingestion/classifier.js';
 import { buildSessionTags } from '../ingestion/session-tags.js';
 import { calculateEconomy, calculateKmSplits } from '../physiology/economy.js';
-import { evaluateThresholdUpdate, getCurrentThresholds, getStridePaceAnchorSecKmAtDate } from '../physiology/threshold-tracker.js';
+import { evaluateThresholdUpdate, getCurrentThresholds, getStridePaceAnchorSecKmAtDate, getHeartRateProfileAtDate } from '../physiology/threshold-tracker.js';
+import { thresholdTime } from '../../shared/threshold-trend.js';
+import { calculateActivityTrainingLoad } from '../physiology/training-load.js';
 import { syncAllCoachSummaries } from '../physiology/coach-summary.js';
 
 export interface RealignStats {
@@ -72,12 +74,13 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
   } else {
     activities = db.prepare('SELECT * FROM activities ORDER BY julianday(start_time) ASC, id ASC').all() as any[];
   }
+  activities.sort((a, b) => thresholdTime(a.start_time) - thresholdTime(b.start_time) || a.id.localeCompare(b.id));
   if (activities.length === 0) return stats;
   log(`Realigning ${activities.length} activities in chronological order...`);
-  const fullReplay = !options.activityIds?.length;
-  // Classification must not inherit inferred thresholds from the end of the
-  // previous replay. Freeze the athlete's independent baseline for this pass.
-  const replayProfile = getAthleteHeartRateProfile(db, !fullReplay);
+  const baseline = getAthleteHeartRateProfile(db, false);
+  // Cache fields describe current fitness, not the starting state of history.
+  db.prepare("UPDATE athlete_profile SET lt1_hr = ?, lt2_hr = ? WHERE id = 'primary'")
+    .run(baseline.hasBaseline ? baseline.lt1Hr : null, baseline.hasBaseline ? baseline.lt2Hr : null);
 
   const insertInterval = db.prepare(`
     INSERT INTO activity_intervals (
@@ -97,9 +100,30 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  // Phase 1: per-activity intervals + classification + tags (isolated).
-  // Threshold rows are left untouched here; phase 2 rebuilds them from scratch.
-  const evaluated: { act: any; meta: any; mapped: any[]; economy: any; runType: string }[] = [];
+  // Reject stale workout-derived observations before they can influence later
+  // runs. Explicit dated external measurements survive without a source workout.
+  const prunable = db.prepare(`
+    DELETE FROM physiological_thresholds
+    WHERE (lt1_hr IS NOT NULL AND (lt1_hr >= ? OR lt1_hr <= ?))
+      OR (lt2_hr IS NOT NULL AND (lt2_hr >= ? OR lt2_hr <= ?))
+      OR (lt1_pace_sec_km IS NOT NULL AND (lt1_pace_sec_km < 120 OR lt1_pace_sec_km > 1200))
+      OR (lt2_pace_sec_km IS NOT NULL AND (lt2_pace_sec_km < 120 OR lt2_pace_sec_km > 1200))
+      OR (source_kind = 'workout' AND (
+        source_activity_id IS NULL OR source_activity_id NOT IN (SELECT id FROM activities)
+        OR source_activity_id IN (
+          SELECT t.source_activity_id FROM physiological_thresholds t
+          JOIN activities a ON a.id = t.source_activity_id
+          WHERE a.manual_failed_workout = 1
+            OR (t.lt2_hr IS NOT NULL AND a.run_type NOT IN ('threshold_lt2', 'race'))
+            OR (t.lt1_hr IS NOT NULL AND t.lt2_hr IS NULL AND a.run_type NOT IN ('easy_base', 'long_run'))
+        )
+      ))
+  `).run(baseline.maxHr, baseline.restingHr, baseline.maxHr, baseline.restingHr);
+  stats.thresholdsPruned += prunable.changes;
+
+  // Each activity commits analysis and calibration together, in date order.
+  // Earlier activities have already been rebuilt; current/future rows are
+  // excluded from classification, so repeated replay is causal and deterministic.
   for (const act of activities) {
     try {
       const records = db.prepare('SELECT * FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC').all(act.id) as any[];
@@ -107,109 +131,118 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
         stats.activitiesSkipped++;
         continue;
       }
-      const mapped = mapRecords(records);
-      const hrProfile = replayProfile;
-      const stridePaceAnchorSecKm = getStridePaceAnchorSecKmAtDate(db, act.start_time);
-      const intervalOptions = {
-        lt1Hr: hrProfile?.lt1Hr ?? undefined,
-        lt2Hr: hrProfile?.lt2Hr ?? undefined,
-        stridePaceAnchorSecKm: stridePaceAnchorSecKm ?? undefined,
-        maxHr: hrProfile?.maxHr ?? undefined,
-        restingHr: hrProfile?.restingHr ?? undefined
-      };
-      let intervals = detectIntervals(mapped as any, intervalOptions);
+      const rebuilt = db.transaction(() => {
+        db.prepare("DELETE FROM physiological_thresholds WHERE source_activity_id = ? AND source_kind = 'workout'").run(act.id);
+        const mapped = mapRecords(records);
+        const hrProfile = getHeartRateProfileAtDate(db, act.start_time);
+        const stridePaceAnchorSecKm = getStridePaceAnchorSecKmAtDate(db, act.start_time);
+        const intervalOptions = {
+          lt1Hr: hrProfile?.lt1Hr ?? undefined,
+          lt2Hr: hrProfile?.lt2Hr ?? undefined,
+          stridePaceAnchorSecKm: stridePaceAnchorSecKm ?? undefined,
+          maxHr: hrProfile?.maxHr ?? undefined,
+          restingHr: hrProfile?.restingHr ?? undefined
+        };
+        let intervals = detectIntervals(mapped as any, intervalOptions);
 
-      const economy = calculateEconomy(mapped as any);
-      const meta = {
-        id: act.id,
-        name: act.name,
-        sport: act.sport,
-        date: act.start_time,
-        totalDistanceMeters: act.distance_meters,
-        totalDurationSeconds: act.duration_seconds,
-        totalElapsedSeconds: act.elapsed_seconds || act.duration_seconds,
-        avgHeartRate: act.avg_heart_rate,
-        maxHeartRate: act.max_heart_rate,
-        avgCadence: act.avg_cadence,
-        maxCadence: act.max_cadence,
-        calories: act.calories,
-        totalAscentMeters: act.elevation_gain_m || 0,
-        totalDescentMeters: act.elevation_loss_m || 0
-      };
-      const classification = classifyRun(meta, mapped as any, economy, intervals, hrProfile);
-      const runType = act.manual_run_type || classification.runType;
-      // Match ingestion: a newly inferred race needs benchmark segmentation
-      // in this pass, before its tags and coach summary are rebuilt.
-      if (runType === 'race') {
-        intervals = detectIntervals(mapped as any, { ...intervalOptions, isRace: true });
-      }
-      db.prepare('DELETE FROM activity_intervals WHERE activity_id = ?').run(act.id);
-      for (const inv of intervals) {
-        insertInterval.run(
-          act.id, inv.intervalIndex, inv.type, inv.startSeconds, inv.durationSeconds,
-          inv.distanceMeters, inv.avgSpeedMps, inv.avgPaceSecKm, inv.avgHeartRate,
-          inv.maxHeartRate, inv.avgCadence, inv.peakCadence ?? null, inv.peakSpeedMps ?? null,
-          inv.peakPaceSecKm ?? null, inv.minStanceTime ?? null, inv.hrDrop ?? null,
-          (inv as any).avgVertOsc ?? null, (inv as any).avgStanceTime ?? null,
-          (inv as any).avgStepLength ?? null, (inv as any).avgStrideLength ?? null,
-          (inv as any).avgVertRatio ?? null
-        );
-      }
-      stats.intervalsRebuilt += intervals.length;
-      const tags = buildSessionTags(runType, mapped, intervals, hrProfile);
-
-      if (act.run_type !== runType) {
-        stats.runTypeChanges.push({ id: act.id, from: act.run_type, to: runType });
-      }
-      db.prepare(`
-        UPDATE activities SET
-          run_type = ?,
-          auto_run_type = ?,
-          tags = ?,
-          efficiency_factor = ?,
-          aerobic_decoupling_pct = ?,
-          meters_per_beat = ?,
-          steady_pace_sec_km = ?,
-          steady_heart_rate = ?,
-          steady_cadence = ?,
-          steady_stance_time = ?
-        WHERE id = ?
-      `).run(
-        runType,
-        classification.runType,
-        JSON.stringify(tags),
-        economy.efficiencyFactor,
-        economy.aerobicDecouplingPct,
-        economy.metersPerBeat,
-        economy.steadyPaceSecKm,
-        economy.steadyHeartRate,
-        economy.steadyCadence,
-        economy.steadyStanceTimeMs,
-        act.id
-      );
-
-      const splits = calculateKmSplits(mapped as any, 1000);
-      if (splits.length > 0) {
-        db.prepare('DELETE FROM activity_splits WHERE activity_id = ?').run(act.id);
-        for (const s of splits) {
-          insertSplit.run(
-            act.id,
-            s.splitIndex,
-            s.distanceMeters,
-            s.durationSeconds,
-            s.avgPaceSecKm,
-            s.avgHeartRate,
-            s.splitEfficiencyFactor,
-            s.elevationChangeM,
-            s.avgCadence ?? null,
-            s.avgStanceTimeMs ?? null,
-            s.avgVertOscMm ?? null,
-            s.avgVertRatioPct ?? null
+        const economy = calculateEconomy(mapped as any);
+        const meta = {
+          id: act.id,
+          name: act.name,
+          sport: act.sport,
+          date: act.start_time,
+          totalDistanceMeters: act.distance_meters,
+          totalDurationSeconds: act.duration_seconds,
+          totalElapsedSeconds: act.elapsed_seconds || act.duration_seconds,
+          avgHeartRate: act.avg_heart_rate,
+          maxHeartRate: act.max_heart_rate,
+          avgCadence: act.avg_cadence,
+          maxCadence: act.max_cadence,
+          calories: act.calories,
+          totalAscentMeters: act.elevation_gain_m || 0,
+          totalDescentMeters: act.elevation_loss_m || 0
+        };
+        const classification = classifyRun(meta, mapped as any, economy, intervals, hrProfile);
+        const runType = act.manual_run_type || classification.runType;
+        // Match ingestion: a newly inferred race needs benchmark segmentation
+        // in this pass, before its tags and coach summary are rebuilt.
+        if (runType === 'race') {
+          intervals = detectIntervals(mapped as any, { ...intervalOptions, isRace: true });
+        }
+        db.prepare('DELETE FROM activity_intervals WHERE activity_id = ?').run(act.id);
+        for (const inv of intervals) {
+          insertInterval.run(
+            act.id, inv.intervalIndex, inv.type, inv.startSeconds, inv.durationSeconds,
+            inv.distanceMeters, inv.avgSpeedMps, inv.avgPaceSecKm, inv.avgHeartRate,
+            inv.maxHeartRate, inv.avgCadence, inv.peakCadence ?? null, inv.peakSpeedMps ?? null,
+            inv.peakPaceSecKm ?? null, inv.minStanceTime ?? null, inv.hrDrop ?? null,
+            (inv as any).avgVertOsc ?? null, (inv as any).avgStanceTime ?? null,
+            (inv as any).avgStepLength ?? null, (inv as any).avgStrideLength ?? null,
+            (inv as any).avgVertRatio ?? null
           );
         }
-      }
+        const tags = buildSessionTags(runType, mapped, intervals, hrProfile);
+        const load = calculateActivityTrainingLoad(mapped, hrProfile,
+          { durationSeconds: act.duration_seconds, avgHeartRate: act.avg_heart_rate });
+        db.prepare(`UPDATE activities SET training_load=?,z1_seconds=?,z2_seconds=?,z3_seconds=?,z4_seconds=?,z5_seconds=? WHERE id=?`)
+          .run(load.trainingLoad, load.zones.z1Seconds, load.zones.z2Seconds, load.zones.z3Seconds,
+            load.zones.z4Seconds, load.zones.z5Seconds, act.id);
 
-      evaluated.push({ act, meta, mapped, economy, runType });
+        db.prepare(`
+          UPDATE activities SET
+            run_type = ?,
+            auto_run_type = ?,
+            tags = ?,
+            efficiency_factor = ?,
+            aerobic_decoupling_pct = ?,
+            meters_per_beat = ?,
+            steady_pace_sec_km = ?,
+            steady_heart_rate = ?,
+            steady_cadence = ?,
+            steady_stance_time = ?
+          WHERE id = ?
+        `).run(
+          runType,
+          classification.runType,
+          JSON.stringify(tags),
+          economy.efficiencyFactor,
+          economy.aerobicDecouplingPct,
+          economy.metersPerBeat,
+          economy.steadyPaceSecKm,
+          economy.steadyHeartRate,
+          economy.steadyCadence,
+          economy.steadyStanceTimeMs,
+          act.id
+        );
+
+        const splits = calculateKmSplits(mapped as any, 1000);
+        if (splits.length > 0) {
+          db.prepare('DELETE FROM activity_splits WHERE activity_id = ?').run(act.id);
+          for (const s of splits) {
+            insertSplit.run(
+              act.id,
+              s.splitIndex,
+              s.distanceMeters,
+              s.durationSeconds,
+              s.avgPaceSecKm,
+              s.avgHeartRate,
+              s.splitEfficiencyFactor,
+              s.elevationChangeM,
+              s.avgCadence ?? null,
+              s.avgStanceTimeMs ?? null,
+              s.avgVertOscMm ?? null,
+              s.avgVertRatioPct ?? null
+            );
+          }
+        }
+
+        if (act.manual_failed_workout !== 1)
+          evaluateThresholdUpdate(db, act.id, act.start_time, runType, meta, mapped, economy, hrProfile);
+        return { runType, intervalCount: intervals.length };
+      })();
+      stats.intervalsRebuilt += rebuilt.intervalCount;
+      if (act.run_type !== rebuilt.runType)
+        stats.runTypeChanges.push({ id: act.id, from: act.run_type, to: rebuilt.runType });
       stats.activitiesProcessed++;
     } catch (err: any) {
       stats.activitiesFailed.push(`${act.id}: ${err?.message || err}`);
@@ -217,68 +250,17 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
     }
   }
 
-  // Phase 2: rebuild threshold calibrations chronologically. Stale rows whose
-  // source activity no longer qualifies, or values outside the athlete’s HR range or broad running pace limits, are pruned first.
-  try {
-    // Initialize athlete_profile baseline cleanly before chronological threshold replay
-    const { maxHr: effMax, restingHr: effRhr } = getAthleteHeartRateProfile(db);
-
-    const prunable = db.prepare(`
-      DELETE FROM physiological_thresholds
-      WHERE (lt1_hr IS NOT NULL AND (lt1_hr >= ? OR lt1_hr <= ?))
-         OR (lt1_pace_sec_km IS NOT NULL AND (lt1_pace_sec_km < 120 OR lt1_pace_sec_km > 1200))
-         OR source_activity_id IS NULL
-         OR source_activity_id NOT IN (SELECT id FROM activities)
-         OR source_activity_id IN (
-        SELECT t.source_activity_id FROM physiological_thresholds t
-        JOIN activities a ON a.id = t.source_activity_id
-        WHERE (
-          a.manual_failed_workout = 1
-        ) OR (
-          t.lt2_hr IS NOT NULL AND a.run_type NOT IN ('threshold_lt2', 'race')
-        ) OR (
-          t.lt1_hr IS NOT NULL AND t.lt2_hr IS NULL AND a.run_type NOT IN ('easy_base', 'long_run')
-        )
-      )
-    `).run(effMax, effRhr);
-    stats.thresholdsPruned += prunable.changes ?? 0;
-  } catch (err: any) {
-    log(`  threshold prune skipped: ${err?.message || err}`);
-  }
-
-  if (fullReplay && evaluated.length > 0) {
-    // Clear only successfully rebuilt activities; preserve evidence for runs
-    // whose records could not be processed. Never use future cached profile HR.
-    const remove = db.prepare('DELETE FROM physiological_thresholds WHERE source_activity_id = ?');
-    db.transaction(() => {
-      for (const e of evaluated) remove.run(e.act.id);
-      db.prepare("UPDATE athlete_profile SET lt1_hr = ?, lt2_hr = ? WHERE id = 'primary'")
-        .run(replayProfile.hasBaseline ? replayProfile.lt1Hr : null, replayProfile.hasBaseline ? replayProfile.lt2Hr : null);
-    })();
-  }
-
-  for (const e of evaluated) {
-    try {
-      // A confirmed failed attempt is not a threshold calibration benchmark.
-      if (e.act.manual_failed_workout === 1) continue;
-      evaluateThresholdUpdate(db, e.act.id, e.act.start_time, e.runType as any, e.meta, e.mapped as any, e.economy);
-    } catch (err: any) {
-      stats.activitiesFailed.push(`${e.act.id} (thresholds): ${err?.message || err}`);
-      log(`  FAILED thresholds ${e.act.id}: ${err?.message || err}`);
-    }
-  }
-
   // Clean up any duplicate calibrations for identical source activities
   try {
     db.prepare(`
       DELETE FROM physiological_thresholds
-      WHERE id NOT IN (
-        SELECT MAX(id) FROM physiological_thresholds GROUP BY source_activity_id
+      WHERE source_kind = 'workout' AND source_activity_id IS NOT NULL AND id NOT IN (
+        SELECT MAX(id) FROM physiological_thresholds WHERE source_kind = 'workout' AND source_activity_id IS NOT NULL GROUP BY source_activity_id
       )
     `).run();
   } catch { /* non-fatal */ }
 
-  // Phase 3: profile follows the latest calibrations; summaries follow all.
+  // Current profile follows the rebuilt history; each summary uses its own date.
   try {
     const current = getCurrentThresholds(db);
     try {

@@ -1,3 +1,4 @@
+import { MAX_OBSERVED_GAP_SECONDS } from './time-series.js';
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { getDefaultZones } from './zones.js';
 /**
@@ -86,10 +87,11 @@ export function calculateActivityTrainingLoad(
 
       const prevSec = prev.elapsed_seconds ?? prev.elapsedSeconds ?? 0;
       const currSec = curr.elapsed_seconds ?? curr.elapsedSeconds ?? 0;
-      const dtSec = Math.max(0, Math.min(10, currSec - prevSec));
+      const dtSec = currSec - prevSec;
+      if (!Number.isFinite(dtSec) || dtSec <= 0 || dtSec > MAX_OBSERVED_GAP_SECONDS) continue;
 
       const hr = curr.heart_rate ?? curr.heartRate ?? 0;
-      if (!hr || hr < restingHr) continue;
+      if (!Number.isFinite(hr) || hr < restingHr || hr > maxHr) continue;
 
       // Heart Rate Reserve fraction
       const hrrFraction = Math.min(1.0, Math.max(0, (hr - restingHr) / hrReserve));

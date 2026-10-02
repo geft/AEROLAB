@@ -11,11 +11,11 @@ import type {
   ActivityPatchResponse, CoachSummaryResponse, WeatherRefreshResponse,
 } from '../../shared/activity-detail.js';
 import { getAthleteHeartRateProfile } from '../physiology/athlete-profile.js';
-import { getDefaultZones } from '../physiology/zones.js';
 import { generateCoachSummary, syncActivityCoachSummary } from '../physiology/coach-summary.js';
 import { extractSteadyStateMetrics } from '../physiology/economy.js';
 import { syncActivityWeather } from '../physiology/weather.js';
-import { calculateTrainingStatus } from '../physiology/training-load.js';
+import { getHeartRateProfileAtDate } from '../physiology/threshold-tracker.js';
+import { calculateActivityTrainingLoad, calculateTrainingStatus } from '../physiology/training-load.js';
 import { getAthleteBestEfforts } from '../physiology/best-efforts.js';
 
 /** Tags the client is allowed to apply to an activity. */
@@ -47,9 +47,6 @@ export function getVolumeService(db: Database.Database, query: VolumeQuery): Vol
   const period = query.period || 'month';
   const targetMonth = query.month;
   const targetYear = query.year;
-
-  const { maxHr, restingHr, lt1Hr, lt2Hr } = getAthleteHeartRateProfile(db);
-  const boundaries = getDefaultZones(maxHr, lt1Hr, lt2Hr, restingHr);
 
   let sql = `SELECT id, start_time, distance_meters, duration_seconds, elevation_gain_m, efficiency_factor, run_type, training_load, z1_seconds, z2_seconds, z3_seconds, z4_seconds, z5_seconds FROM activities WHERE 1=1`;
   const params: Array<string | number> = [];
@@ -115,15 +112,11 @@ export function getVolumeService(db: Database.Database, query: VolumeQuery): Vol
       z5Sec += (a.z5_seconds || 0);
     } else {
       const recs = recStmt.all(a.id).map(heartRateRecordFromRow);
-      for (let i = 1; i < recs.length; i++) {
-        const dt = Math.max(0, Math.min(10, recs[i].elapsed_seconds - recs[i - 1].elapsed_seconds));
-        const hr = recs[i].heart_rate;
-        if (!hr) continue;
-        if (hr <= boundaries.z2[1]) z1z2Sec += dt;
-        else if (hr <= boundaries.z3[1]) z3Sec += dt;
-        else if (hr <= boundaries.z4[1]) z4Sec += dt;
-        else z5Sec += dt;
-      }
+      const load = calculateActivityTrainingLoad(recs, getHeartRateProfileAtDate(db, a.start_time));
+      z1z2Sec += load.zones.z1Seconds + load.zones.z2Seconds;
+      z3Sec += load.zones.z3Seconds;
+      z4Sec += load.zones.z4Seconds;
+      z5Sec += load.zones.z5Seconds;
     }
   }
 
