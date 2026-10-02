@@ -35,6 +35,29 @@ two minutes and 25% of their duration at or above 91% of max HR. This permits
 longer reps without interpreting isolated peaks as VO2. Its final short running
 dip is merged, retaining three actual reps.
 
+VO2 evidence must also exceed the athlete's LT2 training band. A high
+threshold-to-max-HR ratio must not make ordinary threshold work qualify as VO2.
+The independent synthetic profile suite covers six max/rest combinations,
+three LT2 states, two recording densities and two speed scales (216 scenarios),
+plus a fixed-max-HR threshold-shift case. These are mechanical safeguards,
+not validation against independent real athletes.
+
+### Historical classification limitation
+
+The threshold tracker smooths dated LT1/LT2 observations, but full DB replay
+currently freezes one independent HRR baseline for classification, then rebuilds
+calibrations afterwards. This prevents leakage from the final cached profile but
+does **not** classify each workout with its contemporaneous LT1/LT2. Import uses
+the current profile. Changes in threshold HR over time are therefore only
+partially supported end to end. Historical coaching also uses the current profile.
+
+A complete fix needs chronological, reproducible replay: classify from reliable
+observations strictly before the workout, calibrate afterwards, and fall back to
+an explicitly estimated baseline when historical evidence is missing. It must
+exclude the current workout and future observations from its own classification,
+preserve confirmed intent, and test both rising and falling thresholds at fixed
+max HR. Changing threshold estimates does not itself validate their accuracy.
+
 April's longer bouts do not meet that sustained evidence test in two reps.
 May 14's work averages of 168–170 bpm and peaks of 179–183 bpm do not
 clear the fixed replay threshold/VO2 gates. July's failed attempt peaks at only

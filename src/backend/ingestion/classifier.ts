@@ -73,10 +73,14 @@ export function classifyRun(
   const zones = getDefaultZones(effMax, lt1, lt2, resting);
   const zoneDist = calculateZoneDistribution(records, zones);
   const lt2Anchor = lt2;
-  const [thresholdHrFloor] = getLt2TrainingBand(lt2Anchor);
+  const [thresholdHrFloor, thresholdHrCeiling] = getLt2TrainingBand(lt2Anchor);
   // Zone 5 now means above LT2. Keep VO2 detection tied to the former
   // high-intensity HRR ceiling so threshold HR alone does not imply VO2 work.
-  const vo2HrFloor = Math.min(effMax - 1, Math.max(lt2, Math.round(resting + (effMax - resting) * 0.90))) + 1;
+  const vo2HrFloor = Math.max(thresholdHrCeiling + 1,
+    Math.min(effMax, Math.round(resting + (effMax - resting) * 0.90) + 1));
+  // High LT2/max-HR ratios are valid individual profiles. A max-HR fraction
+  // must never bypass the athlete's threshold band and relabel it as VO2.
+  const nearMaxVo2Floor = Math.max(effMax * 0.91, thresholdHrCeiling + 1);
   let validHrSeconds = 0;
   let vo2HrSeconds = 0;
   let thresholdHrSeconds = 0;
@@ -159,7 +163,7 @@ export function classifyRun(
     const prescription = inferWorkoutPrescription(detectedIntervals);
     const prescLabel = prescription ? ` (${prescription.label})` : '';
 
-    const vo2RepCount = workIntervals.filter(i => i.maxHeartRate >= vo2HrFloor || i.maxHeartRate >= effMax * 0.91).length;
+    const vo2RepCount = workIntervals.filter(i => i.maxHeartRate >= vo2HrFloor || i.maxHeartRate >= nearMaxVo2Floor).length;
     const hasVo2Intensity = vo2RepCount >= 2 || (vo2RepCount >= 1 && vo2HrPct >= 4) || (vo2HrPct >= 6 && vo2HrSeconds >= 120);
     // Distance-based or slower VO2 reps can exceed six minutes. Require sustained
     // near-max HR in two separate reps for this exception; peaks alone are not
@@ -171,7 +175,7 @@ export function classifyRun(
       const end = interval.startSeconds + interval.durationSeconds;
       const highSeconds = records.reduce((sum, record, index) => {
         if (record.elapsedSeconds < interval.startSeconds || record.elapsedSeconds >= end ||
-            record.heartRate == null || record.heartRate < effMax * 0.91 || record.heartRate > effMax) return sum;
+            record.heartRate == null || record.heartRate < nearMaxVo2Floor || record.heartRate > effMax) return sum;
         return sum + Math.min(recordDurationSeconds(records, index), end - record.elapsedSeconds);
       }, 0);
       return highSeconds >= 120 && highSeconds >= interval.durationSeconds * 0.25;
