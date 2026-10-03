@@ -526,9 +526,10 @@ export function getActivityDetailService(db: Database.Database, id: string, opti
 
 
 /** GET /api/activities/:id/coach-summary - retrieve persistent coach summary from table */
-export function getActivityCoachSummaryService(db: Database.Database, id: string): CoachSummaryResponse | null {
+export function getActivityCoachSummaryService(db: Database.Database, id: string, options: { persist?: boolean } = {}): CoachSummaryResponse | null {
   let coachRowValue: unknown = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get(id);
   if (!coachRowValue) {
+    if (options.persist === false) return null;
     syncActivityCoachSummary(db, id);
     coachRowValue = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get(id);
   }

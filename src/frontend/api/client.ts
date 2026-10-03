@@ -22,6 +22,7 @@ import type {
   UploadResponse,
   VolumeData
 } from '../types/api.js';
+import type { ImportJobStatus } from '../../shared/import-job.js';
 
 export class ApiRequestError extends Error {
   constructor(public readonly status: number, public readonly code: string, message: string) {
@@ -181,6 +182,22 @@ export function uploadActivities(payload: { files: Array<{ content: string; file
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
+}
+
+export function startImportJob(totalFiles: number, force: boolean): Promise<ImportJobStatus> {
+  return requestJson('/api/ingest/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ totalFiles, force }) });
+}
+export function stageImportJob(jobId: string, files: Array<{ filename: string; content: string }>): Promise<ImportJobStatus> {
+  return requestJson(`/api/ingest/jobs/${encodeURIComponent(jobId)}/files`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ files }) });
+}
+export function finishImportJob(jobId: string, totalFiles: number): Promise<ImportJobStatus> {
+  return requestJson(`/api/ingest/jobs/${encodeURIComponent(jobId)}/finish`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ totalFiles }) });
+}
+export function getImportJob(jobId: string): Promise<ImportJobStatus> {
+  return requestJson(`/api/ingest/jobs/${encodeURIComponent(jobId)}`);
+}
+export function cancelImportJob(jobId: string): Promise<{ cancelled: boolean }> {
+  return requestJson(`/api/ingest/jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE' });
 }
 
 /** GET /api/ingest/settings — configured Garmin export folder. */

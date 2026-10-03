@@ -13,6 +13,8 @@ export function apiErrorMessage(t: Translations, err: unknown, fallback: string)
   if (!(err instanceof ApiRequestError)) return fallback;
 
   switch (err.code) {
+    case 'ERR_IMPORT_BUSY':
+      return t.upload.busy;
     case 'ERR_API':
       return t.apiErrors.generic;
     case 'ERR_NETWORK':

@@ -223,7 +223,6 @@ export interface Translations {
     aerobicDecouplingDescSolid: string;
     aerobicDecouplingDescDrift: string;
     metersPerBeat: string;
-    groundContactTime: string;
     verticalOscillation: string;
     biomechanicalDynamics: string;
     dynamicsTitle: string;
@@ -302,7 +301,6 @@ export interface Translations {
     maxHeartRate: string;
     trainingLoad: string;
     loadPts: string;
-    steadyIsolated: string;
     excludes: string;
     trafficStops: string;
     walkBreaks: string;
@@ -614,6 +612,10 @@ export interface Translations {
     selectFiles: string;
     overwriteTip: string;
     importingCount: string;
+    uploadingFiles: string;
+    decodingFiles: string;
+    reanalysingRuns: string;
+    busy: string;
     importedCard: string;
     skippedCard: string;
     nonRunCard: string;

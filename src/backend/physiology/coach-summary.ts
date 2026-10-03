@@ -11,6 +11,7 @@ import { createInsightLog, type CoachInsightTone } from './coach-insight.js';
 import { verifiedAmbientTemperature } from './weather.js';
 import Database from 'better-sqlite3';
 import { activityFromRow, coachSummaryFromRow, objectRow } from '../db/rows.js';
+import { ANALYSIS_RECORD_COLUMNS } from '../db/analysis-records.js';
 import { parseSessionVerdict } from '../../shared/session-verdict.js';
 import { qualityWorkoutFailed } from '../ingestion/classifier.js';
 
@@ -603,7 +604,7 @@ export function syncActivityCoachSummary(
     return row;
   });
 
-  const records = validateRows(db.prepare('SELECT * FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC').all(activityId), 'activity_records',
+  const records = validateRows(db.prepare(`SELECT ${ANALYSIS_RECORD_COLUMNS} FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC`).all(activityId), 'activity_records',
     ['elapsed_seconds', 'heart_rate', 'cadence', 'speed_mps', 'distance_m', 'altitude_m', 'lat', 'lon', 'temp', 'vert_osc', 'stance_time'], ['timestamp']);
   const pauseBreakdown = extractSteadyStateMetrics(records);
   const intervals = validateRows(db.prepare('SELECT * FROM activity_intervals WHERE activity_id = ? ORDER BY interval_index ASC').all(activityId), 'activity_intervals',

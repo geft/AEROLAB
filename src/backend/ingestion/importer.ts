@@ -4,6 +4,7 @@ import path from 'path';
 import Database from 'better-sqlite3';
 import { parseRunCSV, type ParsedCSV } from './csv-parser';
 import { parseRunFit, isFitBuffer, isZipBuffer } from './fit-parser.js';
+import type { EconomyMetrics, SplitLap } from '../physiology/economy.js';
 import { evaluateThresholdUpdate, getStridePaceAnchorSecKmAtDate, getHeartRateProfileAtDate } from '../physiology/threshold-tracker.js';
 import { affectedActivityIds, rebuildAffectedHistory } from '../application/analysis/rebuild-history.js';
 import { thresholdTime } from '../../shared/threshold-trend.js';
@@ -27,9 +28,11 @@ export interface ImportResult {
 
 export interface ImportOptions {
   force?: boolean;
+  precomputed?: { economy: EconomyMetrics; splits: SplitLap[] };
   /** Internal batch context: replay history only after all files are stored. */
-  deferredReplay?: { earliestTime: number };
+  deferredReplay?: { earliestTime: number; precomputed: Map<string, { economy: EconomyMetrics; splits: SplitLap[] }> };
 }
+export type PreparedRun = ParsedCSV & { precomputed?: { economy: EconomyMetrics; splits: SplitLap[] } };
 
 export function importRunFile(db: Database.Database, filePath: string, options: ImportOptions = {}): ImportResult {
   try {
@@ -127,7 +130,7 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
     fitMetadata: parsed.fitMetadata ?? (storedFit ? JSON.parse(storedFit.metadata_json) : undefined),
     historicalProfile: hrProfile, stridePaceAnchorSecKm });
   const { economy, splits, classification, runType, intervals, tags: initialTags } = analyzeWorkout(context, {
-    confirmedRunType: confirmed?.manual_run_type
+    confirmedRunType: confirmed?.manual_run_type, precomputed: options.precomputed
   });
 
   // 3. Compute Averages from records
@@ -402,6 +405,7 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
   });
 
   transaction();
+  options.deferredReplay?.precomputed.set(metadata.id, { economy, splits });
 
   // Continuously populate and persist the AI coach summary into activity_coach_summaries
   if (!options.deferredReplay) syncActivityCoachSummary(db, metadata.id);
@@ -426,25 +430,36 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
 
 /** Store a bounded batch atomically, then rebuild its affected history once. */
 export function importParsedRuns(db: Database.Database, files: Array<{ parsed: ParsedCSV; filename: string }>, options: Pick<ImportOptions, 'force'> = {}): ImportResult[] {
+  return importPreparedRuns(db, files.map(file => ({ filename: file.filename, date: file.parsed.metadata.date, load: () => file.parsed })), options);
+}
+
+/** Load one decoded file at a time so a full import job has bounded memory. */
+export function importPreparedRuns(db: Database.Database, files: Array<{ filename: string; date: string; load: () => PreparedRun }>,
+  options: Pick<ImportOptions, 'force'> & { onProgress?: (phase: 'importing' | 'reanalysing', completed: number, total: number) => void } = {}): ImportResult[] {
   return db.transaction(() => {
-    const deferredReplay = { earliestTime: Infinity };
+    const deferredReplay = { earliestTime: Infinity, precomputed: new Map<string, { economy: EconomyMetrics; splits: SplitLap[] }>() };
     const results: ImportResult[] = new Array(files.length);
     const ordered = files.map((file, index) => ({ ...file, index }))
-      .sort((a, b) => thresholdTime(a.parsed.metadata.date) - thresholdTime(b.parsed.metadata.date));
-    for (const file of ordered) {
+      .sort((a, b) => thresholdTime(a.date) - thresholdTime(b.date));
+    for (const [processed, file] of ordered.entries()) {
       try {
         // A failed file rolls back its own writes without discarding good files.
         results[file.index] = db.transaction(() => {
-          const result = importParsedRun(db, file.parsed, file.filename, { ...options, deferredReplay });
+          const parsed = file.load();
+          const result = importParsedRun(db, parsed, file.filename, { force: options.force, deferredReplay, precomputed: parsed.precomputed });
           if (result.status === 'error') throw new Error(result.error);
           return result;
         })();
       } catch (error) {
         results[file.index] = { status: 'error', error: error instanceof Error ? error.message : String(error) };
       }
+      options.onProgress?.('importing', processed + 1, files.length);
     }
     if (results.some(result => result.status === 'imported')) {
-      rebuildAffectedHistory(db, { fromTime: deferredReplay.earliestTime });
+      const affected = affectedActivityIds(db, deferredReplay.earliestTime);
+      options.onProgress?.('reanalysing', 0, affected.length);
+      rebuildAffectedHistory(db, { fromTime: deferredReplay.earliestTime, precomputed: deferredReplay.precomputed,
+        onProgress: (completed, total) => options.onProgress?.('reanalysing', completed, total) });
       for (const result of results) {
         if (result.status !== 'imported') continue;
         const refreshed = db.prepare(`SELECT run_type, efficiency_factor, aerobic_decoupling_pct,

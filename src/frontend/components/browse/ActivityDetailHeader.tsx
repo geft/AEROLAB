@@ -3,7 +3,7 @@ import type { Activity, ActivityRecord, ActivityUpdate } from '../../types/api.j
 
 import type { DisplayTitleFn } from '../BrowseView.js';
 import type { Translations } from '../../i18n/types.js';
-import { Edit2, Tag, Plus, X, Check, ShieldCheck, Download } from 'lucide-react';
+import { Edit2, Tag, Plus, X, Check, Download } from 'lucide-react';
 import { ActivityWeatherCard } from './ActivityWeatherCard';
 import { translateTag } from '../../i18n/tagTranslator';
 import { translateActivityName } from '../../i18n/coachTranslator.js';
@@ -362,39 +362,14 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
         )}
       </div>
 
-      {/* Steady State & Pause/Walk Isolation Banner */}
       {((act.pause_duration_seconds ?? 0) > 0 || (act.walk_duration_seconds ?? 0) > 0) && (
-        <div
-          className="pause-isolation-banner"
-          style={{
-            marginTop: '1rem',
-            padding: '0.75rem 1rem',
-            background: 'rgba(6, 182, 212, 0.08)',
-            border: '1px solid rgba(6, 182, 212, 0.22)',
-            borderRadius: 8,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '0.75rem',
-            flexWrap: 'wrap'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <ShieldCheck size={16} color="#06b6d4" />
-            <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)', fontWeight: 500 }}>
-              <strong style={{ color: '#06b6d4' }}>{t.browse.steadyIsolated}:</strong>{' '}
-              {act.steady_pace_sec_km ? `${formatPace(act.steady_pace_sec_km)}/km ${t.common.pace}` : ''}
-              {act.steady_cadence ? ` • ${act.steady_cadence} spm ${t.common.cadence}` : ''}
-              {act.steady_heart_rate ? ` • ${act.steady_heart_rate} bpm ${t.common.heartRate}` : ''}
-              {act.steady_stance_time ? ` • ${Math.round(act.steady_stance_time)} ms ${t.browse.groundContactTime}` : ''}
-            </span>
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            {t.browse.excludes} {act.pause_duration_seconds ? `${formatTime(act.pause_duration_seconds)} ${t.browse.trafficStops}` : ''}
-            {act.pause_duration_seconds && act.walk_duration_seconds ? ' & ' : ''}
-            {act.walk_duration_seconds ? `${formatTime(act.walk_duration_seconds)} ${t.browse.walkBreaks} (${Math.round(act.walk_distance_meters || 0)}m)` : ''}
-          </div>
-        </div>
+        <p className="pause-isolation-note" style={{ marginTop: '0.5rem', marginBottom: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          {t.browse.excludes}{' '}
+          {[
+            (act.pause_duration_seconds ?? 0) > 0 ? `${formatTime(act.pause_duration_seconds!)} ${t.browse.trafficStops}` : null,
+            (act.walk_duration_seconds ?? 0) > 0 ? `${formatTime(act.walk_duration_seconds!)} ${t.browse.walkBreaks} (${Math.round(act.walk_distance_meters ?? 0)} m)` : null
+          ].filter(Boolean).join(' · ')}
+        </p>
       )}
     </section>
   );

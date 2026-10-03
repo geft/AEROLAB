@@ -72,6 +72,11 @@ export const patchActivity = (_id: string, _patch: ActivityPatchInput): never =>
 export const refreshActivityWeather = (_id: string): never => readOnly();
 export const uploadActivity = (_payload: unknown): never => readOnly();
 export const uploadActivities = (_payload: unknown): never => readOnly();
+export const startImportJob = (_totalFiles: number, _force: boolean): never => readOnly();
+export const stageImportJob = (_jobId: string, _files: unknown): never => readOnly();
+export const finishImportJob = (_jobId: string, _totalFiles: number): never => readOnly();
+export const getImportJob = (_jobId: string): never => readOnly();
+export const cancelImportJob = (_jobId: string): never => readOnly();
 export const saveImportFolder = (_directory: string): never => readOnly();
 export const selectImportFolder = (_title: string): never => readOnly();
 export const scanImportFolder = (): never => readOnly();

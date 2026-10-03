@@ -11,7 +11,7 @@ describe('Shared outline button style', () => {
   const css = fs.readFileSync(path.resolve(process.cwd(), 'src/frontend/styles/index.css'), 'utf8');
 
   const blockFor = (selector: string): string => {
-    const match = css.match(new RegExp(`\\${selector}\\s*\\{([^}]*)\\}`));
+    const match = css.match(new RegExp(`^\\${selector}\\s*\\{([^}]*)\\}`, 'm'));
     expect(match, `Missing ${selector} rule in index.css`).toBeTruthy();
     return match![1];
   };

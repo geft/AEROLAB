@@ -161,7 +161,9 @@ export function getThresholdsService(db: Database.Database, runTypeFilter?: stri
   // Check for proven 5K benchmark (from actual 5k time trial / race or profile PB)
   let benchmark5k: RaceBenchmark | null = null;
   const race5kCandidates = db.prepare(`
-    SELECT a.id, a.start_time, a.avg_pace_sec_km, i.avg_pace_sec_km AS benchmark_pace_sec_km
+    SELECT a.id, a.start_time, a.avg_pace_sec_km, a.duration_seconds, a.distance_meters,
+      i.avg_pace_sec_km AS benchmark_pace_sec_km,
+      i.duration_seconds AS benchmark_duration_seconds, i.distance_meters AS benchmark_distance_meters
     FROM activities a
     LEFT JOIN activity_intervals i ON i.activity_id = a.id AND i.type = 'work'
       AND i.distance_meters BETWEEN 4500 AND 5500 AND i.duration_seconds >= 600
@@ -174,17 +176,27 @@ export function getThresholdsService(db: Database.Database, runTypeFilter?: stri
     const id = activityText(row.id, 'id');
     if (!id) throw new Error('Invalid activities.id');
     return { id, start_time: activityText(row.start_time, 'start_time'), avg_pace_sec_km: activityNumber(row.avg_pace_sec_km, 'avg_pace_sec_km'),
-      benchmark_pace_sec_km: activityNumber(row.benchmark_pace_sec_km, 'benchmark_pace_sec_km') };
+      benchmark_pace_sec_km: activityNumber(row.benchmark_pace_sec_km, 'benchmark_pace_sec_km'),
+      duration_seconds: activityNumber(row.duration_seconds, 'duration_seconds'),
+      distance_meters: activityNumber(row.distance_meters, 'distance_meters'),
+      benchmark_duration_seconds: activityNumber(row.benchmark_duration_seconds, 'benchmark_duration_seconds'),
+      benchmark_distance_meters: activityNumber(row.benchmark_distance_meters, 'benchmark_distance_meters') };
   }).filter(activity => isFreshPredictionEvidence(activity.start_time, predictionNow))
     .sort((a, b) => new Date(b.start_time!.replace(' ', 'T')).getTime() - new Date(a.start_time!.replace(' ', 'T')).getTime());
   const race5kAct = race5kCandidates[0];
 
   if (race5kAct) {
+    // Within 1% of nominal 5K, retain the recorded finish time rather than
+    // multiplying an integer pace by five. Wider-distance efforts are scaled.
+    const benchmarkPace = (seconds: number | null, meters: number | null, fallback: number) =>
+      seconds != null && seconds > 0 && meters != null && meters > 0
+        ? seconds / (Math.abs(meters - 5000) <= 50 ? 5 : meters / 1000)
+        : fallback;
     const workInvPace = race5kAct.benchmark_pace_sec_km;
     if (workInvPace) {
-      benchmark5k = { paceSecKm: workInvPace, date: race5kAct.start_time, source: 'race_segment', activityId: race5kAct.id };
+      benchmark5k = { paceSecKm: benchmarkPace(race5kAct.benchmark_duration_seconds, race5kAct.benchmark_distance_meters, workInvPace), date: race5kAct.start_time, source: 'race_segment', activityId: race5kAct.id };
     } else if (race5kAct.avg_pace_sec_km) {
-      benchmark5k = { paceSecKm: race5kAct.avg_pace_sec_km, date: race5kAct.start_time, source: 'race_activity', activityId: race5kAct.id };
+      benchmark5k = { paceSecKm: benchmarkPace(race5kAct.duration_seconds, race5kAct.distance_meters, race5kAct.avg_pace_sec_km), date: race5kAct.start_time, source: 'race_activity', activityId: race5kAct.id };
     }
   }
 
@@ -195,7 +207,7 @@ export function getThresholdsService(db: Database.Database, runTypeFilter?: stri
       const match = pb5k.match(/(\d{1,2}):(\d{2})/);
       if (match) {
         const totalSec = parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
-        benchmark5k = { paceSecKm: Math.round(totalSec / 5), date: null, source: 'profile_pb' };
+        benchmark5k = { paceSecKm: totalSec / 5, date: null, source: 'profile_pb' };
       } else {
         const minMatch = pb5k.match(/(\d{1,2})\s*(?:min|m)?/i);
         if (minMatch && parseInt(minMatch[1], 10) >= 12 && parseInt(minMatch[1], 10) <= 60) {

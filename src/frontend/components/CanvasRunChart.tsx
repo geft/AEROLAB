@@ -300,7 +300,7 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme =
               <span>{t.common.distance}: <b>{hoverData.distKm} {t.common.km}</b></span>
               <span>{t.common.pace}: <b>{hoverData.paceStr}</b></span>
               <span>{t.common.heartRate}: <b>{hoverData.hr ?? '—'} bpm</b></span>
-              <span>{t.browse.telemetryChartAltitude}: <b>{hoverData.alt !== null ? `${hoverData.alt} m` : '—'}</b></span>
+              <span>{t.browse.telemetryChartAltitude}: <b>{hoverData.alt !== null ? `${Number(hoverData.alt.toFixed(1))} m` : '—'}</b></span>
             </div>
           )}
         </div>

@@ -1,10 +1,37 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { UploadModal } from '../../src/frontend/components/UploadModal.js';
+import * as importJob from '../../src/frontend/utils/import-job.js';
+import type { ImportJobStatus } from '../../src/shared/import-job.js';
 
 describe('UploadModal Multi-File UI Component Tests', () => {
+  it('changes the phase label while keeping overall progress monotonic', async () => {
+    let report!: (status: ImportJobStatus) => void;
+    let finish!: (results: []) => void;
+    vi.spyOn(importJob, 'uploadImportJob').mockImplementation((_files, _force, callback) => {
+      report = callback;
+      return new Promise(resolve => { finish = resolve; });
+    });
+    render(<UploadModal isOpen={true} onClose={vi.fn()} onUploadSuccess={vi.fn()} />);
+    fireEvent.change(document.querySelector('input[type="file"]')!, { target: {
+      files: Array.from({ length: 9 }, (_, index) => new File(['data'], `run${index}.fit`))
+    } });
+    const update = (phase: ImportJobStatus['phase'], completed: number) => act(() => report({
+      jobId: 'job', phase, completed, total: 9, uploaded: 9, totalFiles: 9
+    }));
+    update('uploading', 9);
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('20');
+    update('decoding', 0);
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('20');
+    expect(screen.getByRole('progressbar', { name: 'Reading activity files...' })).toBeTruthy();
+    update('reanalysing', 9);
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('99');
+    update('reanalysing', 0);
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('99');
+    await act(async () => finish([]));
+  });
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
@@ -272,8 +299,10 @@ describe('UploadModal Multi-File UI Component Tests', () => {
   it('bounds batches, forwards overwrite, and keeps individual failures in the summary', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, options) => {
       const payload = JSON.parse(options!.body as string);
-      return { ok: true, json: async () => ({ results: payload.files.map((file: { filename: string }) =>
-        file.filename === 'run8.fit' ? { status: 'error', error: 'Broken FIT file' } : { status: 'imported' }) }) } as Response;
+      if (_url === '/api/ingest/jobs') return { ok: true, json: async () => ({ jobId: 'job-1', phase: 'uploading', completed: 0, total: 10 }) } as Response;
+      if (String(_url).endsWith('/files')) return { ok: true, json: async () => ({ jobId: 'job-1', phase: 'uploading', completed: payload.files.length, total: 10 }) } as Response;
+      return { ok: true, json: async () => ({ phase: 'complete', completed: 10, total: 10,
+        results: Array.from({ length: 10 }, (_, index) => index === 8 ? { status: 'error' } : { status: 'imported' }) }) } as Response;
     });
     const onUploadSuccess = vi.fn();
     render(<UploadModal isOpen={true} onClose={vi.fn()} onUploadSuccess={onUploadSuccess} />);
@@ -282,9 +311,10 @@ describe('UploadModal Multi-File UI Component Tests', () => {
     fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files } });
     await waitFor(() => expect(screen.getByText(/error details/i)).toBeTruthy());
     expect(screen.getByText(/run8\.fit/)).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls.map(call => JSON.parse(call[1]!.body as string).files.length)).toEqual([8, 2]);
-    expect(fetchMock.mock.calls.every(call => JSON.parse(call[1]!.body as string).force)).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls.filter(call => String(call[0]).endsWith('/files')).map(call => JSON.parse(call[1]!.body as string).files.length)).toEqual([8, 2]);
+    expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string).force).toBe(true);
+    expect(JSON.parse(fetchMock.mock.calls[3][1]!.body as string).totalFiles).toBe(10);
     expect(onUploadSuccess).toHaveBeenCalledTimes(1);
     expect(screen.getByText('9')).toBeTruthy();
   });

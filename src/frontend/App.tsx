@@ -3,7 +3,7 @@ import type { ActivityUpdate } from './types/api.js';
 import { Navbar, TabType } from './components/Navbar';
 import { BrowseView, ActivitySummary } from './components/BrowseView';
 import { Footer } from './components/Footer';
-import { Terminal } from 'lucide-react';
+import { Terminal, RefreshCw, TriangleAlert } from 'lucide-react';
 import { clientLogger } from './utils/clientLogger';
 import { useTranslation } from './i18n/LanguageContext';
 import { getProfile, listActivities } from './api/client.js';
@@ -192,13 +192,14 @@ export const App: React.FC = () => {
   if (profileLoadFailed || (historyLoadFailed && activities.length === 0)) {
     return (
       <div className="app-container">
-        <main className="main-content">
-          <section className="overview-card" role="alert">
+        <main className="main-content app-load-error-page">
+          <section className="load-error-state app-load-error" role="alert">
+            <span className="app-load-error-icon"><TriangleAlert size={24} /></span>
             <p>{t.browse.historyLoadFailed}</p>
-            <button type="button" onClick={() => {
+            <button type="button" className="outline-btn" onClick={() => {
               if (!SNAPSHOT_MODE) void checkProfileConfigured();
               void fetchActivities();
-            }}>{t.common.retry}</button>
+            }}><RefreshCw size={14} />{t.common.retry}</button>
           </section>
         </main>
       </div>

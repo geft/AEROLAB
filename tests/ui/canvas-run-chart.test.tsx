@@ -42,6 +42,12 @@ function setCanvasBounds(width = 500, height = 220) {
 }
 
 describe('CanvasRunChart', () => {
+  it('rounds floating-point altitude in the telemetry readout', () => {
+    setCanvasBounds();
+    render(<CanvasRunChart records={points.map(point => ({ ...point, altitude_m: 8.800000000000011 }))} />);
+    fireEvent.change(screen.getByRole('slider', { name: 'Select a point in the run chart' }), { target: { value: '1' } });
+    expect(screen.getByText('8.8 m')).toBeTruthy();
+  });
   it('draws the chart and uses the slider to select its readout and marker', () => {
     setCanvasBounds();
     render(<CanvasRunChart records={points} theme="light" />);

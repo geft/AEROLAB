@@ -2,6 +2,8 @@ import type Database from 'better-sqlite3';
 import type { ActivityMetadata, ActivityRecord } from '../domain/telemetry.js';
 import { analyzeWorkout, prepareAnalysisContext } from '../application/analysis/analyze-workout.js';
 import { getAthleteHeartRateProfile } from '../physiology/athlete-profile.js';
+import type { EconomyMetrics, SplitLap } from '../physiology/economy.js';
+import { ANALYSIS_RECORD_COLUMNS } from './analysis-records.js';
 import { evaluateThresholdUpdate, getCurrentThresholds, getStridePaceAnchorSecKmAtDate, getHeartRateProfileAtDate } from '../physiology/threshold-tracker.js';
 import { thresholdTime } from '../../shared/threshold-trend.js';
 import { calculateActivityTrainingLoad } from '../physiology/training-load.js';
@@ -24,6 +26,8 @@ export interface RealignOptions {
   logger?: (msg: string) => void;
   /** Restrict to specific activity ids (default: all). */
   activityIds?: string[];
+  precomputed?: Map<string, { economy: EconomyMetrics; splits: SplitLap[] }>;
+  onProgress?: (completed: number, total: number) => void;
 }
 
 function mapRecords(rows: any[]): ActivityRecord[] {
@@ -132,9 +136,9 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
   // Each activity commits analysis and calibration together, in date order.
   // Earlier activities have already been rebuilt; current/future rows are
   // excluded from classification, so repeated replay is causal and deterministic.
-  for (const act of activities) {
+  for (const [index, act] of activities.entries()) {
     try {
-      const records = db.prepare('SELECT * FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC').all(act.id) as any[];
+      const records = db.prepare(`SELECT ${ANALYSIS_RECORD_COLUMNS} FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC`).all(act.id) as any[];
       if (records.length <= 30) {
         stats.activitiesSkipped++;
         continue;
@@ -165,7 +169,7 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
           fitMetadata: storedFit ? JSON.parse(storedFit.metadata_json) : undefined,
           historicalProfile: hrProfile, stridePaceAnchorSecKm });
         const { economy, splits, classification, runType, intervals, tags } = analyzeWorkout(context, {
-          confirmedRunType: act.manual_run_type
+          confirmedRunType: act.manual_run_type, precomputed: options.precomputed?.get(act.id)
         });
         const mapped = context.records;
         db.prepare('DELETE FROM activity_intervals WHERE activity_id = ?').run(act.id);
@@ -250,6 +254,8 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
     } catch (err: any) {
       stats.activitiesFailed.push(`${act.id}: ${err?.message || err}`);
       log(`  FAILED ${act.id}: ${err?.message || err}`);
+    } finally {
+      options.onProgress?.(index + 1, activities.length);
     }
   }
 

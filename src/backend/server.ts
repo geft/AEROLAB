@@ -13,6 +13,7 @@ import { createAutomaticBackupIfDue, databaseRouter } from './routes/database.js
 import { requestLogger, globalErrorHandler } from './utils/logger.js';
 import { isDevToolsEnabled } from './utils/dev-mode.js';
 import { getMaintenanceStatus, startMaintenance } from './jobs/maintenance.js';
+import { isImportJobRunning } from './jobs/import-job.js';
 
 const currentDir = typeof __dirname !== 'undefined'
   ? __dirname
@@ -96,8 +97,15 @@ export function createServer(options: { sessionToken?: string } = {}) {
   app.use('/api/database/restore', express.json({ limit: '160mb' }));
   app.use('/api/ingest/upload', express.json({ limit: '64mb' }));
   app.use('/api/ingest/upload-batch', express.json({ limit: '64mb' }));
+  app.use('/api/ingest/jobs', express.json({ limit: '64mb' }));
   app.use(express.json({ limit: '1mb' }));
   app.use(requestLogger);
+  app.use('/api', (req, res, next) => {
+    if (isImportJobRunning() && !['GET', 'HEAD', 'OPTIONS'].includes(req.method) && !req.path.startsWith('/ingest/jobs/')) {
+      return res.status(409).json({ code: 'ERR_IMPORT_BUSY', error: 'Wait for the current import to finish.' });
+    }
+    next();
+  });
 
   // API Routes
   app.use('/api/activities', activitiesRouter);

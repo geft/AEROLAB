@@ -339,17 +339,12 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/Steady-State Running Isolated:/i)).toBeTruthy();
+      expect(screen.getByText(/Excludes 1:03 stopped · 1:28 walking \(105 m\)/i)).toBeTruthy();
     });
 
-    // Check banner content
-    expect(screen.getByText(/6:35\/km pace/i)).toBeTruthy();
-    expect(screen.getByText(/175 spm cadence/i)).toBeTruthy();
-    expect(screen.getByText(/131 bpm Heart Rate/i)).toBeTruthy();
-    expect(screen.getByText(/261 ms Ground Contact Time/i)).toBeTruthy();
-
-    // Check exclusion detail
-    expect(screen.getByText(/Excludes 1:03 traffic stops & 1:28 walk breaks \(105m\)/i)).toBeTruthy();
+    expect(document.querySelector('.pause-isolation-banner')).toBeNull();
+    expect(screen.queryByText(/Steady running:/i)).toBeNull();
+    expect(screen.queryByText(/261ms GCT/i)).toBeNull();
 
     // Check that metric chips show steady state and display raw Garmin values
     expect(screen.getByText(/Raw: 7:16/i)).toBeTruthy();

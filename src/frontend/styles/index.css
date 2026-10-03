@@ -1,3 +1,10 @@
+/* Keep inline icons legible when adjacent labels wrap in flex layouts. */
+.lucide {
+  flex-shrink: 0;
+  min-width: 1rem;
+  min-height: 1rem;
+}
+
 :root {
   color-scheme: dark;
   --bg-primary: #07090e;
@@ -2934,6 +2941,39 @@ body {
 .load-error-state.compact {
   min-height: 140px;
   margin-top: 0.75rem;
+}
+
+.app-load-error-page {
+  display: grid;
+  place-items: center;
+  min-height: calc(100dvh - 2rem);
+}
+
+.app-load-error {
+  width: min(100%, 28rem);
+  min-height: 0;
+  gap: 1.25rem;
+  padding: 2rem;
+}
+
+.app-load-error p {
+  margin: 0;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.app-load-error-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  color: var(--accent-amber);
+  background: color-mix(in srgb, var(--accent-amber) 10%, transparent);
+}
+
+.app-load-error .outline-btn {
+  width: auto;
 }
 
 /* Full-page/suspense loading placeholders (App splash & lazy onboarding).

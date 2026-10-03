@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { uploadActivity, uploadActivities } from '../api/client.js';
 import { IMPORT_BATCH_BYTES, IMPORT_BATCH_SIZE } from '../../shared/import-batch.js';
+import { encodeUploadFile, importJobPercent, uploadImportJob } from '../utils/import-job.js';
+import type { UploadResult } from '../types/api.js';
 import { apiErrorMessage } from '../api/errors.js';
 import { UploadCloud, CheckCircle, AlertCircle, X, Files } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
@@ -30,7 +32,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
   const { t, plural, format } = useTranslation();
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState<{ current: number; total: number; currentFileName: string } | null>(null);
+  const [progress, setProgress] = useState<{ current: number; total: number; currentFileName: string; label: string; percent: number } | null>(null);
   const [summary, setSummary] = useState<BatchSummary | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +73,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     setError(null);
     setSummary(null);
     setStatusMessage(null);
+    setProgress({ current: 0, total: validFiles.length, currentFileName: validFiles[0].name,
+      label: t.upload.uploadingFiles, percent: 0 });
 
     let imported = 0;
     let skipped = 0;
@@ -80,87 +84,81 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     const errorDetails: FileError[] = [];
     const skippedDetails: Array<{ filename: string; reason: string }> = [];
 
-    for (let i = 0; i < validFiles.length;) {
-      const batch: File[] = [];
-      let batchBytes = 0;
-      while (i + batch.length < validFiles.length && batch.length < IMPORT_BATCH_SIZE) {
-        const next = validFiles[i + batch.length];
-        if (batch.length && batchBytes + next.size > IMPORT_BATCH_BYTES) break;
-        batch.push(next);
-        batchBytes += next.size;
+    const acceptResult = (result: UploadResult, filename: string) => {
+      if (result.status === 'imported') {
+        imported++;
+        if (validFiles.length === 1) singleActivityId = result.activityId;
+      } else if (result.status === 'skipped' || result.status === 'skipped_duplicate') {
+        skipped++;
+        if (validFiles.length === 1) singleActivityId = result.activityId;
+        if (result.reason === 'non_run') skippedNonRun++;
+        skippedDetails.push({ filename, reason: result.message || t.upload.alreadyInDatabase });
+      } else if (result.status === 'skipped_non_run' || result.status === 'skipped_non_running') {
+        skippedNonRun++;
+        skippedDetails.push({ filename, reason: t.upload.nonRunCard });
+      } else {
+        errors++;
+        errorDetails.push({ filename, error: t.upload.importFailed });
       }
-      setProgress({
-        current: i + 1,
-        total: validFiles.length,
-        currentFileName: batch[0].name
-      });
+    };
 
-      // Prepare a bounded group concurrently; each file retains its own result.
-      const prepared = await Promise.allSettled(batch.map(async file => {
-        const buffer = await file.arrayBuffer();
-        let binary = '';
-        const bytes = new Uint8Array(buffer);
-        const len = bytes.byteLength;
-        const CHUNK = 0x8000;
-        for (let b = 0; b < len; b += CHUNK) {
-          const chunk = bytes.subarray(b, Math.min(b + CHUNK, len));
-          binary += String.fromCharCode(...chunk);
-        }
-        const content = btoa(binary);
-
-        return { content, filename: file.name };
-      }));
-      const payloads: Array<{ content: string; filename: string }> = [];
-      prepared.forEach((item, index) => {
-        if (item.status === 'fulfilled') payloads.push(item.value);
-        else {
-          errors++;
-          errorDetails.push({ filename: batch[index].name, error: apiErrorMessage(t, item.reason, t.upload.importFailed) });
-        }
-      });
+    if (validFiles.length > IMPORT_BATCH_SIZE) {
       try {
-        const results = payloads.length === 0 ? [] : validFiles.length === 1
-          ? [(await uploadActivity({ ...payloads[0], force: effectiveOverwrite, overwrite: effectiveOverwrite })).result]
-          : (await uploadActivities({ files: payloads, force: effectiveOverwrite })).results;
-        for (let index = 0; index < results.length; index++) {
-          const result = results[index];
-          const file = { name: payloads[index].filename };
-          if (result.status === 'imported') {
-            imported++;
-            if (validFiles.length === 1 && result.activityId) {
-              singleActivityId = result.activityId;
-            }
-          } else if (result.status === 'skipped' || result.status === 'skipped_duplicate') {
-            skipped++;
-            if (validFiles.length === 1 && result.activityId) {
-              singleActivityId = result.activityId;
-            }
-            if (result.reason === 'non_run') {
-              skippedNonRun++;
-            }
-            skippedDetails.push({
-              filename: file.name,
-              reason: result.message || t.upload.alreadyInDatabase
-            });
-          } else if (result.status === 'skipped_non_run' || result.status === 'skipped_non_running') {
-            skippedNonRun++;
-            skippedDetails.push({
-              filename: file.name,
-              reason: result.message || t.upload.nonRunCard
-            });
-          } else {
-            errors++;
-            errorDetails.push({
-              filename: file.name,
-              error: t.upload.importFailed
-            });
-          }
-        }
+        const results = await uploadImportJob(validFiles, effectiveOverwrite, status => {
+          const phaseCopy = { uploading: t.upload.uploadingFiles, decoding: t.upload.decodingFiles,
+            importing: t.upload.importingCount, reanalysing: t.upload.reanalysingRuns,
+            complete: t.upload.importingCount, failed: t.upload.importFailed };
+          setProgress(previous => ({ current: status.completed, total: Math.max(1, status.total),
+            currentFileName: phaseCopy[status.phase], label: phaseCopy[status.phase],
+            percent: Math.max(previous?.percent ?? 0, importJobPercent(status)) }));
+        });
+        results.forEach((result, index) => acceptResult(result, validFiles[index].name));
       } catch (err) {
-        errors += payloads.length;
-        payloads.forEach(file => errorDetails.push({ filename: file.filename, error: apiErrorMessage(t, err, t.upload.importFailed) }));
+        errors = validFiles.length;
+        validFiles.forEach(file => errorDetails.push({ filename: file.name, error: apiErrorMessage(t, err, t.upload.importFailed) }));
       }
-      i += batch.length;
+    } else {
+
+      for (let i = 0; i < validFiles.length;) {
+        const batch: File[] = [];
+        let batchBytes = 0;
+        while (i + batch.length < validFiles.length && batch.length < IMPORT_BATCH_SIZE) {
+          const next = validFiles[i + batch.length];
+          if (batch.length && batchBytes + next.size > IMPORT_BATCH_BYTES) break;
+          batch.push(next);
+          batchBytes += next.size;
+        }
+        setProgress({
+          current: i,
+          total: validFiles.length,
+          currentFileName: batch[0].name,
+          label: t.upload.importingCount,
+          percent: Math.floor(i / validFiles.length * 100)
+        });
+
+        // Prepare a bounded group concurrently; each file retains its own result.
+        const prepared = await Promise.allSettled(batch.map(encodeUploadFile));
+        const payloads: Array<{ content: string; filename: string }> = [];
+        prepared.forEach((item, index) => {
+          if (item.status === 'fulfilled') payloads.push(item.value);
+          else {
+            errors++;
+            errorDetails.push({ filename: batch[index].name, error: apiErrorMessage(t, item.reason, t.upload.importFailed) });
+          }
+        });
+        try {
+          const results = payloads.length === 0 ? [] : validFiles.length === 1
+            ? [(await uploadActivity({ ...payloads[0], force: effectiveOverwrite, overwrite: effectiveOverwrite })).result]
+            : (await uploadActivities({ files: payloads, force: effectiveOverwrite })).results;
+          for (let index = 0; index < results.length; index++) {
+            acceptResult(results[index], payloads[index].filename);
+          }
+        } catch (err) {
+          errors += payloads.length;
+          payloads.forEach(file => errorDetails.push({ filename: file.filename, error: apiErrorMessage(t, err, t.upload.importFailed) }));
+        }
+        i += batch.length;
+      }
     }
 
     setUploading(false);
@@ -197,6 +195,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
   };
 
   const handleClose = () => {
+    if (uploading) return;
     setError(null);
     setStatusMessage(null);
     setSummary(null);
@@ -212,7 +211,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
             <Files size={20} color="var(--accent-cyan)" />
             <h2 className="modal-title" style={{ color: 'var(--text-primary)' }}>{t.upload.title}</h2>
           </div>
-          <button className="modal-close-btn" onClick={handleClose}><X size={20} /></button>
+          <button className="modal-close-btn" onClick={handleClose} disabled={uploading}><X size={20} /></button>
         </div>
 
         {!uploading && !summary && (
@@ -268,17 +267,17 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '1rem 0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
               <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
-                {t.upload.importingCount} ({progress.current}/{progress.total})
+                {progress.label} ({progress.current}/{progress.total})
               </span>
               <span style={{ color: 'var(--accent-cyan)', fontWeight: 700 }}>
-                {Math.round((progress.current / progress.total) * 100)}%
+                {progress.percent}%
               </span>
             </div>
 
-            <div style={{ width: '100%', height: 8, background: 'var(--bg-surface)', borderRadius: 999, overflow: 'hidden' }}>
+            <div role="progressbar" aria-label={progress.label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.percent} style={{ width: '100%', height: 8, background: 'var(--bg-surface)', borderRadius: 999, overflow: 'hidden' }}>
               <div
                 style={{
-                  width: `${(progress.current / progress.total) * 100}%`,
+                  width: `${progress.percent}%`,
                   height: '100%',
                   background: 'linear-gradient(90deg, var(--accent-cyan), var(--accent-emerald))',
                   borderRadius: 999,

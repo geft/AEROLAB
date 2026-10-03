@@ -8,8 +8,36 @@ import { IMPORT_BATCH_SIZE } from '../../shared/import-batch.js';
 import { parseRunFit, isFitBuffer, isZipBuffer } from '../ingestion/fit-parser.js';
 import { isSafeBackupDirectory, selectLocalFolder } from './database.js';
 import { logger } from '../utils/logger.js';
+import { createImportJob, getImportJob, stageImportFiles, finishImportJob, cancelImportJob } from '../jobs/import-job.js';
 
 export const ingestRouter = Router();
+
+ingestRouter.post('/jobs', async (req, res) => {
+  if (!Number.isInteger(req.body?.totalFiles) || req.body.totalFiles < 1 || req.body.totalFiles > 2000) return res.status(400).json({ error: 'Invalid file count' });
+  try {
+    return res.status(201).json(await createImportJob(getDatabase().name, req.body.totalFiles, Boolean(req.body.force)));
+  } catch (error) {
+    return res.status(409).json({ code: 'ERR_IMPORT_BUSY', error: error instanceof Error ? error.message : String(error) });
+  }
+});
+ingestRouter.get('/jobs/:id', (req, res) => {
+  try { return res.json(getImportJob(req.params.id)); }
+  catch { return res.status(404).json({ error: 'Import job not found' }); }
+});
+ingestRouter.post('/jobs/:id/files', async (req, res) => {
+  try {
+    if (!Array.isArray(req.body.files)) return res.status(400).json({ error: 'Invalid import files' });
+    return res.json(await stageImportFiles(req.params.id, req.body.files));
+  } catch (error) { return res.status(400).json({ error: error instanceof Error ? error.message : String(error) }); }
+});
+ingestRouter.post('/jobs/:id/finish', async (req, res) => {
+  try { return res.status(202).json(await finishImportJob(req.params.id, req.body?.totalFiles)); }
+  catch (error) { return res.status(409).json({ error: error instanceof Error ? error.message : String(error) }); }
+});
+ingestRouter.delete('/jobs/:id', async (req, res) => {
+  try { await cancelImportJob(req.params.id); return res.json({ cancelled: true }); }
+  catch (error) { return res.status(409).json({ error: error instanceof Error ? error.message : String(error) }); }
+});
 
 function getGarminImportDirectory(db: ReturnType<typeof getDatabase>): string {
   const fallback = path.join(os.homedir(), 'Downloads');

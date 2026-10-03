@@ -74,4 +74,21 @@ describe('Prediction evidence freshness and provenance', () => {
       expect(newerLt2.predictions[0].paceSecKm).toBe(284);
     } finally { db.close(); }
   });
+
+  it('preserves a 21:23 trial despite GPS distance and integer pace rounding', () => {
+    vi.useFakeTimers(); vi.setSystemTime(asOf);
+    const db = getDatabase(':memory:');
+    try {
+      db.prepare(`INSERT INTO activities (id, name, start_time, run_type, distance_meters, duration_seconds, avg_pace_sec_km)
+        VALUES ('trial', 'Running', '2026-10-01 11:00:00', 'race', 10163.69, 3580, 352)`).run();
+      db.prepare(`INSERT INTO activity_intervals
+        (activity_id, interval_index, type, start_seconds, duration_seconds, distance_meters, avg_pace_sec_km)
+        VALUES ('trial', 8, 'work', 2290, 1283, 4989.2, 258)`).run();
+      db.prepare(`INSERT INTO physiological_thresholds (effective_date, lt2_hr, lt2_pace_sec_km, confidence)
+        VALUES ('2026-09-24', 181, 274, 0.9)`).run();
+      const result = getThresholdsService(db);
+      expect(result.predictionEvidence?.benchmark?.paceSecKm).toBe(256.6);
+      expect(result.predictions[0]).toMatchObject({ timeSeconds: 1283, timeFormatted: '21:23', paceFormatted: '4:17/km' });
+    } finally { db.close(); }
+  });
 });
