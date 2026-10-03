@@ -2,6 +2,10 @@ import { Translations } from './types';
 
 export const zh: Translations = {
   snapshot: {
+    loadingTitle: '正在加载快照',
+    downloading: '正在下载快照…',
+    preparing: '正在准备仪表盘…',
+    downloadPercent: '已下载 {percent}%',
     generatedAt: '快照导出时间：{date}',
     deployRowButton: '部署到 Vercel',
     deployProtectionConfirmation: '将 {filename} 部署到 Vercel？你可以在设置时选择项目。此操作会将所选快照中的跑步记录、遥测数据、训练指标和个人阈值发送到 Vercel。请确认项目已启用部署保护。',

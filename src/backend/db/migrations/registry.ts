@@ -1,3 +1,4 @@
+import { migrateCompression } from '../compression.js';
 import { loadAnalysisRecords } from '../analysis-records.js';
 import type Database from 'better-sqlite3';
 import { getAthleteHeartRateProfile } from '../../physiology/athlete-profile.js';
@@ -96,6 +97,8 @@ export function runSchemaMigrations(db: Database.Database, migrations: Runner): 
     const existing = new Set((db.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>).map(column => column.name));
     if (!existing.has('weather_pm25_source')) db.exec('ALTER TABLE activities ADD COLUMN weather_pm25_source TEXT');
   });
+
+  register('lossless-fit-gzip-v1', () => migrateCompression(db));
 
   for (const step of steps) migrations.run(step.id, step.apply);
 }

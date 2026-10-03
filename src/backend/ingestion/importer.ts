@@ -1,3 +1,4 @@
+import { decodeStoredJson, compressActivity } from '../db/compression.js';
 import { persistWorkoutSegments } from '../db/workout-segments.js';
 import { assertDatabaseWritable } from '../application/database-operations.js';
 import { analyzeWorkout, prepareAnalysisContext } from '../application/analysis/analyze-workout.js';
@@ -126,11 +127,11 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
   const confirmed = existing ? db.prepare('SELECT manual_run_type, manual_failed_workout FROM activities WHERE id = ?').get(existing.id) as
     { manual_run_type: import('./classifier.js').RunType | null; manual_failed_workout: number | null } : undefined;
   const storedFit = existing && !parsed.fitMetadata ? db.prepare('SELECT metadata_json FROM activity_fit_details WHERE activity_id = ?')
-    .get(existing.id) as { metadata_json: string } | undefined : undefined;
+    .get(existing.id) as { metadata_json: string | Buffer } | undefined : undefined;
   const hrProfile = getHeartRateProfileAtDate(db, metadata.date, existing?.id ?? metadata.id);
   const stridePaceAnchorSecKm = getStridePaceAnchorSecKmAtDate(db, metadata.date, existing?.id ?? metadata.id);
   const context = prepareAnalysisContext({ metadata, rawRecords: records,
-    fitMetadata: parsed.fitMetadata ?? (storedFit ? JSON.parse(storedFit.metadata_json) : undefined),
+    fitMetadata: parsed.fitMetadata ?? (storedFit ? JSON.parse(decodeStoredJson(storedFit.metadata_json)) : undefined),
     historicalProfile: hrProfile, stridePaceAnchorSecKm });
   const { economy, splits, classification, runType, intervals, tags: initialTags } = analyzeWorkout(context, {
     confirmedRunType: confirmed?.manual_run_type, precomputed: options.precomputed
@@ -237,7 +238,7 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
   let refreshed: { run_type: string; interval_count: number } | undefined;
   const transaction = db.transaction(() => {
     const previousFit = existing && options.force ? db.prepare('SELECT metadata_json, source_fit FROM activity_fit_details WHERE activity_id = ?')
-      .get(existing.id) as { metadata_json: string; source_fit: Buffer | null } | undefined : undefined;
+      .get(existing.id) as { metadata_json: string | Buffer; source_fit: Buffer | null } | undefined : undefined;
     // If force re-importing, purge old rows for this activity first
     if (existing && options.force) {
       const targetId = existing.id;
@@ -327,6 +328,8 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
       VALUES (?, ?, ?) ON CONFLICT(activity_id) DO UPDATE SET metadata_json = excluded.metadata_json,
       source_fit = COALESCE(excluded.source_fit, activity_fit_details.source_fit)`)
       .run(metadata.id, fitMetadataJson, parsed.sourceFit ?? previousFit?.source_fit ?? null);
+
+    compressActivity(db, metadata.id);
 
     // Threshold updates
     if (confirmed?.manual_failed_workout !== 1) evaluateThresholdUpdate(db, metadata.id, metadata.date, runType, metadata, context.records, economy, hrProfile);

@@ -1,3 +1,4 @@
+import { SnapshotLoadingScreen } from './components/SnapshotLoadingScreen.js';
 import { useActivityRevision, invalidateActivityData } from './features/activity-revision.js';
 import { useMaintenanceRefresh } from './features/useMaintenanceRefresh.js';
 import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
@@ -215,6 +216,7 @@ export const App: React.FC = () => {
 
   // An empty dashboard is meaningful only after its history request succeeds.
   if (isConfigured === null || !snapshotReady || (isConfigured && loading && activities.length === 0)) {
+    if (SNAPSHOT_MODE) return <SnapshotLoadingScreen />;
     return (
       <div style={{
         minHeight: '100vh',

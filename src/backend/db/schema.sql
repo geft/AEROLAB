@@ -135,7 +135,15 @@ CREATE TABLE IF NOT EXISTS activity_records (
 
 CREATE INDEX IF NOT EXISTS idx_records_activity ON activity_records(activity_id, elapsed_seconds);
 
+-- Raw record JSON is compressed losslessly in one archive per activity.
+CREATE TABLE IF NOT EXISTS activity_record_archives (
+  activity_id TEXT PRIMARY KEY,
+  fields_gzip BLOB NOT NULL,
+  FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE
+);
+
 -- Original FIT and additional decoded messages remain local and reprocessable.
+-- metadata_json accepts legacy TEXT or gzip BLOB; source_fit uses a version marker.
 CREATE TABLE IF NOT EXISTS activity_fit_details (
   activity_id TEXT PRIMARY KEY,
   metadata_json TEXT NOT NULL,

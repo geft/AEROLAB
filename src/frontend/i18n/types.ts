@@ -39,6 +39,10 @@ export const SUPPORTED_LANGUAGES: Language[] = ['en', 'zh'];
 
 export interface Translations {
   snapshot: {
+    loadingTitle: string;
+    downloading: string;
+    preparing: string;
+    downloadPercent: string;
     generatedAt: string;
     deployRowButton: string;
     deployProtectionConfirmation: string;

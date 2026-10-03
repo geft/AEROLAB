@@ -1,3 +1,4 @@
+import { checkpointWal, configureWal } from '../db/wal.js';
 import fs from 'node:fs';
 import { deserialize } from 'node:v8';
 import { availableParallelism } from 'node:os';
@@ -56,6 +57,7 @@ async function run() {
       db = new Database(databasePath, { fileMustExist: true });
       db.pragma('foreign_keys = ON');
       db.pragma('busy_timeout = 5000');
+      configureWal(db);
       const imported = importPreparedRuns(db, prepared.map(item => ({
         filename: files[item.index].filename, date: item.date!,
         load: () => deserialize(fs.readFileSync(files[item.index].outputPath)) as PreparedRun
@@ -66,6 +68,6 @@ async function run() {
     parentPort?.postMessage({ phase: 'complete', completed: files.length, total: files.length, results });
   } catch (error) {
     parentPort?.postMessage({ phase: 'failed', error: error instanceof Error ? error.message : String(error) });
-  } finally { db?.close(); }
+  } finally { if (db) { checkpointWal(db); db.close(); } }
 }
 void run();

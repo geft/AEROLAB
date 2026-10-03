@@ -19,6 +19,47 @@ beforeEach(() => {
 });
 
 describe('snapshot API client', () => {
+  it('loads once in a worker and requests sections without copying the entire snapshot to the UI', async () => {
+    const messages: unknown[] = [];
+    class SnapshotWorker {
+      onmessage: ((event: { data: unknown }) => void) | null = null;
+      onerror = null;
+      onmessageerror = null;
+      terminate = vi.fn();
+      postMessage(message: { type: string; id: number; section: keyof typeof snapshot; key?: string }) {
+        messages.push(message);
+        queueMicrotask(() => {
+          if (message.type === 'load') {
+            this.onmessage?.({ data: { type: 'progress', progress: { stage: 'downloading', percent: 42 } } });
+            this.onmessage?.({ data: { type: 'progress', progress: { stage: 'preparing' } } });
+            this.onmessage?.({ data: { type: 'ready' } });
+          } else {
+            const section = snapshot[message.section];
+            this.onmessage?.({ data: { type: 'value', id: message.id, value: message.key === undefined ? section : (section as Record<string, unknown>)[message.key] } });
+          }
+        });
+      }
+    }
+    vi.stubGlobal('Worker', SnapshotWorker);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const client = await import('../../src/frontend/api/snapshot-client.js');
+    const progress: string[] = [];
+    const unsubscribe = client.subscribeSnapshotLoading(() => progress.push(client.getSnapshotLoadingProgress().stage));
+    expect(await client.listActivities()).toEqual({ activities: snapshot.activities });
+    expect(await client.getSnapshotMetadata()).toEqual({ generatedAt: snapshot.generatedAt });
+    expect(await client.getActivityDetail('run-1')).toEqual(snapshot.details['run-1']);
+    expect(progress).toEqual(['downloading', 'preparing', 'ready']);
+    expect(messages).toEqual([
+      { type: 'load' },
+      { type: 'read', id: 1, section: 'activities' },
+      { type: 'read', id: 2, section: 'generatedAt' },
+      { type: 'read', id: 3, section: 'details', key: 'run-1' }
+    ]);
+    expect(fetchMock).not.toHaveBeenCalled();
+    unsubscribe();
+  });
+
   it('serves a compatible read response from the exported JSON', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(snapshot), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);

@@ -1,3 +1,4 @@
+import { decodeStoredJson, loadExportFields } from '../db/compression.js';
 import { parseScoreFactors, parseInsightTones, parseCoachContext, parseWalkAudit, parsePauseBreakdown } from '../../shared/contracts/coach-analysis.js';
 import { assertDatabaseWritable, reserveDatabaseOperation, canWriteDatabase, withDatabaseOperation, currentDatabaseOperation } from '../application/database-operations.js';
 import { ANALYSIS_REVISION, parseAnalysisProvenance, type AnalysisFreshness } from '../../shared/analysis-revision.js';
@@ -428,7 +429,8 @@ export function getActivityDetailService(db: Database.Database, id: string, opti
 
   const splits = db.prepare('SELECT * FROM activity_splits WHERE activity_id = ? ORDER BY split_index ASC').all(id).map(activitySplitFromRow);
   const intervals = db.prepare('SELECT * FROM activity_intervals WHERE activity_id = ? ORDER BY interval_index ASC').all(id).map(activityIntervalFromRow);
-  const records = loadAnalysisRecords(db, id).map(analysisRecordToRow);
+  const exportFields = loadExportFields(db, id);
+  const records = loadAnalysisRecords(db, id).map((record, index) => ({ ...analysisRecordToRow(record), fit_fields_json: exportFields[index] }));
 
   // Isolate walk breaks and traffic pauses to obtain pure steady-state running metrics
   const pauseBreakdown = extractSteadyStateMetrics(records);
@@ -471,8 +473,8 @@ export function getActivityDetailService(db: Database.Database, id: string, opti
     heartRateThresholds: { lt1Hr, lt2Hr },
     pauseBreakdown,
     fitMetadata: (() => {
-      const row = db.prepare('SELECT metadata_json FROM activity_fit_details WHERE activity_id = ?').get(id) as { metadata_json: string } | undefined;
-      return row ? JSON.parse(row.metadata_json) as Record<string, unknown> : null;
+      const row = db.prepare('SELECT metadata_json FROM activity_fit_details WHERE activity_id = ?').get(id) as { metadata_json: string | Buffer } | undefined;
+      return row ? JSON.parse(decodeStoredJson(row.metadata_json)) as Record<string, unknown> : null;
     })()
   };
 }

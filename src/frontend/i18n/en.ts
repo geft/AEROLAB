@@ -2,6 +2,10 @@ import { Translations } from './types';
 
 export const en: Translations = {
   snapshot: {
+    loadingTitle: 'Loading your snapshot',
+    downloading: 'Downloading snapshot…',
+    preparing: 'Preparing dashboard…',
+    downloadPercent: '{percent}% downloaded',
     generatedAt: 'Snapshot exported {date}',
     deployRowButton: 'Deploy to Vercel',
     deployProtectionConfirmation: 'Deploy {filename} to Vercel? You can choose the project during setup. This sends the selected snapshot’s run activities, telemetry, training metrics, and profile thresholds to Vercel. Make sure deployment protection is enabled for the project.',

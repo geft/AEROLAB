@@ -1,3 +1,5 @@
+import { readSnapshot } from './snapshot-reader.js';
+export { getSnapshotLoadingProgress, subscribeSnapshotLoading } from './snapshot-reader.js';
 import type {
   Activity, ActivityDetailResponse, BestEffortsResponse, ProfileResponse, ThresholdsResponse,
   TrainingLoadResponse, VolumeData, ProgressHistoryResponse, ActivityPatchInput
@@ -9,62 +11,33 @@ export class ApiRequestError extends Error {
   }
 }
 
-const SCHEMA_VERSION = 1;
-interface Snapshot {
-  schemaVersion: number;
-  generatedAt: string;
-  activities: Activity[];
-  details: Record<string, ActivityDetailResponse>;
-  profile: ProfileResponse;
-  bestEfforts: BestEffortsResponse;
-  progressByRunType: Record<string, ProgressHistoryResponse>;
-  thresholdsByRunType: Record<string, ThresholdsResponse>;
-  volume: Record<string, VolumeData>;
-  trainingLoadByDays: Record<string, TrainingLoadResponse>;
-}
-let snapshotPromise: Promise<Snapshot> | undefined;
-
-async function getSnapshot(): Promise<Snapshot> {
-  snapshotPromise ??= fetch('/snapshot.json', { cache: 'no-store' }).then(async response => {
-    if (!response.ok) throw new ApiRequestError(response.status, 'ERR_SNAPSHOT_MISSING', 'Snapshot data is unavailable. Export and rebuild the viewer.');
-    const data = await response.json() as Snapshot;
-    if (data.schemaVersion !== SCHEMA_VERSION) throw new ApiRequestError(200, 'ERR_SNAPSHOT_VERSION', `This viewer cannot read snapshot schema ${data.schemaVersion}.`);
-    if (!data.generatedAt || !Array.isArray(data.activities) || !data.details || !data.profile) {
-      throw new ApiRequestError(200, 'ERR_SNAPSHOT_INVALID', 'Snapshot data is missing required sections. Export it again.');
-    }
-    return data;
-  });
-  return snapshotPromise;
-}
-
 export async function getSnapshotMetadata(): Promise<{ generatedAt: string }> {
-  const { generatedAt } = await getSnapshot();
+  const generatedAt = await readSnapshot<string>('generatedAt');
   return { generatedAt };
 }
-export async function getProfile(): Promise<ProfileResponse> { return (await getSnapshot()).profile; }
-export async function listActivities(): Promise<{ activities: Activity[] }> { return { activities: (await getSnapshot()).activities }; }
+export async function getProfile(): Promise<ProfileResponse> { return readSnapshot<ProfileResponse>('profile'); }
+export async function listActivities(): Promise<{ activities: Activity[] }> { return { activities: await readSnapshot<Activity[]>('activities') }; }
 export async function getActivityDetail(id: string): Promise<ActivityDetailResponse> {
-  const detail = (await getSnapshot()).details[id];
+  const detail = await readSnapshot<ActivityDetailResponse | undefined>('details', id);
   if (!detail) throw new ApiRequestError(404, 'ERR_ACTIVITY_NOT_FOUND', 'Activity not found in this snapshot.');
   return detail;
 }
-export async function getThresholds(): Promise<ThresholdsResponse> { return (await getSnapshot()).thresholdsByRunType.all; }
+export async function getThresholds(): Promise<ThresholdsResponse> { return readSnapshot<ThresholdsResponse>('thresholdsByRunType', 'all'); }
 export async function getProgressHistory(runType = 'all'): Promise<ProgressHistoryResponse> {
-  const snapshot = await getSnapshot();
-  return snapshot.progressByRunType[runType] ?? snapshot.progressByRunType.all;
+  return await readSnapshot<ProgressHistoryResponse | undefined>('progressByRunType', runType) ?? readSnapshot<ProgressHistoryResponse>('progressByRunType', 'all');
 }
 export async function getVolume(params: { period: string; month?: string; year?: string }): Promise<VolumeData> {
   const key = params.month ? `month:${params.month}` : params.year ? `year:${params.year}` : `${params.period}:current`;
-  const data = (await getSnapshot()).volume[key];
+  const data = await readSnapshot<VolumeData | undefined>('volume', key);
   if (!data) throw new ApiRequestError(400, 'ERR_SNAPSHOT_FILTER', `No exported volume data for ${key}.`);
   return data;
 }
 export async function getTrainingLoad(days = 30): Promise<TrainingLoadResponse> {
-  const data = (await getSnapshot()).trainingLoadByDays[String(days)];
+  const data = await readSnapshot<TrainingLoadResponse | undefined>('trainingLoadByDays', String(days));
   if (!data) throw new ApiRequestError(400, 'ERR_SNAPSHOT_FILTER', `No exported training load for ${days} days.`);
   return data;
 }
-export async function getBestEfforts(): Promise<BestEffortsResponse> { return (await getSnapshot()).bestEfforts; }
+export async function getBestEfforts(): Promise<BestEffortsResponse> { return readSnapshot<BestEffortsResponse>('bestEfforts'); }
 
 function readOnly(): never { throw new ApiRequestError(405, 'ERR_SNAPSHOT_READ_ONLY', 'This snapshot is read-only.'); }
 export const updateProfile = (_patch: unknown): never => readOnly();

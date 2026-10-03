@@ -1,3 +1,4 @@
+import { checkpointWal, configureWal, maintainWal } from './wal.js';
 import { runSchemaMigrations, runDerivedMigrations } from './migrations/registry.js';
 import Database from 'better-sqlite3';
 import fs from 'fs';
@@ -12,6 +13,11 @@ const currentDir = typeof __dirname !== 'undefined'
   : (typeof import.meta !== 'undefined' && import.meta.url ? path.dirname(fileURLToPath(import.meta.url)) : process.cwd());
 
 let dbInstance: Database.Database | null = null;
+let walTimer: ReturnType<typeof setInterval> | null = null;
+function stopWalTimer(): void {
+  if (walTimer) clearInterval(walTimer);
+  walTimer = null;
+}
 
 export function getDatabase(dbPath?: string): Database.Database {
   if (dbInstance && !dbPath) {
@@ -20,6 +26,8 @@ export function getDatabase(dbPath?: string): Database.Database {
 
   if (dbInstance) {
     try {
+      stopWalTimer();
+      checkpointWal(dbInstance);
       dbInstance.close();
     } catch { /* best-effort cleanup: safe to ignore */ }
     dbInstance = null;
@@ -27,6 +35,14 @@ export function getDatabase(dbPath?: string): Database.Database {
 
   const targetPath = dbPath || getDatabasePath();
   dbInstance = openDatabase(targetPath);
+  if (targetPath !== ':memory:') {
+    walTimer = setInterval(() => {
+      if (!dbInstance) return;
+      try { maintainWal(dbInstance); }
+      catch (error) { logger.debug('DB', 'WAL cleanup deferred', { error: String(error) }); }
+    }, 30_000);
+    walTimer.unref();
+  }
   return dbInstance;
 }
 
@@ -53,6 +69,7 @@ export function openDatabase(targetPath: string, validateSchema = false): Databa
 function initializeDatabase(db: Database.Database, validateSchema: boolean): void {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
+  configureWal(db);
 
   // Initialize schema
   const candidateSchemaPaths = [
@@ -71,6 +88,14 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
   const deferDerivedMigrations = process.env.AEROLAB_DEFER_MIGRATIONS === '1';
 
   runSchemaMigrations(db, migrations);
+  if (migrations.failed) throw new Error('Database schema migration failed');
+  if (db.name !== ':memory:' && !db.prepare('SELECT 1 FROM schema_migrations WHERE name = ?').get('lossless-fit-vacuum-v1')) {
+    // Repack once after the transactional migration; never vacuum on each import.
+    // A crash/busy connection before completion leaves this step pending for retry.
+    db.exec('VACUUM');
+    db.prepare('INSERT INTO schema_migrations(name) VALUES(?)').run('lossless-fit-vacuum-v1');
+  }
+  checkpointWal(db);
 
   // A fresh profile contains no personal measurements or training history.
   if (!db.prepare("SELECT id FROM athlete_profile WHERE id = 'primary'").get()) {
@@ -121,6 +146,8 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
 
 export function closeDatabase(): void {
   if (dbInstance) {
+    stopWalTimer();
+    checkpointWal(dbInstance);
     dbInstance.close();
     dbInstance = null;
   }

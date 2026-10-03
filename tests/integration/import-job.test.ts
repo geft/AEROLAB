@@ -1,3 +1,4 @@
+import { decodeSourceFit } from '../../src/backend/db/compression.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -77,8 +78,8 @@ describe('background import jobs with real decoding workers', () => {
     expect(result.results?.map(item => item.status)).toEqual(['imported', 'imported', 'imported']);
     expect(db.prepare('SELECT COUNT(*) n FROM replay_counts').get()).toEqual({ n: 3 });
     expect(db.prepare('SELECT COUNT(*) n FROM activity_fit_details WHERE source_fit IS NOT NULL').get()).toEqual({ n: 3 });
-    expect(db.prepare('SELECT source_fit FROM activity_fit_details WHERE activity_id=?').get(result.results![0].activityId))
-      .toEqual({ source_fit: Buffer.from(files[0].content, 'base64') });
+    expect(decodeSourceFit((db.prepare('SELECT source_fit FROM activity_fit_details WHERE activity_id=?').get(result.results![0].activityId) as { source_fit: Buffer }).source_fit))
+      .toEqual(Buffer.from(files[0].content, 'base64'));
     const reference = openDatabase(':memory:');
     try {
       reference.prepare("UPDATE athlete_profile SET max_hr=190,resting_hr=50,is_max_hr_estimated=0 WHERE id='primary'").run();

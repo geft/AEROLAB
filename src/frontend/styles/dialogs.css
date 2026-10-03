@@ -161,6 +161,37 @@
   background: var(--bg-base);
 }
 
+.snapshot-loading-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: var(--bg-base);
+}
+
+.snapshot-loading-card {
+  width: min(100%, 360px);
+  text-align: center;
+}
+
+.snapshot-loading-card h1 { font-size: 1.2rem; margin: 0 0 0.75rem; color: var(--text-primary); }
+.snapshot-loading-card p { font-size: 0.875rem; color: var(--text-secondary); margin: 0 0 1.25rem; }
+.snapshot-loading-track { height: 6px; border-radius: 999px; overflow: hidden; background: var(--border-subtle); }
+.snapshot-loading-fill { height: 100%; background: var(--accent-cyan); border-radius: inherit; transition: width 150ms ease; }
+.snapshot-loading-fill.is-indeterminate { width: 35%; animation: snapshot-progress 1.4s ease-in-out infinite; }
+.snapshot-loading-card .snapshot-loading-percent { margin: 0.75rem 0 0; font-variant-numeric: tabular-nums; }
+
+@keyframes snapshot-progress {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(390%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .snapshot-loading-fill { transition: none; }
+  .snapshot-loading-fill.is-indeterminate { animation: none; width: 100%; opacity: 0.5; }
+}
+
 /* Shimmer placeholder that stands in for the period progress card, so the
    loader keeps the same card footprint as the loaded component. */
 .period-progress-card {

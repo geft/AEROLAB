@@ -1,3 +1,4 @@
+import { decodeStoredJson } from './compression.js';
 import { activityFromRow, objectRow } from './rows.js';
 import type { Activity } from '../../shared/activity.js';
 import type { RunType } from '../ingestion/classifier.js';
@@ -120,7 +121,7 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
       const rebuilt = db.transaction(() => {
         db.prepare("DELETE FROM physiological_thresholds WHERE source_activity_id = ? AND source_kind = 'workout'").run(act.id);
         const rawMapped = records;
-        const storedFit = db.prepare('SELECT metadata_json FROM activity_fit_details WHERE activity_id = ?').get(act.id) as { metadata_json: string } | undefined;
+        const storedFit = db.prepare('SELECT metadata_json FROM activity_fit_details WHERE activity_id = ?').get(act.id) as { metadata_json: string | Buffer } | undefined;
         const hrProfile = getHeartRateProfileAtDate(db, act.start_time);
         const stridePaceAnchorSecKm = getStridePaceAnchorSecKmAtDate(db, act.start_time);
         const meta: ActivityMetadata = {
@@ -140,7 +141,7 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
           totalDescentMeters: act.elevation_loss_m || 0
         };
         const context = prepareAnalysisContext({ metadata: meta, rawRecords: rawMapped,
-          fitMetadata: storedFit ? JSON.parse(storedFit.metadata_json) : undefined,
+          fitMetadata: storedFit ? JSON.parse(decodeStoredJson(storedFit.metadata_json)) : undefined,
           historicalProfile: hrProfile, stridePaceAnchorSecKm });
         const { economy, splits, classification, runType, intervals, tags } = analyzeWorkout(context, {
           confirmedRunType: act.manual_run_type, precomputed: options.precomputed?.get(act.id)

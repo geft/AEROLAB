@@ -1,3 +1,4 @@
+import { decodeSourceFit, decodeStoredJson, loadExportFields } from '../../src/backend/db/compression.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -39,8 +40,8 @@ describe('native FIT and Garmin ZIP ingestion', () => {
       const parsed = parseRunFit(fit, 'run.fit')!;
       expect(importParsedRun(db, parsed, 'run.fit').status).toBe('imported');
       const stored = db.prepare('SELECT * FROM activity_fit_details').get() as { metadata_json: string; source_fit: Buffer };
-      expect(stored.source_fit).toEqual(fit);
-      const metadata = JSON.parse(stored.metadata_json);
+      expect(decodeSourceFit(stored.source_fit)).toEqual(fit);
+      const metadata = JSON.parse(decodeStoredJson(stored.metadata_json));
       expect(metadata.laps).toHaveLength(1);
       expect(metadata.events).toHaveLength(4);
       expect(metadata.workoutSteps).toHaveLength(1);
@@ -48,6 +49,8 @@ describe('native FIT and Garmin ZIP ingestion', () => {
       expect(metadata.session).toMatchObject({ workout_rpe: 60, workout_feel: 75 });
       const records = db.prepare('SELECT * FROM activity_records ORDER BY elapsed_seconds').all() as ActivityRecord[];
       expect(records[0]).toMatchObject({ power_w: 300, vertical_ratio: 7.5, stance_time_balance: 50.2, step_length_m: 1.1 });
+      const fields = loadExportFields(db, parsed.metadata.id);
+      records.forEach((record, index) => { record.fit_fields_json = fields[index]; });
       const activity = db.prepare('SELECT * FROM activities').get() as Activity;
       const exported = parseRunCSV(sessionToCsv(activity, records, metadata), 'ai-analysis.csv');
       expect(exported.fitMetadata).toEqual(metadata);
@@ -55,7 +58,7 @@ describe('native FIT and Garmin ZIP ingestion', () => {
       expect(exported.records[0].fitFields).toMatchObject({ developer_fields: { 0: 300 }, power_source: 'developer:0:0' });
       expect(exported.records[0].fitFields).not.toHaveProperty('fit_fields');
       expect(importParsedRun(db, exported, 'ai-analysis.csv', { force: true }).status).toBe('imported');
-      expect((db.prepare('SELECT source_fit FROM activity_fit_details').get() as { source_fit: Buffer }).source_fit).toEqual(fit);
+      expect(decodeSourceFit((db.prepare('SELECT source_fit FROM activity_fit_details').get() as { source_fit: Buffer }).source_fit)).toEqual(fit);
     } finally { db.close(); }
   });
 
@@ -94,8 +97,8 @@ describe('native FIT and Garmin ZIP ingestion', () => {
     expect(overwrite.body.results[0]).toMatchObject({ status: 'imported', activityId: id });
     expect(db.prepare('SELECT step_length_m FROM activity_records WHERE activity_id=? ORDER BY elapsed_seconds LIMIT 1').get(id)).toEqual({ step_length_m: 1.1 });
     const details = db.prepare('SELECT metadata_json,source_fit FROM activity_fit_details WHERE activity_id=?').get(id) as { metadata_json: string; source_fit: Buffer };
-    expect(JSON.parse(details.metadata_json).events).toHaveLength(4);
-    expect(details.source_fit).toEqual(richFit());
+    expect(JSON.parse(decodeStoredJson(details.metadata_json)).events).toHaveLength(4);
+    expect(decodeSourceFit(details.source_fit)).toEqual(richFit());
   });
 
   it('rejects empty, oversized and malformed upload batches before importing', async () => {

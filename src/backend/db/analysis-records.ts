@@ -1,3 +1,4 @@
+import { decodeStoredJson } from './compression.js';
 /** Analysis does not need the much larger raw FIT JSON saved for export. */
 export const ANALYSIS_RECORD_COLUMNS = 'timestamp, elapsed_seconds, heart_rate, cadence, speed_mps, distance_m, altitude_m, lat, lon, temp, vert_osc, stance_time, step_length_m, vertical_ratio, stance_time_balance, power_w, respiration_rate, core_temperature_c, fractional_cadence';
 
@@ -47,6 +48,6 @@ export function loadAnalysisRecords(db: Database.Database, activityId: string): 
   const selection = ANALYSIS_RECORD_COLUMNS.split(', ').map(column => columns.has(column) ? column : `NULL AS ${column}`).join(', ');
   const records = db.prepare(`SELECT ${selection} FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC`).all(activityId).map(analysisRecordFromRow);
   const hasFit = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='activity_fit_details'").get();
-  const fit = hasFit ? db.prepare('SELECT metadata_json FROM activity_fit_details WHERE activity_id = ?').get(activityId) as { metadata_json: string } | undefined : undefined;
-  return repairSpeedTelemetry(prepareFitAnalysis(records, fit ? JSON.parse(fit.metadata_json) : undefined).records);
+  const fit = hasFit ? db.prepare('SELECT metadata_json FROM activity_fit_details WHERE activity_id = ?').get(activityId) as { metadata_json: string | Buffer } | undefined : undefined;
+  return repairSpeedTelemetry(prepareFitAnalysis(records, fit ? JSON.parse(decodeStoredJson(fit.metadata_json)) : undefined).records);
 }

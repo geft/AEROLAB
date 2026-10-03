@@ -1,3 +1,4 @@
+import type { SnapshotLoadingProgress } from './snapshot-loading.js';
 import type {
   Activity,
   ActivityDetailResponse,
@@ -34,6 +35,10 @@ export class ApiRequestError extends Error {
     this.name = 'ApiRequestError';
   }
 }
+
+const desktopLoadingProgress: SnapshotLoadingProgress = { stage: 'ready' };
+export const getSnapshotLoadingProgress = (): SnapshotLoadingProgress => desktopLoadingProgress;
+export const subscribeSnapshotLoading = (_listener: () => void): (() => void) => () => {};
 
 /** Exists for the snapshot build; desktop pages never call this helper. */
 export async function getSnapshotMetadata(): Promise<{ generatedAt: string }> {
