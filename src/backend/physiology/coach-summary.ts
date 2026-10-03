@@ -1,3 +1,5 @@
+import { coachMessage } from '../domain/coaching/messages.js';
+import { parseCoachMessages, type CoachMessages } from '../../shared/coaching.js';
 import type { SessionVerdict } from '../../shared/session-verdict.js';
 import { getHeartRateProfileAtDate } from './threshold-tracker.js';
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
@@ -16,6 +18,7 @@ import { qualityWorkoutFailed } from '../ingestion/classifier.js';
 export type ScoreFactor = RubricFactor;
 
 export interface CoachSummary {
+  messages?: CoachMessages;
   verdict: SessionVerdict;
   headline: string;
   effectivenessScore: number; // 0 - 100
@@ -407,7 +410,7 @@ export function generateCoachSummary(params: {
 
   const finalScore = rubric.score;
   if (runType === 'threshold_lt2') {
-    const zoneFactor = rubric.factors.find(factor => factor.category === 'Threshold Zone Time');
+    const zoneFactor = rubric.factors.find(factor => factor.categoryId === 'threshold_zone_time');
     if (zoneFactor) {
       insights.add(zoneFactor.points >= 40 ? 'positive' : 'caution', `Threshold Heart Rate: ${zoneFactor.description}. Time near the LT2 range is the primary measure of this session; pace is supporting context.`);
     } else {
@@ -517,43 +520,35 @@ export function generateCoachSummary(params: {
   const contextInsights = buildContextInsights(params.history);
   insights.addAll(contextInsights);
 
-  let headline = 'Strong Aerobic Adaptation Session';
-  let recommendation = 'Prioritize light hydration and low-impact movement before your next hard effort.';
+  let headlineMessage = coachMessage('headline.strong_aerobic_adaptation_session');
+  let recommendationMessage = coachMessage('advice.prioritize_light_hydration_and_low_impact_movement_before');
 
   if (params.isFailedWorkout) {
-    headline = 'Incomplete / Aborted Quality Session';
-    recommendation = 'Assess underlying fatigue, heat stress, or nutrition. Take a recovery day before attempting another quality stimulus.';
+    headlineMessage = coachMessage('headline.incomplete_aborted_quality_session');
+    recommendationMessage = coachMessage('advice.assess_underlying_fatigue_heat_stress_or_nutrition_take');
   } else if (runType === 'race') {
-    headline = finalScore >= 85
-      ? 'All-Out Benchmark / Masterful Race Execution'
-      : 'All-Out Benchmark Effort (Erratic Pacing)';
-    recommendation = finalScore >= 85
-      ? 'Exceptional competitive effort. Prioritize complete replenishment, deep sleep, and gentle recovery jogging over the next 48-72 hours.'
-      : 'Commendable maximum effort. In your next benchmark, target an even or slight negative split to avoid early lactic burn.';
+    headlineMessage = finalScore >= 85 ? coachMessage('headline.all_out_benchmark_masterful_race_execution') : coachMessage('headline.all_out_benchmark_effort_erratic_pacing');
+    recommendationMessage = finalScore >= 85 ? coachMessage('advice.exceptional_competitive_effort_prioritize_complete_replenishment_deep_sleep') : coachMessage('advice.commendable_maximum_effort_in_your_next_benchmark_target');
   } else if (runType === 'accidental_tempo' || isAccidentalTempo) {
-    headline = 'Unintentional Tempo / Drifted Aerobic Run';
-    recommendation = `If an Easy recovery was intended, slow your initial kilometer pace by 15-20 sec/km to keep heart rate firmly under your LT1 ceiling (${lt1} bpm).`;
+    headlineMessage = coachMessage('headline.unintentional_tempo_drifted_aerobic_run');
+    recommendationMessage = coachMessage('advice.easy_recovery_lt1_ceiling', { lt1 });
   } else if (runType === 'recovery') {
-    headline = 'Low-Stress Active Recovery Jog';
-    recommendation = 'Superb discipline keeping heart rate low and muscle tissue unstressed. Ready for your next scheduled quality day.';
+    headlineMessage = coachMessage('headline.low_stress_active_recovery_jog');
+    recommendationMessage = coachMessage('advice.superb_discipline_keeping_heart_rate_low_and_muscle');
   } else if (runType === 'easy_base' || runType === 'long_run') {
-    headline = finalScore >= 90 ? 'Near-Perfect Aerobic Base Execution' : 'Productive Zone 2 Aerobic Foundation';
-    recommendation = decouplingPct !== null && decouplingPct < 4.0
-      ? 'Your aerobic system is absorbing current volume smoothly. Ready for a progressive tempo or threshold stimulus.'
-      : 'Maintain easy efforts at this heart rate cap to reinforce mitochondrial density.';
+    headlineMessage = finalScore >= 90 ? coachMessage('headline.near_perfect_aerobic_base_execution') : coachMessage('headline.productive_zone_2_aerobic_foundation');
+    recommendationMessage = decouplingPct !== null && decouplingPct < 4.0 ? coachMessage('advice.your_aerobic_system_is_absorbing_current_volume_smoothly') : coachMessage('advice.maintain_easy_efforts_at_this_heart_rate_cap');
   } else if (runType === 'threshold_lt2') {
-    headline = !rubric.factors.some(factor => factor.category === 'Threshold Zone Time')
-      ? 'Threshold Zone Not Verified'
-      : finalScore >= 85 ? 'High-Quality Lactate Clearance Stimulus' : 'Threshold Stimulus with Compromised Execution';
-    recommendation = 'Allow 48 hours of recovery or easy aerobic jogging before your next quality interval day.';
+    headlineMessage = !rubric.factors.some(factor => factor.categoryId === 'threshold_zone_time') ? coachMessage('headline.threshold_zone_not_verified') : finalScore >= 85 ? coachMessage('headline.high_quality_lactate_clearance_stimulus') : coachMessage('headline.threshold_stimulus_with_compromised_execution');
+    recommendationMessage = coachMessage('advice.allow_48_hours_of_recovery_or_easy_aerobic');
   } else if (runType === 'intervals_vo2') {
-    headline = finalScore >= 90 ? 'Masterful VO2 Max Interval Execution' : 'Sharp High-Velocity Neuromuscular Stimulus';
-    recommendation = 'Focus on leg recovery and adequate protein intake to rebuild fast-twitch muscle fibers.';
+    headlineMessage = finalScore >= 90 ? coachMessage('headline.masterful_vo2_max_interval_execution') : coachMessage('headline.sharp_high_velocity_neuromuscular_stimulus');
+    recommendationMessage = coachMessage('advice.focus_on_leg_recovery_and_adequate_protein_intake');
   }
 
   if (hasMarathonPaceBlocks) {
-    headline = 'Marathon-Pace Long Run';
-    recommendation = 'Review the work blocks against your planned marathon pace. The easy-run heart-rate ceiling does not apply to those blocks.';
+    headlineMessage = coachMessage('headline.marathon_pace_long_run');
+    recommendationMessage = coachMessage('advice.review_the_work_blocks_against_your_planned_marathon');
     insights.add('neutral', 'Marathon-Pace Context: This session includes marathon-pace work. Complete block boundaries and a planned pace target are needed before judging execution.');
   }
 
@@ -563,14 +558,15 @@ export function generateCoachSummary(params: {
   }
 
   return {
-    headline,
+    messages: { headline: headlineMessage, recommendation: recommendationMessage },
+    headline: headlineMessage.text,
     verdict: rubric.verdict,
     effectivenessScore: finalScore,
     rating5,
     stars,
     keyInsights: insights.texts,
     insightTones: insights.tones,
-    recommendation,
+    recommendation: recommendationMessage.text,
     focusAdvice: rubric.focusAdvice,
     rubricCoveragePct: rubric.coveragePct,
     rubricFamily: rubric.family,
@@ -685,6 +681,7 @@ export function syncActivityCoachSummary(
   });
 
   const analysis = {
+    messages: coachSummary.messages,
     verdict: coachSummary.verdict,
     context: coachSummary.context ?? null,
     focusAdvice: coachSummary.focusAdvice ?? null,
@@ -774,6 +771,7 @@ export function syncActivityCoachSummary(
       const parsedCoverage = parsedAnalysis?.rubricCoveragePct;
       const parsedFamily = parsedAnalysis?.rubricFamily;
       return {
+        messages: parseCoachMessages(parsedAnalysis?.messages) ?? coachSummary.messages,
         headline: row.headline,
         verdict: parsedAnalysis ? parseSessionVerdict(parsedAnalysis.verdict) : coachSummary.verdict,
         effectivenessScore: scoreVal,

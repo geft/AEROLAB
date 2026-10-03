@@ -4,6 +4,8 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { CoachScoreCard } from '../../src/frontend/components/browse/CoachScoreCard.js';
 import { en } from '../../src/frontend/i18n/en.js';
+import { zh } from '../../src/frontend/i18n/zh.js';
+import { coachMessage } from '../../src/backend/domain/coaching/messages.js';
 
 const summary = {
   headline: 'Productive Zone 2 Aerobic Foundation',
@@ -50,6 +52,23 @@ const summary = {
 
 describe('CoachScoreCard weighted rubric UI', () => {
   afterEach(() => cleanup());
+
+  it('renders Chinese by stable IDs when the API English wording changes', () => {
+    render(<CoachScoreCard language="zh" t={zh} coachSummary={{
+      ...summary,
+      messages: {
+        headline: { ...coachMessage('headline.strong_aerobic_adaptation_session'), text: 'Revised headline' },
+        recommendation: { ...coachMessage('advice.easy_recovery_lt1_ceiling', { lt1: 153 }), text: 'Revised advice' }
+      },
+      scoreBreakdown: [{ categoryId: 'aerobic_intensity', findingId: 'clearly_easy', category: 'Revised category', label: 'Revised finding', points: 80, maxPoints: 85 }]
+    }} />);
+    expect(screen.getByText(zh.browse.coachMessageOverrides['headline.strong_aerobic_adaptation_session']!)).toBeTruthy();
+    expect(screen.getByText(zh.browse.coachMessageOverrides['advice.easy_recovery_lt1_ceiling']!.replace('{lt1}', '153'))).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Some deviation/ }));
+    expect(screen.getByText(zh.browse.coachCategoryOverrides.aerobic_intensity!)).toBeTruthy();
+    expect(screen.getByText(zh.browse.coachFindingOverrides.clearly_easy!)).toBeTruthy();
+    expect(screen.queryByText('Revised headline')).toBeNull();
+  });
 
   it('shows a verdict and observations without scores, stars or point weights', () => {
     render(<CoachScoreCard coachSummary={summary} language="en" t={en} />);

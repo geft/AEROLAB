@@ -1,3 +1,4 @@
+import type { CoachMessages, CoachCategoryId, CoachFindingId } from '../../../shared/coaching.js';
 import { SessionVerdictBadge } from './SessionVerdictBadge.js';
 import type { SessionVerdict } from '../../../shared/session-verdict.js';
 import React, { useState } from 'react';
@@ -22,12 +23,15 @@ const signed = (value: number) => (value > 0 ? `+${value}` : `${value}`);
 
 interface CoachScoreCardProps {
   coachSummary: {
+    messages?: CoachMessages;
     verdict?: SessionVerdict;
     headline?: string;
     stars?: number;
     effectivenessScore?: number;
     rating5?: number;
     scoreBreakdown?: Array<{
+      categoryId?: CoachCategoryId;
+      findingId?: CoachFindingId;
       category: string;
       label: string;
       description?: string;
@@ -138,7 +142,7 @@ export const CoachScoreCard: React.FC<CoachScoreCardProps> = ({
         <div className="coach-title-group">
           <span className="coach-tag">{t.browse.coachTag}</span>
           <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-            {t.browse.coachTextOverrides[coachSummary.headline || ''] ?? translateCoachHeadline(coachSummary.headline || '', language)}
+            {coachSummary.messages ? format(t.browse.coachMessageOverrides[coachSummary.messages.headline.id] ?? coachSummary.messages.headline.text, coachSummary.messages.headline.params) : t.browse.coachTextOverrides[coachSummary.headline || ''] ?? translateCoachHeadline(coachSummary.headline || '', language)}
           </h3>
         </div>
         <button
@@ -172,8 +176,8 @@ export const CoachScoreCard: React.FC<CoachScoreCardProps> = ({
             {(coachSummary.scoreBreakdown || []).map((factor, fIdx) => (
               <div key={fIdx} className="score-factor-row">
                 <div className="score-factor-main">
-                  <span className="score-factor-cat">{translateScoreCategory(factor.category, language)}</span>
-                  <span className="score-factor-label">{translateScoreLabel(factor.label, language)}</span>
+                  <span className="score-factor-cat">{factor.categoryId ? t.browse.coachCategoryOverrides[factor.categoryId] ?? factor.category : translateScoreCategory(factor.category, language)}</span>
+                  <span className="score-factor-label">{factor.findingId ? t.browse.coachFindingOverrides[factor.findingId] ?? factor.label : translateScoreLabel(factor.label, language)}</span>
                   {factor.description && <span className="score-factor-desc">{translateScoreDescription(factor.description, language)}</span>}
                 </div>
               </div>
@@ -226,7 +230,7 @@ export const CoachScoreCard: React.FC<CoachScoreCardProps> = ({
 
       <div className="coach-recommendation">
         <strong style={{ color: '#06b6d4' }}>{t.browse.nextStep}: </strong>
-        {t.browse.coachTextOverrides[coachSummary.recommendation || ''] ?? translateCoachRecommendation(coachSummary.recommendation || '', language)}
+        {coachSummary.messages ? format(t.browse.coachMessageOverrides[coachSummary.messages.recommendation.id] ?? coachSummary.messages.recommendation.text, coachSummary.messages.recommendation.params) : t.browse.coachTextOverrides[coachSummary.recommendation || ''] ?? translateCoachRecommendation(coachSummary.recommendation || '', language)}
       </div>
     </section>
   );

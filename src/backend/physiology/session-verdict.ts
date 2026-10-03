@@ -1,44 +1,45 @@
 import type { SessionVerdict } from '../../shared/session-verdict.js';
-import type { RubricFactor, RunFamily } from './coach-rubric.js';
+import type { CoachingFactor as RubricFactor, CoachFindingId, RunFamily } from '../../shared/coaching.js';
+import { identifyLegacyFactor } from '../domain/coaching/vocabulary.js';
 
 // Use the engine's purpose-specific findings, never its aggregate score.
 // Form, cadence, economy and weather observations do not change the verdict.
-const findings: Record<string, Exclude<SessionVerdict, 'insufficient_evidence'>> = {
-  'Disciplined Aerobic Ceiling': 'on_track',
-  'Clearly Easy': 'on_track',
-  'Normal Easy': 'on_track',
-  'Upper Easy / Aerobic Steady': 'some_deviation',
-  'Potentially Too Close to LT1': 'some_deviation',
-  'Drifting Into High Zone 2': 'some_deviation',
-  'Extended Above the LT1 Ceiling': 'off_target',
-  'On-Target Intensity Control': 'on_track',
-  'Grey-Zone Intensity Drift': 'some_deviation',
-  'Overreaching Intensity': 'off_target',
-  'Drifted Into VO2 Territory': 'off_target',
-  'Sustained Threshold Heart Rate': 'on_track',
-  'Partial Threshold Exposure': 'some_deviation',
-  'Little Threshold Exposure': 'off_target',
-  'Laser Rep Consistency': 'on_track',
-  'Disciplined Interval Structure': 'on_track',
-  'High Rep Variance Across Set': 'some_deviation',
-  'Held Rep Pace and HR to the End': 'on_track',
-  'Slight Late-Rep Fade': 'some_deviation',
-  'Late-Rep Collapse': 'off_target',
-  'Laser Race Pacing Discipline': 'on_track',
-  'Controlled Race Pacing': 'on_track',
-  'Aggressive Early Surge / Positive Split': 'some_deviation',
-  'Volatile Split Pacing': 'some_deviation',
-  'Strong Negative-Split Finish': 'on_track',
-  'Held Form to the Line': 'on_track',
-  'Late-Race Fade': 'some_deviation',
-  'Unbroken Session': 'on_track',
-  'Minor Break Time': 'some_deviation',
-  'Rep-Interrupting Walk Breaks': 'some_deviation',
-  'Walk Breaks Inside the Race Effort': 'some_deviation',
-  'Heavily Interrupted Session': 'off_target',
-  'Substantially Walked Session': 'some_deviation',
-  'Walk-Dominated Session': 'off_target',
-  'Aborted / Incomplete Quality Workout': 'off_target'
+const findings: Partial<Record<CoachFindingId, Exclude<SessionVerdict, 'insufficient_evidence'>>> = {
+  'disciplined_aerobic_ceiling': 'on_track',
+  'clearly_easy': 'on_track',
+  'normal_easy': 'on_track',
+  'upper_easy_aerobic_steady': 'some_deviation',
+  'potentially_too_close_to_lt1': 'some_deviation',
+  'drifting_into_high_zone_2': 'some_deviation',
+  'extended_above_the_lt1_ceiling': 'off_target',
+  'on_target_intensity_control': 'on_track',
+  'grey_zone_intensity_drift': 'some_deviation',
+  'overreaching_intensity': 'off_target',
+  'drifted_into_vo2_territory': 'off_target',
+  'sustained_threshold_heart_rate': 'on_track',
+  'partial_threshold_exposure': 'some_deviation',
+  'little_threshold_exposure': 'off_target',
+  'laser_rep_consistency': 'on_track',
+  'disciplined_interval_structure': 'on_track',
+  'high_rep_variance_across_set': 'some_deviation',
+  'held_rep_pace_and_hr_to_the_end': 'on_track',
+  'slight_late_rep_fade': 'some_deviation',
+  'late_rep_collapse': 'off_target',
+  'laser_race_pacing_discipline': 'on_track',
+  'controlled_race_pacing': 'on_track',
+  'aggressive_early_surge_positive_split': 'some_deviation',
+  'volatile_split_pacing': 'some_deviation',
+  'strong_negative_split_finish': 'on_track',
+  'held_form_to_the_line': 'on_track',
+  'late_race_fade': 'some_deviation',
+  'unbroken_session': 'on_track',
+  'minor_break_time': 'some_deviation',
+  'rep_interrupting_walk_breaks': 'some_deviation',
+  'walk_breaks_inside_the_race_effort': 'some_deviation',
+  'heavily_interrupted_session': 'off_target',
+  'substantially_walked_session': 'some_deviation',
+  'walk_dominated_session': 'off_target',
+  'aborted_incomplete_quality_workout': 'off_target'
 };
 
 export function sessionVerdict(input: {
@@ -52,16 +53,17 @@ export function sessionVerdict(input: {
   if (input.isFailedWorkout || input.isAccidentalTempo) return 'off_target';
   // These session types need a dedicated target model; LT2 is not their target.
   if (['strides', 'tempo', 'marathon_pace'].includes(input.runType)) return 'insufficient_evidence';
-  const primary = input.runType === 'threshold_lt2' ? ['Threshold Zone Time']
-    : input.family === 'aerobic' ? ['Aerobic Intensity']
-    : input.family === 'quality' ? ['Pacing Discipline', 'Interval Execution']
-      : ['Race Pacing Execution', 'Race Finish Execution'];
+  const primary = input.runType === 'threshold_lt2' ? ['threshold_zone_time']
+    : input.family === 'aerobic' ? ['aerobic_intensity']
+    : input.family === 'quality' ? ['pacing_discipline', 'interval_execution']
+      : ['race_pacing_execution', 'race_finish_execution'];
   if (input.family === 'aerobic' && !input.hasIntensityTelemetry) return 'insufficient_evidence';
-  if (!primary.every(category => input.factors.some(f => f.category === category && findings[f.label]))) {
+  const factors = input.factors.map(identifyLegacyFactor);
+  if (!primary.every(categoryId => factors.some(f => f.categoryId === categoryId && f.findingId && findings[f.findingId]))) {
     return 'insufficient_evidence';
   }
-  const relevant = new Set([...primary, 'Workout Completion', ...(input.family === 'quality' && input.runType !== 'threshold_lt2' ? ['Rep-to-Rep Fatigue'] : [])]);
-  const verdicts = input.factors.filter(f => relevant.has(f.category)).map(f => findings[f.label]);
+  const relevant = new Set([...primary, 'workout_completion', ...(input.family === 'quality' && input.runType !== 'threshold_lt2' ? ['rep_to_rep_fatigue'] : [])]);
+  const verdicts = factors.filter(f => f.categoryId && relevant.has(f.categoryId)).map(f => f.findingId && findings[f.findingId]);
   if (verdicts.includes('off_target')) return 'off_target';
   if (verdicts.includes('some_deviation')) return 'some_deviation';
   return 'on_track';

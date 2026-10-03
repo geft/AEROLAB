@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { generateCoachSummary } from '../../src/backend/physiology/coach-summary.js';
 import { sessionVerdict } from '../../src/backend/physiology/session-verdict.js';
 import { parseSessionVerdict } from '../../src/shared/session-verdict.js';
-import type { RubricFactor } from '../../src/backend/physiology/coach-rubric.js';
+import type { CoachingFactor } from '../../src/shared/coaching.js';
 
-const factor = (category: string, label: string): RubricFactor => ({ category, label, points: 0, maxPoints: 100 });
+const factor = (category: string, label: string): CoachingFactor => ({ category, label, points: 0, maxPoints: 100 });
 const base = {
   family: 'aerobic' as const, runType: 'easy_base', hasIntensityTelemetry: true,
   isFailedWorkout: false, isAccidentalTempo: false,

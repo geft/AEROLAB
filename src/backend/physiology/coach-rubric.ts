@@ -1,3 +1,7 @@
+import { category, finding } from '../domain/coaching/vocabulary.js';
+import type { CoachingFactor, CoachCategoryId, CoachFindingId } from '../../shared/coaching.js';
+export type { RunFamily } from '../../shared/coaching.js';
+import type { RunFamily } from '../../shared/coaching.js';
 import { sessionVerdict } from './session-verdict.js';
 import type { SessionVerdict } from '../../shared/session-verdict.js';
 import { PauseBreakdown } from './economy.js';
@@ -19,17 +23,8 @@ import { getLt2TrainingBand } from './zones.js';
  *   than in a recovery jog.
  */
 
-export type RunFamily = 'aerobic' | 'quality' | 'race';
-
-export interface RubricFactor {
-  category: string;
-  points: number;
-  maxPoints: number;
-  label: string;
-  description?: string;
-  /** True for the single factor that lost the most points (the biggest lever). */
-  isFocus?: boolean;
-}
+/** Newly computed factors must carry IDs; public payloads also accept legacy rows. */
+export type RubricFactor = CoachingFactor & { categoryId: CoachCategoryId; findingId: CoachFindingId };
 
 export interface RubricInput {
   runType: string;
@@ -157,7 +152,7 @@ function curve(max: number, value: number | null | undefined, fullAt: number, ze
 }
 
 /** Band label from the fraction of a factor's weight that was earned. */
-function band(ratio: number, elite: string, solid: string, poor: string): string {
+function band<T>(ratio: number, elite: T, solid: T, poor: T): T {
   if (ratio >= 0.85) return elite;
   if (ratio >= 0.6) return solid;
   return poor;
@@ -901,10 +896,10 @@ function turnoverFactor(input: RubricInput, max: number): RubricFactor | null {
   if (cadence) parts.push(`${cadence} spm steady cadence`);
   if (stance) parts.push(`${Math.round(stance)} ms ground contact`);
   return {
-    category: 'Running Turnover',
+    ...(category('running_turnover')),
     points: Math.round(earned),
     maxPoints: max,
-    label: band(ratio, 'Optimal Cadence Sweet Spot', 'Adequate Turnover', 'Sub-Optimal Cadence Turnover'),
+    ...(band(ratio, finding('optimal_cadence_sweet_spot'), finding('adequate_turnover'), finding('sub_optimal_cadence_turnover'))),
     description: parts.join(' · ')
   };
 }
@@ -990,7 +985,7 @@ function gradeAerobic(input: RubricInput, walkAudit: WalkAudit | null, intensity
   // Two signals with different severity: time above the ceiling (a real failure)
   // and sustained time in the top of Zone 2 (a soft one — still aerobic, but no
   // longer an easy day in the recovery sense).
-  const gradeIntensity = (audit: IntensityAudit): { points: number; label: string; description: string } => {
+  const gradeIntensity = (audit: IntensityAudit): { points: number; label: string; findingId: CoachFindingId; description: string } => {
     const effectiveAbove = audit.firstHalfAboveCeilingPct + lateWeight * audit.secondHalfAboveCeilingPct;
     const effectiveHighZ2 = (audit.highZ2FirstHalfPct + lateZone2 * audit.highZ2SecondHalfPct) / 2;
     const abovePoints = curve(ABOVE_CEILING_MAX, effectiveAbove, 5, 40);
@@ -1009,19 +1004,11 @@ function gradeAerobic(input: RubricInput, walkAudit: WalkAudit | null, intensity
       : `${zone2Text} · ${aboveText} · rising to ${audit.highZ2SecondHalfPct.toFixed(0)}% in the second half`;
 
     // The label names the signal that actually failed, not a blended ratio.
-    const label = aboveLost >= 12
-      ? 'Extended Above the LT1 Ceiling'
-      : audit.highZ2Pct < 40
-        ? 'Clearly Easy'
-        : audit.highZ2Pct < 60
-          ? 'Normal Easy'
-          : audit.highZ2Pct <= 75
-            ? 'Upper Easy / Aerobic Steady'
-            : 'Potentially Too Close to LT1';
+    const label = aboveLost >= 12 ? finding('extended_above_the_lt1_ceiling') : audit.highZ2Pct < 40 ? finding('clearly_easy') : audit.highZ2Pct < 60 ? finding('normal_easy') : audit.highZ2Pct <= 75 ? finding('upper_easy_aerobic_steady') : finding('potentially_too_close_to_lt1');
 
     return {
       points: Math.round(pts),
-      label,
+      ...label,
       description
     };
   };
@@ -1029,10 +1016,10 @@ function gradeAerobic(input: RubricInput, walkAudit: WalkAudit | null, intensity
   if (intensity) {
     const graded = gradeIntensity(intensity);
     factors.push({
-      category: 'Aerobic Intensity',
+      ...(category('aerobic_intensity')),
       points: graded.points,
       maxPoints: 85,
-      label: graded.label,
+      label: graded.label, findingId: graded.findingId,
       description: graded.description
     });
   } else if (input.steadyHr || input.avgHr) {
@@ -1041,10 +1028,10 @@ function gradeAerobic(input: RubricInput, walkAudit: WalkAudit | null, intensity
     const hr = input.steadyHr || input.avgHr;
     const pts = curve(85, hr, input.lt1Hr - 8, input.lt1Hr + 12);
     factors.push({
-      category: 'Aerobic Intensity',
+      ...(category('aerobic_intensity')),
       points: Math.round(pts),
       maxPoints: 85,
-      label: band(pts / 85, 'Disciplined Aerobic Ceiling', 'Normal Easy', 'Extended Above the LT1 Ceiling'),
+      ...(band(pts / 85, finding('disciplined_aerobic_ceiling'), finding('normal_easy'), finding('extended_above_the_lt1_ceiling'))),
       description: `${hr} bpm average against a ${input.lt1Hr} bpm LT1 ceiling (average only — no per-second telemetry)`
     });
   }
@@ -1067,17 +1054,13 @@ function gradeAerobic(input: RubricInput, walkAudit: WalkAudit | null, intensity
       pts = curve(max, walkPct, 45, 90);
     }
 
-    const label = input.isFailedWorkout
-      ? 'Aborted / Incomplete Quality Workout'
-      : pts === max
-        ? 'Unbroken Session'
-        : band(pts / max, 'Substantially Walked Session', 'Walk-Dominated Session', 'Walk-Dominated Session');
+    const label = input.isFailedWorkout ? finding('aborted_incomplete_quality_workout') : pts === max ? finding('unbroken_session') : band(pts / max, finding('substantially_walked_session'), finding('walk_dominated_session'), finding('walk_dominated_session'));
 
     const description = input.isFailedWorkout
       ? 'Target volume was cut short before the planned stimulus was delivered'
       : `${walkPct.toFixed(1)}% of moving time in walk breaks (up to 45% is free on easy sessions)`;
 
-    factors.push({ category: 'Workout Completion', points: Math.round(pts), maxPoints: max, label, description });
+    factors.push({ ...(category('workout_completion')), points: Math.round(pts), maxPoints: max, ...label, description });
   }
 
   return factors;
@@ -1123,8 +1106,8 @@ function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): RubricFa
       const max = 50;
       const pts = curve(max, zone.pct, 70, 10);
       factors.push({
-        category: 'Threshold Zone Time', points: Math.round(pts), maxPoints: max,
-        label: band(pts / max, 'Sustained Threshold Heart Rate', 'Partial Threshold Exposure', 'Little Threshold Exposure'),
+        ...(category('threshold_zone_time')), points: Math.round(pts), maxPoints: max,
+        ...(band(pts / max, finding('sustained_threshold_heart_rate'), finding('partial_threshold_exposure'), finding('little_threshold_exposure'))),
         description: `${Math.floor(zone.seconds / 60)}m ${String(zone.seconds % 60).padStart(2, '0')}s within the LT2 band (${zone.lower}-${zone.upper} bpm), ${zone.pct.toFixed(1)}% of observed work-rep time`
       });
     }
@@ -1140,10 +1123,10 @@ function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): RubricFa
     const cvPct = durationStats.cv * 100;
     const pts = curve(max, cvPct, 6, 25);
     factors.push({
-      category: 'Interval Execution',
+      ...(category('interval_execution')),
       points: Math.round(pts),
       maxPoints: max,
-      label: band(pts / max, 'Laser Rep Consistency', 'Disciplined Interval Structure', 'High Rep Variance Across Set'),
+      ...(band(pts / max, finding('laser_rep_consistency'), finding('disciplined_interval_structure'), finding('high_rep_variance_across_set'))),
       description: `${cvPct.toFixed(1)}% duration variance across ${workReps.length} reps (±${Math.round(durationStats.stdDev)}s spread)`
     });
   }
@@ -1155,10 +1138,10 @@ function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): RubricFa
     const pctMax = (peakHr / input.maxHeartRate) * 100;
     const pts = curve(max, pctMax, 90, 75);
     factors.push({
-      category: 'Cardiovascular Stimulus',
+      ...(category('cardiovascular_stimulus')),
       points: Math.round(pts),
       maxPoints: max,
-      label: band(pts / max, 'Target VO2 Stimulus Achieved', 'Partial Cardiovascular Stimulus', 'Insufficient Cardiovascular Stimulus'),
+      ...(band(pts / max, finding('target_vo2_stimulus_achieved'), finding('partial_cardiovascular_stimulus'), finding('insufficient_cardiovascular_stimulus'))),
       description: `Peaked at ${peakHr} bpm (${Math.round(pctMax)}% HRmax)`
     });
   }
@@ -1183,12 +1166,10 @@ function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): RubricFa
     const overshootBpm = anchorHr - input.lt2Hr;
     const driftedIntoVo2 = !vo2Target && overshootBpm >= 12;
     factors.push({
-      category: isThreshold ? 'Threshold Heart Rate' : 'Pacing Discipline',
+      ...(isThreshold ? category('threshold_heart_rate') : category('pacing_discipline')),
       points: Math.round(pts),
       maxPoints: max,
-      label: driftedIntoVo2
-        ? 'Drifted Into VO2 Territory'
-        : band(pts / max, 'On-Target Intensity Control', 'Grey-Zone Intensity Drift', 'Overreaching Intensity'),
+      ...(driftedIntoVo2 ? finding('drifted_into_vo2_territory') : band(pts / max, finding('on_target_intensity_control'), finding('grey_zone_intensity_drift'), finding('overreaching_intensity'))),
       description: usePeak
         ? `${anchorHr} bpm peak work HR (${shape?.medianRepSec}s reps are too short to average to target) against a ${input.lt2Hr} bpm LT2 anchor`
         : `${anchorHr} bpm average work HR against a ${input.lt2Hr} bpm LT2 anchor`
@@ -1223,12 +1204,10 @@ function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): RubricFa
     }
 
     factors.push({
-      category: 'Rep-to-Rep Fatigue',
+      ...(category('rep_to_rep_fatigue')),
       points: Math.round(pts),
       maxPoints: max,
-      label: fatigue.fatiguePct <= fatigue.tolerancePct
-        ? 'Held Rep Pace and HR to the End'
-        : band(pts / max, 'Held Rep Pace and HR to the End', 'Slight Late-Rep Fade', 'Late-Rep Collapse'),
+      ...(fatigue.fatiguePct <= fatigue.tolerancePct ? finding('held_rep_pace_and_hr_to_the_end') : band(pts / max, finding('held_rep_pace_and_hr_to_the_end'), finding('slight_late_rep_fade'), finding('late_rep_collapse'))),
       description: `${detail.join(' · ')} (across ${fatigue.workReps} reps, ${Math.round(fatigue.tolerancePct)}% drift allowed for the set length)`
     });
   }
@@ -1246,11 +1225,7 @@ function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): RubricFa
     // A quality session with fewer than two work reps never delivered its structure.
     if (!input.isFailedWorkout && workReps.length < 2) pts = Math.min(pts, max * 0.6);
 
-    const label = input.isFailedWorkout
-      ? 'Aborted / Incomplete Quality Workout'
-      : walkAudit && walkAudit.intrusiveWalkSec > 0
-        ? 'Rep-Interrupting Walk Breaks'
-        : band(pts / max, 'Unbroken Session', 'Minor Break Time', 'Heavily Interrupted Session');
+    const label = input.isFailedWorkout ? finding('aborted_incomplete_quality_workout') : walkAudit && walkAudit.intrusiveWalkSec > 0 ? finding('rep_interrupting_walk_breaks') : band(pts / max, finding('unbroken_session'), finding('minor_break_time'), finding('heavily_interrupted_session'));
 
     const description = input.isFailedWorkout
       ? 'Target volume was cut short before the planned stimulus was delivered'
@@ -1258,7 +1233,7 @@ function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): RubricFa
         ? `${workReps.length} work reps · ${walkAudit.intrusiveWalkSec}s of walking inside work reps (average entry ${walkAudit.avgCorrectiveEntryHr ?? '—'} bpm)`
         : `${workReps.length} work reps · ${(share ?? 0).toFixed(1)}% of moving time in walk breaks`;
 
-    factors.push({ category: 'Workout Completion', points: Math.round(pts), maxPoints: max, label, description });
+    factors.push({ ...(category('workout_completion')), points: Math.round(pts), maxPoints: max, ...label, description });
   }
 
   return factors;
@@ -1289,12 +1264,10 @@ function gradeRace(input: RubricInput, walkAudit: WalkAudit | null): RubricFacto
       pts = max * Math.max(0.35, 1 - (paceStats.cv - 0.03) / 0.07);
     }
     factors.push({
-      category: 'Race Pacing Execution',
+      ...(category('race_pacing_execution')),
       points: Math.round(pts),
       maxPoints: max,
-      label: isEarlySurge
-        ? 'Aggressive Early Surge / Positive Split'
-        : band(pts / max, 'Laser Race Pacing Discipline', 'Controlled Race Pacing', 'Volatile Split Pacing'),
+      ...(isEarlySurge ? finding('aggressive_early_surge_positive_split') : band(pts / max, finding('laser_race_pacing_discipline'), finding('controlled_race_pacing'), finding('volatile_split_pacing'))),
       description: isEarlySurge
         ? `Km 1 opened at ${formatPaceText(firstPace!)} then faded ${Math.round(surgeSec)}s/km to ${formatPaceText(secondPace!)}`
         : `${(paceStats.cv * 100).toFixed(1)}% split variance (±${Math.round(paceStats.stdDev)}s spread)`
@@ -1310,10 +1283,10 @@ function gradeRace(input: RubricInput, walkAudit: WalkAudit | null): RubricFacto
     const max = 18;
     const pts = curve(max, fadeSec, -8, 25);
     factors.push({
-      category: 'Race Finish Execution',
+      ...(category('race_finish_execution')),
       points: Math.round(pts),
       maxPoints: max,
-      label: band(pts / max, 'Strong Negative-Split Finish', 'Held Form to the Line', 'Late-Race Fade'),
+      ...(band(pts / max, finding('strong_negative_split_finish'), finding('held_form_to_the_line'), finding('late_race_fade'))),
       description: fadeSec >= 0
         ? `${Math.round(fadeSec)}s/km slower in the second half`
         : `${Math.abs(Math.round(fadeSec))}s/km faster in the second half`
@@ -1327,10 +1300,10 @@ function gradeRace(input: RubricInput, walkAudit: WalkAudit | null): RubricFacto
     const pctMax = (peakHr / input.maxHeartRate) * 100;
     const pts = curve(max, pctMax, 92, 78);
     factors.push({
-      category: 'Cardiovascular Stimulus',
+      ...(category('cardiovascular_stimulus')),
       points: Math.round(pts),
       maxPoints: max,
-      label: band(pts / max, 'Full Race-Day Heart Rate Utilisation', 'Partial Race-Day Effort', 'Conservative Heart Rate Ceiling'),
+      ...(band(pts / max, finding('full_race_day_heart_rate_utilisation'), finding('partial_race_day_effort'), finding('conservative_heart_rate_ceiling'))),
       description: `Peaked at ${peakHr} bpm (${Math.round(pctMax)}% HRmax)`
     });
   }
@@ -1354,11 +1327,7 @@ function gradeRace(input: RubricInput, walkAudit: WalkAudit | null): RubricFacto
       pts = curve(max, share!, 0, 6);
     }
 
-    const label = input.isFailedWorkout
-      ? 'Aborted / Incomplete Quality Workout'
-      : walkAudit && walkAudit.intrusiveWalkSec + walkAudit.capacityWalkSec > 0
-        ? 'Walk Breaks Inside the Race Effort'
-        : band(pts / max, 'Unbroken Session', 'Minor Break Time', 'Heavily Interrupted Session');
+    const label = input.isFailedWorkout ? finding('aborted_incomplete_quality_workout') : walkAudit && walkAudit.intrusiveWalkSec + walkAudit.capacityWalkSec > 0 ? finding('walk_breaks_inside_the_race_effort') : band(pts / max, finding('unbroken_session'), finding('minor_break_time'), finding('heavily_interrupted_session'));
 
     const description = input.isFailedWorkout
       ? 'Target volume was cut short before the planned stimulus was delivered'
@@ -1366,7 +1335,7 @@ function gradeRace(input: RubricInput, walkAudit: WalkAudit | null): RubricFacto
         ? `${walkAudit.blockCount} walk breaks · ${(share != null ? share : 0).toFixed(1)}% of moving time (gradient, start and cool-down walks are free)`
         : `${(share ?? 0).toFixed(1)}% of moving time in walk breaks (races rarely need them)`;
 
-    factors.push({ category: 'Workout Completion', points: Math.round(pts), maxPoints: max, label, description });
+    factors.push({ ...(category('workout_completion')), points: Math.round(pts), maxPoints: max, ...label, description });
   }
 
   return factors;
@@ -1396,25 +1365,25 @@ function buildFocusAdvice(factor: RubricFactor, input: RubricInput, walkAudit: W
   const tail = ` (${lost} of ${factor.maxPoints} points lost)`;
   const workReps = (input.intervals || []).filter((i: any) => i.type === INTERVAL_TYPE.work);
 
-  switch (factor.category) {
-    case 'Threshold Zone Time': {
+  switch (factor.categoryId) {
+    case 'threshold_zone_time': {
       const zone = thresholdZoneShare(input);
       return `${prefix}${zone ? `${zone.pct.toFixed(1)}% of observed work-rep time was within the LT2 band (${zone.lower}-${zone.upper} bpm)` : 'threshold-zone time could not be measured'}${tail}. Let heart rate settle near the LT2 anchor during work reps; use pace only to help hold that effort.`;
     }
-    case 'Threshold Heart Rate':
+    case 'threshold_heart_rate':
       return `${prefix}work-rep heart rate missed the ${input.lt2Hr} bpm LT2 anchor${tail}. Adjust effort to keep the work near threshold rather than chasing a pace target.`;
-    case 'Aerobic Decoupling': {
+    case 'aerobic_decoupling': {
       const target = driftTargetFor(input.ambientTempC, input.durationMin);
       const targetNote = target.conditionsAdjusted
         ? ` The target for these conditions is ${target.fullAtPct}% (heat and duration both add drift you cannot pace away), so this is about pacing and fuelling rather than fitness.`
         : '';
       return `${prefix}${(input.decouplingPct ?? 0).toFixed(1)}% cardiac drift was the largest single cost${tail}.${targetNote} Start the opening 2 km 10-15 sec/km slower and add easy volume at or below ${input.lt1Hr - 12} bpm — capillary density, not speed, is the limiter.`;
     }
-    case 'Pacing Discipline':
+    case 'pacing_discipline':
       return runFamilyOf(input.runType) === 'quality'
         ? `${prefix}work intervals averaged ${Math.round(workReps.reduce((a: number, r: any) => a + intervalHr(r), 0) / Math.max(1, workReps.filter((r: any) => intervalHr(r) > 0).length))} bpm against a ${input.lt2Hr} bpm LT2 anchor${tail}. Set the watch to alert above ${input.lt2Hr} bpm and hold rep 1 back so rep 3 lands on target.`
         : `${prefix}steady HR reached ${input.steadyHr} bpm against a ${input.lt1Hr} bpm LT1 cap${tail}. Slow the opening 15-20 sec/km and cap the watch at ${input.lt1Hr - 8} bpm so easy days stay easy.`;
-    case 'Aerobic Intensity': {
+    case 'aerobic_intensity': {
       const audit = intensityAudit(input.records, { lt1Hr: input.lt1Hr });
       const above = audit?.aboveCeilingPct ?? 0;
       const zone2 = audit?.highZ2Pct ?? 0;
@@ -1434,9 +1403,9 @@ function buildFocusAdvice(factor: RubricFactor, input: RubricInput, walkAudit: W
       }
       return `${prefix}${above.toFixed(1)}% of your running time sat above the ${input.lt1Hr} bpm LT1 ceiling (${(audit?.firstHalfAboveCeilingPct ?? 0).toFixed(1)}% of it in the first half)${tail}. Set a watch alert at ${bandLow} bpm and walk any climb that pushes you over it — for an easy day, keeping the ceiling is the whole session.`;
     }
-    case 'Running Turnover':
+    case 'running_turnover':
       return `${prefix}${input.steadyCadence} spm cost the most execution points${tail}. Two weekly sets of 4 x 20s strides at 180+ spm raise turnover without adding aerobic load.`;
-    case 'Pacing Consistency': {
+    case 'pacing_consistency': {
       const pacing = pacingConsistency(input.records, input.splits, input.runType);
       const detail = pacing && pacing.source === 'records'
         ? ` Your running pace held within ±${Math.round(pacing.stdDevSec)}s per kilometre across ${pacing.sampleCount} running km.`
@@ -1446,7 +1415,7 @@ function buildFocusAdvice(factor: RubricFactor, input: RubricInput, walkAudit: W
         : '';
       return `${prefix}running pace varied more than it needed to${tail}.${detail}${trendNote} Lock a pace band before the start and check it every kilometre instead of chasing feel.`;
     }
-    case 'Workout Completion': {
+    case 'workout_completion': {
       if (input.isFailedWorkout) {
         return `${prefix}the session was aborted before the planned stimulus landed${tail}. Re-check sleep, fuel and the previous 48 hours of load before retrying the same session.`;
       }
@@ -1459,22 +1428,22 @@ function buildFocusAdvice(factor: RubricFactor, input: RubricInput, walkAudit: W
       const share = walkSharePct(input.pauseBreakdown);
       return `${prefix}${(share ?? 0).toFixed(1)}% of moving time was spent in walk breaks${tail}. Pick a loop with fewer crossings, or place walk breaks at fixed points so the aerobic block stays continuous.`;
     }
-    case 'Interval Execution':
+    case 'interval_execution':
       return `${prefix}rep durations varied by ${((coefficientOfVariation(workReps.map(intervalDuration))?.cv ?? 0) * 100).toFixed(1)}%${tail}. Fix the rep duration rather than the pace — even reps deliver the intended stimulus.`;
-    case 'Cardiovascular Stimulus': {
+    case 'cardiovascular_stimulus': {
       const peakHr = Math.max(0, ...workReps.map(intervalMaxHr), input.activityMaxHr || 0);
       const pct = Math.round((peakHr / (input.maxHeartRate || 1)) * 100);
       return runFamilyOf(input.runType) === 'race'
         ? `${prefix}the race peaked at ${pct}% of HRmax${tail}. Practise 2 x 8 min at LT2 so race pace feels controlled rather than unknown.`
         : `${prefix}peak work HR only reached ${pct}% of HRmax${tail}. Close the final rep at 90%+ HRmax to load stroke volume instead of stopping at threshold.`;
     }
-    case 'Autonomic Recovery':
+    case 'autonomic_recovery':
       return `${prefix}heart rate fell slowly between reps${tail}. Lengthen recoveries to 90-120s of easy jogging so every rep starts fresh below LT2.`;
-    case 'Race Pacing Execution':
+    case 'race_pacing_execution':
       return `${prefix}opening pace discipline was the biggest cost${tail}. Run the first 2 km about 10 sec/km easier than goal pace — a fast opening kilometre spikes lactate early and forces the fade.`;
-    case 'Race Finish Execution':
+    case 'race_finish_execution':
       return `${prefix}the second half slowed noticeably${tail}. Add one long run a week with the final 20 minutes at goal race pace to rehearse late-race form.`;
-    case 'Rep-to-Rep Fatigue': {
+    case 'rep_to_rep_fatigue': {
       const fatigue = setFatigueDetail(input);
       const parts: string[] = [];
       if (fatigue.paceFadeSec != null && Math.abs(fatigue.paceFadeSec) >= 3) {

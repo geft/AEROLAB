@@ -1,3 +1,4 @@
+import type { CoachMessages } from './coaching.js';
 import type { SessionVerdict } from './session-verdict.js';
 import type { Activity } from './activity.js';
 
@@ -25,6 +26,7 @@ export interface PauseBreakdown {
  * the physiology `CoachSummary`, so services can return either without casting.
  */
 export interface ActivityCoachSummary {
+  messages?: CoachMessages;
   verdict?: SessionVerdict;
   headline: string;
   effectivenessScore: number;
@@ -94,6 +96,7 @@ export interface ActivityDetailResponse {
 /** GET /api/activities/:id/coach-summary */
 export interface CoachSummaryResponse {
   coachSummary: {
+    messages?: CoachMessages;
     headline: string | null;
     verdict: SessionVerdict | null;
     effectivenessScore: number;

@@ -1,3 +1,4 @@
+import type { CoachMessages, CoachCategoryId, CoachFindingId } from '../../shared/coaching.js';
 import type { SessionVerdict } from '../../shared/session-verdict.js';
 /**
  * API response contracts.
@@ -103,6 +104,8 @@ export interface ActivityRecord {
 
 /** One itemised line in the execution score. */
 export interface ScoreFactor {
+  categoryId?: CoachCategoryId;
+  findingId?: CoachFindingId;
   category: string;
   label: string;
   description?: string;
@@ -170,6 +173,7 @@ export type CoachInsightTone = 'positive' | 'neutral' | 'caution' | 'negative';
 
 /** The algorithmic coach debrief attached to an activity. */
 export interface CoachSummary {
+  messages?: CoachMessages;
   verdict?: SessionVerdict;
   headline: string;
   effectivenessScore: number;

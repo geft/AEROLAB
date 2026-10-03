@@ -1,3 +1,4 @@
+import { parseCoachMessages } from '../../shared/coaching.js';
 import { rebuildAffectedHistory } from '../application/analysis/rebuild-history.js';
 import { thresholdTime } from '../../shared/threshold-trend.js';
 import Database from 'better-sqlite3';
@@ -553,6 +554,7 @@ export function getActivityCoachSummaryService(db: Database.Database, id: string
 
   return {
     coachSummary: {
+      messages: parseCoachMessages(analysis?.messages),
       headline: coachRow.headline,
       verdict: parseSessionVerdict(analysis?.verdict),
       effectivenessScore: coachRow.effectiveness_score,

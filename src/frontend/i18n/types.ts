@@ -1,3 +1,4 @@
+import type { CoachCategoryId, CoachFindingId, CoachMessageId } from '../../shared/coaching.js';
 export type Language = 'en' | 'zh';
 
 /**
@@ -278,6 +279,9 @@ export interface Translations {
     coachContextLongest: string;
     /** Title above the coach-debrief tone legend strip. */
     coachTextOverrides: Record<string, string>;
+    coachCategoryOverrides: Partial<Record<CoachCategoryId, string>>;
+    coachFindingOverrides: Partial<Record<CoachFindingId, string>>;
+    coachMessageOverrides: Partial<Record<CoachMessageId, string>>;
     verdictOnTrack: string;
     verdictSomeDeviation: string;
     verdictOffTarget: string;
