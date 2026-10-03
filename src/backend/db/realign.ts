@@ -1,9 +1,7 @@
+import type Database from 'better-sqlite3';
+import type { ActivityMetadata, ActivityRecord } from '../domain/telemetry.js';
+import { analyzeWorkout, prepareAnalysisContext } from '../application/analysis/analyze-workout.js';
 import { getAthleteHeartRateProfile } from '../physiology/athlete-profile.js';
-import { detectIntervals } from '../ingestion/interval-detector.js';
-import { classifyRun } from '../ingestion/classifier.js';
-import { prepareFitAnalysis } from '../ingestion/fit-analysis.js';
-import { buildSessionTags } from '../ingestion/session-tags.js';
-import { calculateEconomy, calculateKmSplits } from '../physiology/economy.js';
 import { evaluateThresholdUpdate, getCurrentThresholds, getStridePaceAnchorSecKmAtDate, getHeartRateProfileAtDate } from '../physiology/threshold-tracker.js';
 import { thresholdTime } from '../../shared/threshold-trend.js';
 import { calculateActivityTrainingLoad } from '../physiology/training-load.js';
@@ -26,7 +24,7 @@ export interface RealignOptions {
   activityIds?: string[];
 }
 
-function mapRecords(rows: any[]): any[] {
+function mapRecords(rows: any[]): ActivityRecord[] {
   return rows.map(r => ({
     timestamp: r.timestamp,
     elapsedSeconds: r.elapsed_seconds,
@@ -60,7 +58,7 @@ function mapRecords(rows: any[]): any[] {
  * and each activity is isolated — one corrupt activity can no longer abort
  * the whole pass (the previous silent failure mode that left DBs stale).
  */
-export function realignDatabase(db: any, options: RealignOptions = {}): RealignStats {
+export function realignDatabase(db: Database.Database, options: RealignOptions = {}): RealignStats {
   const log = options.logger ?? (() => {});
   const stats: RealignStats = {
     activitiesProcessed: 0,
@@ -143,22 +141,9 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
         db.prepare("DELETE FROM physiological_thresholds WHERE source_activity_id = ? AND source_kind = 'workout'").run(act.id);
         const rawMapped = mapRecords(records);
         const storedFit = db.prepare('SELECT metadata_json FROM activity_fit_details WHERE activity_id = ?').get(act.id) as { metadata_json: string } | undefined;
-        const analysis = prepareFitAnalysis(rawMapped, storedFit ? JSON.parse(storedFit.metadata_json) : undefined);
-        const mapped = analysis.records;
         const hrProfile = getHeartRateProfileAtDate(db, act.start_time);
         const stridePaceAnchorSecKm = getStridePaceAnchorSecKmAtDate(db, act.start_time);
-        const intervalOptions = {
-          laps: analysis.laps,
-          lt1Hr: hrProfile?.lt1Hr ?? undefined,
-          lt2Hr: hrProfile?.lt2Hr ?? undefined,
-          stridePaceAnchorSecKm: stridePaceAnchorSecKm ?? undefined,
-          maxHr: hrProfile?.maxHr ?? undefined,
-          restingHr: hrProfile?.restingHr ?? undefined
-        };
-        let intervals = detectIntervals(mapped as any, intervalOptions);
-
-        const economy = calculateEconomy(mapped as any);
-        const meta = {
+        const meta: ActivityMetadata = {
           id: act.id,
           name: act.name,
           sport: act.sport,
@@ -174,13 +159,13 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
           totalAscentMeters: act.elevation_gain_m || 0,
           totalDescentMeters: act.elevation_loss_m || 0
         };
-        const classification = classifyRun(meta, mapped as any, economy, intervals, hrProfile);
-        const runType = act.manual_run_type || classification.runType;
-        // Match ingestion: a newly inferred race needs benchmark segmentation
-        // in this pass, before its tags and coach summary are rebuilt.
-        if (runType === 'race') {
-          intervals = detectIntervals(mapped as any, { ...intervalOptions, isRace: true });
-        }
+        const context = prepareAnalysisContext({ metadata: meta, rawRecords: rawMapped,
+          fitMetadata: storedFit ? JSON.parse(storedFit.metadata_json) : undefined,
+          historicalProfile: hrProfile, stridePaceAnchorSecKm });
+        const { economy, splits, classification, runType, intervals, tags } = analyzeWorkout(context, {
+          confirmedRunType: act.manual_run_type
+        });
+        const mapped = context.records;
         db.prepare('DELETE FROM activity_intervals WHERE activity_id = ?').run(act.id);
         for (const inv of intervals) {
           insertInterval.run(
@@ -188,12 +173,11 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
             inv.distanceMeters, inv.avgSpeedMps, inv.avgPaceSecKm, inv.avgHeartRate,
             inv.maxHeartRate, inv.avgCadence, inv.peakCadence ?? null, inv.peakSpeedMps ?? null,
             inv.peakPaceSecKm ?? null, inv.minStanceTime ?? null, inv.hrDrop ?? null,
-            (inv as any).avgVertOsc ?? null, (inv as any).avgStanceTime ?? null,
-            (inv as any).avgStepLength ?? null, (inv as any).avgStrideLength ?? null,
-            (inv as any).avgVertRatio ?? null
+            inv.avgVertOsc ?? null, inv.avgStanceTime ?? null,
+            inv.avgStepLength ?? null, inv.avgStrideLength ?? null,
+            inv.avgVertRatio ?? null
           );
         }
-        const tags = buildSessionTags(runType, mapped, intervals, hrProfile);
         const load = calculateActivityTrainingLoad(mapped, hrProfile,
           { durationSeconds: act.duration_seconds, avgHeartRate: act.avg_heart_rate });
         db.prepare(`UPDATE activities SET training_load=?,z1_seconds=?,z2_seconds=?,z3_seconds=?,z4_seconds=?,z5_seconds=? WHERE id=?`)
@@ -233,7 +217,6 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
           act.id
         );
 
-        const splits = calculateKmSplits(mapped as any, 1000);
         if (splits.length > 0) {
           db.prepare('DELETE FROM activity_splits WHERE activity_id = ?').run(act.id);
           for (const s of splits) {
