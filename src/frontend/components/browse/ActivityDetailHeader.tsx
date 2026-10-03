@@ -54,6 +54,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
   const [isEditingTitle, setIsEditingTitle] = useState<boolean>(false);
   const [customTitle, setCustomTitle] = useState<string>('');
   const { formatDate, language } = useTranslation();
+  const displayCadence = act.steady_cadence || act.avg_cadence;
 
   // Parse current tags safely
   let currentTags: string[] = [];
@@ -296,14 +297,17 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
         </div>
         <div className="metric-chip">
           <span className="metric-chip-label">
-            {t.browse.avgPace} {act.steady_pace_sec_km && act.steady_pace_sec_km !== act.avg_pace_sec_km ? `(${t.browse.steadyPace})` : ''}
+            {t.browse.avgPace}
+            {!!act.steady_pace_sec_km && act.steady_pace_sec_km !== act.avg_pace_sec_km && (
+              <span className="metric-chip-qualifier">{t.browse.steadyPace}</span>
+            )}
           </span>
           <span className="metric-chip-value" style={{ color: '#06b6d4' }}>
             {formatPace(act.steady_pace_sec_km || act.avg_pace_sec_km)}
             <span className="metric-chip-unit">/km</span>
           </span>
           {act.steady_pace_sec_km && act.steady_pace_sec_km !== act.avg_pace_sec_km && (
-            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+            <span className="metric-chip-detail">
               {t.browse.raw}: {formatPace(act.avg_pace_sec_km)}
             </span>
           )}
@@ -317,7 +321,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
             <span className="metric-chip-unit">bpm</span>
           </span>
           {act.steady_heart_rate && act.steady_heart_rate !== act.avg_heart_rate && (
-            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+            <span className="metric-chip-detail">
               {t.browse.raw}: {act.avg_heart_rate}
             </span>
           )}
@@ -328,15 +332,18 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
         </div>
         <div className="metric-chip">
           <span className="metric-chip-label">
-            {t.browse.cadenceLabel} {act.steady_cadence && act.steady_cadence !== act.avg_cadence ? `(${t.browse.steadyPace})` : ''}
+            {t.browse.cadenceLabel}
+            {!!act.steady_cadence && act.steady_cadence !== act.avg_cadence && (
+              <span className="metric-chip-qualifier">{t.browse.steadyPace}</span>
+            )}
           </span>
           <span className="metric-chip-value">
-            {act.steady_cadence || act.avg_cadence || '—'}
+            {displayCadence ? Math.round(displayCadence) : '—'}
             <span className="metric-chip-unit">spm</span>
           </span>
           {act.steady_cadence && act.steady_cadence !== act.avg_cadence && (
-            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-              {t.browse.raw}: {act.avg_cadence} spm
+            <span className="metric-chip-detail">
+              {t.browse.raw}: {act.avg_cadence != null ? Math.round(act.avg_cadence) : '—'} spm
             </span>
           )}
         </div>
