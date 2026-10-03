@@ -150,14 +150,14 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
             <span>{formatDate(act.start_time, { hour: '2-digit', minute: '2-digit', hour12: false })} ({getTimeOfDay(act.start_time)})</span>
           </div>
 
-          <button
+          {!readOnly && <button
             type="button"
             onClick={() => downloadSessionCsv(act, records, fitMetadata)}
             className="export-csv-btn"
           >
             <Download size={16} aria-hidden="true" />
             {t.browse.exportCsv}
-          </button>
+          </button>}
 
           {/* Dynamic Multi-Tags Row */}
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.65rem' }}>

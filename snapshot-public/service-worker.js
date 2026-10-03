@@ -3,7 +3,7 @@
 const CACHE_NAME = 'aerolab-snapshot-shell-v2';
 // The build plugin includes every emitted chunk, including lazy tabs and the worker.
 const PRECACHE_URLS = ['/'];
-const SNAPSHOT_PATH = '/snapshot.json';
+const SNAPSHOT_PATH = '/snapshot.msgpack.gz';
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(PRECACHE_URLS)).then(() => self.skipWaiting()));
@@ -14,7 +14,8 @@ self.addEventListener('activate', event => {
     caches.keys()
       .then(cacheNames => Promise.all(
         cacheNames
-          .filter(cacheName => cacheName.startsWith('aerolab-snapshot-shell-') && cacheName !== CACHE_NAME)
+          .filter(cacheName => (cacheName.startsWith('aerolab-snapshot-shell-') && cacheName !== CACHE_NAME)
+            || cacheName === 'aerolab-snapshot-data-v1')
           .map(cacheName => caches.delete(cacheName))
       ))
       .then(() => self.clients.claim())

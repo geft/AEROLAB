@@ -10,8 +10,8 @@ test('phone reopens the first cached snapshot offline and opens previously unvis
     }
   });
   expect(await page.evaluate(async () => {
-    const cache = await caches.open('aerolab-snapshot-data-v1');
-    return Boolean(await cache.match('/snapshot.json'));
+    const cache = await caches.open('aerolab-snapshot-data-v2');
+    return Boolean(await cache.match('/snapshot.msgpack.gz'));
   })).toBe(true);
   await page.close();
   await context.setOffline(true);

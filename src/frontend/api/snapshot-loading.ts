@@ -2,6 +2,8 @@ import type {
   Activity, ActivityDetailResponse, BestEffortsResponse, ProfileResponse, ThresholdsResponse,
   TrainingLoadResponse, VolumeData, ProgressHistoryResponse
 } from '../types/api.js';
+import { decodeSnapshotArchive, SNAPSHOT_FILENAME, SnapshotDecodeError } from '../../shared/snapshot-codec.js';
+import type { SnapshotArchive } from '../../shared/snapshot-codec.js';
 
 export interface Snapshot {
   schemaVersion: number;
@@ -28,24 +30,25 @@ export class SnapshotLoadError extends Error {
   }
 }
 
-export async function loadSnapshot(onProgress: (progress: SnapshotLoadingProgress) => void): Promise<Snapshot> {
+export async function loadSnapshot(onProgress: (progress: SnapshotLoadingProgress) => void): Promise<SnapshotArchive> {
   onProgress({ stage: 'downloading' });
   // Cache Storage also works in the parsing worker and survives phone app restarts.
   // Storage can be unavailable or full; neither should prevent an online load.
   let cache: Cache | undefined;
   try {
-    if (typeof caches !== 'undefined') cache = await caches.open('aerolab-snapshot-data-v1');
+    if (typeof caches !== 'undefined') cache = await caches.open('aerolab-snapshot-data-v2');
   } catch { /* Continue without persistent storage. */ }
   try {
-    const response = await fetch('/snapshot.json', { cache: 'no-cache' });
-    const { data, text } = await parseSnapshot(response, onProgress);
+    const snapshotUrl = `/${SNAPSHOT_FILENAME}`;
+    const response = await fetch(snapshotUrl, { cache: 'no-cache' });
+    const { data, bytes } = await parseSnapshot(response, onProgress);
     try {
-      await cache?.put('/snapshot.json', new Response(text, { headers: { 'Content-Type': 'application/json' } }));
+      await cache?.put(snapshotUrl, new Response(new Uint8Array(bytes), { headers: { 'Content-Type': 'application/octet-stream' } }));
     } catch { /* Quota or privacy settings must not break a valid snapshot. */ }
     return data;
   } catch (error) {
     let cached: Response | undefined;
-    try { cached = await cache?.match('/snapshot.json'); } catch { /* Storage is optional. */ }
+    try { cached = await cache?.match(`/${SNAPSHOT_FILENAME}`); } catch { /* Storage is optional. */ }
     if (cached) {
       try { return (await parseSnapshot(cached, onProgress)).data; } catch { /* Preserve the original load error. */ }
     }
@@ -53,17 +56,16 @@ export async function loadSnapshot(onProgress: (progress: SnapshotLoadingProgres
   }
 }
 
-async function parseSnapshot(response: Response, onProgress: (progress: SnapshotLoadingProgress) => void): Promise<{ data: Snapshot; text: string }> {
+async function parseSnapshot(response: Response, onProgress: (progress: SnapshotLoadingProgress) => void): Promise<{ data: SnapshotArchive; bytes: Uint8Array }> {
   if (!response.ok) throw new SnapshotLoadError(response.status, 'ERR_SNAPSHOT_MISSING', 'Snapshot data is unavailable. Export and rebuild the viewer.');
   const encoding = response.headers.get('content-encoding');
   const length = Number(response.headers.get('content-length'));
   // Fetch streams decoded bytes; compressed Content-Length measures different bytes.
   const total = (!encoding || encoding === 'identity') && Number.isSafeInteger(length) && length > 0 ? length : null;
-  let text: string;
+  let bytes: Uint8Array;
   if (response.body) {
     const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    const chunks: string[] = [];
+    const chunks: Uint8Array[] = [];
     let loaded = 0;
     let previousPercent: number | undefined;
     try {
@@ -71,26 +73,27 @@ async function parseSnapshot(response: Response, onProgress: (progress: Snapshot
         const { done, value } = await reader.read();
         if (done) break;
         loaded += value.byteLength;
-        chunks.push(decoder.decode(value, { stream: true }));
+        chunks.push(value);
         const percent = total && loaded <= total ? Math.floor(loaded / total * 100) : undefined;
         if (percent !== previousPercent) {
           onProgress({ stage: 'downloading', percent });
           previousPercent = percent;
         }
       }
-      chunks.push(decoder.decode());
-      text = chunks.join('');
+      bytes = new Uint8Array(loaded);
+      let offset = 0;
+      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
     } finally { reader.releaseLock(); }
   } else {
-    text = await response.text();
+    bytes = new Uint8Array(await response.arrayBuffer());
   }
   onProgress({ stage: 'preparing' });
-  const data = JSON.parse(text) as Snapshot;
-  if (data.schemaVersion !== 1) throw new SnapshotLoadError(200, 'ERR_SNAPSHOT_VERSION', `This viewer cannot read snapshot schema ${data.schemaVersion}.`);
-  if (!data.generatedAt || !Array.isArray(data.activities) || !data.details || !data.profile) {
-    throw new SnapshotLoadError(200, 'ERR_SNAPSHOT_INVALID', 'Snapshot data is missing required sections. Export it again.');
+  try {
+    return { data: decodeSnapshotArchive(bytes), bytes };
+  } catch (error) {
+    if (error instanceof SnapshotDecodeError) throw new SnapshotLoadError(200, error.code, error.message);
+    throw error;
   }
-  return { data, text };
 }
 
 export type SnapshotWorkerRequest = { type: 'load' } | { type: 'read'; id: number; section: keyof Snapshot; key?: string };

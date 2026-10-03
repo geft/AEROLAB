@@ -13,6 +13,7 @@ const projectLinkPath = path.join(deploymentRoot, '.vercel', 'project.json');
 const viewerTemplatePath = path.join(appRoot, 'dist-snapshot-template');
 const exporterBundlePath = path.join(appRoot, 'dist-backend', 'export-snapshot.cjs');
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const snapshotFilename = 'snapshot.msgpack.gz';
 
 if (!selectedDatabasePath || !fs.existsSync(selectedDatabasePath)) {
   console.error('Choose an existing local snapshot row before deploying.');
@@ -72,16 +73,16 @@ try {
   console.log('SNAPSHOT_PHASE=exporting');
   console.log('Exporting the selected local snapshot…');
   if (fs.existsSync(exporterBundlePath)) {
-    await run(process.execPath, [exporterBundlePath, '--database', selectedDatabasePath, '--output', path.join(tempDeploymentDir, 'snapshot.json')], 'Snapshot export', {
+    await run(process.execPath, [exporterBundlePath, '--database', selectedDatabasePath, '--output', path.join(tempDeploymentDir, snapshotFilename)], 'Snapshot export', {
       env: { ...process.env, AEROLAB_EXPORT_SNAPSHOT_CLI: '1' }
     });
   } else {
-    await run(npm, ['run', 'snapshot:export', '--', '--database', selectedDatabasePath, '--output', path.join(tempDeploymentDir, 'snapshot.json')], 'Snapshot export');
+    await run(npm, ['run', 'snapshot:export', '--', '--database', selectedDatabasePath, '--output', path.join(tempDeploymentDir, snapshotFilename)], 'Snapshot export');
   }
 
   console.log('SNAPSHOT_PHASE=validating');
   console.log('Validating snapshot…');
-  if (!fs.existsSync(path.join(tempDeploymentDir, 'snapshot.json'))) throw new Error('Snapshot export did not create snapshot.json.');
+  if (!fs.existsSync(path.join(tempDeploymentDir, snapshotFilename))) throw new Error(`Snapshot export did not create ${snapshotFilename}.`);
 
   console.log('SNAPSHOT_PHASE=building');
   console.log('Preparing the static viewer…');
@@ -91,7 +92,7 @@ try {
     await run(npx, ['vite', 'build', '--mode', 'snapshot-template'], 'Snapshot viewer build');
   }
   fs.cpSync(viewerTemplatePath, tempDeploymentDir, { recursive: true, force: true });
-  if (!fs.existsSync(path.join(tempDeploymentDir, 'snapshot.json'))) throw new Error('Prepared viewer is missing the selected snapshot.');
+  if (!fs.existsSync(path.join(tempDeploymentDir, snapshotFilename))) throw new Error('Prepared viewer is missing the selected snapshot.');
 
   console.log('SNAPSHOT_PHASE=deploying');
   console.log('Deploying the selected snapshot to the linked Vercel project…');

@@ -4,6 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { exportSnapshot, SNAPSHOT_SCHEMA_VERSION, validateSnapshot } from '../../scripts/export-snapshot.js';
+import { getActivityDetailService } from '../../src/backend/services/activity-service.js';
+import { decodeSnapshot } from '../../src/shared/snapshot-codec.js';
 
 const temporaryDirectories: string[] = [];
 function makeDatabase(withActivity = false, startTime = '2026-09-01T07:00:00Z'): string {
@@ -27,11 +29,44 @@ afterEach(() => {
 });
 
 describe('snapshot exporter', () => {
+  it('samples exported charts after analysis without changing summaries or database records', () => {
+    const dbPath = makeDatabase(true);
+    const db = new Database(dbPath);
+    const insert = db.prepare(`INSERT INTO activity_records
+      (activity_id, timestamp, elapsed_seconds, distance_m, speed_mps, heart_rate, cadence, altitude_m)
+      VALUES ('private-run-id', ?, ?, ?, 3, 140, 180, 12)`);
+    db.transaction(() => {
+      for (let second = 0; second <= 300; second++) {
+        insert.run(new Date(Date.parse('2026-09-01T07:00:00Z') + second * 1000).toISOString(), second, second * 3);
+      }
+    })();
+    db.prepare('INSERT INTO activity_fit_details (activity_id, metadata_json) VALUES (?, ?)')
+      .run('private-run-id', JSON.stringify({ session: { manufacturer: 'test-device' }, exportOnly: 'desktop FIT metadata' }));
+    const original = getActivityDetailService(db, 'private-run-id', { persistCoachSummary: false })!;
+    db.close();
+
+    const output = path.join(path.dirname(dbPath), 'snapshot.msgpack.gz');
+    exportSnapshot(dbPath, output);
+    const detail = decodeSnapshot(fs.readFileSync(output)).details['private-run-id'];
+    expect(detail.records.length).toBeLessThan(original.records.length / 2);
+    expect(detail.records[0].elapsed_seconds).toBe(original.records[0].elapsed_seconds);
+    expect(detail.records.at(-1)!.elapsed_seconds).toBe(original.records.at(-1)!.elapsed_seconds);
+    expect(detail.splits).toEqual(original.splits);
+    expect(detail.intervals).toEqual(original.intervals);
+    expect(detail.coachSummary).toEqual(original.coachSummary);
+    expect(original.fitMetadata).toHaveProperty('exportOnly', 'desktop FIT metadata');
+    expect(detail).not.toHaveProperty('fitMetadata');
+
+    const readonly = new Database(dbPath, { readonly: true });
+    expect(readonly.prepare('SELECT COUNT(*) AS count FROM activity_records').get()).toEqual({ count: 301 });
+    readonly.close();
+  });
+
   it('exports a versioned empty snapshot with a generated timestamp', () => {
     const dbPath = makeDatabase();
-    const output = path.join(path.dirname(dbPath), 'snapshot.json');
+    const output = path.join(path.dirname(dbPath), 'snapshot.msgpack.gz');
     exportSnapshot(dbPath, output);
-    const snapshot = JSON.parse(fs.readFileSync(output, 'utf8'));
+    const snapshot = decodeSnapshot(fs.readFileSync(output));
     expect(snapshot.schemaVersion).toBe(SNAPSHOT_SCHEMA_VERSION);
     expect(Date.parse(snapshot.generatedAt)).not.toBeNaN();
     expect(snapshot.activities).toEqual([]);
@@ -41,15 +76,15 @@ describe('snapshot exporter', () => {
 
   it('omits coordinates and private database fields while retaining stable activity detail', () => {
     const dbPath = makeDatabase(true);
-    const output = path.join(path.dirname(dbPath), 'snapshot.json');
+    const output = path.join(path.dirname(dbPath), 'snapshot.msgpack.gz');
     exportSnapshot(dbPath, output);
-    const snapshot = JSON.parse(fs.readFileSync(output, 'utf8'));
+    const snapshot = decodeSnapshot(fs.readFileSync(output));
     expect(snapshot.activities[0]).toMatchObject({ id: 'private-run-id', start_time: '2026-09-01T07:00:00Z' });
     expect(snapshot.activities[0]).not.toHaveProperty('workout_lat');
     expect(snapshot.activities[0]).not.toHaveProperty('workout_lon');
     expect(snapshot.profile.profile).not.toHaveProperty('dob');
     expect(snapshot.profile.profile).not.toHaveProperty('location');
-    expect(fs.readFileSync(output, 'utf8')).not.toMatch(/workout_lat|workout_lon|"lat"|"lon"|databasePath|sessionToken/);
+    expect(JSON.stringify(snapshot)).not.toMatch(/workout_lat|workout_lon|"lat"|"lon"|databasePath|sessionToken/);
   });
 
   it('rejects invalid databases and preserves an existing artifact when export fails', () => {
@@ -64,8 +99,8 @@ describe('snapshot exporter', () => {
   });
 
   it('rejects unsupported schema versions and malformed activity identities or dates', () => {
-    const base = { schemaVersion: 1, generatedAt: '2026-09-26T00:00:00.000Z', activities: [], details: {}, profile: {}, bestEfforts: {}, progressByRunType: {}, thresholdsByRunType: {}, volume: {}, trainingLoadByDays: {} };
-    expect(() => validateSnapshot({ ...base, schemaVersion: 2 })).toThrow('Unsupported snapshot schema version');
+    const base = { schemaVersion: SNAPSHOT_SCHEMA_VERSION, generatedAt: '2026-09-26T00:00:00.000Z', activities: [], details: {}, profile: {}, bestEfforts: {}, progressByRunType: {}, thresholdsByRunType: {}, volume: {}, trainingLoadByDays: {} };
+    expect(() => validateSnapshot({ ...base, schemaVersion: 99 })).toThrow('Unsupported snapshot schema version');
     expect(() => validateSnapshot({ ...base, activities: [{ id: '', start_time: 'bad' }] })).toThrow('activity IDs');
   });
 });

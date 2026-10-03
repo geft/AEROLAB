@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (leave empty for an automatic build version)'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -43,9 +48,13 @@ jobs:
       - name: Auto-version release build
         id: version
         shell: bash
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
         run: |
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             RELEASE_VER="${GITHUB_REF_NAME#v}"
+          elif [[ -n "$REQUESTED_VERSION" ]]; then
+            RELEASE_VER="${REQUESTED_VERSION#v}"
           else
             RELEASE_VER="1.1.${{ github.run_number }}"
           fi
@@ -64,11 +73,16 @@ jobs:
       - name: Smoke test packaged backend
         run: npm run smoke:packaged
 
+      - name: Prepare changelog for release
+        run: node scripts/write-release-notes.js
+
       - name: Upload Windows Build Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: AEROLAB-Windows-Installer-${{ env.RELEASE_VERSION }}
-          path: release/AEROLAB-Setup-v${{ env.RELEASE_VERSION }}.exe
+          path: |
+            release/AEROLAB-Setup-v${{ env.RELEASE_VERSION }}.exe
+            release/release-notes.md
 
   publish:
     needs: build-and-package
@@ -85,10 +99,12 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v1.1.{0}', github.run_number) }}
+          tag_name: ${{ format('v{0}', needs.build-and-package.outputs.release_version) }}
+          target_commitish: ${{ github.sha }}
+          body_path: release/release-notes.md
           files: release/AEROLAB-Setup-v${{ needs.build-and-package.outputs.release_version }}.exe
 
           draft: false
           prerelease: false
           generate_release_notes: true
-          name: ${{ startsWith(github.ref, 'refs/tags/') && format('AEROLAB Windows Release {0}', github.ref_name) || format('AEROLAB Windows Build v1.1.{0}', github.run_number) }}
+          name: ${{ format('AEROLAB Windows Release v{0}', needs.build-and-package.outputs.release_version) }}

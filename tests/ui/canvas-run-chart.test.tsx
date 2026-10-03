@@ -42,6 +42,18 @@ function setCanvasBounds(width = 500, height = 220) {
 }
 
 describe('CanvasRunChart', () => {
+  it('positions irregular samples and selects their readout by elapsed time', () => {
+    setCanvasBounds();
+    const { container } = render(<CanvasRunChart records={points.map((point, index) => ({
+      ...point, elapsed_seconds: [0, 10, 120][index],
+    }))} />);
+
+    expect(context.lineTo).toHaveBeenCalledWith(73, expect.any(Number));
+    fireEvent.pointerMove(container.querySelector('canvas')!, { clientX: 80 });
+    expect(screen.getByText('145 bpm')).toBeTruthy();
+    expect(context.arc).toHaveBeenCalledWith(73, expect.any(Number), 5, 0, Math.PI * 2);
+  });
+
   it('rounds floating-point altitude in the telemetry readout', () => {
     setCanvasBounds();
     render(<CanvasRunChart records={points.map(point => ({ ...point, altitude_m: 8.800000000000011 }))} />);

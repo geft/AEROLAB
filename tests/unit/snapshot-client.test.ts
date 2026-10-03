@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { gzipSync } from 'node:zlib';
+import { encodeSnapshot } from '../../src/shared/snapshot-codec.js';
+import { snapshotFixture } from '../fixtures/snapshot.js';
+import { encode } from '@msgpack/msgpack';
 
 const snapshot = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   generatedAt: '2026-09-26T00:00:00.000Z',
   activities: [{ id: 'run-1', start_time: '2026-09-01T07:00:00Z' }],
   details: { 'run-1': { activity: { id: 'run-1' }, splits: [], intervals: [], records: [], coachSummary: null, heartRateThresholds: { lt1Hr: null, lt2Hr: null }, pauseBreakdown: {} } },
@@ -19,6 +23,16 @@ beforeEach(() => {
 });
 
 describe('snapshot API client', () => {
+  it('serves normalized activity details from a compressed binary snapshot', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(gzipSync(encodeSnapshot(snapshotFixture())))));
+    const client = await import('../../src/frontend/api/snapshot-client.js');
+    expect((await client.listActivities()).activities).toEqual(snapshotFixture().activities);
+    const detail = await client.getActivityDetail('run-1');
+    expect(detail.activity.name).toBe('Detailed run');
+    expect(detail.records[1].speed_mps).toBe(3.1234567891011);
+    expect(detail.records[1].cadence).toBeNull();
+    expect(await client.getSnapshotMetadata()).toEqual({ generatedAt: snapshotFixture().generatedAt });
+  });
   it('loads once in a worker and requests sections without copying the entire snapshot to the UI', async () => {
     const messages: unknown[] = [];
     class SnapshotWorker {
@@ -60,8 +74,8 @@ describe('snapshot API client', () => {
     unsubscribe();
   });
 
-  it('serves a compatible read response from the exported JSON', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(snapshot), { status: 200 }));
+  it('serves compatible section responses from exported MessagePack', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(gzipSync(encodeSnapshot(snapshot)), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
     const client = await import('../../src/frontend/api/snapshot-client.js');
 
@@ -70,16 +84,16 @@ describe('snapshot API client', () => {
     expect(await client.getProgressHistory('easy_base')).toEqual(snapshot.progressByRunType.easy_base);
     expect(await client.getVolume({ period: 'month', month: '2026-09' })).toEqual(snapshot.volume['month:2026-09']);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith('/snapshot.json', { cache: 'no-cache' });
+    expect(fetchMock).toHaveBeenCalledWith('/snapshot.msgpack.gz', { cache: 'no-cache' });
   });
 
   it('fails clearly for unsupported versions and missing sections', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ ...snapshot, schemaVersion: 99 }), { status: 200 })));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(encode({ ...snapshot, schemaVersion: 99 }), { status: 200 })));
     const versionClient = await import('../../src/frontend/api/snapshot-client.js');
     await expect(versionClient.getProfile()).rejects.toMatchObject({ code: 'ERR_SNAPSHOT_VERSION' });
 
     vi.resetModules();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ schemaVersion: 1 }), { status: 200 })));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(encode({ schemaVersion: 2 }), { status: 200 })));
     const missingClient = await import('../../src/frontend/api/snapshot-client.js');
     await expect(missingClient.getProfile()).rejects.toMatchObject({ code: 'ERR_SNAPSHOT_INVALID' });
   });

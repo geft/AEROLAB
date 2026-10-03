@@ -1,17 +1,19 @@
 import { loadSnapshot, SnapshotLoadError } from './snapshot-loading.js';
-import type { Snapshot, SnapshotWorkerMessage, SnapshotWorkerRequest } from './snapshot-loading.js';
+import type { SnapshotWorkerMessage, SnapshotWorkerRequest } from './snapshot-loading.js';
+import { readSnapshotSection } from '../../shared/snapshot-codec.js';
+import type { SnapshotArchive } from '../../shared/snapshot-codec.js';
 
 const scope = self as unknown as {
   onmessage: ((event: MessageEvent<SnapshotWorkerRequest>) => void) | null;
   postMessage(message: SnapshotWorkerMessage): void;
 };
-let snapshot: Snapshot | undefined;
+let snapshot: SnapshotArchive | undefined;
 
 scope.onmessage = event => {
   const request = event.data;
   if (request.type === 'load') {
     void loadSnapshot(progress => scope.postMessage({ type: 'progress', progress })).then(data => {
-      // Keep full telemetry here; only requested dashboard sections cross to the UI.
+      // Keep telemetry columnar here; expand only the selected run's chart records.
       snapshot = data;
       scope.postMessage({ type: 'ready' });
     }).catch(error => {
@@ -22,8 +24,7 @@ scope.onmessage = event => {
       });
     });
   } else if (snapshot) {
-    const section = snapshot[request.section];
-    const value = request.key === undefined ? section : (section as Record<string, unknown>)?.[request.key];
+    const value = readSnapshotSection(snapshot, request.section, request.key);
     scope.postMessage({ type: 'value', id: request.id, value });
   }
 };

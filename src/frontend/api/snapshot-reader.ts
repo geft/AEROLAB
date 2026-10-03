@@ -1,5 +1,7 @@
 import { loadSnapshot } from './snapshot-loading.js';
 import type { Snapshot, SnapshotLoadingProgress, SnapshotWorkerMessage } from './snapshot-loading.js';
+import { readSnapshotSection } from '../../shared/snapshot-codec.js';
+import type { SnapshotArchive } from '../../shared/snapshot-codec.js';
 
 let progress: SnapshotLoadingProgress = { stage: 'downloading' };
 const listeners = new Set<() => void>();
@@ -15,7 +17,7 @@ function report(next: SnapshotLoadingProgress): void {
 
 let ready: Promise<void> | undefined;
 let worker: Worker | undefined;
-let fallback: Snapshot | undefined;
+let fallback: SnapshotArchive | undefined;
 let failure: Error | undefined;
 let requestId = 0;
 const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
@@ -59,8 +61,7 @@ export async function readSnapshot<T>(section: keyof Snapshot, key?: string): Pr
   await initialize();
   if (failure) throw failure;
   if (fallback) {
-    const value = fallback[section];
-    return (key === undefined ? value : (value as Record<string, unknown>)?.[key]) as T;
+    return readSnapshotSection(fallback, section, key) as T;
   }
   return new Promise<T>((resolve, reject) => {
     const id = ++requestId;

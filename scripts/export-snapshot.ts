@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { getDatabasePath } from '../src/backend/db/path.js';
 import {
@@ -10,9 +11,11 @@ import {
 } from '../src/backend/services/activity-service.js';
 import { getProfileService } from '../src/backend/services/profile-service.js';
 import { getThresholdsService } from '../src/backend/services/thresholds-service.js';
+import { sampleSnapshotTelemetry } from './snapshot-telemetry.js';
+import { encodeSnapshot, SNAPSHOT_FILENAME, SNAPSHOT_SCHEMA_VERSION, validateSnapshotDocument } from '../src/shared/snapshot-codec.js';
 
-export const SNAPSHOT_SCHEMA_VERSION = 1;
-const outputPath = path.resolve('snapshot-data/snapshot.json');
+export { SNAPSHOT_SCHEMA_VERSION } from '../src/shared/snapshot-codec.js';
+const outputPath = path.resolve('snapshot-data', SNAPSHOT_FILENAME);
 
 // Deliberate wire allowlist. In particular, no activity GPS, detailed record
 // coordinates, database paths, profile location, route names, or credentials.
@@ -29,9 +32,7 @@ const activityFields = new Set([
   'z1_seconds', 'z2_seconds', 'z3_seconds', 'z4_seconds', 'z5_seconds', 'effectiveness_score', 'verdict'
 ]);
 const recordFields = new Set([
-  'timerActive', 'timerSegment', 'timerPauseSeconds',
-  'id', 'activity_id', 'timestamp', 'elapsed_seconds', 'distance_m', 'speed_mps', 'heart_rate', 'cadence',
-  'altitude_m', 'temp', 'vert_osc', 'stance_time', 'step_length', 'vertical_ratio'
+  'elapsed_seconds', 'distance_m', 'speed_mps', 'heart_rate', 'altitude_m'
 ]);
 const profileFields = new Set([
   'id', 'age', 'gender', 'resting_hr', 'max_hr', 'is_max_hr_estimated', 'is_configured'
@@ -63,10 +64,12 @@ export function exportSnapshot(dbPath = getDatabasePath(), destination = outputP
     for (const activity of activities) {
       const detail = getActivityDetailService(db, String(activity.id), { persistCoachSummary: false });
       if (!detail) throw new Error(`Activity disappeared during snapshot export: ${activity.id}`);
+      // Original FIT metadata is only used for desktop CSV export.
+      const { fitMetadata: _fitMetadata, ...readOnlyDetail } = detail;
       details[String(activity.id)] = {
-        ...(scrub(detail) as Record<string, unknown>),
+        ...(scrub(readOnlyDetail) as Record<string, unknown>),
         activity: pickObject(detail.activity, activityFields),
-        records: detail.records.map(record => pickObject(record, recordFields))
+        records: sampleSnapshotTelemetry(detail.records, detail.intervals).map(record => pickObject(record, recordFields))
       };
     }
     const profileResponse = getProfileService(db);
@@ -104,7 +107,7 @@ export function exportSnapshot(dbPath = getDatabasePath(), destination = outputP
     validateSnapshot(snapshot);
     db.exec('COMMIT');
     fs.mkdirSync(path.dirname(destination), { recursive: true });
-    fs.writeFileSync(temporaryPath, `${JSON.stringify(snapshot)}\n`, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+    fs.writeFileSync(temporaryPath, gzipSync(encodeSnapshot(snapshot), { level: 9 }), { mode: 0o600, flag: 'wx' });
     fs.renameSync(temporaryPath, destination);
     console.log(`Snapshot exported: ${destination} (${activities.length} activities, ${snapshot.generatedAt})`);
   } catch (error) {
@@ -117,24 +120,8 @@ export function exportSnapshot(dbPath = getDatabasePath(), destination = outputP
 }
 
 export function validateSnapshot(value: unknown): asserts value is Record<string, any> {
-  if (!value || typeof value !== 'object') throw new Error('Snapshot must be a JSON object.');
-  const data = value as Record<string, any>;
-  if (data.schemaVersion !== SNAPSHOT_SCHEMA_VERSION) throw new Error(`Unsupported snapshot schema version: ${data.schemaVersion}`);
-  if (typeof data.generatedAt !== 'string' || Number.isNaN(Date.parse(data.generatedAt))) throw new Error('Snapshot generatedAt must be a valid ISO timestamp.');
-  for (const section of ['activities', 'details', 'profile', 'bestEfforts', 'progressByRunType', 'thresholdsByRunType', 'volume', 'trainingLoadByDays']) {
-    if (!data[section] || typeof data[section] !== 'object') throw new Error(`Snapshot is missing required section: ${section}`);
-  }
-  if (!Array.isArray(data.activities) || Array.isArray(data.details) || Array.isArray(data.profile)) {
-    throw new Error('Snapshot activity, detail, or profile sections have invalid shapes.');
-  }
-  const ids = new Set<string>();
-  for (const activity of data.activities) {
-    if (typeof activity.id !== 'string' || !activity.id || ids.has(activity.id)) throw new Error('Snapshot activity IDs must be unique non-empty strings.');
-    if (typeof activity.start_time !== 'string' || Number.isNaN(Date.parse(activity.start_time))) throw new Error(`Snapshot activity ${activity.id} has an invalid start_time.`);
-    ids.add(activity.id);
-  }
-  for (const id of ids) if (!data.details[id]) throw new Error(`Snapshot is missing detail data for activity ${id}.`);
-  const encoded = JSON.stringify(data);
+  validateSnapshotDocument(value);
+  const encoded = JSON.stringify(value);
   if (/"(?:workout_lat|workout_lon|latitude|longitude|databasePath|sessionToken|access_token|refresh_token)"/i.test(encoded)) {
     throw new Error('Snapshot contains a forbidden coordinate or credential field.');
   }

@@ -423,10 +423,10 @@ The lint script requires **zero warnings and zero errors**. ESLint also reports 
 AEROLAB can build a static, read-only copy of the local dashboard for phone use.
 The desktop app remains the only database-backed application. Exported data is
 personal data: configure Vercel Deployment Protection (or equivalent protection
-covering HTML, JSON, assets, and source files) before deploying a real snapshot.
-Do not rely on a password prompt in the browser; the exported JSON is downloaded
+covering HTML, snapshot data, assets, and source files) before deploying a real snapshot.
+Do not rely on a password prompt in the browser; the exported snapshot is downloaded
 by the browser. If your Vercel plan cannot protect every artifact, use a host that
-can. Never commit `snapshot-data/` or `public/snapshot.json`.
+can. Never commit `snapshot-data/` or exported snapshot files in `public/`.
 
 Refresh the snapshot manually after updating runs in desktop AEROLAB:
 
@@ -441,17 +441,30 @@ desktop app uses a different database file, pass the path from its Database
 location settings: `npm run snapshot:export -- --database "C:\\path\\to\\runs.db"`.
 
 The exporter reads the active configured SQLite database in a consistent
-read-only transaction, writes schema version 1 with an export timestamp, and
-atomically replaces `snapshot-data/snapshot.json`. It allowlists activity and
+read-only transaction, writes schema version 2 with an export timestamp, and
+atomically replaces `snapshot-data/snapshot.msgpack.gz`. It uses MessagePack
+with gzip level 9, stores each chart metric in a separate array, and stores
+activity details as references with any differing values preserved. The viewer
+decompresses and decodes in a worker, expanding chart records only for a selected
+run. It allowlists activity and
 telemetry fields, omits GPS coordinates, location and notes, and limits profile
-data to the fields needed by the read views. The build copies the artifact into
+data to the fields needed by the read views. Phone chart telemetry uses one
+representative sample per 30-second window, retaining chart extrema, stop
+transitions and interval boundaries. Strides and work intervals of up to two
+minutes retain every existing sample from 10 seconds before to 60 seconds after
+the effort. Sampling happens after analysis: split, interval and coaching
+summaries and the desktop database retain their original detail. CSV export is
+available only in desktop mode; its original FIT metadata is omitted from phone
+snapshots. The build copies the artifact into
 the static site and writes `dist-snapshot/`; only that directory should be sent
 to deployment. The snapshot contains personal training information and must
 remain access-protected. The viewer displays its export time and has no database
 connection or write API. On Android, open the deployed HTTPS URL in Chrome and
 choose **Install app** from the browser menu to add the snapshot viewer to the
-home screen. The viewer caches its static app shell for reliable launches, but
-does not store `snapshot.json` in the browser cache.
+home screen. The viewer caches its static app shell and snapshot data for offline
+reopening. Online launches revalidate the snapshot through the HTTP cache and
+replace the saved data only after successful validation. Snapshots use the binary
+format exclusively; the viewer does not load older JSON exports.
 
 `npm run build` continues to build the desktop target. `npm run build:snapshot`
 requires a successful export first.
@@ -460,7 +473,7 @@ The desktop backend retains its write routes for activity edits/weather refresh,
 profile updates, ingestion settings/folder selection/scan/upload, database
 selection/location, backup settings/creation, restore, local shutdown, and the
 development test-error probe. Snapshot output contains no backend and its client
-only fetches `/snapshot.json`; its write functions fail locally without sending
+only fetches `/snapshot.msgpack.gz`; its write functions fail locally without sending
 requests. Local browser preferences remain in that browser's storage.
 
 For manual deployment, first enable Vercel Authentication for **All Deployments**

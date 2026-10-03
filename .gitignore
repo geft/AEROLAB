@@ -9,6 +9,7 @@ dist-snapshot-template/
 dist-backend/
 snapshot-data/
 public/snapshot.json
+public/snapshot.msgpack.gz
 release/
 
 # Compiled Windows launchers / installers

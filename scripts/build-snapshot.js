@@ -1,9 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { gunzipSync } from 'node:zlib';
+import { decode } from '@msgpack/msgpack';
 
 const root = process.cwd();
-const snapshotPath = path.join(root, 'snapshot-data', 'snapshot.json');
+const snapshotFilename = 'snapshot.msgpack.gz';
+const snapshotPath = path.join(root, 'snapshot-data', snapshotFilename);
 if (!fs.existsSync(snapshotPath)) {
   console.error('Snapshot data is missing. Run npm run snapshot:export first.');
   process.exit(1);
@@ -14,7 +17,7 @@ const build = spawnSync('npx', ['vite', 'build', '--mode', 'snapshot'], { stdio:
 if (build.status !== 0) process.exit(build.status ?? 1);
 
 const output = path.join(root, 'dist-snapshot');
-fs.copyFileSync(snapshotPath, path.join(output, 'snapshot.json'));
+fs.copyFileSync(snapshotPath, path.join(output, snapshotFilename));
 const forbidden = /\.(db|sqlite|sqlite3|map)$/i;
 function audit(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -25,10 +28,10 @@ function audit(dir) {
 }
 try {
   audit(output);
-  const deployedSnapshotPath = path.join(output, 'snapshot.json');
-  if (!fs.existsSync(deployedSnapshotPath)) throw new Error('Built site is missing snapshot.json.');
-  const deployedSnapshot = JSON.parse(fs.readFileSync(deployedSnapshotPath, 'utf8'));
-  if (deployedSnapshot.schemaVersion !== 1) throw new Error('Built site has an unsupported snapshot schema.');
+  const deployedSnapshotPath = path.join(output, snapshotFilename);
+  if (!fs.existsSync(deployedSnapshotPath)) throw new Error(`Built site is missing ${snapshotFilename}.`);
+  const deployedSnapshot = decode(gunzipSync(fs.readFileSync(deployedSnapshotPath)));
+  if (deployedSnapshot.schemaVersion !== 2) throw new Error('Built site has an unsupported snapshot schema.');
   const manifestPath = path.join(output, 'manifest.webmanifest');
   if (!fs.existsSync(manifestPath)) throw new Error('Built site is missing its web app manifest.');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));

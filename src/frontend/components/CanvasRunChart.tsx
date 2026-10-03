@@ -16,6 +16,15 @@ interface CanvasRunChartProps {
   theme?: 'dark' | 'light';
 }
 
+function recordPosition(records: RecordPoint[], index: number): number {
+  if (records.length < 2) return 0.5;
+  const start = records[0].elapsed_seconds;
+  const duration = records[records.length - 1].elapsed_seconds - start;
+  return duration > 0
+    ? (records[index].elapsed_seconds - start) / duration
+    : index / (records.length - 1);
+}
+
 export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme = 'dark' }) => {
   const { t, format } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -134,7 +143,7 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme =
       for (let i = 0; i < displayRecords.length; i++) {
         const r = displayRecords[i];
         if (r.altitude_m !== null) {
-          const x = padding.left + (i / (displayRecords.length - 1)) * chartW;
+          const x = padding.left + recordPosition(displayRecords, i) * chartW;
           const y = height - padding.bottom - ((r.altitude_m - minAlt) / (maxAlt - minAlt)) * (chartH * 0.45);
           if (!startedAlt) {
             ctx.moveTo(x, height - padding.bottom);
@@ -158,7 +167,7 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme =
     for (let i = 0; i < displayRecords.length; i++) {
       const r = displayRecords[i];
       if (r.heart_rate && r.heart_rate > 50) {
-        const x = padding.left + (i / (displayRecords.length - 1)) * chartW;
+        const x = padding.left + recordPosition(displayRecords, i) * chartW;
         const y = height - padding.bottom - ((r.heart_rate - minHr) / (maxHr - minHr || 1)) * chartH;
         if (!startedHr) {
           ctx.moveTo(x, y);
@@ -180,7 +189,7 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme =
       const spd = r.speed_mps ?? r.speedMps;
       if (spd && spd > 1.0) {
         const paceSec = Math.max(minPace, Math.min(maxPace, 1000 / spd));
-        const x = padding.left + (i / (displayRecords.length - 1)) * chartW;
+        const x = padding.left + recordPosition(displayRecords, i) * chartW;
         // Inverted: minPace (fastest) at top, maxPace (slowest) at bottom
         const yNorm = 1 - (paceSec - minPace) / (maxPace - minPace || 1);
         const y = height - padding.bottom - yNorm * chartH;
@@ -199,9 +208,7 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme =
     const selectedIndex = hoverData?.index;
     const selectedRecord = selectedIndex === undefined ? null : displayRecords[selectedIndex];
     if (selectedRecord && selectedIndex !== undefined) {
-      const x = displayRecords.length > 1
-        ? padding.left + (selectedIndex / (displayRecords.length - 1)) * chartW
-        : padding.left + chartW / 2;
+      const x = padding.left + recordPosition(displayRecords, selectedIndex) * chartW;
       ctx.save();
       ctx.beginPath();
       ctx.setLineDash([4, 4]);
@@ -269,8 +276,23 @@ export const CanvasRunChart: React.FC<CanvasRunChartProps> = ({ records, theme =
     const plotRight = 64;
     const plotWidth = rect.width - plotLeft - plotRight;
     const x = event.clientX - rect.left - plotLeft;
-    const index = Math.max(0, Math.min(displayRecords.length - 1,
-      Math.round((x / plotWidth) * (displayRecords.length - 1))));
+    if (plotWidth <= 0) return;
+    const fraction = Math.max(0, Math.min(1, x / plotWidth));
+    const start = displayRecords[0].elapsed_seconds;
+    const duration = displayRecords[displayRecords.length - 1].elapsed_seconds - start;
+    let index = Math.round(fraction * (displayRecords.length - 1));
+    if (duration > 0) {
+      const elapsed = start + fraction * duration;
+      let low = 0;
+      let high = displayRecords.length - 1;
+      while (low < high) {
+        const middle = Math.floor((low + high) / 2);
+        if (displayRecords[middle].elapsed_seconds < elapsed) low = middle + 1;
+        else high = middle;
+      }
+      index = low;
+      if (index > 0 && elapsed - displayRecords[index - 1].elapsed_seconds <= displayRecords[index].elapsed_seconds - elapsed) index--;
+    }
     setHoverData(getReadout(index));
   };
 

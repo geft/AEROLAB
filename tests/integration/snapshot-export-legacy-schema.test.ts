@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { exportSnapshot, validateSnapshot } from '../../scripts/export-snapshot.js';
+import { decodeSnapshot } from '../../src/shared/snapshot-codec.js';
 
 const temporaryDirectories: string[] = [];
 
@@ -35,11 +36,11 @@ afterEach(() => {
 describe('snapshot export from existing backup databases', () => {
   it('exports and validates a legacy backup without altering its SQLite schema', () => {
     const databasePath = makeLegacySnapshotDatabase();
-    const outputPath = path.join(path.dirname(databasePath), 'snapshot.json');
+    const outputPath = path.join(path.dirname(databasePath), 'snapshot.msgpack.gz');
 
     expect(() => exportSnapshot(databasePath, outputPath)).not.toThrow();
 
-    const snapshot = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
+    const snapshot = decodeSnapshot(fs.readFileSync(outputPath));
     expect(() => validateSnapshot(snapshot)).not.toThrow();
     expect(snapshot.activities).toHaveLength(1);
     expect(snapshot.activities[0]).toMatchObject({
@@ -49,9 +50,10 @@ describe('snapshot export from existing backup databases', () => {
       weather_pm25_source: null
     });
     expect(snapshot.details['legacy-run-id']).toBeDefined();
-    expect(snapshot.details['legacy-run-id'].records[0].timestamp).toBe('2026-09-01T07:00:00Z');
+    expect(snapshot.details['legacy-run-id'].records[0].elapsed_seconds).toBe(0);
+    expect(snapshot.details['legacy-run-id'].records[0]).not.toHaveProperty('timestamp');
     expect(snapshot.profile.profile).toMatchObject({ age: 37, gender: 'Male' });
-    expect(snapshot.volume['all:current'].totalDistanceKm).toBe(5);
+    expect(snapshot.volume['all:current']).toHaveProperty('totalDistanceKm', 5);
 
     const db = new Database(databasePath, { readonly: true, fileMustExist: true });
     const activityColumns = (db.pragma('table_info(activities)') as Array<{ name: string }>).map(column => column.name);
