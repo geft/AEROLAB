@@ -72,13 +72,14 @@ export function classifyRun(
   const profileWithMeta = profile ?? (metadata.maxHeartRate && metadata.maxHeartRate >= 100 ? { maxHr: metadata.maxHeartRate } : undefined);
   const { maxHr: effMax, restingHr: resting, lt1Hr: lt1, lt2Hr: lt2 } = resolveHeartRateProfile(profileWithMeta);
 
-  // Zone distribution from profile-relative zones (no hardcoded bpm anywhere).
+  // Zone boundaries come from the athlete profile; HR validity limits below
+  // reject implausible sensor readings rather than set training intensity.
   const zones = getDefaultZones(effMax, lt1, lt2, resting);
   const zoneDist = calculateZoneDistribution(records, zones);
   const lt2Anchor = lt2;
   const [thresholdHrFloor, thresholdHrCeiling] = getLt2TrainingBand(lt2Anchor);
-  // Zone 5 now means above LT2. Keep VO2 detection tied to the former
-  // high-intensity HRR ceiling so threshold HR alone does not imply VO2 work.
+  // Require HR above both the LT2 training band and the high-intensity HRR
+  // ceiling so threshold-band effort alone does not imply VO2 work.
   const vo2HrFloor = Math.max(thresholdHrCeiling + 1,
     Math.min(effMax, Math.round(resting + (effMax - resting) * 0.90) + 1));
   // High LT2/max-HR ratios are valid individual profiles. A max-HR fraction
@@ -122,8 +123,8 @@ export function classifyRun(
   // 1b. Check for Galloway Run/Walk method
   // Galloway sessions have repeated scheduled walk breaks interspersed with easy running.
   // We identify:
-  // - 4+ distinct walking recoveries or walking episodes (cadence < 125, duration >= 15s)
-  // - Overall cardiovascular load is aerobic: avg HR near/below LT1, negligible Z4/Z5 (< 15%)
+  // - 4+ sustained walking episodes or low-cadence/slow recovery intervals
+  // - Aerobic HR evidence with less than 15% Zone 5 exposure
   const walkingBouts = detectedIntervals.filter(
     i => i.type === 'recovery' && (i.avgCadence < 128 || i.avgSpeedMps < 1.8) && i.durationSeconds >= 15
   ).length;

@@ -390,7 +390,7 @@ export function evaluateThresholdUpdate(
   // 2. LT2 candidate: sustained threshold work. Race HR is not threshold HR;
   // a fixed pace multiplier cannot convert arbitrary race distances to LT2.
   // Applies acceleration ramp stripping (removes 10-12s standing start),
-  // caps evaluation to first 30 mins of quality work to avoid tropical dehydration drift,
+  // evaluates up to 30 mins of quality work within the first elapsed hour,
   // compensates for cardiac ramp lag, and scores confidence continuously based on rest continuity.
   let lt2Confidence = 0.85;
   if (profile.hasBaseline && runType === 'threshold_lt2') {
@@ -487,7 +487,7 @@ export function evaluateThresholdUpdate(
           const repAvgSpeed = timeWeightedMean(repRecs, r => r.elapsed_seconds, r => r.speed_mps,
             v => v > 1.5 && v <= 8.5, paceStart, repEnd);
 
-          // 2. HR: strip initial cardiac lag (60-90s) if rep >= 300s
+          // 2. HR: strip initial cardiac lag (45-90s) if rep >= 300s
           const tRamp = inv.duration_seconds >= 300 ? Math.min(90, Math.max(45, Math.round(avgRestDrop * 1.5))) : 0;
           const hrStart = inv.start_seconds + tRamp;
           const repAvgHr = timeWeightedMean(repRecs, r => r.elapsed_seconds, r => r.heart_rate,

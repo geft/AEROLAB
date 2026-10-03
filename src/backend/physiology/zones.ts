@@ -3,11 +3,11 @@ import type { ActivityRecord } from '../ingestion/csv-parser';
 import { MAX_OBSERVED_GAP_SECONDS, sameTimerSegment } from './time-series.js';
 
 export interface HeartRateZones {
-  z1: [number, number]; // Recovery (< 68% HRmax or < LT1 - 15)
+  z1: [number, number]; // Active recovery: 54% HRR ceiling, bounded by LT1 - 14
   z2: [number, number]; // Aerobic Base / Up to LT1
-  z3: [number, number]; // Tempo (Between LT1 and LT2)
-  z4: [number, number]; // Threshold / LT2
-  z5: [number, number]; // Above LT2
+  z3: [number, number]; // Above LT1, capped at 80% HRR and below LT2
+  z4: [number, number]; // Upper aerobic/threshold band below the Zone 5 floor
+  z5: [number, number]; // High-intensity HRR band starting strictly above LT2
 }
 
 export interface ZoneDistribution {

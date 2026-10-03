@@ -6,7 +6,7 @@ A local-first, high-performance running analytics platform and dashboard designe
 - **LT2 (Lactate / Anaerobic Threshold / VT2)** pace and heart rate progression with dynamic turnpoint modeling
 - **Running Economy**: Efficiency Factor (Speed / HR), Meters per Heartbeat, and Aerobic Decoupling (Pa:Hr drift %)
 - **Pace-Dependent Economy Curves**: Real-world efficiency curves comparing easy base vs. threshold workouts
-- **Automatic Interval & Stride Detection**: Isolates structured work reps, recoveries, and explosive strides (15–40s bursts), recording Peak Pace, Peak Cadence, Min Ground Contact Time (GCT), and Heart Rate Recovery (HRR) drop
+- **Automatic Interval & Stride Detection**: Combines telemetry with validated FIT lap boundaries to isolate work reps, recoveries, and strides. Timer pauses are excluded from classification evidence; interval summaries include peak pace/cadence, ground contact time, HR recovery, and measured step length/vertical ratio when available
 - **Transparent Physiological Execution Score (3-Tier: Bronze / Silver / Gold)**: Granular 100-point scoring engine with itemized point breakdowns for aerobic stability, cadence discipline, decoupling drift, and pacing adherence
 - **Intelligent Physiological Debrief**: Algorithmic coaching summary graded by a **run-type weighted rubric**. Easy runs are graded on **one failure mode — going too hard**: sustained time above the personal LT1 ceiling (measured from per-second telemetry with 60 s smoothing) plus sustained time in the top of Zone 2, with a late-session breach excused **only when the run was both long and hot** (a 1 h breach or a 2 h breach in cool weather still counts). Cardiac drift, city pacing variance, walk breaks and turnover are reported as observations rather than penalties. Quality sessions keep grading **structure, cardiovascular stimulus, intensity control, form/efficiency (turnover and ground contact) and set fatigue** — the last compares the final work rep against the first, with drift tolerances that scale with the set's work time and short-rep sets judged on pace alone (heart-rate lag, not decay). Deliberately short recoveries (which hold heart rate near threshold to extend time-in-zone) are reported rather than penalised, and short reps are anchored on their peak heart rate because an average cannot reach the target in under two minutes. **The anchor always comes from the session's intent**: a threshold session whose heart rate drifts upward is flagged as *Drifted Into VO2 Territory* and loses intensity points rather than being re-graded against a VO2 target, and one that never reaches its anchor is flagged as under-stimulus. Races keep their pacing, finish-strength and turnover rubric. Includes **personal-baseline comparisons** against your own recent history, **walk-break classification** that credits walk breaks used to hold heart rate under the LT1 ceiling or to climb, and a **"biggest lever"** fix for the factor that cost the most points
 - **Local Backup Rotation**: Manual SQLite snapshots with up to 3 rotating backups, deletion, download and drop-in restore
@@ -52,12 +52,10 @@ AEROLAB imports Garmin binary `.fit` files and original activity `.zip` download
 - **CLI Ingestion**: The CLI importer supports the `--clean` flag, which ingests files from `data/raw/` and immediately deletes source files once safely committed to SQLite.
 - **Git Protection**: `.gitignore` strictly ignores `*.csv`, `*.fit`, and `data/*.db` to keep your git repo ultra-lightweight.
 
-### 3. Smart Downsampling & Compact Storage
-High-frequency 1Hz time-series data is compacted by ~75% before saving to SQLite:
-- **Steady-State Runs**: Downsampled to 5-second intervals, preserving physiological trends without storing redundant 1Hz data.
-- **Strides & Fast Intervals**: Automatically preserved at 1–2 second resolution to accurately record peak sprint velocity, cadence spikes, and ground contact time minima.
-- **Elevation Preservation**: Altitude (`altitude_m`) is strictly preserved across all samples to track gradients, bridges, and uphill ramp walking.
-- **Stripped GPS**: High-frequency GPS latitude and longitude are discarded from time-series points to save space and protect runner privacy.
+### 3. Telemetry Storage & Location Handling
+- **Recorded Resolution**: Imported records retain their original timestamps and sampling resolution; ingestion does not apply blanket five-second downsampling.
+- **Running Dynamics**: Speed, cadence, HR, elevation, and additional sensor fields are retained when available for interval and economy analysis.
+- **Location Handling**: Typed record coordinates retain the workout centroid on the first record rather than the full GPS trace. Original FIT bytes and raw FIT record fields retain source location data; the local database is not a location-redacted export.
 
 ### 4. Accurate Microclimate Weather & Core Centroid
 Weather conditions in tropical climates vary dramatically across short distances:
@@ -105,57 +103,52 @@ Garmin Connect gives you a great overview of what you did. AEROLAB tells you **h
 
 ## Physiological Execution Scoring (3-Tier)
 
-Every workout is evaluated by an algorithmic coach engine that computes a transparent **0–100 Physiological Execution Score** based on objective biomechanical and cardiovascular criteria:
+Every workout is evaluated by an algorithmic coach engine that uses a **100-point rubric** tailored to the run type. Scores are normalized over the factors with available evidence; final displayed scores are bounded from 40 to 98.
 
 ### Scoring Tiers
 | Emblem | Score Band | Execution Standard |
 | :---: | :---: | :--- |
-| ★★★ Gold | **85–100** | **Near-Perfect Execution**: Stable HR under LT1, decoupling < 3.5%, optimal cadence (>= 174 spm), tight pacing adherence. |
-| ★★☆ Silver | **70–84** | **Solid Stimulus**: Productive aerobic work; minor thermal drift (< 6%) or slight cadence variance without compromising intent. |
-| ★☆☆ Bronze | **< 70** | **Compromised Session**: Accidental tempo grey-zone creep, heavy cardiac drift (> 8%), aborted interval set, or pace collapse. |
+| ★★★ Gold | **>= 85** | Strong execution of the run-type-specific rubric with sufficient evidence. |
+| ★★☆ Silver | **70–84** | Solid execution with room to improve one or more measured factors. |
+| ★☆☆ Bronze | **< 70** | The measured execution falls short of the session's target. |
 
-> **Hard caps**: Accidental tempo runs and aborted workouts are capped at Bronze (max 69 / 100) regardless of other factors.
+> **Hard caps**: Accidental tempo caps the score at 69; failed workouts cap it at 60. Threshold sessions without sufficient observed target-zone time cannot earn Gold. Limited telemetry constrains what the rubric can certify.
 
 ### Itemized Point Factors
-Clicking the Coach AI score pill in the dashboard opens the **Interactive Breakdown Modal**, displaying exact point additions and deductions:
-- **Baseline Intent**: Starts at **85 points** for steady aerobic base runs or completed interval sets.
-- **Aerobic Decoupling (Pa:Hr)**:
-  - Drift < 3%: **+5 points** (aerobic rock)
-  - Drift < 5%: **+3 points** (stable)
-  - Drift 5–8%: **-8 points** (moderate thermal/cardiac drift)
-  - Drift > 8%: **-14 points** (severe drift)
-- **Biomechanical Cadence**:
-  - Steady running cadence >= 175 spm: **+4 points**
-  - High cadence variance (SD > 8 spm): **-5 points**
-  - Low cadence (< 164 spm): **-3 points**
-- **Pacing Intent Violations ("Accidental Tempos")**:
-  - If an easy run creeps into Zone 4 / LT2 (> 164 bpm), a **-15 point pacing penalty** is applied and the score is hard-capped at **Bronze**.
-- **Strides & Neuromuscular Sharpening**:
-  - Strides with peak cadence >= 190 spm and crisp recovery drop: **+4 points**.
+Clicking the Coach AI score pill opens the **Interactive Breakdown Modal**, showing each measured factor's earned points, available weight, and explanation:
+
+- **Easy runs** emphasize aerobic intensity discipline relative to personal LT1. Drift, pace variation, cadence, and walk breaks supply context rather than universal bonus/penalty rules.
+- **Quality sessions** assess completion, cardiovascular stimulus, intensity control, form/efficiency, and rep-to-rep fatigue. Threshold sessions also require observed time in their target HR band.
+- **Races** use their pacing, finish-strength, and turnover rubric.
+- **Coverage** identifies missing evidence, and the coaching summary highlights the factor offering the largest improvement.
 
 ---
 
 ## Workout Classification Logic
 
-AEROLAB automatically classifies each activity into one of six core categories:
-1. **Recovery Run (`recovery`)**:
-   - Short shakeouts (<= 50 minutes).
-   - Low cardiovascular strain: Average HR <= 136 bpm (or < 72% of max HR).
-   - Governed by **duration and HR only** — distance is irrelevant for recovery classification.
-2. **Easy Aerobic Base (`easy_base`)**:
-   - Standard aerobic endurance runs sustained below LT1 (~138 - 150 bpm).
-   - Monitored for aerobic decoupling (Pa:Hr) and steady-state efficiency factor.
-   - **Galloway Method Support**: Automatically detects runs with structured run/walk intervals (>= 4 walk breaks with low cadence/pace) and preserves their easy base classification.
-   - **Surge Protection**: Isolated strides or short surges (<= 3 surges) are recognized without falsely labeling the session as VO2 max intervals.
-3. **Long Run (`long_run`)**:
-   - Extended endurance volume (>= 75 minutes on feet).
-   - Governed by **duration only** — distance is not a trigger.
-4. **Lactate Threshold (`threshold_lt2`)**:
-   - Sustained intervals or continuous tempo in Zone 4 (>= 165 bpm, work reps >= 6 - 8 minutes).
-5. **VO2 Max Intervals (`intervals_vo2`)**:
-   - Repetitions sustained at high intensity (1 - 5 minutes) with Zone 5 HR peaks (> 85% max HR).
-6. **Race / Time Trial (`race`)**:
-   - Competitive races, parkruns, or benchmark all-out time trials.
+AEROLAB classifies recorded effort using the athlete's historical LT1, LT2, maximum HR, and resting HR profile. Workout intensity comes from HR; segmentation also uses movement telemetry and within-run speed contrast. Titles, fixed training paces, and distance do not determine the label.
+
+The six core categories are:
+
+1. **Recovery Run (`recovery`)**: Up to 50 minutes of observed running with very low cardiovascular strain relative to personal heart-rate reserve and negligible exposure at or above LT1. Walking and stops cannot dilute the running HR evidence.
+2. **Easy Aerobic Base (`easy_base`)**: Aerobic running that does not meet the quality, race, long-run, or recovery criteria. Aerobic run/walk sessions and isolated strides can retain this label; tempo exposure is reported through tags.
+3. **Long Run (`long_run`)**: At least 110 minutes of session timer duration when quality/race criteria do not take precedence. Distance is not a trigger.
+4. **Lactate Threshold (`threshold_lt2`)**: Sustained work intervals or continuous effort with sufficient exposure near or above the athlete's LT2 training band.
+5. **VO2 Max Intervals (`intervals_vo2`)**: Repeated work/recovery structure with profile-relative high-intensity HR evidence. Threshold HR alone does not establish VO2 work.
+6. **Race / Time Trial (`race`)**: A dominant continuous bout of sufficiently sustained, near-maximal cardiovascular effort. Recoveries, timer pauses, and recording gaps interrupt continuous evidence.
+
+### FIT laps, timer events, and additional telemetry
+
+- **Structure supports segmentation**: Recorded active/recovery/rest/warmup/cooldown laps refine boundaries only when running telemetry and HR validate quality work. Ordinary all-active distance autolaps cannot manufacture repetitions. Both structured and unstructured easy runs remain supported; having structure does not itself imply speedwork.
+- **Timer pauses are excluded**: FIT start/stop events separate active traces and prevent paused HR from contributing to classification. Explicit pauses also contribute to the saved pause breakdown. Raw telemetry and original FIT bytes remain available for export.
+- **Failed reps and strides remain visible**: Once quality structure is validated, lower-HR late active reps remain work reps so missed stimulus and fatigue can be detected. Telemetry-detected strides inside warmups/recoveries are retained.
+- **Measured running dynamics refine summaries**: Valid measured step length and vertical ratio take precedence over derived interval values. They do not independently determine workout intensity.
+- **Other telemetry remains supporting data**: Developer fields, device metadata, and HRV do not currently affect classification. Power, respiration rate, core temperature, and ground contact balance are retained for possible future refinements; no new intensity rules use them.
+- **Consistent historical replay**: Import and reanalysis share the same FIT-aware classification. A one-time migration creates a safety backup and refreshes existing histories while preserving manual overrides. Older runs or invalid/incomplete lap data use telemetry-only detection.
+
+These timer refinements apply to classification, segmentation, and running-economy summaries. Other raw-record consumers, including coach calculations and training-load recomputation, do not yet reconstruct timer state from FIT metadata themselves.
+
+See [FIT telemetry and classification](docs/fit-classification.md) for the implementation safeguards and telemetry review, and [FIT import details](docs/fit-import.md) for retained fields and units.
 
 ---
 
@@ -307,7 +300,8 @@ AEROLAB operates on a **single embedded SQLite WAL database file**. Development 
 | `activities` | Master run records (date, distance, duration, avg pace, HR, cadence, vertical oscillation, stance time, EF, decoupling %, tags, `workout_lat`, `workout_lon`, notes, `run_type`, `auto_run_type`). |
 | `activity_splits` | 1km splits (distance, duration, split pace, split HR, split EF, elevation delta). |
 | `activity_intervals` | Detected interval reps, strides, and recovery blocks with peak dynamics and recovery drops. |
-| `activity_records` | Compacted time-series telemetry (elapsed seconds, HR, cadence, speed, distance, elevation, temperature). High-frequency GPS stripped. |
+| `activity_records` | Stored time-series telemetry: elapsed seconds, HR, cadence, speed, distance, elevation, temperature, running dynamics, and additional sensor fields when available. |
+| `activity_fit_details` | Original FIT bytes and metadata, including laps, timer events, workout steps, devices, HRV, and developer fields. |
 | `activity_coach_summaries` | AI Coach debrief: headline, recommendation, execution score (0–100) from a run-type weighted rubric, stars (1–3), rating5, key insights JSON, itemized `score_breakdown_json` (points vs. weight per factor) and `analysis_json` (personal-baseline context, biggest lever, rubric coverage). |
 | `physiological_thresholds` | Historical calibration points for LT1, LT2, and 30-day baseline Running Economy. |
 | `athlete_profile` | Athlete configuration: max HR, resting HR, LT1/LT2 baselines, and demographic calibration. |
@@ -349,11 +343,11 @@ Finish times for 5K, 10K, Half Marathon, and Marathon are modeled by combining R
 ### 7. Heart Rate Reserve (Karvonen HRR) & Dynamic Zone Model
 - `HRR = HR_max - HR_rest`
 - Dynamic physiological zones:
-  - **Zone 1 (Active Recovery)**: < 54% HRR or < LT1 - 14 bpm
+  - **Zone 1 (Active Recovery)**: Up to the lower of the rounded 54% HRR anchor and LT1 - 14 bpm
   - **Zone 2 (Aerobic Base)**: [Z1 Upper + 1, LT1]
-  - **Zone 3 (Tempo / Aerobic Drift)**: [LT1 + 1, LT2 - 1]
-  - **Zone 4 (Lactate Threshold)**: [LT2, ~90% HRR]
-  - **Zone 5 (VO2 Max & Anaerobic)**: [> 90% HRR, HR_max]
+  - **Zone 3 (Tempo / Aerobic Drift)**: Above LT1, with its ceiling capped at the rounded 80% HRR anchor and LT2 - 1, and kept at least one bpm above LT1
+  - **Zone 4 (Upper Aerobic / Threshold)**: From the Zone 3 ceiling + 1 to the Zone 5 floor - 1
+  - **Zone 5 (High Intensity)**: Starts at the higher of LT2 + 1 and the rounded 90% HRR anchor. Classification separately requires HR above the LT2 training band for VO2 work
 
 ### 8. Aerobic Turnpoint Margin
 - `Margin = Pace_LT1 - Pace_LT2 (seconds/km)`
@@ -366,12 +360,12 @@ Finish times for 5K, 10K, Half Marathon, and Marathon are modeled by combining R
 
 ### 10. Cruising Block LT1 Detection & Recovery Week Protection
 - **Cruising Block Extraction**: Instead of whole-run averages (which dilute sustained aerobic work with warmups and walk breaks), AEROLAB scans for contiguous cruising segments (>= 20 mins, >= 3.5 km) with low aerobic decoupling (-8.0% to +3.8%).
-- **Stimulus Floor Gate**: Enforces `stimulusFloorHr = Math.max(145, currentLt1 - 5)`. Slower recovery runs (e.g. 130-138 bpm) never touch or depress the athlete's calibrated aerobic threshold.
+- **Stimulus Floor Gate**: Requires effort near the prior LT1 estimate, using a tolerance scaled to personal heart-rate reserve. Recovery effort does not become a new LT1 calibration simply because its drift is low.
 
-### 11. Tropical Window & Acceleration Ramp Trimming for LT2
+### 11. Early-Session Window & Acceleration Ramp Trimming for LT2
 - **Acceleration Ramp Trimming**: Strips the initial 10-12s acceleration ramp from standing/walking starts (< 2.2 m/s), ensuring interval pace reflects true cruising speed matching the athlete's Garmin watch display.
-- **Tropical Window (30-Minute Quality Cap)**: High ambient heat and humidity induce progressive hyperthermia and dehydration drift after 30+ minutes of quality work. Quality work evaluation is capped at 1800s (30 mins) to capture the true uncorrupted threshold plateau.
-- **Cardiac Lag Compensation**: Evaluates plateau heart rate after recovery drops rather than averaging the initial 60-90s climbing phase.
+- **Early-Session Window**: LT2 calibration considers qualifying work within the first elapsed hour and evaluates up to 30 minutes of quality work. This limits reliance on late-session drift; it does not guarantee drift-free data.
+- **Cardiac Lag Compensation**: For reps lasting at least five minutes, trims 45-90 seconds of initial HR ramp according to the observed recovery drop before evaluating the plateau.
 
 ### 12. Rolling Confidence- & Recency-Weighted Threshold Aggregation
 - **Multi-Session Smoothing**: Replaces volatile single-session `LIMIT 1` jumping with a multi-session weighted moving baseline across up to 5 qualifying sessions over a 45-day window.

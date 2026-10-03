@@ -32,7 +32,7 @@ export function prepareFitAnalysis(records: ActivityRecord[], metadata?: Record<
     const clippedStart = Math.max(0, start), clippedEnd = Math.min(end, finish);
     return clippedEnd > clippedStart ? [{ start: clippedStart, end: clippedEnd, intensity: String(lap.intensity).toLowerCase() }] : [];
   }).sort((a, b) => a.start - b.start);
-  // Contradictory/overlapping laps cannot provide structure evidence.
+  // Overlap beyond timestamp precision cannot provide reliable lap structure.
   // FIT timestamps have whole-second precision while elapsed durations have
   // fractions. Clip subsecond overlap at the next recorded lap boundary.
   const validLaps = laps.some((lap, index) => index > 0 && lap.start < laps[index - 1].end - 1) ? [] :

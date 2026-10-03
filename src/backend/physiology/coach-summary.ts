@@ -20,7 +20,7 @@ export interface CoachSummary {
   headline: string;
   effectivenessScore: number; // 0 - 100
   rating5: number; // 1.0 - 5.0 rating scale
-  stars: number; // 1 - 5 stars
+  stars: number; // 1 - 3 stars: Bronze, Silver, Gold
   keyInsights: string[];
   /**
    * How each insight in `keyInsights` should be read, index-for-index:
