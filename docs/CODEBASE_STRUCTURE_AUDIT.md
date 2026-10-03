@@ -6,7 +6,21 @@ Undertake a substantial, staged refactor of analysis ownership and contracts. Ke
 
 The highest-value first change is one workout-analysis pipeline shared by import and replay, with explicit normalized telemetry and historical fitness inputs. Next, give edits and recomputation one policy for invalidating dependent history. Folder moves and component extraction should follow those behavioral boundaries.
 
-This audit reviewed the current working tree, including pending background-import work, rather than only committed HEAD. Source files changed concurrently during the review. Findings describe the inspected implementation and should be checked against the final baseline before implementation. No application source was changed by this audit.
+The original audit reviewed the working tree, including pending background-import work, rather than only committed HEAD. The evidence and line references below describe that initial inspection. The status notes record subsequent committed refactors; pending working-tree changes are not counted as completed checkpoints.
+
+## Completion status
+
+Updated after checkpoint `9dd8d21`. Finding numbers below differ from the migration-sequence step numbers later in this document.
+
+| Finding | Completed work | Remaining work | Status |
+| --- | --- | --- | --- |
+| 1. Analysis context | Typed preparation and calculation pipeline shared by import and replay (`b06f223`, `7f3c517`) | Timer/gap policy propagation to load, calibration, coaching; detail repair and historical chart context | Core extraction done; finding partially addressed |
+| 2. History invalidation | Transactional affected-history coordinator for import corrections, manual type/failure edits, and baseline-profile changes (`62e4218`) | Independent weather/history-sensitive coaching policy | Main checkpoint done; follow-up remains |
+| 3. Coaching protocol | Required IDs on newly graded factors; verdicts and focus selection use IDs; structured headlines/advice, bilingual overrides, and legacy compatibility (`9dd8d21`) | Dynamic insight/description/focus-prose migration and rubric module split | Main checkpoint done; finding partially addressed |
+| 4. Typed boundaries | Parser-independent telemetry, typed analysis context/result and database argument, shared coaching identifiers (`b06f223`, `7f3c517`, `9dd8d21`) | Typed row adapters, interval/split normalization, unified API DTOs, classifier evidence contract | Partially addressed |
+| 5. Migration ownership | No refactor checkpoint yet | Migration registry, separation of schema and analysis upgrades, revision/provenance policy | Not started |
+| 6. Writer coordination | No unified coordinator checkpoint yet | One coordinator across import, maintenance, restore, relocation and analysis writes; explicit analysis freshness | Not started; background-import work remains uncommitted |
+| 7. Frontend/CSS structure | No feature/controller or stylesheet restructuring checkpoint yet | Feature controllers/types, common invalidation signal, CSS split and visual verification | Not started; pending UI edits are separate |
 
 ## What already works structurally
 
@@ -20,6 +34,8 @@ This audit reviewed the current working tree, including pending background-impor
 ## Prioritized findings
 
 ### 1. P1 — Analysis context is assembled independently and reaches only some consumers
+
+**Status:** shared pipeline extraction completed; consumer policy unification remains. See completion status above.
 
 **Evidence:** `ingestion/importer.ts:130` prepares FIT-aware analysis, then calculates economy, splits, intervals, and classification from the annotated records. `db/realign.ts:149` assembles essentially the same pipeline. Import-time training load (`importer.ts:256`) and calibration (`importer.ts:409`) receive raw records. Replay passes annotated records to those functions. `physiology/coach-summary.ts:611` loads raw SQLite telemetry and extracts steady-state metrics without rebuilding FIT timer state. `physiology/profile-recompute.ts` also loads only time/HR columns.
 
@@ -35,6 +51,8 @@ Extract shared orchestration first without changing numerical behavior; apply ti
 
 ### 2. P1 — Derived-data invalidation depends on which operation changed the workout
 
+**Status:** main invalidation checkpoint completed in `62e4218`. The original differences below are resolved for the coordinated operations; weather remains a separate follow-up. See `HISTORY_INVALIDATION.md`.
+
 **Evidence:** corrected/backfilled import finds affected later activities and replays them atomically (`ingestion/importer.ts:412`, `:456`). `services/activity-service.ts:601` handles manual type/failure updates by changing the activity and synchronizing that activity's coach summary (`:658`); it does not rebuild calibration, tags, race segmentation, or dependent later workouts. `computeRollingThresholds` excludes manually failed sources on reads, but does not reject sources merely because their label changed. `services/profile-service.ts:189` determines baseline changes and triggers `recomputeProfileDerivedData`, which refreshes load/zones and coaching, without rebuilding classification or calibration.
 
 **Impact:** an import correction and a UI correction have different consequences for stored analysis. Marking a workout failed can immediately change threshold reads while leaving later stored labels/zones based on the previous evidence. A label edit can leave an old workout-derived observation eligible until replay. Baseline profile edits also have a narrower refresh scope than a full realignment. Whether each edit should rewrite history needs one documented policy.
@@ -44,6 +62,8 @@ Extract shared orchestration first without changing numerical behavior; apply ti
 Preserve the current atomic affected-history import contract. Do not accidentally replace it with independently committed per-activity jobs. Distinguish strict transactional correction from best-effort maintenance, which currently isolates corrupt activities and reports failures.
 
 ### 3. P1 — English presentation text serves as a domain protocol
+
+**Status:** verdict/factor protocol and structured headline/advice checkpoint completed in `9dd8d21`. Dynamic prose adapters remain. See `COACHING_PROTOCOL.md`.
 
 **Evidence:** `physiology/session-verdict.ts:6` maps English factor labels to verdicts and selects factors by English category strings. `physiology/coach-rubric.ts` emits those strings. `frontend/i18n/coachTranslator.ts` is approximately 784 lines of mapping, substring matching, and regular expressions over English headlines, advice, and insights. It also embeds Chinese copy outside the three prescribed dictionary files.
 
@@ -55,6 +75,8 @@ Use plain unions and explicit functions; a configurable rules framework is unnec
 
 ### 4. P2 — Typed boundaries still permit multiple competing representations
 
+**Status:** partially addressed through domain telemetry, the shared pipeline and coaching contracts; broader row/API normalization remains.
+
 **Evidence:** normalized `ActivityRecord` belongs to `ingestion/csv-parser.ts`, although FIT analysis and physiology consume it. `db/realign.ts:32` has an independent `any[]` record mapper and an `any` database argument. Rubric helpers (`coach-rubric.ts:187`) accept both snake_case and camelCase through `any`. Backend shared detail contracts (`shared/activity-detail.ts`) expose open index signatures and `unknown` scoring fields, while `frontend/types/api.ts` separately defines more specific splits, intervals, records, coach summaries, and detail responses.
 
 **Impact:** TypeScript can pass while a domain field is omitted from a mapper or backend/frontend contracts diverge. Runtime row validation is valuable, but an open `unknown` structure does not establish the calculation contract. New FIT fields currently require auditing several conversion paths.
@@ -65,6 +87,8 @@ The classifier should return an explicit evidence record: rule ID, observed meas
 
 ### 5. P2 — Database opening still owns a growing list of algorithm upgrades
 
+**Status:** not started.
+
 **Evidence:** `db/client.ts` is approximately 412 lines and contains schema setup plus many derived-data migration bodies. At `:312` onward, checkpoints such as `realign-v1`, `signal-classification-v1`, `historical-fitness-v1`, and `fit-structure-v1` invoke current realignment code. The existing runner is checkpointed and recoverable; the concern is ownership and repeated work, not absence of migrations.
 
 **Impact:** an older database may run several full-history passes using the same current algorithm. A classifier adjustment requires touching connection initialization. Schema compatibility and analysis freshness are intertwined, and a historical migration name does not identify which current analysis implementation actually produced the stored result.
@@ -73,6 +97,8 @@ The classifier should return an explicit evidence record: rule ID, observed meas
 
 ### 6. P2 — Coordination of writers is distributed across services and middleware
 
+**Status:** not started as a unified coordinator refactor. Uncommitted background-import guards do not close this finding.
+
 **Evidence:** pending `jobs/import-job.ts` checks maintenance before reserving an import. `jobs/maintenance.ts` owns a separate worker and queued profile recomputation. `db/storage.ts` has its own operation guard and maintenance checks. `server.ts:104` blocks mutations during import. Activity GET handlers suppress coach-summary persistence during import; outside that path, `getActivityDetailService` regenerates and persists coaching on detail reads (`activity-service.ts:475`).
 
 **Impact:** the current protection is spread across several entry points. Adding a new job or a service caller requires knowing which guard applies. GET requests also participate in writing and recalculation. This is an ownership concern; the audit did not demonstrate a live concurrent-writer failure or measure request latency.
@@ -80,6 +106,8 @@ The classifier should return an explicit evidence record: rule ID, observed meas
 **Refactor:** introduce one local operation coordinator covering import, maintenance, restore, relocation, and analysis writes. Make services participate directly so correctness does not depend only on HTTP middleware. Retain bounded parallel decoding and serialized SQLite writes. Gradually make detail reads return stored analysis with explicit freshness; use coordinated rebuilding for missing/stale results. Avoid a cloud queue or distributed event bus.
 
 ### 7. P2 — Feature controllers and global styling are the frontend growth points
+
+**Status:** not started as a structural refactor. Pending UI changes do not close this finding.
 
 **Evidence:** `BrowseView.tsx` is approximately 693 lines; `StatsView.tsx` 670; `PeriodProgressView.tsx` 768; `UploadModal.tsx` 498. They mix fetching, cancellation/retry, selection/filtering, chart derivation, mutations, and rendering. `App.tsx` owns activity lists, refresh callbacks and a detail refresh counter, while other views fetch their own data. `frontend/styles/index.css` is approximately 6,260 lines with shared primitives, feature rules, responsive overrides, and development diagnostics together.
 
@@ -141,6 +169,8 @@ Segmentation should distinguish telemetry detection, FIT-lap refinement, race se
 
 ## Migration sequence and acceptance criteria
 
+Progress against this broader roadmap: step 1 has expanded fixture coverage; step 2 has completed shared-pipeline extraction with remaining adapter/persistence consolidation; step 3 has completed the main invalidation checkpoint with the weather policy outstanding; step 4 has completed IDs and structured headline/advice with remaining prose/DTO/module migration. Steps 5 and 6 have not started. These statuses describe the full acceptance criteria, beyond the completed checkpoints.
+
 1. **Establish behavioral contracts.** Extend fixture checks across single import, batch import, chronological replay, manual correction, and profile refresh. Check stored load/zones, calibration eligibility, coaching evidence, confirmation retention, and raw-record retention. Record existing intentional differences before correcting them.
 2. **Normalize inputs and extract the shared analysis pipeline.** Keep existing importer/realigner exports as compatibility wrappers. Consolidate mapping and interval/split persistence. Separate extraction from algorithm changes. Require unchanged expected outputs for the extraction commit.
 3. **Centralize history invalidation.** Implement the change matrix and strict/best-effort policies. Test backfills, moved dates, manual failure/type edits, changed baseline HR, failed dependent replay, and repeated replay. Strict corrections must roll back as a whole on dependent failure.
@@ -154,14 +184,16 @@ Add lightweight import-boundary checks once the destinations are established: do
 
 ## Verification and limitations
 
-On the working tree available during this audit:
+On the working tree available during the original audit:
 
 - `npx tsc --noEmit`: passed.
 - `npm run lint`: passed with the configured zero-warning gate.
 - `npm test`: 98 files, 1,070 tests passed.
 - `npm run i18n:unused`: all 776 dictionary keys referenced.
 
-This was a source-structure and dependency review, supported by the existing test baseline. No coverage run, visual suite, packaged smoke test, production benchmark, or independent physiological validation was performed. The identified input and invalidation inconsistencies need focused regression tests when fixed; a green existing suite does not prove those missing contracts.
+The original audit was a source-structure and dependency review, supported by the existing test baseline. It did not run coverage, visual tests, packaged smoke tests, production benchmarks, or independent physiological validation.
+
+Subsequent implementation checkpoints added focused pipeline-parity, history-invalidation, wording-independent verdict, bilingual rendering, and persisted-message tests. At `9dd8d21`, the full working tree passed TypeScript, zero-warning lint, all 1,131 tests, and the unused-key check for all 810 dictionary keys. An isolated export of that checkpoint also compiled, passed 108 focused tests, built the application and snapshot viewer, and passed the packaged backend smoke test. The build emitted existing CommonJS `import.meta` warnings in the maintenance bundle. No visual suite, coverage run, performance benchmark, or independent physiological validation was added by these checkpoints.
 
 Do not combine classifier tuning, numerical corrections, schema changes, file moves, and UI redesign into one refactor. Preserve the working foundations, consolidate analysis ownership first, and then reorganize files around those responsibilities.
 
