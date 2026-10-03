@@ -62,13 +62,6 @@ try {
   const info = await status.json();
   if (info.dbPath !== path.join(root, 'runs.db')) throw new Error('Packaged backend opened the wrong database');
 
-  const deployRoute = await fetch(`${base}/api/snapshot-deploy`, {
-    method: 'POST',
-    headers: { ...headers, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filename: 'invalid-name.db' })
-  });
-  if (deployRoute.status !== 400) throw new Error(`Snapshot deployment route returned ${deployRoute.status} in the packaged backend`);
-
   let maintenanceComplete = false;
   for (let attempt = 0; attempt < 100; attempt++) {
     const response = await fetch(`${base}/api/system/maintenance`, { headers });
@@ -80,6 +73,14 @@ try {
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   if (!maintenanceComplete) throw new Error('Packaged maintenance did not complete');
+
+  // Write routes are blocked while startup maintenance owns the database.
+  const deployRoute = await fetch(`${base}/api/snapshot-deploy`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename: 'invalid-name.db' })
+  });
+  if (deployRoute.status !== 400) throw new Error(`Snapshot deployment route returned ${deployRoute.status} in the packaged backend`);
 
   const profileUpdate = await fetch(`${base}/api/profile`, {
     method: 'PATCH',
