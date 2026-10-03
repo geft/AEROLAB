@@ -52,6 +52,13 @@ describe('LT2 sustained early evidence', () => {
   it('does not pool disconnected high-HR samples into continuous evidence', () => {
     expect(evaluate([...records(0,600),...records(900,600)]).lt2PaceSecKm).toBeNull();
   });
+  it('does not pool high-HR samples across stopped timers or timer restarts', () => {
+    const samples = records(600, 1500);
+    samples.forEach(r => { r.timerSegment = r.elapsedSeconds < 1300 ? 0 : 1; });
+    expect(evaluate(samples).lt2PaceSecKm).toBeNull();
+    samples.forEach(r => { r.timerSegment = 0; r.timerActive = r.elapsedSeconds < 1300; });
+    expect(evaluate(samples).lt2PaceSecKm).toBeNull();
+  });
   it('uses elapsed duration rather than sample count for continuous work', () => {
     expect(evaluate(records(600,1200,5)).lt2PaceSecKm).toBe(280);
     expect(evaluate(records(600,300,0.25)).lt2PaceSecKm).toBeNull();

@@ -23,6 +23,10 @@ import type {
   VolumeData
 } from '../types/api.js';
 import type { ImportJobStatus } from '../../shared/import-job.js';
+import { invalidateActivityData } from '../features/activity-revision.js';
+
+let completedImportId: string | null = null;
+let completedMaintenance: string | null = null;
 
 export class ApiRequestError extends Error {
   constructor(public readonly status: number, public readonly code: string, message: string) {
@@ -76,6 +80,18 @@ async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
   }
   if (body === null || typeof body !== 'object') {
     throw new ApiRequestError(response.status, 'ERR_INVALID_RESPONSE', 'Invalid JSON response');
+  }
+  const result = body as Record<string, unknown>;
+  const mutation = options?.method && !['GET', 'HEAD'].includes(options.method);
+  if (mutation && (/^\/api\/activities\//.test(url) || url === '/api/profile' ||
+      /^\/api\/ingest\/(upload|upload-batch|scan)$/.test(url) || /^\/api\/database\/restore/.test(url))) invalidateActivityData();
+  if (/^\/api\/ingest\/jobs\//.test(url) && result.phase === 'complete' && typeof result.jobId === 'string' && result.jobId !== completedImportId) {
+    completedImportId = result.jobId;
+    invalidateActivityData();
+  }
+  if (url === '/api/system/maintenance' && result.status === 'complete' && typeof result.finishedAt === 'string' && result.finishedAt !== completedMaintenance) {
+    completedMaintenance = result.finishedAt;
+    invalidateActivityData();
   }
   return body as T;
 }

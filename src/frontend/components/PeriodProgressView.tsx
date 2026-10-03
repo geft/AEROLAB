@@ -1,9 +1,9 @@
+import { usePeriodProgress } from '../features/progress/usePeriodProgress.js';
 import React, { useState, useEffect } from 'react';
-import type { ProgressPeriodSummary, ProgressHistoryResponse } from '../types/api.js';
+import type { ProgressPeriodSummary } from '../types/api.js';
 import { Calendar, TrendingUp, Award, LayoutGrid, List, History } from 'lucide-react';
 import { formatPace } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
-import { getProgressHistory } from '../api/client.js';
 
 /** One monthly or yearly bucket of the progress history. */
 export type PeriodSummary = ProgressPeriodSummary;
@@ -23,10 +23,8 @@ export const PeriodProgressView: React.FC = () => {
     return p.label;
   };
 
-  const [data, setData] = useState<ProgressHistoryResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const { data, loading, runTypeFilter, setRunTypeFilter } = usePeriodProgress();
   const [activePeriodType, setActivePeriodType] = useState<'month' | 'year'>('month');
-  const [runTypeFilter, setRunTypeFilter] = useState<'all' | 'easy' | 'threshold'>('all');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [selectedChartPeriod, setSelectedChartPeriod] = useState<string | null>(null);
@@ -39,18 +37,6 @@ export const PeriodProgressView: React.FC = () => {
     window.addEventListener('resize', updateViewportWidth);
     return () => window.removeEventListener('resize', updateViewportWidth);
   }, []);
-
-  useEffect(() => {
-    getProgressHistory(runTypeFilter)
-      .then(resData => {
-        setData(resData);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('Failed to load progress history:', err);
-        setLoading(false);
-      });
-  }, [runTypeFilter]);
 
   if (loading || !data) {
     return (

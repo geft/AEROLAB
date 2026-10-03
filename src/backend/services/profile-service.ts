@@ -1,3 +1,4 @@
+import { assertDatabaseWritable } from '../application/database-operations.js';
 import Database from 'better-sqlite3';
 import { profileFromRow } from '../db/rows.js';
 import { ageFromDob } from '../../shared/heart-rate.js';
@@ -98,6 +99,7 @@ export type UpdateProfileResult =
 
 /** PATCH /api/profile - update athlete profile */
 export function updateProfileService(db: Database.Database, rawUpdates: UpdateProfileInput): UpdateProfileResult {
+  assertDatabaseWritable();
   const updates: Record<string, unknown> = { ...rawUpdates };
 
   const allowedFields = [

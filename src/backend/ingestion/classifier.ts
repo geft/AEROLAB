@@ -1,3 +1,4 @@
+import type { ClassificationEvidence, ClassificationRuleId } from '../../shared/contracts/classification.js';
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { ActivityMetadata, ActivityRecord } from './csv-parser';
 import { calculateRunningHrExposure, EconomyMetrics } from '../physiology/economy';
@@ -11,6 +12,7 @@ export type RunType = 'easy_base' | 'long_run' | 'threshold_lt2' | 'intervals_vo
 export interface ClassificationResult {
   runType: RunType;
   confidence: number;
+  evidence: ClassificationEvidence;
   reason: string;
   isFailedWorkout?: boolean;
 }
@@ -109,15 +111,27 @@ export function classifyRun(
       interval.type === 'recovery' && interval.durationSeconds >= 30);
   });
 
+  const result = (ruleId: ClassificationRuleId, classification: Omit<ClassificationResult, 'evidence'>,
+    additional: Record<string, number | null> = {}): ClassificationResult => ({
+    ...classification,
+    evidence: { ruleId, confidence: { kind: 'heuristic', score: classification.confidence },
+      measurements: { durationSeconds: metadata.totalDurationSeconds, avgHr, validHrSeconds, vo2HrPct,
+        thresholdHrPct: validHrSeconds > 0 ? thresholdHrSeconds / validHrSeconds * 100 : 0,
+        workCount: workIntervals.length, workSeconds: workIntervals.reduce((sum, interval) => sum + interval.durationSeconds, 0), ...additional },
+      policy: { maxHr: effMax, restingHr: resting, lt1Hr: lt1, lt2Hr: lt2,
+        thresholdHrFloor, thresholdHrCeiling, vo2HrFloor, nearMaxVo2Floor }
+    }
+  });
+
   // Whole-session averages dilute a benchmark with its warmup/cooldown.
   // Evaluate sustained high-intensity bouts before threshold/interval rules.
   const raceEffort = continuousRaceEffort(records, { maxHr: effMax, restingHr: resting, lt2Hr: lt2 });
   if (raceEffort && !hasRepeatedQualityWork) {
-    return {
+    return result('continuous_race', {
       runType: 'race',
       confidence: 0.88,
       reason: `Continuous race-intensity effort (${(raceEffort.durationSeconds / 60).toFixed(1)}m above the threshold band, ${raceEffort.nearMaxPct.toFixed(0)}% at near-maximal cardiovascular intensity)`
-    };
+    });
   }
 
   // 1b. Check for Galloway Run/Walk method
@@ -206,14 +220,14 @@ export function classifyRun(
     if (isThresholdIntervals && !isVo2Intervals) {
       const isFailed = qualityWorkoutFailed('threshold_lt2', workIntervals, profileWithMeta);
 
-      return {
+      return result('structured_threshold', {
         runType: 'threshold_lt2',
         confidence: 0.92,
         isFailedWorkout: isFailed,
         reason: isFailed
           ? `Threshold stimulus missed or cut short${prescLabel} (${workIntervals.length} rep(s), HR fade or below threshold band)`
           : `Detected ${workIntervals.length} threshold work intervals${prescLabel} (median ${(medianWorkSec / 60).toFixed(1)}m, threshold-band HR)`
-      };
+      });
     }
 
     // B. VO2 Max Intervals: short repeated structure with max-HR attainment,
@@ -221,44 +235,44 @@ export function classifyRun(
     if (isVo2Intervals) {
       const isFailed = qualityWorkoutFailed('intervals_vo2', workIntervals, profileWithMeta);
 
-      return {
+      return result('structured_vo2', {
         runType: 'intervals_vo2',
         confidence: 0.93,
         isFailedWorkout: isFailed,
         reason: isFailed
           ? `VO2 stimulus missed or cut short${prescLabel} (${workIntervals.length} rep(s), ${(totalWorkDurationSec / 60).toFixed(1)}m total work)`
           : `Detected ${workIntervals.length} VO2 work intervals${prescLabel} (median ${(medianWorkSec / 60).toFixed(1)}m, peak HR ${maxWorkHr})`
-      };
+      });
     }
   }
 
   // Walking recoveries also occur in genuine quality sessions. Evaluate their
   // work bouts first so aerobic warmups cannot hide the interval stimulus.
   if (isGallowaySession) {
-    return {
+    return result('aerobic_run_walk', {
       runType: durationMin >= 110 ? 'long_run' : 'easy_base',
       confidence: 0.92,
       reason: `Aerobic base run with Galloway run/walk intervals (${gallowayWalkCount} walk breaks, avg HR ${avgHr} bpm)`
-    };
+    });
   }
 
   // 3. Continuous Threshold / Tempo check (profile-relative zone occupancy)
   const thresholdHrPct = validHrSeconds > 0 ? thresholdHrSeconds / validHrSeconds * 100 : 0;
   if (thresholdHrPct >= 35) {
-    return {
+    return result('continuous_threshold', {
       runType: 'threshold_lt2',
       confidence: 0.88,
       reason: `Sustained lactate threshold tempo effort (${thresholdHrPct.toFixed(0)}% near or above the LT2 training band, profile-relative)`
-    };
+    });
   }
 
   // 4. Long Run check (duration on feet only: >= 110 mins — pace-free)
   if (durationMin >= 110) {
-    return {
+    return result('long_duration', {
       runType: 'long_run',
       confidence: 0.9,
       reason: `Extended endurance duration (${durationMin.toFixed(0)} mins on feet)`
-    };
+    });
   }
 
   // 5. Recovery run check.
@@ -271,21 +285,21 @@ export function classifyRun(
       avgHrrPct != null && avgHrrPct <= 60 &&
       recovery.aboveCeilingPct != null && recovery.aboveCeilingPct <= 10 &&
       recovery.atOrAboveLt1Pct != null && recovery.atOrAboveLt1Pct <= 1) {
-    return {
+    return result('low_hrr_recovery', {
       runType: 'recovery',
       confidence: 0.88,
       reason: `Very low cardiovascular strain recovery jog (${(recovery.runningSeconds / 60).toFixed(0)} min running, ${avgHrrPct.toFixed(1)}% avg HRR, ${recovery.aboveCeilingPct.toFixed(1)}% above 60% HRR, ${recovery.atOrAboveLt1Pct.toFixed(1)}% at or above LT1)`
-    };
+    });
   }
 
   // 6. Default to Easy / Aerobic base
   const hasSurges = workIntervals.length > 0;
   const isTempoZ3 = zoneDist.z3Pct >= 25 || (zoneDist.z3Pct + zoneDist.z4Pct >= 35);
-  return {
+  return result('aerobic_default', {
     runType: 'easy_base',
     confidence: 0.9,
     reason: isTempoZ3
       ? `Aerobic tempo effort${hasSurges ? ' with surges' : ''} (avg HR ${avgHr} bpm, decoupling ${economy.aerobicDecouplingPct ?? 0}%)`
       : `Aerobic base effort${hasSurges ? ' with strides/surges' : ''} (avg HR ${avgHr} bpm, decoupling ${economy.aerobicDecouplingPct ?? 0}%)`
-  };
+  });
 }

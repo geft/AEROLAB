@@ -323,7 +323,7 @@ describe('ProgressView UI Tests', () => {
     fireEvent.click(easyBtn);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/activities/progress-history?run_type=easy');
+      expect(global.fetch).toHaveBeenCalledWith('/api/activities/progress-history?run_type=easy', { signal: expect.any(AbortSignal) });
     });
 
     // Click Threshold / VO2
@@ -331,7 +331,7 @@ describe('ProgressView UI Tests', () => {
     fireEvent.click(threshBtn);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/activities/progress-history?run_type=threshold');
+      expect(global.fetch).toHaveBeenCalledWith('/api/activities/progress-history?run_type=threshold', { signal: expect.any(AbortSignal) });
     });
   });
 

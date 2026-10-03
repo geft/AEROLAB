@@ -1,64 +1,68 @@
 /** Stable machine identifiers; English presentation is owned by the backend. */
-export type CoachCategoryId =
-  'running_turnover'
-  | 'aerobic_intensity'
-  | 'workout_completion'
-  | 'threshold_zone_time'
-  | 'interval_execution'
-  | 'cardiovascular_stimulus'
-  | 'threshold_heart_rate'
-  | 'pacing_discipline'
-  | 'rep_to_rep_fatigue'
-  | 'race_pacing_execution'
-  | 'race_finish_execution'
-  | 'aerobic_decoupling'
-  | 'pacing_consistency'
-  | 'autonomic_recovery';
-export type CoachFindingId =
-  'optimal_cadence_sweet_spot'
-  | 'adequate_turnover'
-  | 'sub_optimal_cadence_turnover'
-  | 'extended_above_the_lt1_ceiling'
-  | 'clearly_easy'
-  | 'normal_easy'
-  | 'upper_easy_aerobic_steady'
-  | 'potentially_too_close_to_lt1'
-  | 'disciplined_aerobic_ceiling'
-  | 'aborted_incomplete_quality_workout'
-  | 'unbroken_session'
-  | 'substantially_walked_session'
-  | 'walk_dominated_session'
-  | 'sustained_threshold_heart_rate'
-  | 'partial_threshold_exposure'
-  | 'little_threshold_exposure'
-  | 'laser_rep_consistency'
-  | 'disciplined_interval_structure'
-  | 'high_rep_variance_across_set'
-  | 'target_vo2_stimulus_achieved'
-  | 'partial_cardiovascular_stimulus'
-  | 'insufficient_cardiovascular_stimulus'
-  | 'drifted_into_vo2_territory'
-  | 'on_target_intensity_control'
-  | 'grey_zone_intensity_drift'
-  | 'overreaching_intensity'
-  | 'held_rep_pace_and_hr_to_the_end'
-  | 'slight_late_rep_fade'
-  | 'late_rep_collapse'
-  | 'rep_interrupting_walk_breaks'
-  | 'minor_break_time'
-  | 'heavily_interrupted_session'
-  | 'aggressive_early_surge_positive_split'
-  | 'laser_race_pacing_discipline'
-  | 'controlled_race_pacing'
-  | 'volatile_split_pacing'
-  | 'strong_negative_split_finish'
-  | 'held_form_to_the_line'
-  | 'late_race_fade'
-  | 'full_race_day_heart_rate_utilisation'
-  | 'partial_race_day_effort'
-  | 'conservative_heart_rate_ceiling'
-  | 'walk_breaks_inside_the_race_effort'
-  | 'drifting_into_high_zone_2';
+export const COACH_CATEGORY_IDS = [
+  'running_turnover',
+  'aerobic_intensity',
+  'workout_completion',
+  'threshold_zone_time',
+  'interval_execution',
+  'cardiovascular_stimulus',
+  'threshold_heart_rate',
+  'pacing_discipline',
+  'rep_to_rep_fatigue',
+  'race_pacing_execution',
+  'race_finish_execution',
+  'aerobic_decoupling',
+  'pacing_consistency',
+  'autonomic_recovery',
+] as const;
+export type CoachCategoryId = typeof COACH_CATEGORY_IDS[number];
+export const COACH_FINDING_IDS = [
+  'optimal_cadence_sweet_spot',
+  'adequate_turnover',
+  'sub_optimal_cadence_turnover',
+  'extended_above_the_lt1_ceiling',
+  'clearly_easy',
+  'normal_easy',
+  'upper_easy_aerobic_steady',
+  'potentially_too_close_to_lt1',
+  'disciplined_aerobic_ceiling',
+  'aborted_incomplete_quality_workout',
+  'unbroken_session',
+  'substantially_walked_session',
+  'walk_dominated_session',
+  'sustained_threshold_heart_rate',
+  'partial_threshold_exposure',
+  'little_threshold_exposure',
+  'laser_rep_consistency',
+  'disciplined_interval_structure',
+  'high_rep_variance_across_set',
+  'target_vo2_stimulus_achieved',
+  'partial_cardiovascular_stimulus',
+  'insufficient_cardiovascular_stimulus',
+  'drifted_into_vo2_territory',
+  'on_target_intensity_control',
+  'grey_zone_intensity_drift',
+  'overreaching_intensity',
+  'held_rep_pace_and_hr_to_the_end',
+  'slight_late_rep_fade',
+  'late_rep_collapse',
+  'rep_interrupting_walk_breaks',
+  'minor_break_time',
+  'heavily_interrupted_session',
+  'aggressive_early_surge_positive_split',
+  'laser_race_pacing_discipline',
+  'controlled_race_pacing',
+  'volatile_split_pacing',
+  'strong_negative_split_finish',
+  'held_form_to_the_line',
+  'late_race_fade',
+  'full_race_day_heart_rate_utilisation',
+  'partial_race_day_effort',
+  'conservative_heart_rate_ceiling',
+  'walk_breaks_inside_the_race_effort',
+  'drifting_into_high_zone_2',
+] as const;
+export type CoachFindingId = typeof COACH_FINDING_IDS[number];
 export type RunFamily = 'aerobic' | 'quality' | 'race';
 export interface CoachingFactor {
   categoryId?: CoachCategoryId;

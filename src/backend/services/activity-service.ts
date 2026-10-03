@@ -1,8 +1,15 @@
+import { parseScoreFactors, parseInsightTones, parseCoachContext, parseWalkAudit, parsePauseBreakdown } from '../../shared/contracts/coach-analysis.js';
+import { assertDatabaseWritable, reserveDatabaseOperation, canWriteDatabase, withDatabaseOperation, currentDatabaseOperation } from '../application/database-operations.js';
+import { ANALYSIS_REVISION, parseAnalysisProvenance, type AnalysisFreshness } from '../../shared/analysis-revision.js';
+import { parseClassificationEvidence } from '../../shared/contracts/classification.js';
+import { observedIntervals } from '../physiology/time-series.js';
+import { affectedActivityIds } from '../application/analysis/rebuild-history.js';
+import { loadAnalysisRecords, analysisRecordToRow } from '../db/analysis-records.js';
 import { parseCoachMessages } from '../../shared/coaching.js';
 import { rebuildAffectedHistory } from '../application/analysis/rebuild-history.js';
 import { thresholdTime } from '../../shared/threshold-trend.js';
 import Database from 'better-sqlite3';
-import { activityFromRow, activityIntervalFromRow, activityRecordFromRow, activitySplitFromRow, coachSummaryFromRow, heartRateRecordFromRow, objectRow, progressActivityFromRow, volumeActivityFromRow } from '../db/rows.js';
+import { activityFromRow, activityIntervalFromRow, activitySplitFromRow, coachSummaryFromRow, objectRow, progressActivityFromRow, volumeActivityFromRow } from '../db/rows.js';
 import { parseSessionVerdict } from '../../shared/session-verdict.js';
 import type { BestEffortsReport } from '../../shared/best-efforts.js';
 import type { TrainingLoadResponse } from '../../shared/training-load.js';
@@ -14,7 +21,7 @@ import type {
   ActivityPatchResponse, CoachSummaryResponse, WeatherRefreshResponse,
 } from '../../shared/activity-detail.js';
 import { getAthleteHeartRateProfile } from '../physiology/athlete-profile.js';
-import { generateCoachSummary, syncActivityCoachSummary } from '../physiology/coach-summary.js';
+import { syncActivityCoachSummary } from '../physiology/coach-summary.js';
 import { extractSteadyStateMetrics } from '../physiology/economy.js';
 import { syncActivityWeather } from '../physiology/weather.js';
 import { getHeartRateProfileAtDate } from '../physiology/threshold-tracker.js';
@@ -92,7 +99,6 @@ export function getVolumeService(db: Database.Database, query: VolumeQuery): Vol
   let z4Sec = 0;
   let z5Sec = 0;
 
-  const recStmt = db.prepare('SELECT elapsed_seconds, heart_rate FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC');
 
   for (const a of acts) {
     totalDistM += a.distance_meters || 0;
@@ -114,7 +120,7 @@ export function getVolumeService(db: Database.Database, query: VolumeQuery): Vol
       z4Sec += (a.z4_seconds || 0);
       z5Sec += (a.z5_seconds || 0);
     } else {
-      const recs = recStmt.all(a.id).map(heartRateRecordFromRow);
+      const recs = loadAnalysisRecords(db, a.id);
       const load = calculateActivityTrainingLoad(recs, getHeartRateProfileAtDate(db, a.start_time));
       z1z2Sec += load.zones.z1Seconds + load.zones.z2Seconds;
       z3Sec += load.zones.z3Seconds;
@@ -303,10 +309,9 @@ export function getProgressHistoryService(db: Database.Database, runTypeFilter: 
     y.runs.push(a.id);
 
     // Heart rate zone 2 accumulation
-    const recs = db.prepare('SELECT elapsed_seconds, heart_rate FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC').all(a.id).map(heartRateRecordFromRow);
-    for (let i = 1; i < recs.length; i++) {
-      const dt = Math.max(0, Math.min(10, recs[i].elapsed_seconds - recs[i - 1].elapsed_seconds));
-      const hr = recs[i].heart_rate;
+    const recs = loadAnalysisRecords(db, a.id);
+    for (const { b, seconds: dt } of observedIntervals(recs, r => r.elapsedSeconds)) {
+      const hr = b.heartRate;
       if (!hr) continue;
       m.totalHrSec += dt;
       if (hr <= lt1Hr) {
@@ -423,82 +428,29 @@ export function getActivityDetailService(db: Database.Database, id: string, opti
 
   const splits = db.prepare('SELECT * FROM activity_splits WHERE activity_id = ? ORDER BY split_index ASC').all(id).map(activitySplitFromRow);
   const intervals = db.prepare('SELECT * FROM activity_intervals WHERE activity_id = ? ORDER BY interval_index ASC').all(id).map(activityIntervalFromRow);
-  const rawRecords = db.prepare('SELECT * FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC').all(id).map(activityRecordFromRow);
-
-  // Auto-repair flat or corrupted speed telemetry (e.g. FIT records where speed was saved as static cumulative average)
-  const records = [...rawRecords];
-  if (records.length >= 20) {
-    const validSpeeds = records.map(r => r.speed_mps).filter((s): s is number => s !== null && s > 0);
-    const hasDistances = records.filter(r => r.distance_m !== null && r.distance_m > 0).length >= 20;
-    let isBrokenSpeed = false;
-    if (validSpeeds.length >= 20) {
-      const minS = Math.min(...validSpeeds);
-      const maxS = Math.max(...validSpeeds);
-      if (maxS - minS < 0.15 && minS > 1.0) {
-        isBrokenSpeed = true;
-      }
-    } else if (validSpeeds.length === 0 && hasDistances) {
-      isBrokenSpeed = true;
-    }
-
-    if (isBrokenSpeed && hasDistances) {
-      const windowSec = 5;
-      for (let i = 0; i < records.length; i++) {
-        const cur = records[i];
-        if (cur.distance_m === null) continue;
-        let prevIdx = i;
-        while (prevIdx > 0 && cur.elapsed_seconds - records[prevIdx].elapsed_seconds < windowSec) {
-          prevIdx--;
-        }
-        let nextIdx = i;
-        while (nextIdx < records.length - 1 && records[nextIdx].elapsed_seconds - cur.elapsed_seconds < windowSec) {
-          nextIdx++;
-        }
-        const prev = records[prevIdx];
-        const next = records[nextIdx];
-        if (prev.distance_m !== null && next.distance_m !== null) {
-          const dt = next.elapsed_seconds - prev.elapsed_seconds;
-          const dd = next.distance_m - prev.distance_m;
-          if (dt >= 2 && dd >= 0) {
-            const derived = dd / dt;
-            cur.speed_mps = Number(Math.max(0, Math.min(9.0, derived)).toFixed(3));
-          }
-        }
-      }
-    }
-  }
+  const records = loadAnalysisRecords(db, id).map(analysisRecordToRow);
 
   // Isolate walk breaks and traffic pauses to obtain pure steady-state running metrics
   const pauseBreakdown = extractSteadyStateMetrics(records);
 
-  // Retrieve athlete profile for calibrated thresholds (defaulting to runner profile)
-  const { maxHr: maxHeartRate, restingHr, lt1Hr, lt2Hr } = getAthleteHeartRateProfile(db);
-
-  // Generate, persist, and retrieve from activity_coach_summaries table
-  const coachSummary = syncActivityCoachSummary(db, id, undefined, { persist: options.persistCoachSummary !== false }) || generateCoachSummary({
-    runType: activity.run_type || 'easy_base',
-    distanceKm: activity.distance_meters / 1000,
-    durationMin: activity.duration_seconds / 60,
-    avgPaceSecKm: activity.avg_pace_sec_km || 0,
-    avgHr: activity.avg_heart_rate || 0,
-    maxHr: activity.max_heart_rate || 0,
-    cadence: activity.avg_cadence || 0,
-    decouplingPct: activity.aerobic_decoupling_pct ?? null,
-    efficiencyFactor: activity.efficiency_factor ?? null,
-    avgTemp: activity.avg_temperature ?? null,
-    groundContactTime: activity.avg_stance_time ?? null,
-    elevationGainM: activity.elevation_gain_m ?? null,
-    steadyPaceSecKm: pauseBreakdown.steadyPaceSecKm || activity.steady_pace_sec_km || null,
-    steadyHr: pauseBreakdown.steadyHeartRate || activity.steady_heart_rate || null,
-    steadyCadence: pauseBreakdown.steadyCadence || activity.steady_cadence || null,
-    steadyStanceTime: pauseBreakdown.steadyStanceTimeMs || activity.steady_stance_time || null,
-    pauseBreakdown,
-    lt1Hr,
-    lt2Hr,
-    maxHeartRate,
-    restingHr,
-    records
-  });
+  // Historical chart bands and coaching use the same strictly preceding evidence.
+  const { lt1Hr, lt2Hr } = getHeartRateProfileAtDate(db, activity.start_time, id);
+  const stored = db.prepare('SELECT analysis_json FROM activity_coach_summaries WHERE activity_id = ?').get(id) as { analysis_json: string | null } | undefined;
+  let revision: string | null = null;
+  try {
+    const analysis: unknown = stored?.analysis_json ? JSON.parse(stored.analysis_json) : null;
+    if (analysis && typeof analysis === 'object' && 'revision' in analysis && typeof analysis.revision === 'string') revision = analysis.revision;
+  } catch { /* Legacy summaries remain readable without revision metadata. */ }
+  let freshness: AnalysisFreshness = { revision, status: !stored ? 'missing' : revision === ANALYSIS_REVISION ? 'fresh' : 'stale' };
+  let coachSummary: ActivityCoachSummary | null;
+  if (freshness.status === 'fresh' || !canWriteDatabase()) {
+    coachSummary = getActivityCoachSummaryService(db, id, { persist: false })?.coachSummary ?? null;
+    if (currentDatabaseOperation()) freshness = { ...freshness, status: 'updating' };
+  } else {
+    const persist = options.persistCoachSummary !== false;
+    coachSummary = withDatabaseOperation('analysis', () => syncActivityCoachSummary(db, id, undefined, { persist }));
+    if (persist && coachSummary) freshness = { revision: ANALYSIS_REVISION, status: 'fresh' };
+  }
 
   return {
     activity: {
@@ -514,7 +466,8 @@ export function getActivityDetailService(db: Database.Database, id: string, opti
     splits,
     intervals,
     records,
-    coachSummary: (coachSummary as ActivityCoachSummary) || null,
+    coachSummary,
+    analysisFreshness: freshness,
     heartRateThresholds: { lt1Hr, lt2Hr },
     pauseBreakdown,
     fitMetadata: (() => {
@@ -529,7 +482,7 @@ export function getActivityDetailService(db: Database.Database, id: string, opti
 export function getActivityCoachSummaryService(db: Database.Database, id: string, options: { persist?: boolean } = {}): CoachSummaryResponse | null {
   let coachRowValue: unknown = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get(id);
   if (!coachRowValue) {
-    if (options.persist === false) return null;
+    if (options.persist === false || !canWriteDatabase()) return null;
     syncActivityCoachSummary(db, id);
     coachRowValue = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get(id);
   }
@@ -555,39 +508,51 @@ export function getActivityCoachSummaryService(db: Database.Database, id: string
 
   return {
     coachSummary: {
+      classificationEvidence: parseClassificationEvidence(analysis?.classificationEvidence),
+      analysisProvenance: parseAnalysisProvenance(analysis?.provenance),
       messages: parseCoachMessages(analysis?.messages),
       headline: coachRow.headline,
       verdict: parseSessionVerdict(analysis?.verdict),
       effectivenessScore: coachRow.effectiveness_score,
       rating5: Number((coachRow.effectiveness_score / 20).toFixed(1)),
       stars: coachRow.effectiveness_score >= 85 ? 3 : coachRow.effectiveness_score >= 70 ? 2 : 1,
-      scoreBreakdown: parseArray(coachRow.score_breakdown_json),
+      scoreBreakdown: parseScoreFactors(parseArray(coachRow.score_breakdown_json)),
       keyInsights: parseStringArray(coachRow.key_insights_json),
-      insightTones: parseArray(coachRow.insight_tones_json),
+      insightTones: parseInsightTones(parseArray(coachRow.insight_tones_json)),
       recommendation: coachRow.recommendation,
-      focusAdvice: analysis?.focusAdvice ?? null,
-      rubricCoveragePct: analysis?.rubricCoveragePct ?? null,
-      rubricFamily: analysis?.rubricFamily ?? null,
-      walkAudit: analysis?.walkAudit ?? null,
-      context: analysis?.context ?? null,
-      updatedAt: coachRow.updated_at,
+      focusAdvice: typeof analysis?.focusAdvice === 'string' ? analysis.focusAdvice : null,
+      rubricCoveragePct: typeof analysis?.rubricCoveragePct === 'number' && Number.isFinite(analysis.rubricCoveragePct) ? analysis.rubricCoveragePct : null,
+      rubricFamily: typeof analysis?.rubricFamily === 'string' ? analysis.rubricFamily : null,
+      walkAudit: parseWalkAudit(analysis?.walkAudit),
+      context: parseCoachContext(analysis?.context),
+      ...(coachRow.updated_at ? { updatedAt: coachRow.updated_at } : {}),
       steadyPaceSecKm: coachRow.steady_pace_sec_km,
       steadyHeartRate: coachRow.steady_heart_rate,
       steadyCadence: coachRow.steady_cadence,
       steadyStanceTime: coachRow.steady_stance_time,
-      pauseBreakdown: coachRow.pause_breakdown_json ? (() => { try { return JSON.parse(coachRow.pause_breakdown_json); } catch { return null; } })() : null
+      pauseBreakdown: coachRow.pause_breakdown_json ? (() => { try { return parsePauseBreakdown(JSON.parse(coachRow.pause_breakdown_json)); } catch { return null; } })() : null
     }
   };
 }
 
 /** POST /api/activities/:id/weather/refresh - manually trigger or refresh historical weather */
 export async function refreshActivityWeatherService(db: Database.Database, id: string): Promise<WeatherRefreshResponse | null> {
-  const weather = await syncActivityWeather(db, id);
-  if (!weather) return null;
-  const updated = db.prepare('SELECT * FROM activities WHERE id = ?').get(id);
-  if (!updated) return null;
-  const coachSummary = syncActivityCoachSummary(db, id);
-  return { activity: activityFromRow(updated), weather, coachSummary };
+  const lease = reserveDatabaseOperation('weather');
+  try {
+    return await lease.run(async () => {
+      const activity = db.prepare('SELECT start_time FROM activities WHERE id = ?').get(id) as { start_time: string } | undefined;
+      if (!activity) return null;
+      // Ambient baseline changes affect later coaching, without replaying physiology.
+      const weather = await syncActivityWeather(db, id, () => {
+        for (const affectedId of affectedActivityIds(db, thresholdTime(activity.start_time))) syncActivityCoachSummary(db, affectedId);
+      });
+      if (!weather) return null;
+      const updated = db.prepare('SELECT * FROM activities WHERE id = ?').get(id);
+      if (!updated) return null;
+      const coachSummary = syncActivityCoachSummary(db, id, undefined, { persist: false });
+      return { activity: activityFromRow(updated), weather, coachSummary };
+    });
+  } finally { lease.release(); }
 }
 
 export interface UpdateActivityInput {
@@ -603,6 +568,7 @@ export type UpdateActivityResult =
 
 /** PATCH /api/activities/:id - manual override for run_type or notes */
 export function updateActivityService(db: Database.Database, id: string, input: UpdateActivityInput): UpdateActivityResult {
+  assertDatabaseWritable();
   const { run_type, is_failed_workout, name, tags } = input;
 
   const updates: string[] = [];

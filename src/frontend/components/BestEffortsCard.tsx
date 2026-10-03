@@ -1,3 +1,4 @@
+import { useActivityRevision } from '../features/activity-revision.js';
 import React, { useState, useEffect } from 'react';
 import { Trophy, Medal } from 'lucide-react';
 import { formatPace } from '../utils/formatters.js';
@@ -32,6 +33,7 @@ export interface BestEffortsResponse {
 
 export const BestEffortsCard: React.FC = () => {
   const { t } = useTranslation();
+  const revision = useActivityRevision();
   const [data, setData] = useState<BestEffortsResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [viewScope, setViewScope] = useState<'allTime' | 'currentYear'>('allTime');
@@ -39,13 +41,14 @@ export const BestEffortsCard: React.FC = () => {
   const currentYear = new Date().getFullYear();
 
   useEffect(() => {
-    getBestEfforts()
-      .then(json => {
-        setData(json);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+    const controller = new AbortController();
+    getBestEfforts(controller.signal).then(json => {
+      if (controller.signal.aborted) return;
+      setData(json);
+      setLoading(false);
+    }).catch(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [revision]);
 
   // Render every tracked distance so benchmarks without a result yet (e.g. a
   // Marathon) still occupy a placeholder slot instead of vanishing.

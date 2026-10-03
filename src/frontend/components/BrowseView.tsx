@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import type { Activity, ActivityDetailResponse, ActivityInterval, ActivityUpdate } from '../types/api.js';
-import { getActivityDetail, refreshActivityWeather } from '../api/client.js';
-import type { Translations } from '../i18n/types.js';
+import { useBrowseSelection } from '../features/browse/useBrowseSelection.js';
+import { useActivityDetail } from '../features/browse/useActivityDetail.js';
+import React, { useMemo } from 'react';
+import type { ActivityInterval } from '../types/api.js';
 import {
   HeartPulse,
   Plus,
@@ -20,82 +20,10 @@ import { CoachScoreCard } from './browse/CoachScoreCard.js';
 import { IntervalsTable } from './browse/IntervalsTable.js';
 
 
-/** A workout row as used by the browse list. Same shape as the API contract. */
-export type ActivitySummary = Activity;
-
-export interface BrowseViewProps {
-  activities: ActivitySummary[];
-  selectedActivityId: string | null;
-  dataRefreshKey?: number;
-  onSelectActivity: (id: string) => void;
-  onOpenUpload: () => void;
-  onActivityUpdated?: (activity: ActivityUpdate) => void;
-  theme?: 'dark' | 'light';
-  readOnly?: boolean;
-}
-
-/** The subset of a workout row needed to derive a display title. */
-export type DisplayTitleInput = Pick<Activity, 'name' | 'run_type'> & Partial<Pick<Activity, 'distance_meters'>>;
-
-export type DisplayTitleFn = (activity: DisplayTitleInput, t?: Translations) => string;
-
-export function getDisplayTitle(activity: DisplayTitleInput, t?: Translations): string {
-  const rawName = activity.name || '';
-  const isGenericGarminName = rawName.endsWith('Running') || rawName.endsWith('Run') || rawName === 'Singapore Running' || rawName === 'Singapore Intervals';
-
-  if (!isGenericGarminName && rawName.trim() !== '') {
-    return rawName;
-  }
-
-  if (t?.browse?.defaultTitles) {
-    const key = activity.run_type || '';
-    const defaultTitle = (t.browse.defaultTitles as Record<string, string | undefined>)[key];
-    if (defaultTitle) {
-      return defaultTitle;
-    }
-  }
-
-  const typeTitles: Record<string, string> = {
-    easy_base: 'Easy Aerobic Base',
-    long_run: 'Endurance Long Run',
-    threshold_lt2: 'Lactate Threshold (LT2)',
-    intervals_vo2: 'VO2 Max Intervals',
-    recovery: 'Recovery Jog',
-    strides: 'Base + Strides',
-    tempo: 'Marathon / Tempo Pace',
-    failed_workout: 'Aborted / Failed Workout',
-    accidental_tempo: 'Unplanned Tempo',
-    race: rawName || 'Race'
-  };
-
-  return typeTitles[activity.run_type || ''] || 'Aerobic Run';
-}
-
-export function doesActivityMatchTag(a: ActivitySummary, tag: string): boolean {
-  if (!tag || tag.toLowerCase() === 'all') return true;
-  const lower = tag.toLowerCase();
-  let tagsArr: string[] = [];
-  try {
-    tagsArr = a.tags ? JSON.parse(a.tags) : [];
-  } catch {
-    tagsArr = [];
-  }
-  if (tagsArr.some(t => t.toLowerCase() === lower)) return true;
-  if (lower === 'threshold' && (a.run_type === 'threshold_lt2' || a.run_type === 'tempo')) return true;
-  if (lower === 'vo2 max' && a.run_type === 'intervals_vo2') return true;
-  if (lower === 'easy base' && a.run_type === 'easy_base') return true;
-  if (lower === 'long run' && a.run_type === 'long_run') return true;
-  if (lower === 'race' && a.run_type === 'race') return true;
-  if (lower === 'recovery' && a.run_type === 'recovery') return true;
-  if (lower === 'tempo' && a.run_type === 'tempo') return true;
-  if (lower === 'marathon pace' && tagsArr.some(t => t.toLowerCase().includes('marathon'))) return true;
-  if (lower === 'strides' && (a.run_type === 'strides' || tagsArr.some(t => t.toLowerCase().includes('stride')))) return true;
-  return false;
-}
-
-const SIDEBAR_FILTER_TAGS = [
-  'All', 'Threshold', 'VO2 Max', 'Easy Base', 'Long Run', 'Race', 'Strides', 'Marathon Pace', 'Recovery'
-];
+export { getDisplayTitle, doesActivityMatchTag } from '../features/browse/selectors.js';
+export type { ActivitySummary, BrowseViewProps, DisplayTitleInput, DisplayTitleFn } from '../features/browse/selectors.js';
+import { getDisplayTitle } from '../features/browse/selectors.js';
+import type { BrowseViewProps } from '../features/browse/selectors.js';
 
 export const BrowseView: React.FC<BrowseViewProps> = ({
   activities = [],
@@ -107,201 +35,13 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
   theme = 'dark',
   readOnly = false
 }) => {
-  const safeActivities = useMemo(() => (Array.isArray(activities) ? activities : []), [activities]);
-  const { t, language, format, formatDate } = useTranslation();
-  const [selectedMonth, setSelectedMonth] = useState<string>('all');
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [showCalendar, setShowCalendar] = useState<boolean>(false);
-  const [calendarViewYm, setCalendarViewYm] = useState<string>(() => {
-    return safeActivities[0]?.start_time ? safeActivities[0].start_time.substring(0, 7) : new Date().toISOString().substring(0, 7);
-  });
-  const [selectedTagFilter, setSelectedTagFilter] = useState<string>('all');
-  const [activeSubTab, setActiveSubTab] = useState<'telemetry' | 'splits' | 'strides' | 'coach'>('telemetry');
-  const [mobileSubTab, setMobileSubTab] = useState<'list' | 'detail'>('list');
-  const [showTagMenu, setShowTagMenu] = useState<boolean>(false);
-  const tagMenuRef = useRef<HTMLDivElement>(null);
-
-  // Auto-dismiss tag menu when clicking outside or pressing Escape
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (tagMenuRef.current && !tagMenuRef.current.contains(e.target as Node)) {
-        setShowTagMenu(false);
-      }
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setShowTagMenu(false);
-      }
-    };
-    if (showTagMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleKeyDown);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [showTagMenu]);
-
-
-  const [detailData, setDetailData] = useState<ActivityDetailResponse | null>(null);
-  const [completedDetailRequest, setCompletedDetailRequest] = useState<string | null>(null);
-  const [requestError, setDetailError] = useState<string | null>(null);
-  const [retryCounter, setRetryCounter] = useState<number>(0);
-  const detailRequest = [selectedActivityId, retryCounter, dataRefreshKey].join(':');
-  const loadingDetail = !!selectedActivityId && completedDetailRequest !== detailRequest;
-  const detailError = completedDetailRequest === detailRequest ? requestError : null;
-  const [isRefreshingWeather, setIsRefreshingWeather] = useState<boolean>(false);
-
-  const handleRefreshWeather = async () => {
-    if (!selectedActivityId) return;
-    setIsRefreshingWeather(true);
-    try {
-      const data = await refreshActivityWeather(selectedActivityId);
-      setDetailData(prev => prev ? {
-        ...prev,
-        activity: { ...prev.activity, ...data.activity },
-        coachSummary: data.coachSummary || prev.coachSummary
-      } : null);
-    } catch (err) {
-      console.error('Failed to refresh microclimate weather:', err);
-    } finally {
-      setIsRefreshingWeather(false);
-    }
-  };
-
-  // Pre-calculate count of activities matching each sidebar tag
-  const tagCounts = useMemo(() => {
-    const counts: Record<string, number> = { All: safeActivities.length };
-    SIDEBAR_FILTER_TAGS.forEach(tag => {
-      if (tag === 'All') return;
-      counts[tag] = safeActivities.filter(a => doesActivityMatchTag(a, tag)).length;
-    });
-    return counts;
-  }, [safeActivities]);
-
-  // Derive unique years with recorded sessions for rapid year jumping
-  const availableYears = useMemo(() => {
-    const set = new Set<string>();
-    safeActivities.forEach(a => {
-      const yr = a.start_time?.substring(0, 4);
-      if (yr) set.add(yr);
-    });
-    return Array.from(set).sort();
-  }, [safeActivities]);
-
-  // Map dates (YYYY-MM-DD) to activity IDs and run types for the calendar
-  const activeDatesMap = useMemo(() => {
-    const map = new Map<string, { count: number; runTypes: string[]; ids: string[] }>();
-    safeActivities.forEach(a => {
-      const dStr = a.start_time?.substring(0, 10);
-      if (!dStr) return;
-      if (!map.has(dStr)) {
-        map.set(dStr, { count: 0, runTypes: [], ids: [] });
-      }
-      const entry = map.get(dStr)!;
-      entry.count++;
-      if (a.run_type && !entry.runTypes.includes(a.run_type)) {
-        entry.runTypes.push(a.run_type);
-      }
-      entry.ids.push(a.id);
-    });
-    return map;
-  }, [safeActivities]);
-
-  const filteredActivities = useMemo(() => {
-    return safeActivities.filter(a => {
-      if (selectedDate) {
-        return a.start_time?.startsWith(selectedDate);
-      }
-      if (selectedMonth !== 'all' && !a.start_time?.startsWith(selectedMonth)) {
-        return false;
-      }
-      return doesActivityMatchTag(a, selectedTagFilter);
-    });
-  }, [safeActivities, selectedDate, selectedMonth, selectedTagFilter]);
-
-  const groupedActivities = useMemo(() => {
-    if (selectedMonth !== 'all') {
-      return [{ ym: selectedMonth, title: '', items: filteredActivities, totalKm: 0 }];
-    }
-    const map = new Map<string, ActivitySummary[]>();
-    filteredActivities.forEach(a => {
-      const ym = a.start_time?.substring(0, 7) || 'Other';
-      if (!map.has(ym)) map.set(ym, []);
-      map.get(ym)!.push(a);
-    });
-
-    const groups: { ym: string; title: string; items: ActivitySummary[]; totalKm: number }[] = [];
-    const sortedYms = Array.from(map.keys()).sort().reverse();
-    sortedYms.forEach(ym => {
-      const items = map.get(ym)!;
-      const totalKm = items.reduce((sum, item) => sum + item.distance_meters, 0) / 1000;
-      const dObj = new Date(`${ym}-01`);
-      const title = ym === 'Other'
-        ? t.browse.otherGroup
-        : formatDate(dObj, { month: 'long', year: 'numeric' });
-      groups.push({ ym, title, items, totalKm: Number(totalKm.toFixed(1)) });
-    });
-    return groups;
-  }, [filteredActivities, selectedMonth, formatDate, t]);
-
-  // Auto-select first activity on initial mount only
-  const didAutoSelect = useRef(false);
-  useEffect(() => {
-    if (!didAutoSelect.current && !selectedActivityId && safeActivities.length > 0) {
-      didAutoSelect.current = true;
-      onSelectActivity(safeActivities[0].id);
-    }
-  }, [safeActivities, selectedActivityId, onSelectActivity]);
-
-  const [previousSelection, setPreviousSelection] = useState(selectedActivityId);
-  if (previousSelection !== selectedActivityId) {
-    setPreviousSelection(selectedActivityId);
-    setShowTagMenu(false);
-    const target = safeActivities.find(a => a.id === selectedActivityId);
-    if (previousSelection && target) {
-      if (selectedMonth !== 'all' && !target.start_time?.startsWith(selectedMonth)) setSelectedMonth('all');
-      if (selectedTagFilter !== 'all' && !doesActivityMatchTag(target, selectedTagFilter)) setSelectedTagFilter('all');
-      setMobileSubTab('detail');
-    }
-  }
-
-  useEffect(() => {
-    if (!selectedActivityId) return;
-
-    const controller = new AbortController();
-    getActivityDetail(selectedActivityId, controller.signal)
-      .then(data => {
-        if (controller.signal.aborted) return;
-        setDetailData(data);
-        if (!data.intervals || data.intervals.length === 0) {
-          setActiveSubTab(prev => (prev === 'strides' ? 'telemetry' : prev));
-        }
-        if (!data.splits || data.splits.length === 0) {
-          setActiveSubTab(prev => (prev === 'splits' ? 'telemetry' : prev));
-        }
-        if (data.coachSummary != null && onActivityUpdated) {
-          onActivityUpdated({
-            id: selectedActivityId,
-            verdict: data.coachSummary.verdict,
-            run_type: data.activity?.run_type,
-            name: data.activity?.name,
-            tags: data.activity?.tags
-          });
-        }
-        setDetailError(null);
-        setCompletedDetailRequest(detailRequest);
-      })
-      .catch(err => {
-        if (controller.signal.aborted || err.name === 'AbortError') return;
-        console.error('Failed to load activity detail:', err);
-        setDetailError(err.message || 'Failed to load activity telemetry profile');
-        setCompletedDetailRequest(detailRequest);
-      });
-
-    return () => controller.abort();
-  }, [selectedActivityId, detailRequest, onActivityUpdated]);
+  const { t, language, format } = useTranslation();
+  const { safeActivities, selectedMonth, setSelectedMonth, selectedDate, setSelectedDate, showCalendar, setShowCalendar,
+    calendarViewYm, setCalendarViewYm, selectedTagFilter, setSelectedTagFilter, mobileSubTab, setMobileSubTab,
+    showTagMenu, setShowTagMenu, tagMenuRef, tagCounts, availableYears, activeDatesMap, filteredActivities, groupedActivities } =
+    useBrowseSelection(activities, selectedActivityId, onSelectActivity);
+  const { detailData, setDetailData, loadingDetail, detailError, setRetryCounter, isRefreshingWeather, handleRefreshWeather, activeSubTab, setActiveSubTab } =
+    useActivityDetail(selectedActivityId, dataRefreshKey, onActivityUpdated);
 
   const act = detailData?.activity;
 

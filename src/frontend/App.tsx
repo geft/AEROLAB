@@ -1,3 +1,5 @@
+import { useActivityRevision, invalidateActivityData } from './features/activity-revision.js';
+import { useMaintenanceRefresh } from './features/useMaintenanceRefresh.js';
 import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import type { ActivityUpdate } from './types/api.js';
 import { Navbar, TabType } from './components/Navbar';
@@ -42,11 +44,12 @@ export function resolveSelectedActivityId(
 }
 
 export const App: React.FC = () => {
+  useMaintenanceRefresh(!SNAPSHOT_MODE);
   const { t, format, formatDate } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabType>('browse');
   const [activities, setActivities] = useState<ActivitySummary[]>([]);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
-  const [activityDataVersion, setActivityDataVersion] = useState(0);
+  const activityDataVersion = useActivityRevision();
   const [isUploadOpen, setIsUploadOpen] = useState<boolean>(false);
   const [isBackupOpen, setIsBackupOpen] = useState<boolean>(false);
   // null = still loading, false = needs onboarding, true = ready
@@ -157,6 +160,10 @@ export const App: React.FC = () => {
     }
   }, [isConfigured, fetchActivities]);
 
+  useEffect(() => {
+    if (activityDataVersion > 0 && isConfigured === true) void fetchActivities();
+  }, [activityDataVersion, isConfigured, fetchActivities]);
+
   const handleUploadSuccess = async (importedActivityId?: string) => {
     setIsUploadOpen(false);
     await checkProfileConfigured();
@@ -181,12 +188,12 @@ export const App: React.FC = () => {
   const handleRestoreComplete = async () => {
     await checkProfileConfigured();
     await fetchActivities();
-    setActivityDataVersion(version => version + 1);
+    invalidateActivityData();
   };
 
   const handleImportComplete = async () => {
     await fetchActivities();
-    setActivityDataVersion(version => version + 1);
+    invalidateActivityData();
   };
 
   if (profileLoadFailed || (historyLoadFailed && activities.length === 0)) {

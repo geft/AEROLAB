@@ -92,9 +92,11 @@ describe('background maintenance worker lifecycle', () => {
     expect(worker.options).toMatchObject({ workerData: { databasePath: 'temp.db', task: 'startup', baselineChanged: false } });
     expect(maintenance.getMaintenanceStatus()).toMatchObject({ status: 'running', task: 'startup' });
     worker.emit('message', { status: 'complete', completedMigrations: 2, syncedActivitiesCount: 4 });
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(maintenance.getMaintenanceStatus().status).toBe('running');
+    worker.emit('exit', 0);
     expect(onComplete).toHaveBeenCalledOnce();
     expect(maintenance.getMaintenanceStatus()).toMatchObject({ status: 'complete', completedMigrations: 2, syncedActivitiesCount: 4 });
-    worker.emit('exit', 0);
     expect(maintenance.isMaintenanceRunning()).toBe(false);
   });
 

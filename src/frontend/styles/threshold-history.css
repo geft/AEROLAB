@@ -1,0 +1,88 @@
+/* Calibration Scroll Container & Organization */
+.calibration-scroll-container {
+  max-height: 520px;
+  overflow-y: auto;
+  padding-right: 0.4rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-subtle) transparent;
+}
+
+.calibration-scroll-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.calibration-scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.calibration-scroll-container::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 4px;
+}
+
+.calibration-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.calibration-count-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(6, 182, 212, 0.12);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(6, 182, 212, 0.25);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.calibration-filter-pills {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.2rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+}
+
+.cal-filter-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cal-filter-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.cal-filter-btn.active {
+  color: var(--accent-action-fg);
+  background: var(--accent-action-bg);
+}
+
+.guide-info-trigger-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.guide-info-trigger-btn:hover {
+  color: var(--accent-cyan);
+  background: rgba(6, 182, 212, 0.1);
+  transform: scale(1.15);
+}

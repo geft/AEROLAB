@@ -1,0 +1,398 @@
+/* ==========================================================================
+   Profile View Styles
+   ========================================================================== */
+.profile-view-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.settings-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.profile-header-banner {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 1.5rem 1.75rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.profile-avatar-circle {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(6, 182, 212, 0.1);
+  border: 2px solid rgba(6, 182, 212, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.profile-header-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.profile-header-subtitle {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin: 0.25rem 0 0;
+}
+
+.save-profile-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.4rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  background: var(--accent-action-bg);
+  color: var(--accent-action-fg);
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.save-profile-btn:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
+}
+
+.save-profile-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.profile-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.85rem 1.25rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.profile-status-banner.success {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #10b981;
+}
+
+.profile-status-banner.error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.profile-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.profile-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.profile-card-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.thresholds-showcase-card {
+  border-left: 4px solid var(--accent-amber);
+}
+
+.thresholds-info-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  background: rgba(6, 182, 212, 0.05);
+  border: 1px solid rgba(6, 182, 212, 0.15);
+  border-radius: 8px;
+  padding: 0.85rem;
+}
+
+.thresholds-reference-grid,
+.threshold-pills-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.threshold-ref-box,
+.threshold-pill-item {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 1.1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.threshold-pill-item {
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.threshold-pill-item:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.threshold-ref-box.lt1 {
+  background: rgba(16, 185, 129, 0.04);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+.threshold-ref-box.lt1 .threshold-ref-val {
+  color: #10b981;
+}
+
+.threshold-ref-box.lt2 {
+  background: rgba(245, 158, 11, 0.04);
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+.threshold-ref-box.lt2 .threshold-ref-val {
+  color: #f59e0b;
+}
+
+.threshold-ref-box.economy {
+  background: rgba(6, 182, 212, 0.04);
+  border-color: rgba(6, 182, 212, 0.25);
+}
+
+.threshold-ref-box.economy .threshold-ref-val {
+  color: #06b6d4;
+}
+
+.threshold-tag-pill {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.threshold-tag-pill.lt1 {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.threshold-tag-pill.lt2 {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.threshold-tag-pill.economy {
+  background: rgba(6, 182, 212, 0.12);
+  color: #06b6d4;
+  border: 1px solid rgba(6, 182, 212, 0.3);
+}
+
+.threshold-ref-label,
+.threshold-pill-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.threshold-ref-val,
+.threshold-pill-value {
+  font-size: 1.65rem;
+  font-weight: 800;
+  line-height: 1.2;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  margin: 0.15rem 0;
+}
+
+.threshold-ref-sub,
+.threshold-pill-sub {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.profile-sections-grid {
+  display: grid;
+  /* min() prevents a single 480px column from overflowing tablet/phone widths */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr));
+  gap: 1.5rem;
+}
+
+.profile-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+/* Profile tab: the <form> stacks the Cardiovascular Baselines and Max HR
+   cards. Without this it was an unstyled block, so the two cards sat flush
+   against each other with no gutter. */
+.profile-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.form-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.form-input {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  outline: none;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.form-input:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.15);
+}
+
+.form-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.age-summary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  background: rgba(255, 255, 255, 0.02);
+  user-select: none;
+}
+
+.age-summary-value {
+  flex: 0 0 auto;
+  font-weight: 700;
+  color: #38bdf8;
+  white-space: nowrap;
+}
+
+.age-summary-max {
+  min-width: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.form-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.opt-out-box {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed var(--border-subtle);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+}
+
+/* ==========================================================================
+   Kilometer Splits Visualizer & Pace Variation Bars
+   ========================================================================== */
+
+.km-splits-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 1.25rem;
+  backdrop-filter: blur(12px);
+  margin-top: 0.5rem;
+}
+
+.km-splits-container.compact {
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-subtle);
+}
+
+[data-theme="light"] .km-splits-container {
+  background: #ffffff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+}
+
+.splits-controls-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.splits-title-area {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.splits-section-title {
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.splits-count-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(6, 182, 212, 0.12);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(6, 182, 212, 0.25);
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+}

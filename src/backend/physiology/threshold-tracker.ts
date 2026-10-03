@@ -1,4 +1,5 @@
-import { MAX_OBSERVED_GAP_SECONDS, observedDuration, timeWeightedMean } from './time-series.js';
+import { MAX_OBSERVED_GAP_SECONDS, sameTimerSegment, observedDuration, timeWeightedMean } from './time-series.js';
+import { loadAnalysisRecords } from '../db/analysis-records.js';
 import { getAthleteHeartRateProfile } from './athlete-profile.js';
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { rollingThreshold, thresholdTime, type ThresholdObservation } from '../../shared/threshold-trend.js';
@@ -346,7 +347,7 @@ export function evaluateThresholdUpdate(
       }
     } else {
       // Fallback for activities without split table (e.g. test suites or synthetic records)
-      const totalDuration = metadata.totalDurationSeconds || economy.movingDurationSeconds || 0;
+      const totalDuration = economy.movingDurationSeconds || metadata.totalDurationSeconds || 0;
       const avgHr = economy.avgMovingHeartRate || 0;
       const avgPace = economy.avgMovingPaceSecKm || 0;
       const dec = economy.aerobicDecouplingPct;
@@ -394,6 +395,8 @@ export function evaluateThresholdUpdate(
   // compensates for cardiac ramp lag, and scores confidence continuously based on rest continuity.
   let lt2Confidence = 0.85;
   if (profile.hasBaseline && runType === 'threshold_lt2') {
+    // Compatibility callers may omit telemetry; the adapter still restores timer state.
+    const analysisRecords = records.length ? records : loadAnalysisRecords(db, activityId);
     let workInvs: Array<{ interval_index: number; start_seconds: number; duration_seconds: number; distance_meters: number | null; avg_heart_rate: number | null; avg_pace_sec_km: number | null }> = [];
     try {
       workInvs = db.prepare(
@@ -468,15 +471,10 @@ export function evaluateThresholdUpdate(
         const previousHrTime = evalHrWeighted;
 
         // Fetch records if available
-        let repRecs: Array<{ elapsed_seconds: number; speed_mps: number | null; heart_rate: number | null }> = [];
-        try {
-          repRecs = db.prepare(
-            "SELECT elapsed_seconds, speed_mps, heart_rate FROM activity_records WHERE activity_id = ? AND elapsed_seconds >= ? AND elapsed_seconds <= ? ORDER BY elapsed_seconds ASC"
-          ).all(activityId, inv.start_seconds, inv.start_seconds + durToTake).map(value => {
-            const row = dbRow(value, 'activity_records');
-            return { elapsed_seconds: dbNumber(row, 'elapsed_seconds', 'activity_records')!, speed_mps: dbNumber(row, 'speed_mps', 'activity_records', true), heart_rate: dbNumber(row, 'heart_rate', 'activity_records', true) };
-          });
-        } catch { /* optional query: schema may predate this table */ }
+        // Reuse prepared telemetry from import/replay, including timer state.
+        const repRecs = analysisRecords.filter(r => r.elapsedSeconds >= inv.start_seconds && r.elapsedSeconds <= inv.start_seconds + durToTake)
+          .map(r => ({ elapsed_seconds: r.elapsedSeconds, speed_mps: r.speedMps, heart_rate: r.heartRate,
+            timerActive: r.timerActive, timerSegment: r.timerSegment }));
 
         if (observedDuration(repRecs, r => r.elapsed_seconds) >= 30) {
           // 1. Pace: strip initial acceleration ramp if starting from walk/stop (< 2.2 m/s)
@@ -508,7 +506,7 @@ export function evaluateThresholdUpdate(
           for (let r = 1; r < repRecs.length; r++) {
             const a = repRecs[r - 1], b = repRecs[r];
             const intervalSeconds = b.elapsed_seconds - a.elapsed_seconds;
-            if (intervalSeconds <= 0 || intervalSeconds > MAX_OBSERVED_GAP_SECONDS || a.heart_rate == null || b.heart_rate == null ||
+            if (!sameTimerSegment(a, b) || intervalSeconds <= 0 || intervalSeconds > MAX_OBSERVED_GAP_SECONDS || a.heart_rate == null || b.heart_rate == null ||
                 a.speed_mps == null || b.speed_mps == null || a.heart_rate <= 40 || b.heart_rate <= 40 || a.heart_rate >= effMax || b.heart_rate >= effMax ||
                 a.speed_mps <= 0 || b.speed_mps <= 0 || a.speed_mps > 8.5 || b.speed_mps > 8.5) continue;
             for (let half = 0; half < 2; half++) {
@@ -575,13 +573,13 @@ export function evaluateThresholdUpdate(
       let highRecords: ActivityRecord[] = [];
       let candidate: ActivityRecord[] = [];
       const validThresholdRecord = (record: ActivityRecord) =>
-        record.elapsedSeconds <= 3600 && record.heartRate != null && Number.isFinite(record.heartRate) &&
+        record.timerActive !== false && record.elapsedSeconds <= 3600 && record.heartRate != null && Number.isFinite(record.heartRate) &&
         record.heartRate >= lt2Floor && record.heartRate < effMax && record.speedMps != null &&
         Number.isFinite(record.speedMps) && record.speedMps > 0 && record.speedMps <= 8.5;
-      for (const record of [...records].sort((a, b) => a.elapsedSeconds - b.elapsedSeconds)) {
+      for (const record of [...analysisRecords].sort((a, b) => a.elapsedSeconds - b.elapsedSeconds)) {
         const previous = candidate[candidate.length - 1];
         const gap = previous ? record.elapsedSeconds - previous.elapsedSeconds : 0;
-        if (!validThresholdRecord(record) || gap > MAX_OBSERVED_GAP_SECONDS || gap < 0) {
+        if (!validThresholdRecord(record) || (previous && !sameTimerSegment(previous, record)) || gap > MAX_OBSERVED_GAP_SECONDS || gap < 0) {
           candidate = [];
         }
         if (validThresholdRecord(record)) {

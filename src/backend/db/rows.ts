@@ -106,39 +106,53 @@ export function heartRateRecordFromRow(value: unknown): HeartRateRecordDbRow {
   return { elapsed_seconds, heart_rate: nullableNumber(row, 'heart_rate', 'activity_records') };
 }
 
-function telemetryRow<T>(value: unknown, table: string, numberFields: string[]): T {
+function telemetryRow(value: unknown, table: string, numberFields: string[]): Record<string, unknown> {
   const row = objectRow(value, table);
   for (const key of numberFields) nullableNumber(row, key, table);
   if (row.activity_id != null && typeof row.activity_id !== 'string') throw new Error(`Invalid ${table}.activity_id`);
-  return row as T;
+  return row;
 }
 
 export type ValidatedActivityRecordRow = ActivityRecordRow & { elapsed_seconds: number; distance_m: number | null; speed_mps: number | null };
 
 export function activityRecordFromRow(value: unknown): ValidatedActivityRecordRow {
-  const row = telemetryRow<ActivityRecordRow>(value, 'activity_records', [
+  const row = telemetryRow(value, 'activity_records', [
     'id', 'elapsed_seconds', 'heart_rate', 'cadence', 'speed_mps', 'distance_m', 'altitude_m', 'lat', 'lon', 'temp', 'vert_osc', 'stance_time'
   ]);
   const elapsed = nullableNumber(row, 'elapsed_seconds', 'activity_records');
   if (elapsed === null) throw new Error('Invalid activity_records.elapsed_seconds');
-  return { ...row, elapsed_seconds: elapsed, distance_m: nullableNumber(row, 'distance_m', 'activity_records'), speed_mps: nullableNumber(row, 'speed_mps', 'activity_records') };
+  return { ...row, elapsed_seconds: elapsed, distance_m: nullableNumber(row, 'distance_m', 'activity_records'), speed_mps: nullableNumber(row, 'speed_mps', 'activity_records'),
+    heart_rate: nullableNumber(row, 'heart_rate', 'activity_records'), cadence: nullableNumber(row, 'cadence', 'activity_records'), altitude_m: nullableNumber(row, 'altitude_m', 'activity_records') };
 }
 
 export function activitySplitFromRow(value: unknown): ActivitySplitRow {
-  return telemetryRow<ActivitySplitRow>(value, 'activity_splits', [
+  const row = telemetryRow(value, 'activity_splits', [
     'id', 'split_index', 'distance_meters', 'duration_seconds', 'avg_pace_sec_km', 'avg_heart_rate',
     'split_efficiency_factor', 'elevation_change_m', 'avg_cadence', 'avg_stance_time', 'avg_vert_osc', 'avg_vert_ratio'
   ]);
+  return { ...row, split_index: requiredNumber(row, 'split_index', 'activity_splits'),
+    distance_meters: requiredNumber(row, 'distance_meters', 'activity_splits'), duration_seconds: requiredNumber(row, 'duration_seconds', 'activity_splits'),
+    avg_pace_sec_km: nullableNumber(row, 'avg_pace_sec_km', 'activity_splits'), avg_heart_rate: nullableNumber(row, 'avg_heart_rate', 'activity_splits'),
+    split_efficiency_factor: nullableNumber(row, 'split_efficiency_factor', 'activity_splits'), elevation_change_m: nullableNumber(row, 'elevation_change_m', 'activity_splits') };
 }
 
 export function activityIntervalFromRow(value: unknown): ActivityIntervalRow {
-  const row = telemetryRow<ActivityIntervalRow>(value, 'activity_intervals', [
+  const row = telemetryRow(value, 'activity_intervals', [
     'id', 'interval_index', 'start_seconds', 'duration_seconds', 'distance_meters', 'avg_speed_mps', 'avg_pace_sec_km',
     'avg_heart_rate', 'max_heart_rate', 'avg_cadence', 'peak_cadence', 'peak_speed_mps', 'peak_pace_sec_km',
     'min_stance_time', 'hr_drop', 'avg_vert_osc', 'avg_stance_time', 'avg_step_length', 'avg_stride_length', 'avg_vert_ratio'
   ]);
   if (row.type != null && typeof row.type !== 'string') throw new Error('Invalid activity_intervals.type');
-  return row;
+  return { ...row, type: requiredString(row, 'type', 'activity_intervals'), interval_index: requiredNumber(row, 'interval_index', 'activity_intervals'),
+    start_seconds: requiredNumber(row, 'start_seconds', 'activity_intervals'), duration_seconds: requiredNumber(row, 'duration_seconds', 'activity_intervals'),
+    distance_meters: requiredNumber(row, 'distance_meters', 'activity_intervals'), avg_pace_sec_km: nullableNumber(row, 'avg_pace_sec_km', 'activity_intervals'),
+    avg_heart_rate: nullableNumber(row, 'avg_heart_rate', 'activity_intervals') };
+}
+
+function requiredNumber(row: Record<string, unknown>, key: string, table: string): number {
+  const value = nullableNumber(row, key, table);
+  if (value == null) throw new Error(`Invalid ${table}.${key}`);
+  return value;
 }
 
 function requiredString(row: Record<string, unknown>, key: string, table: string): string {

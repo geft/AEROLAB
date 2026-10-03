@@ -36,6 +36,26 @@ describe('named database migrations', () => {
     db.close();
   });
 
+  it('refreshes equivalent upgrades once and rolls back every pending checkpoint on failure', () => {
+    const db = new Database(':memory:');
+    try {
+      db.exec("CREATE TABLE activities (id TEXT PRIMARY KEY, value INTEGER); INSERT INTO activities VALUES ('a', 1)");
+      const first = createMigrationRunner(db);
+      expect(first.runGroup(['one', 'two'], () => {
+        db.prepare('UPDATE activities SET value=2').run();
+        throw new Error('interrupted');
+      })).toBe(false);
+      expect(db.prepare('SELECT value FROM activities').get()).toEqual({ value: 1 });
+      expect(db.prepare('SELECT name FROM schema_migrations').all()).toEqual([]);
+      const retry = createMigrationRunner(db);
+      let passes = 0;
+      expect(retry.runGroup(['one', 'two'], () => { passes++; })).toBe(true);
+      expect(retry.runGroup(['one', 'two'], () => { passes++; })).toBe(true);
+      expect(passes).toBe(1);
+      expect(db.prepare('SELECT name FROM schema_migrations ORDER BY name').all()).toEqual([{ name: 'one' }, { name: 'two' }]);
+    } finally { db.close(); }
+  });
+
   it('migrates existing manual labels and preserves them on subsequent replays', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aerolab-confirmed-migration-'));
     roots.push(root);

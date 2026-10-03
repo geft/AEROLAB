@@ -3,20 +3,16 @@ import path from 'path';
 import { randomUUID } from 'crypto';
 import Database from 'better-sqlite3';
 import { closeDatabase, getDatabase } from './client.js';
-import { isMaintenanceRunning } from '../jobs/maintenance.js';
+import { reserveDatabaseOperation, withDatabaseOperation, currentDatabaseOperation } from '../application/database-operations.js';
 
 export type StorageErrorCode = 'INVALID_DATABASE' | 'DATABASE_BUSY' | 'DESTINATION_EXISTS' | 'COPY_FAILED' | 'RESTORE_FAILED';
 export type StorageResult<T> = { ok: true; value: T } | { ok: false; code: StorageErrorCode; error: string };
 
-let operationActive = false;
-
-function acquireOperation(): boolean {
-  if (operationActive) return false;
-  operationActive = true;
-  return true;
+export function createSnapshot(db: Database.Database, destination: string): void {
+  return withDatabaseOperation('storage', () => createSnapshotWithLock(db, destination));
 }
 
-export function createSnapshot(db: Database.Database, destination: string): void {
+function createSnapshotWithLock(db: Database.Database, destination: string): void {
   if (fs.existsSync(destination)) throw new Error('Snapshot destination already exists');
   db.prepare(`VACUUM INTO '${destination.replace(/\\/g, '/').replace(/'/g, "''")}'`).run();
 }
@@ -56,29 +52,29 @@ export function validateDatabaseSnapshot(filePath: string): { valid: boolean; ac
 
 /** Snapshot the live WAL-backed database into a new file, without overwriting. */
 export async function copyCurrentDatabaseTo(destination: string): Promise<StorageResult<{ databasePath: string }>> {
-  if (isMaintenanceRunning()) return { ok: false, code: 'DATABASE_BUSY', error: 'Workout analysis is updating; retry after it finishes' };
-  if (!acquireOperation()) return { ok: false, code: 'DATABASE_BUSY', error: 'Another database file operation is running' };
+  if (currentDatabaseOperation()) return { ok: false, code: 'DATABASE_BUSY', error: 'Workout analysis is updating; retry after it finishes' };
+  const lease = reserveDatabaseOperation('storage');
   const stage = path.join(path.dirname(destination), `.aerolab-copy-${randomUUID()}.db`);
   try {
     if (fs.existsSync(destination)) return { ok: false, code: 'DESTINATION_EXISTS', error: 'Destination already exists' };
-    await getDatabase().backup(stage);
+    await lease.run(() => getDatabase().backup(stage));
     fs.copyFileSync(stage, destination, fs.constants.COPYFILE_EXCL);
     return { ok: true, value: { databasePath: destination } };
   } catch (error) {
     return { ok: false, code: 'COPY_FAILED', error: error instanceof Error ? error.message : 'Failed to copy database' };
   } finally {
     try { if (fs.existsSync(stage)) fs.unlinkSync(stage); } catch { /* best effort */ }
-    operationActive = false;
+    lease.release();
   }
 }
 
 export function restoreDatabaseFromFile(candidatePath: string): { success: boolean; activityCount: number; safetyBackupPath?: string; error?: string } {
-  if (isMaintenanceRunning()) return { success: false, activityCount: 0, error: 'Workout analysis is updating; retry after it finishes' };
-  if (!acquireOperation()) return { success: false, activityCount: 0, error: 'Another database file operation is running' };
+  if (currentDatabaseOperation()) return { success: false, activityCount: 0, error: 'Workout analysis is updating; retry after it finishes' };
+  const lease = reserveDatabaseOperation('storage');
   try {
-    return restoreWithLock(candidatePath);
+    return lease.run(() => restoreWithLock(candidatePath));
   } finally {
-    operationActive = false;
+    lease.release();
   }
 }
 

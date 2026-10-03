@@ -1,5 +1,5 @@
 import { ACWR_THRESHOLDS } from '../../shared/training-load.js';
-import { MAX_OBSERVED_GAP_SECONDS } from './time-series.js';
+import { observedIntervals } from './time-series.js';
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { getDefaultZones } from './zones.js';
 /**
@@ -62,7 +62,7 @@ export interface TrainingStatusResult {
  * Calculates per-activity scaled TRIMP and zone duration breakdown.
  */
 export function calculateActivityTrainingLoad(
-  records: Array<{ elapsed_seconds?: number | null; elapsedSeconds?: number | null; heart_rate?: number | null; heartRate?: number | null }>,
+  records: Array<{ elapsed_seconds?: number | null; elapsedSeconds?: number | null; heart_rate?: number | null; heartRate?: number | null; timerActive?: boolean; timerSegment?: number }>,
   hrProfile: HrProfile,
   fallbackSummary?: { durationSeconds?: number | null; avgHeartRate?: number | null }
 ): ActivityLoadResult {
@@ -82,14 +82,7 @@ export function calculateActivityTrainingLoad(
   let z5Sec = 0;
 
   if (records && records.length > 1) {
-    for (let i = 1; i < records.length; i++) {
-      const prev = records[i - 1];
-      const curr = records[i];
-
-      const prevSec = prev.elapsed_seconds ?? prev.elapsedSeconds ?? 0;
-      const currSec = curr.elapsed_seconds ?? curr.elapsedSeconds ?? 0;
-      const dtSec = currSec - prevSec;
-      if (!Number.isFinite(dtSec) || dtSec <= 0 || dtSec > MAX_OBSERVED_GAP_SECONDS) continue;
+    for (const { b: curr, seconds: dtSec } of observedIntervals(records, r => r.elapsed_seconds ?? r.elapsedSeconds ?? NaN)) {
 
       const hr = curr.heart_rate ?? curr.heartRate ?? 0;
       if (!Number.isFinite(hr) || hr < restingHr || hr > maxHr) continue;

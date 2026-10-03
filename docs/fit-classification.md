@@ -56,10 +56,10 @@ fields remain available for future analysis without reading large raw FIT JSON.
 | Workout steps + lap workout-step indexes | Preserved in FIT metadata. Lap intensity supplies observed structure now; planned targets could later improve intent/adherence reporting without treating the plan as completed work. |
 | Device, developer fields, HRV, training effect | Preserved metadata. Future provenance/context inputs; proprietary summary scores and workout HRV do not replace the local physiological classifier. |
 
-The change is scoped to classification, segmentation, running-economy summaries,
-and replay. Raw-record consumers such as coach calculations and training-load
-recomputation do not yet reconstruct timer state from FIT metadata themselves.
-Propagating the same analysis context to those consumers is a separate follow-up.
+Timer-aware analysis now also reaches training load, continuous/rep calibration,
+coaching and query fallbacks. Speed repair operates on an analysis copy and cannot
+cross a recording gap or timer segment. Historical detail charts use the same
+workout-date HR profile as coaching. Raw export telemetry remains untouched.
 
 ## Verification
 

@@ -1,3 +1,4 @@
+import { useActivityRevision } from '../features/activity-revision.js';
 import { ACWR_THRESHOLDS } from '../../shared/training-load.js';
 import React, { useState, useEffect, useRef } from 'react';
 import { Activity, Flame, ShieldAlert, CheckCircle2, TrendingUp, HelpCircle, X } from 'lucide-react';
@@ -31,10 +32,12 @@ export interface TrainingStatusData {
 
 export const TrainingLoadCard: React.FC = () => {
   const { t, format } = useTranslation();
+  const revision = useActivityRevision();
   const [days, setDays] = useState<number>(30);
   const [data, setData] = useState<TrainingStatusData | null>(null);
-  const [loadedDays, setLoadedDays] = useState<number | null>(null);
-  const loading = loadedDays !== days;
+  const [loadedDays, setLoadedDays] = useState<string | null>(null);
+  const request = [days, revision].join(':');
+  const loading = loadedDays !== request;
   const [hoveredDay, setHoveredDay] = useState<DayLoadPoint | null>(null);
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
   const chartScrollRef = useRef<HTMLDivElement>(null);
@@ -48,11 +51,11 @@ export const TrainingLoadCard: React.FC = () => {
         if (json.trainingStatus) {
           setData(json.trainingStatus);
         }
-        setLoadedDays(days);
+        setLoadedDays(request);
       })
-      .catch(() => { if (!cancelled) setLoadedDays(days); });
+      .catch(() => { if (!cancelled) setLoadedDays(request); });
     return () => { cancelled = true; };
-  }, [days]);
+  }, [days, request]);
 
   if (loading && !data) {
     return (

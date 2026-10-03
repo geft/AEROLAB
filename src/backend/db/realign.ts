@@ -1,9 +1,15 @@
+import { activityFromRow, objectRow } from './rows.js';
+import type { Activity } from '../../shared/activity.js';
+import type { RunType } from '../ingestion/classifier.js';
+import { persistWorkoutSegments } from './workout-segments.js';
+import { assertDatabaseWritable } from '../application/database-operations.js';
 import type Database from 'better-sqlite3';
-import type { ActivityMetadata, ActivityRecord } from '../domain/telemetry.js';
+import type { ClassificationEvidence } from '../../shared/contracts/classification.js';
+import type { ActivityMetadata } from '../domain/telemetry.js';
 import { analyzeWorkout, prepareAnalysisContext } from '../application/analysis/analyze-workout.js';
 import { getAthleteHeartRateProfile } from '../physiology/athlete-profile.js';
 import type { EconomyMetrics, SplitLap } from '../physiology/economy.js';
-import { ANALYSIS_RECORD_COLUMNS } from './analysis-records.js';
+import { ANALYSIS_RECORD_COLUMNS, analysisRecordFromRow } from './analysis-records.js';
 import { evaluateThresholdUpdate, getCurrentThresholds, getStridePaceAnchorSecKmAtDate, getHeartRateProfileAtDate } from '../physiology/threshold-tracker.js';
 import { thresholdTime } from '../../shared/threshold-trend.js';
 import { calculateActivityTrainingLoad } from '../physiology/training-load.js';
@@ -30,30 +36,6 @@ export interface RealignOptions {
   onProgress?: (completed: number, total: number) => void;
 }
 
-function mapRecords(rows: any[]): ActivityRecord[] {
-  return rows.map(r => ({
-    timestamp: r.timestamp,
-    elapsedSeconds: r.elapsed_seconds,
-    heartRate: r.heart_rate,
-    cadence: r.cadence,
-    speedMps: r.speed_mps,
-    distanceMeters: r.distance_m,
-    altitudeMeters: r.altitude_m,
-    latitude: r.lat,
-    longitude: r.lon,
-    temperature: r.temp,
-    verticalOscillation: r.vert_osc,
-    stanceTime: r.stance_time,
-    stepLength: r.step_length_m,
-    verticalRatio: r.vertical_ratio,
-    stanceTimeBalance: r.stance_time_balance,
-    power: r.power_w,
-    respirationRate: r.respiration_rate,
-    coreTemperature: r.core_temperature_c,
-    fractionalCadence: r.fractional_cadence
-  }));
-}
-
 /**
  * Force-realigns stored analysis with the current detection/classification
  * code: re-detects intervals, re-classifies run types, rebuilds tags,
@@ -65,6 +47,7 @@ function mapRecords(rows: any[]): ActivityRecord[] {
  * the whole pass (the previous silent failure mode that left DBs stale).
  */
 export function realignDatabase(db: Database.Database, options: RealignOptions = {}): RealignStats {
+  assertDatabaseWritable();
   const log = options.logger ?? (() => {});
   const stats: RealignStats = {
     activitiesProcessed: 0,
@@ -77,14 +60,23 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
     profileLt2Hr: null
   };
 
-  let activities: any[];
+  const classifications = new Map<string, ClassificationEvidence>();
+  type ReplayActivity = Activity & { manual_run_type: RunType | null; manual_failed_workout: number | null };
+  const activity = (value: unknown): ReplayActivity => {
+    const row = objectRow(value, 'activities');
+    const manual = row.manual_run_type;
+    if (manual != null && !['easy_base', 'long_run', 'threshold_lt2', 'intervals_vo2', 'race', 'recovery'].includes(String(manual))) throw new Error('Invalid activities.manual_run_type');
+    if (row.manual_failed_workout != null && row.manual_failed_workout !== 0 && row.manual_failed_workout !== 1) throw new Error('Invalid activities.manual_failed_workout');
+    return { ...activityFromRow(row), manual_run_type: manual as RunType | null ?? null, manual_failed_workout: row.manual_failed_workout as number | null ?? null };
+  };
+  let activities: ReplayActivity[];
   if (options.activityIds && options.activityIds.length > 0) {
     const placeholders = options.activityIds.map(() => '?').join(',');
     activities = db.prepare(
       `SELECT * FROM activities WHERE id IN (${placeholders}) ORDER BY julianday(start_time) ASC, id ASC`
-    ).all(...options.activityIds) as any[];
+    ).all(...options.activityIds).map(activity);
   } else {
-    activities = db.prepare('SELECT * FROM activities ORDER BY julianday(start_time) ASC, id ASC').all() as any[];
+    activities = db.prepare('SELECT * FROM activities ORDER BY julianday(start_time) ASC, id ASC').all().map(activity);
   }
   activities.sort((a, b) => thresholdTime(a.start_time) - thresholdTime(b.start_time) || a.id.localeCompare(b.id));
   if (activities.length === 0) return stats;
@@ -93,24 +85,6 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
   // Cache fields describe current fitness, not the starting state of history.
   db.prepare("UPDATE athlete_profile SET lt1_hr = ?, lt2_hr = ? WHERE id = 'primary'")
     .run(baseline.hasBaseline ? baseline.lt1Hr : null, baseline.hasBaseline ? baseline.lt2Hr : null);
-
-  const insertInterval = db.prepare(`
-    INSERT INTO activity_intervals (
-      activity_id, interval_index, type, start_seconds, duration_seconds,
-      distance_meters, avg_speed_mps, avg_pace_sec_km, avg_heart_rate,
-      max_heart_rate, avg_cadence, peak_cadence, peak_speed_mps, peak_pace_sec_km,
-      min_stance_time, hr_drop, avg_vert_osc, avg_stance_time,
-      avg_step_length, avg_stride_length, avg_vert_ratio
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const insertSplit = db.prepare(`
-    INSERT INTO activity_splits (
-      activity_id, split_index, distance_meters, duration_seconds,
-      avg_pace_sec_km, avg_heart_rate, split_efficiency_factor, elevation_change_m,
-      avg_cadence, avg_stance_time, avg_vert_osc, avg_vert_ratio
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
 
   // Reject stale workout-derived observations before they can influence later
   // runs. Explicit dated external measurements survive without a source workout.
@@ -138,30 +112,30 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
   // excluded from classification, so repeated replay is causal and deterministic.
   for (const [index, act] of activities.entries()) {
     try {
-      const records = db.prepare(`SELECT ${ANALYSIS_RECORD_COLUMNS} FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC`).all(act.id) as any[];
+      const records = db.prepare(`SELECT ${ANALYSIS_RECORD_COLUMNS} FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC`).all(act.id).map(analysisRecordFromRow);
       if (records.length <= 30) {
         stats.activitiesSkipped++;
         continue;
       }
       const rebuilt = db.transaction(() => {
         db.prepare("DELETE FROM physiological_thresholds WHERE source_activity_id = ? AND source_kind = 'workout'").run(act.id);
-        const rawMapped = mapRecords(records);
+        const rawMapped = records;
         const storedFit = db.prepare('SELECT metadata_json FROM activity_fit_details WHERE activity_id = ?').get(act.id) as { metadata_json: string } | undefined;
         const hrProfile = getHeartRateProfileAtDate(db, act.start_time);
         const stridePaceAnchorSecKm = getStridePaceAnchorSecKmAtDate(db, act.start_time);
         const meta: ActivityMetadata = {
           id: act.id,
-          name: act.name,
-          sport: act.sport,
+          name: act.name ?? '',
+          sport: act.sport ?? 'running',
           date: act.start_time,
           totalDistanceMeters: act.distance_meters,
           totalDurationSeconds: act.duration_seconds,
           totalElapsedSeconds: act.elapsed_seconds || act.duration_seconds,
-          avgHeartRate: act.avg_heart_rate,
-          maxHeartRate: act.max_heart_rate,
-          avgCadence: act.avg_cadence,
-          maxCadence: act.max_cadence,
-          calories: act.calories,
+          avgHeartRate: act.avg_heart_rate ?? 0,
+          maxHeartRate: act.max_heart_rate ?? 0,
+          avgCadence: act.avg_cadence ?? 0,
+          maxCadence: act.max_cadence ?? 0,
+          calories: act.calories ?? 0,
           totalAscentMeters: act.elevation_gain_m || 0,
           totalDescentMeters: act.elevation_loss_m || 0
         };
@@ -172,18 +146,7 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
           confirmedRunType: act.manual_run_type, precomputed: options.precomputed?.get(act.id)
         });
         const mapped = context.records;
-        db.prepare('DELETE FROM activity_intervals WHERE activity_id = ?').run(act.id);
-        for (const inv of intervals) {
-          insertInterval.run(
-            act.id, inv.intervalIndex, inv.type, inv.startSeconds, inv.durationSeconds,
-            inv.distanceMeters, inv.avgSpeedMps, inv.avgPaceSecKm, inv.avgHeartRate,
-            inv.maxHeartRate, inv.avgCadence, inv.peakCadence ?? null, inv.peakSpeedMps ?? null,
-            inv.peakPaceSecKm ?? null, inv.minStanceTime ?? null, inv.hrDrop ?? null,
-            inv.avgVertOsc ?? null, inv.avgStanceTime ?? null,
-            inv.avgStepLength ?? null, inv.avgStrideLength ?? null,
-            inv.avgVertRatio ?? null
-          );
-        }
+        persistWorkoutSegments(db, act.id, splits, intervals, true);
         const load = calculateActivityTrainingLoad(mapped, hrProfile,
           { durationSeconds: act.duration_seconds, avgHeartRate: act.avg_heart_rate });
         db.prepare(`UPDATE activities SET training_load=?,z1_seconds=?,z2_seconds=?,z3_seconds=?,z4_seconds=?,z5_seconds=? WHERE id=?`)
@@ -223,41 +186,25 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
           act.id
         );
 
-        if (splits.length > 0) {
-          db.prepare('DELETE FROM activity_splits WHERE activity_id = ?').run(act.id);
-          for (const s of splits) {
-            insertSplit.run(
-              act.id,
-              s.splitIndex,
-              s.distanceMeters,
-              s.durationSeconds,
-              s.avgPaceSecKm,
-              s.avgHeartRate,
-              s.splitEfficiencyFactor,
-              s.elevationChangeM,
-              s.avgCadence ?? null,
-              s.avgStanceTimeMs ?? null,
-              s.avgVertOscMm ?? null,
-              s.avgVertRatioPct ?? null
-            );
-          }
-        }
-
         if (act.manual_failed_workout !== 1)
           evaluateThresholdUpdate(db, act.id, act.start_time, runType, meta, mapped, economy, hrProfile);
-        return { runType, intervalCount: intervals.length };
+        return { runType, intervalCount: intervals.length, evidence: classification.evidence };
       })();
+      classifications.set(act.id, rebuilt.evidence);
       stats.intervalsRebuilt += rebuilt.intervalCount;
       if (act.run_type !== rebuilt.runType)
-        stats.runTypeChanges.push({ id: act.id, from: act.run_type, to: rebuilt.runType });
+        stats.runTypeChanges.push({ id: act.id, from: act.run_type ?? '', to: rebuilt.runType });
       stats.activitiesProcessed++;
-    } catch (err: any) {
-      stats.activitiesFailed.push(`${act.id}: ${err?.message || err}`);
-      log(`  FAILED ${act.id}: ${err?.message || err}`);
+    } catch (err) {
+      stats.activitiesFailed.push(`${act.id}: ${err instanceof Error ? err.message : String(err)}`);
+      log(`  FAILED ${act.id}: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       options.onProgress?.(index + 1, activities.length);
     }
   }
+
+  // A strict correction reports replay failures before finalization can mask them.
+  if (options.strict && stats.activitiesFailed.length) return stats;
 
   // Clean up any duplicate calibrations for identical source activities
   try {
@@ -273,7 +220,7 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
   try {
     const current = getCurrentThresholds(db);
     try {
-      const prof = db.prepare('SELECT lt1_hr, lt2_hr FROM athlete_profile WHERE id = ?').get('primary') as any;
+      const prof = db.prepare('SELECT lt1_hr, lt2_hr FROM athlete_profile WHERE id = ?').get('primary') as { lt1_hr: number | null; lt2_hr: number | null } | undefined;
       if (prof && getAthleteHeartRateProfile(db).hasBaseline) {
         if (current.lt1Hr !== prof.lt1_hr || current.lt2Hr !== prof.lt2_hr) {
           db.prepare('UPDATE athlete_profile SET lt1_hr = ?, lt2_hr = ?, lt1_min_hr = ?, lt1_max_hr = ?, z3_start_hr = ?, z4_start_hr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
@@ -284,17 +231,17 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
         stats.profileLt2Hr = current.lt2Hr;
       }
     } catch (error) { if (options.strict) throw error; /* non-fatal maintenance */ }
-  } catch (err: any) {
+  } catch (err) {
     if (options.strict) throw err;
-    log(`  profile sync skipped: ${err?.message || err}`);
+    log(`  profile sync skipped: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   try {
-    const synced = syncAllCoachSummaries(db, options.activityIds);
+    const synced = syncAllCoachSummaries(db, options.activityIds, classifications);
     log(`  coach summaries re-synced for ${synced} activities`);
-  } catch (err: any) {
+  } catch (err) {
     if (options.strict) throw err;
-    log(`  coach re-sync skipped: ${err?.message || err}`);
+    log(`  coach re-sync skipped: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   log(`Done: ${stats.activitiesProcessed} processed, ${stats.activitiesSkipped} skipped, ` +

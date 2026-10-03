@@ -1,0 +1,660 @@
+/* Navbar */
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  background: var(--navbar-bg);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background 0.25s ease, border-color 0.25s ease;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 1.25rem;
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.mobile-nav-title {
+  display: none;
+}
+
+.nav-tabs {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+}
+
+[data-theme="light"] .nav-tabs {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.nav-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.45rem 1.15rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.session-card:focus-visible,
+.dropzone-inline:focus-visible,
+.nav-tab-btn:focus-visible,
+.nav-import-actions .upload-btn:focus-visible,
+.nav-more-trigger-btn:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+.dropzone-inline {
+  display: block;
+  width: 100%;
+  font-family: var(--font-body);
+}
+
+.nav-tab-icon {
+  flex-shrink: 0;
+}
+
+.nav-tab-btn:hover {
+  color: var(--text-primary);
+}
+
+.nav-tab-btn.active {
+  background: var(--accent-action-bg);
+  color: var(--accent-action-fg);
+  box-shadow: 0 0 16px rgba(6, 182, 212, 0.4);
+}
+
+[data-theme="light"] .nav-tab-btn.active {
+  background: var(--accent-action-bg);
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(2, 132, 199, 0.35);
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.nav-desktop-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.nav-compact-actions {
+  display: none;
+}
+
+.theme-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 0.825rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+[data-theme="light"] .theme-toggle-btn {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.theme-toggle-btn:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--border-active);
+}
+
+.theme-icon.sun {
+  color: #f59e0b;
+}
+
+.theme-icon.moon {
+  color: #8b5cf6;
+}
+
+/* Font Size Stepper Control (+ / -) in Navbar */
+.font-size-stepper {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 2px 4px;
+  gap: 2px;
+  user-select: none;
+  transition: all 0.2s ease;
+}
+
+[data-theme="light"] .font-size-stepper {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.font-stepper-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.font-stepper-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .font-stepper-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.font-stepper-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.font-stepper-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  padding: 0 0.35rem;
+  min-width: 52px;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Nav Dropdowns (Language & Options) */
+.nav-dropdown-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.nav-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 145px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-active);
+  border-radius: 8px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px);
+  padding: 0.35rem;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  animation: navDropdownFadeIn 0.15s ease;
+}
+
+[data-theme="light"] .nav-dropdown-menu {
+  background: #ffffff;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+}
+
+@keyframes navDropdownFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.nav-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+  text-align: left;
+}
+
+.nav-dropdown-item:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.nav-dropdown-item.active {
+  background: rgba(6, 182, 212, 0.15);
+  color: var(--chart-series-cyan);
+  font-weight: 600;
+}
+
+.dropdown-chevron {
+  transition: transform 0.2s ease;
+}
+
+.dropdown-chevron.open {
+  transform: rotate(180deg);
+}
+
+.upload-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  padding: 0.45rem 1rem;
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.nav-import-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.upload-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.garmin-folder-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 38px;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font: 600 0.8rem var(--font-body);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.garmin-folder-action:hover:not(:disabled) {
+  background: var(--bg-surface);
+  border-color: var(--accent-cyan);
+}
+
+.garmin-folder-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.garmin-scan-modal {
+  max-width: 680px;
+  max-height: calc(100vh - 2rem);
+  overflow: hidden;
+  container-name: garmin-scan-modal;
+  container-type: inline-size;
+}
+
+.garmin-scan-overlay {
+  z-index: 1300;
+}
+
+.garmin-scan-loading,
+.garmin-scan-error {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 1rem;
+  border-radius: 9px;
+  background: var(--tag-pill-bg);
+  color: var(--text-primary);
+  font-size: 0.88rem;
+}
+
+.garmin-scan-error {
+  color: var(--accent-rose);
+}
+
+.garmin-scan-empty {
+  margin: 0;
+  padding: 1.25rem 0.5rem;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+}
+
+.garmin-scan-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.garmin-scan-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--tag-pill-bg);
+}
+
+.garmin-scan-summary-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.92rem;
+}
+
+.garmin-scan-counts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  text-align: center;
+}
+
+.garmin-scan-counts > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0.65rem 0.4rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-card);
+}
+
+.garmin-scan-counts strong {
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.garmin-scan-counts span {
+  color: var(--text-muted);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+}
+
+.garmin-scan-summary p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.garmin-scan-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: min(40vh, 360px);
+  overflow-y: auto;
+}
+
+@container garmin-scan-modal (max-width: 560px) {
+  .garmin-scan-counts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.garmin-scan-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  background: var(--bg-card);
+  font-size: 0.77rem;
+}
+
+.garmin-scan-file-name {
+  min-width: 0;
+  flex: 1 1 auto;
+  color: var(--text-primary);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.garmin-scan-file-status {
+  flex: 0 0 auto;
+  padding: 0.12rem 0.45rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.garmin-scan-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.garmin-scan-footer button {
+  padding: 0.45rem 1.25rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent-action-bg);
+  color: var(--accent-action-fg);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+[data-theme="light"] .upload-btn {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.upload-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="light"] .upload-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.backup-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 0.825rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+[data-theme="light"] .backup-btn {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.backup-btn:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--border-active);
+}
+
+.theme-toggle-btn.icon-only {
+  padding: 0.45rem 0.6rem;
+  justify-content: center;
+  min-width: 36px;
+}
+
+.lang-toggle-btn {
+  padding: 0.45rem 0.65rem;
+  gap: 0.35rem;
+}
+
+.lang-code-label {
+  display: none;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+/* Split-screen & Medium Desktop Responsive Layout */
+@media (max-width: 1360px) {
+  .navbar {
+    padding: 0.65rem 1rem;
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+  }
+  .nav-brand {
+    flex-shrink: 0;
+  }
+  .nav-tabs {
+    padding: 0.2rem;
+    flex-shrink: 1;
+    min-width: 0;
+    gap: 0.15rem;
+  }
+  .nav-tab-btn {
+    padding: 0.4rem 0.65rem;
+    font-size: 0.8rem;
+    gap: 0.35rem;
+    white-space: nowrap;
+  }
+  .nav-actions {
+    flex-shrink: 0;
+    gap: 0.45rem;
+  }
+  /* Hide crowded desktop action buttons on split-screen */
+  .nav-desktop-actions {
+    display: none !important;
+  }
+  /* Show consolidated More/Options dropdown button */
+  .nav-compact-actions {
+    display: flex !important;
+    align-items: center;
+    position: relative;
+  }
+  .nav-more-trigger-btn {
+    padding: 0.45rem 0.65rem;
+    min-width: 38px;
+    height: 36px;
+    justify-content: center;
+  }
+  .nav-more-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 1000;
+    min-width: 240px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 0.65rem;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    backdrop-filter: blur(16px);
+  }
+  .nav-dropdown-section-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    padding: 0.25rem 0.5rem 0.2rem;
+  }
+  .upload-btn .nav-btn-text {
+    display: none;
+  }
+  .upload-btn {
+    padding: 0.45rem 0.65rem;
+    min-width: 36px;
+    height: 36px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 840px) {
+  .nav-tab-label {
+    display: none;
+  }
+  .nav-tab-btn {
+    padding: 0.45rem 0.6rem;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 840px) {
+  .nav-tab-label {
+    display: inline;
+  }
+
+  .nav-tab-btn {
+    min-height: 44px;
+    padding: 0.35rem 0.4rem;
+  }
+
+  .navbar {
+    padding: 0.45rem 0.65rem;
+    gap: 0.35rem;
+  }
+
+}
+
+@media (pointer: coarse) {
+  .nav-tab-btn,
+  .nav-more-trigger-btn,
+  .nav-import-actions .upload-btn,
+  .font-stepper-btn,
+  .theme-toggle-btn,
+  .settings-view button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

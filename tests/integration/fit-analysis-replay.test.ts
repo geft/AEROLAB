@@ -4,6 +4,7 @@ import { importParsedRun } from '../../src/backend/ingestion/importer.js';
 import { realignDatabase } from '../../src/backend/db/realign.js';
 import { workoutTrace } from '../fixtures/workout-trace.js';
 import { seedBenchmarkProfile } from '../fixtures/benchmark-runs.js';
+import { getActivityDetailService } from '../../src/backend/services/activity-service.js';
 
 describe('FIT-aware import and replay', () => {
   it('preserves raw stopped HR while replay keeps explicit pause totals and classification', () => {
@@ -21,9 +22,35 @@ describe('FIT-aware import and replay', () => {
       expect(importParsedRun(db, { ...run, fileHash: 'paused-fit', fitMetadata }, 'paused.fit').status).toBe('imported');
       const read = () => db.prepare('SELECT auto_run_type,pause_duration_seconds FROM activities').get();
       expect(read()).toEqual({ auto_run_type: 'recovery', pause_duration_seconds: 700 });
+      const load = () => db.prepare('SELECT training_load,z1_seconds,z2_seconds,z3_seconds,z4_seconds,z5_seconds FROM activities').get();
+      const importedLoad = load();
+      expect(importedLoad).toMatchObject({ z4_seconds: 0, z5_seconds: 0 });
+      const detail = getActivityDetailService(db, run.metadata.id)!;
+      expect(detail.pauseBreakdown.stopDurationSeconds).toBe(700);
+      expect(detail.coachSummary?.pauseBreakdown?.stopDurationSeconds).toBe(700);
+      expect(detail.analysisFreshness?.status).toBe('fresh');
+      expect(detail.coachSummary?.classificationEvidence).toMatchObject({ ruleId: 'low_hrr_recovery', confidence: { kind: 'heuristic' } });
+      expect(detail.coachSummary?.analysisProvenance).toMatchObject({ workoutStartTime: run.metadata.date, telemetryPolicy: 'fit-timer-and-observed-gaps-v1' });
+      expect(detail.coachSummary?.analysisProvenance?.historicalProfile.lt1Hr).toBe(detail.heartRateThresholds.lt1Hr);
+      const storedSummary = db.prepare('SELECT analysis_json,updated_at FROM activity_coach_summaries').get();
+      getActivityDetailService(db, run.metadata.id);
+      expect(db.prepare('SELECT analysis_json,updated_at FROM activity_coach_summaries').get()).toEqual(storedSummary);
       expect(realignDatabase(db).activitiesFailed).toEqual([]);
+      expect(load()).toEqual(importedLoad);
+      expect(getActivityDetailService(db, run.metadata.id)?.coachSummary?.classificationEvidence).toEqual(detail.coachSummary?.classificationEvidence);
       expect(read()).toEqual({ auto_run_type: 'recovery', pause_duration_seconds: 700 });
       expect(db.prepare('SELECT heart_rate FROM activity_records WHERE elapsed_seconds=600').get()).toEqual({ heart_rate: 190 });
+    } finally { db.close(); }
+  });
+  it('rolls back a new workout if summary persistence fails', () => {
+    const db = openDatabase(':memory:');
+    try {
+      db.exec("CREATE TRIGGER fail_summary BEFORE INSERT ON activity_coach_summaries BEGIN SELECT RAISE(ABORT, 'summary failed'); END");
+      const run = workoutTrace([{ seconds: 1200, hr: 125 }]);
+      expect(importParsedRun(db, { ...run, fileHash: 'rollback' }, 'rollback.csv')).toMatchObject({ status: 'error', error: 'summary failed' });
+      for (const table of ['activities', 'activity_records', 'activity_splits', 'activity_intervals', 'physiological_thresholds']) {
+        expect(db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get()).toEqual({ count: 0 });
+      }
     } finally { db.close(); }
   });
   it('replays identical lap intervals and measured dynamics while preserving raw paused records and manual labels', () => {

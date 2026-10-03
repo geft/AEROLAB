@@ -1,3 +1,5 @@
+import type Database from 'better-sqlite3';
+
 export interface WeatherData {
   temperatureC: number | null;
   humidityPct: number | null;
@@ -202,8 +204,10 @@ export async function fetchHistoricalWeather(
 /**
  * Fetches and persists historical microclimate weather for a specific activity into the activities table.
  */
-export async function syncActivityWeather(db: any, activityId: string): Promise<WeatherData | null> {
-  const act = db.prepare('SELECT id, workout_lat, workout_lon, start_time, duration_seconds, elapsed_seconds FROM activities WHERE id = ?').get(activityId) as any;
+export async function syncActivityWeather(db: Database.Database, activityId: string, onPersist?: () => void): Promise<WeatherData | null> {
+  const act = db.prepare('SELECT id, workout_lat, workout_lon, start_time, duration_seconds, elapsed_seconds FROM activities WHERE id = ?').get(activityId) as {
+    id: string; workout_lat: number | null; workout_lon: number | null; start_time: string; duration_seconds: number | null; elapsed_seconds: number | null;
+  } | undefined;
   if (!act || act.workout_lat === null || act.workout_lon === null) {
     return null;
   }
@@ -211,7 +215,7 @@ export async function syncActivityWeather(db: any, activityId: string): Promise<
   const runElapsedSeconds = act.elapsed_seconds ?? act.duration_seconds ?? 0;
   const weather = await fetchHistoricalWeather(act.workout_lat, act.workout_lon, act.start_time, runElapsedSeconds);
   if (weather.temperatureC !== null || weather.conditionText !== null || weather.pm25 !== null) {
-    try {
+    db.transaction(() => {
       db.prepare(`
         UPDATE activities SET
           weather_temperature_c = ?,
@@ -234,9 +238,8 @@ export async function syncActivityWeather(db: any, activityId: string): Promise<
         weather.weatherCode,
         activityId
       );
-    } catch (err) {
-      // Non-fatal if table columns not ready
-    }
+      onPersist?.();
+    })();
   }
 
   return weather;

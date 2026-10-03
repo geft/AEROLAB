@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { Activity, ActivityRecord, ActivityUpdate } from '../../types/api.js';
 
-import type { DisplayTitleFn } from '../BrowseView.js';
+import type { DisplayTitleFn } from '../../features/browse/selectors.js';
 import type { Translations } from '../../i18n/types.js';
 import { Edit2, Tag, Plus, X, Check, Download } from 'lucide-react';
 import { ActivityWeatherCard } from './ActivityWeatherCard';

@@ -10,17 +10,19 @@ The original audit reviewed the working tree, including pending background-impor
 
 ## Completion status
 
-Updated after checkpoint `9dd8d21`. Finding numbers below differ from the migration-sequence step numbers later in this document.
+Updated October 3 for the follow-up implementation checkpoint. Earlier commit IDs remain historical checkpoints; the additions below describe the implementation included with this update.
 
-| Finding | Completed work | Remaining work | Status |
+| Finding | Implemented work | Remaining work | Status |
 | --- | --- | --- | --- |
-| 1. Analysis context | Typed preparation and calculation pipeline shared by import and replay (`b06f223`, `7f3c517`) | Timer/gap policy propagation to load, calibration, coaching; detail repair and historical chart context | Core extraction done; finding partially addressed |
-| 2. History invalidation | Transactional affected-history coordinator for import corrections, manual type/failure edits, and baseline-profile changes (`62e4218`) | Independent weather/history-sensitive coaching policy | Main checkpoint done; follow-up remains |
-| 3. Coaching protocol | Required IDs on newly graded factors; verdicts and focus selection use IDs; structured headlines/advice, bilingual overrides, and legacy compatibility (`9dd8d21`) | Dynamic insight/description/focus-prose migration and rubric module split | Main checkpoint done; finding partially addressed |
-| 4. Typed boundaries | Parser-independent telemetry, typed analysis context/result and database argument, shared coaching identifiers (`b06f223`, `7f3c517`, `9dd8d21`) | Typed row adapters, interval/split normalization, unified API DTOs, classifier evidence contract | Partially addressed |
-| 5. Migration ownership | No refactor checkpoint yet | Migration registry, separation of schema and analysis upgrades, revision/provenance policy | Not started |
-| 6. Writer coordination | No unified coordinator checkpoint yet | One coordinator across import, maintenance, restore, relocation and analysis writes; explicit analysis freshness | Not started; background-import work remains uncommitted |
-| 7. Frontend/CSS structure | No feature/controller or stylesheet restructuring checkpoint yet | Feature controllers/types, common invalidation signal, CSS split and visual verification | Not started; pending UI edits are separate |
+| 1. Analysis context | Shared pipeline plus timer/gap-aware load, calibration, coaching, query fallbacks, shared speed repair and historical detail-chart thresholds | Independent physiological validation of the corrected timer policy | Implementation addressed; validation scope noted below |
+| 2. History invalidation | Existing transactional history coordinator plus transactional weather invalidation of edited/later coaching | No automatic weather fetching added | Addressed |
+| 3. Coaching protocol | Existing factor/verdict/headline/advice IDs; rubric now split into evidence, aerobic, quality, race and focus modules | Dynamic insight/description/focus-prose migration; Chinese legacy-adapter copy relocation | Partially addressed |
+| 4. Typed boundaries | Canonical telemetry row adapter, common split/interval persistence, concrete shared detail/coaching DTOs, validated stored JSON, classifier evidence returned/persisted/exposed | Legacy calculation helpers still accept mixed camelCase/snake_case inputs; further narrowing can follow the prose protocol migration | Main API/persistence boundaries addressed |
+| 5. Migration ownership | Ordered schema/derived registries, grouped equivalent algorithm upgrades, persisted revision and historical-profile/telemetry provenance | Distinct historical data migrations intentionally retain their separate checkpoints | Addressed |
+| 6. Writer coordination | Shared operation ownership for workers, storage, weather and analysis; service guards; worker reservations held through exit; stored detail summaries with explicit freshness | Coordinator is process-local, consistent with the application's single-server architecture | Addressed |
+| 7. Frontend/CSS structure | Browse selection/detail, import, stats and period-progress controllers; feature types/selectors; common invalidation; ordered CSS split | Existing visual baselines and mobile test selector need separate repair before the visual suite can be green | Structure addressed; visual acceptance partially verified |
+
+The original evidence below describes the pre-refactor code. The dynamic coaching prose work in finding 3 remains open; this document does not count the entire audit as closed.
 
 ## What already works structurally
 
@@ -35,7 +37,7 @@ Updated after checkpoint `9dd8d21`. Finding numbers below differ from the migrat
 
 ### 1. P1 — Analysis context is assembled independently and reaches only some consumers
 
-**Status:** shared pipeline extraction completed; consumer policy unification remains. See completion status above.
+**Status:** shared preparation now reaches load, calibration, coaching and query fallbacks; speed repair and historical detail thresholds share named policies. See completion status above.
 
 **Evidence:** `ingestion/importer.ts:130` prepares FIT-aware analysis, then calculates economy, splits, intervals, and classification from the annotated records. `db/realign.ts:149` assembles essentially the same pipeline. Import-time training load (`importer.ts:256`) and calibration (`importer.ts:409`) receive raw records. Replay passes annotated records to those functions. `physiology/coach-summary.ts:611` loads raw SQLite telemetry and extracts steady-state metrics without rebuilding FIT timer state. `physiology/profile-recompute.ts` also loads only time/HR columns.
 
@@ -51,7 +53,7 @@ Extract shared orchestration first without changing numerical behavior; apply ti
 
 ### 2. P1 — Derived-data invalidation depends on which operation changed the workout
 
-**Status:** main invalidation checkpoint completed in `62e4218`. The original differences below are resolved for the coordinated operations; weather remains a separate follow-up. See `HISTORY_INVALIDATION.md`.
+**Status:** the main checkpoint and weather coaching invalidation are implemented. The differences in the original evidence below are resolved for the coordinated operations. See `HISTORY_INVALIDATION.md`.
 
 **Evidence:** corrected/backfilled import finds affected later activities and replays them atomically (`ingestion/importer.ts:412`, `:456`). `services/activity-service.ts:601` handles manual type/failure updates by changing the activity and synchronizing that activity's coach summary (`:658`); it does not rebuild calibration, tags, race segmentation, or dependent later workouts. `computeRollingThresholds` excludes manually failed sources on reads, but does not reject sources merely because their label changed. `services/profile-service.ts:189` determines baseline changes and triggers `recomputeProfileDerivedData`, which refreshes load/zones and coaching, without rebuilding classification or calibration.
 
@@ -63,7 +65,7 @@ Preserve the current atomic affected-history import contract. Do not accidentall
 
 ### 3. P1 — English presentation text serves as a domain protocol
 
-**Status:** verdict/factor protocol and structured headline/advice checkpoint completed in `9dd8d21`. Dynamic prose adapters remain. See `COACHING_PROTOCOL.md`.
+**Status:** existing identifiers are retained and the rubric is split by responsibility. Dynamic prose adapters remain. See `COACHING_PROTOCOL.md`.
 
 **Evidence:** `physiology/session-verdict.ts:6` maps English factor labels to verdicts and selects factors by English category strings. `physiology/coach-rubric.ts` emits those strings. `frontend/i18n/coachTranslator.ts` is approximately 784 lines of mapping, substring matching, and regular expressions over English headlines, advice, and insights. It also embeds Chinese copy outside the three prescribed dictionary files.
 
@@ -75,7 +77,7 @@ Use plain unions and explicit functions; a configurable rules framework is unnec
 
 ### 4. P2 — Typed boundaries still permit multiple competing representations
 
-**Status:** partially addressed through domain telemetry, the shared pipeline and coaching contracts; broader row/API normalization remains.
+**Status:** canonical telemetry rows, shared segment persistence, concrete detail/coaching DTOs and persisted classifier evidence are implemented. Legacy calculation helper inputs still need further narrowing.
 
 **Evidence:** normalized `ActivityRecord` belongs to `ingestion/csv-parser.ts`, although FIT analysis and physiology consume it. `db/realign.ts:32` has an independent `any[]` record mapper and an `any` database argument. Rubric helpers (`coach-rubric.ts:187`) accept both snake_case and camelCase through `any`. Backend shared detail contracts (`shared/activity-detail.ts`) expose open index signatures and `unknown` scoring fields, while `frontend/types/api.ts` separately defines more specific splits, intervals, records, coach summaries, and detail responses.
 
@@ -87,7 +89,7 @@ The classifier should return an explicit evidence record: rule ID, observed meas
 
 ### 5. P2 — Database opening still owns a growing list of algorithm upgrades
 
-**Status:** not started.
+**Status:** schema and derived upgrades use ordered registries; equivalent pending current-algorithm upgrades share one refresh. Summary JSON carries revision and historical-input provenance.
 
 **Evidence:** `db/client.ts` is approximately 412 lines and contains schema setup plus many derived-data migration bodies. At `:312` onward, checkpoints such as `realign-v1`, `signal-classification-v1`, `historical-fitness-v1`, and `fit-structure-v1` invoke current realignment code. The existing runner is checkpointed and recoverable; the concern is ownership and repeated work, not absence of migrations.
 
@@ -97,7 +99,7 @@ The classifier should return an explicit evidence record: rule ID, observed meas
 
 ### 6. P2 — Coordination of writers is distributed across services and middleware
 
-**Status:** not started as a unified coordinator refactor. Uncommitted background-import guards do not close this finding.
+**Status:** one process-local reservation/ownership coordinator now guards workers, storage, weather and analysis writes through service entry points. Detail reads return stored summaries and freshness.
 
 **Evidence:** pending `jobs/import-job.ts` checks maintenance before reserving an import. `jobs/maintenance.ts` owns a separate worker and queued profile recomputation. `db/storage.ts` has its own operation guard and maintenance checks. `server.ts:104` blocks mutations during import. Activity GET handlers suppress coach-summary persistence during import; outside that path, `getActivityDetailService` regenerates and persists coaching on detail reads (`activity-service.ts:475`).
 
@@ -107,7 +109,7 @@ The classifier should return an explicit evidence record: rule ID, observed meas
 
 ### 7. P2 — Feature controllers and global styling are the frontend growth points
 
-**Status:** not started as a structural refactor. Pending UI changes do not close this finding.
+**Status:** feature controllers, shared invalidation and the stylesheet split are implemented. Existing visual-test failures prevent full visual acceptance.
 
 **Evidence:** `BrowseView.tsx` is approximately 693 lines; `StatsView.tsx` 670; `PeriodProgressView.tsx` 768; `UploadModal.tsx` 498. They mix fetching, cancellation/retry, selection/filtering, chart derivation, mutations, and rendering. `App.tsx` owns activity lists, refresh callbacks and a detail refresh counter, while other views fetch their own data. `frontend/styles/index.css` is approximately 6,260 lines with shared primitives, feature rules, responsive overrides, and development diagnostics together.
 
@@ -205,3 +207,13 @@ The shared typed workout-analysis pipeline is implemented in `application/analys
 - Rubric factors and verdicts use stable identifiers. Headlines and recommendations use structured messages with bilingual dictionary overrides, while legacy payloads remain supported. See `COACHING_PROTOCOL.md` for the compatibility boundary and remaining prose migration.
 
 These checkpoints establish ownership boundaries without changing classifier thresholds or numerical scoring. The broader migration sequence above remains a roadmap; it is not a claim that every suggested subsystem split is complete.
+
+## Follow-up implementation verification
+
+The follow-up adds regression checks for stopped FIT heart rate in load/coaching, timer boundaries in continuous calibration, import-summary rollback, weather/dependent-summary rollback, grouped migration retries, writer ownership, stored-summary freshness/provenance, stored coaching JSON validation and common frontend revision subscriptions. Raw records and FIT bytes remain unchanged.
+
+Desktop and snapshot-template builds and the packaged backend smoke test pass. The build still emits the existing CommonJS `import.meta` warnings. TypeScript, zero-warning lint, all 1,146 tests across 109 files, and all 810 dictionary-key references pass. A subsequent DTO validation tightening is covered by focused contract, coaching, API and snapshot regression checks.
+
+The visual suite reports 6 passes and 13 failures both before and after the CSS split. An isolated HEAD checkout reproduced the desktop Browse baseline mismatch and the mobile accessibility test's missing button selector. Eleven of twelve comparable pre/post-split screenshots are pixel-identical; the remaining chart canvas differs by about 0.25% of pixels, below its 1% comparison tolerance. CSS extraction preserved every rule and source order. Existing snapshots were not rewritten. This verifies the stylesheet extraction narrowly; it does not certify the entire existing visual suite.
+
+No selected workout database was migrated or edited during this work; database verification used disposable fixtures. No performance benchmark or independent physiological validation was performed.

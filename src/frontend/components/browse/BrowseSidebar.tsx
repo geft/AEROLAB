@@ -1,13 +1,13 @@
 import { SessionVerdictBadge } from './SessionVerdictBadge.js';
 import React from 'react';
 
-import type { DisplayTitleFn } from '../BrowseView.js';
+import type { DisplayTitleFn } from '../../features/browse/selectors.js';
 import type { Translations } from '../../i18n/types.js';
 import { Calendar, X } from 'lucide-react';
 import { BrowseCalendarPicker } from './BrowseCalendarPicker';
 import { translateTag } from '../../i18n/tagTranslator';
 import { useTranslation } from '../../i18n/LanguageContext';
-import { ActivitySummary } from '../BrowseView';
+import { ActivitySummary } from '../../features/browse/selectors.js';
 
 const SIDEBAR_FILTER_TAGS = [
   'All', 'Threshold', 'VO2 Max', 'Easy Base', 'Long Run', 'Race', 'Strides', 'Marathon Pace', 'Recovery'

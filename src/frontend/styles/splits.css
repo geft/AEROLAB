@@ -1,0 +1,219 @@
+/* Pacing Dynamics Insights Banner */
+.splits-insights-banner {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+  padding-bottom: 0.25rem;
+}
+
+.split-insight-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 0.75rem 0.85rem;
+}
+
+[data-theme="light"] .split-insight-card {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.split-insight-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.split-insight-val {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.split-insight-val.cyan {
+  color: var(--accent-cyan);
+}
+
+.split-insight-val.amber {
+  color: #f59e0b;
+}
+
+.split-insight-sub {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+/* Split Bar List Rows */
+.splits-bar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.split-bar-row {
+  display: grid;
+  grid-template-columns: 4.25rem 5rem minmax(3rem, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.35rem 0.6rem;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+[data-theme="light"] .split-bar-row {
+  background: rgba(0, 0, 0, 0.015);
+  border-color: rgba(0, 0, 0, 0.04);
+}
+
+.split-bar-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--border-active);
+  transform: translateX(2px);
+}
+
+[data-theme="light"] .split-bar-row:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.split-bar-row.is-fastest {
+  border-left: 3px solid var(--accent-cyan);
+}
+
+.split-num-col {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.split-badge {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.partial-tag {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-weight: normal;
+  margin-left: 0.2rem;
+}
+
+.split-primary-val {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.split-heart-rate {
+  justify-self: end;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.split-heart-rate b {
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-weight: 600;
+}
+
+.split-telemetry {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  padding-left: 0.1rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.split-telemetry span {
+  white-space: nowrap;
+}
+
+.split-telemetry b {
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-weight: 600;
+}
+
+.split-bar-track-area {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.split-bar-bg-track {
+  flex: 1;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+
+[data-theme="light"] .split-bar-bg-track {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.split-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.split-delta-pill {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  min-width: 42px;
+  text-align: center;
+}
+
+.split-delta-pill.better {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.split-delta-pill.slower {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.split-delta-pill.neutral {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .split-delta-pill.neutral {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.splits-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}

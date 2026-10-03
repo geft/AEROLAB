@@ -12,7 +12,7 @@ const LEGACY_DERIVED_MIGRATIONS = [
   'realign-v1'
 ] as const;
 
-export const DERIVED_MIGRATIONS = [...LEGACY_DERIVED_MIGRATIONS, 'continuous-race-v1', 'signal-classification-v1', 'effort-structure-v1', 'stride-recovery-v1', 'historical-fitness-v1', 'recovery-hrr-v1', 'fit-structure-v1'] as const;
+export const DERIVED_MIGRATIONS = [...LEGACY_DERIVED_MIGRATIONS, 'continuous-race-v1', 'signal-classification-v1', 'effort-structure-v1', 'stride-recovery-v1', 'historical-fitness-v1', 'recovery-hrr-v1', 'fit-structure-v1', 'analysis-telemetry-policy-v1'] as const;
 
 /** Run each data change once, with a rollback boundary and a pre-change snapshot. */
 export function createMigrationRunner(db: Database.Database) {
@@ -44,6 +44,22 @@ export function createMigrationRunner(db: Database.Database) {
   }
 
   return {
+    /** Equivalent current-algorithm upgrades share one atomic refresh. */
+    runGroup(names: readonly string[], change: () => void): boolean {
+      const pending = names.filter(name => !completed.get(name));
+      if (!pending.length) return true;
+      if (failed) return false;
+      try {
+        snapshotIfNeeded();
+        db.transaction(() => { change(); for (const name of pending) mark.run(name); })();
+        logger.info('DB', `Analysis migrations completed: ${pending.join(', ')}`);
+        return true;
+      } catch (error) {
+        failed = true;
+        logger.error('DB', `Analysis migrations failed: ${pending.join(', ')}`, error);
+        return false;
+      }
+    },
     run(name: string, change: () => void): boolean {
       if (completed.get(name)) return true;
       if (failed) return false;

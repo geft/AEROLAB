@@ -1,3 +1,5 @@
+import { persistWorkoutSegments } from '../db/workout-segments.js';
+import { assertDatabaseWritable } from '../application/database-operations.js';
 import { analyzeWorkout, prepareAnalysisContext } from '../application/analysis/analyze-workout.js';
 import fs from 'fs';
 import path from 'path';
@@ -76,6 +78,7 @@ export function importRunContent(
 }
 
 export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filename: string, options: ImportOptions = {}): ImportResult {
+  assertDatabaseWritable();
   try {
     const { fileHash, metadata, records } = parsed;
 
@@ -180,24 +183,6 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
     )
   `);
 
-  const insertSplit = db.prepare(`
-    INSERT INTO activity_splits (
-      activity_id, split_index, distance_meters, duration_seconds,
-      avg_pace_sec_km, avg_heart_rate, split_efficiency_factor, elevation_change_m,
-      avg_cadence, avg_stance_time, avg_vert_osc, avg_vert_ratio
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const insertInterval = db.prepare(`
-    INSERT INTO activity_intervals (
-      activity_id, interval_index, type, start_seconds, duration_seconds,
-      distance_meters, avg_speed_mps, avg_pace_sec_km, avg_heart_rate,
-      max_heart_rate, avg_cadence, peak_cadence, peak_speed_mps, peak_pace_sec_km,
-      min_stance_time, hr_drop, avg_vert_osc, avg_stance_time,
-      avg_step_length, avg_stride_length, avg_vert_ratio
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
   const insertRecord = db.prepare(`
     INSERT INTO activity_records (
       activity_id, timestamp, elapsed_seconds, heart_rate, cadence,
@@ -235,7 +220,7 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
   const pb = economy.pauseBreakdown;
 
   const loadResult = calculateActivityTrainingLoad(
-    records,
+    context.records,
     {
       maxHr: hrProfile.maxHr,
       restingHr: hrProfile.restingHr,
@@ -311,50 +296,7 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
     if (confirmed) db.prepare('UPDATE activities SET manual_run_type = ?, manual_failed_workout = ? WHERE id = ?')
       .run(confirmed.manual_run_type, confirmed.manual_failed_workout, metadata.id);
 
-    // Splits
-    for (const s of splits) {
-      insertSplit.run(
-        metadata.id,
-        s.splitIndex,
-        s.distanceMeters,
-        s.durationSeconds,
-        s.avgPaceSecKm,
-        s.avgHeartRate,
-        s.splitEfficiencyFactor,
-        s.elevationChangeM,
-        s.avgCadence ?? null,
-        s.avgStanceTimeMs ?? null,
-        s.avgVertOscMm ?? null,
-        s.avgVertRatioPct ?? null
-      );
-    }
-
-    // Intervals
-    for (const inv of intervals) {
-      insertInterval.run(
-        metadata.id,
-        inv.intervalIndex,
-        inv.type,
-        inv.startSeconds,
-        inv.durationSeconds,
-        inv.distanceMeters,
-        inv.avgSpeedMps,
-        inv.avgPaceSecKm,
-        inv.avgHeartRate,
-        inv.maxHeartRate,
-        inv.avgCadence,
-        inv.peakCadence ?? null,
-        inv.peakSpeedMps ?? null,
-        inv.peakPaceSecKm ?? null,
-        inv.minStanceTime ?? null,
-        inv.hrDrop ?? null,
-        inv.avgVertOsc ?? null,
-        inv.avgStanceTime ?? null,
-        inv.avgStepLength ?? null,
-        inv.avgStrideLength ?? null,
-        inv.avgVertRatio ?? null
-      );
-    }
+    persistWorkoutSegments(db, metadata.id, splits, intervals);
 
     // Keep every telemetry sample. The workout centroid is enough for weather;
     // store it once so a CSV export can still be reimported with that location.
@@ -387,7 +329,7 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
       .run(metadata.id, fitMetadataJson, parsed.sourceFit ?? previousFit?.source_fit ?? null);
 
     // Threshold updates
-    if (confirmed?.manual_failed_workout !== 1) evaluateThresholdUpdate(db, metadata.id, metadata.date, runType, metadata, records, economy, hrProfile);
+    if (confirmed?.manual_failed_workout !== 1) evaluateThresholdUpdate(db, metadata.id, metadata.date, runType, metadata, context.records, economy, hrProfile);
 
     // A backfill or corrected import may change evidence for existing later
     // workouts. Rebuild those in the same transaction so file order cannot
@@ -399,17 +341,14 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
       rebuildAffectedHistory(db, { fromTime: ref });
       refreshed = db.prepare(`SELECT run_type,(SELECT COUNT(*) FROM activity_intervals WHERE activity_id=activities.id) AS interval_count
         FROM activities WHERE id=?`).get(metadata.id) as { run_type: string; interval_count: number };
+    } else if (!options.deferredReplay) {
+      // A failed summary must roll back the workout together with its telemetry.
+      syncActivityCoachSummary(db, metadata.id, undefined, { classificationEvidence: classification.evidence });
     }
-
-
   });
 
   transaction();
   options.deferredReplay?.precomputed.set(metadata.id, { economy, splits });
-
-  // Continuously populate and persist the AI coach summary into activity_coach_summaries
-  if (!options.deferredReplay) syncActivityCoachSummary(db, metadata.id);
-
 
     return {
       status: 'imported',
@@ -436,6 +375,7 @@ export function importParsedRuns(db: Database.Database, files: Array<{ parsed: P
 /** Load one decoded file at a time so a full import job has bounded memory. */
 export function importPreparedRuns(db: Database.Database, files: Array<{ filename: string; date: string; load: () => PreparedRun }>,
   options: Pick<ImportOptions, 'force'> & { onProgress?: (phase: 'importing' | 'reanalysing', completed: number, total: number) => void } = {}): ImportResult[] {
+  assertDatabaseWritable();
   return db.transaction(() => {
     const deferredReplay = { earliestTime: Infinity, precomputed: new Map<string, { economy: EconomyMetrics; splits: SplitLap[] }>() };
     const results: ImportResult[] = new Array(files.length);

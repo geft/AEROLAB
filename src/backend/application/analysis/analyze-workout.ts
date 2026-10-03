@@ -1,4 +1,5 @@
 import type { ActivityMetadata, ActivityRecord } from '../../domain/telemetry.js';
+import { repairSpeedTelemetry } from '../../domain/repair-speed.js';
 import { prepareFitAnalysis, type AnalysisLap } from '../../ingestion/fit-analysis.js';
 import { classifyRun, type AthleteHrProfile, type ClassificationResult, type RunType } from '../../ingestion/classifier.js';
 import { detectIntervals, type DetectedInterval } from '../../ingestion/interval-detector.js';
@@ -26,8 +27,9 @@ export interface AnalysisContext {
   laps: AnalysisLap[];
   historicalProfile: AthleteHrProfile;
   stridePaceAnchorSecKm?: number | null;
-  /** Raw precomputed metrics cannot be reused after FIT timer annotation. */
+  /** FIT annotations preserve timer provenance independently of speed repair. */
   hasTimerAnnotations: boolean;
+  hasTelemetryChanges: boolean;
 }
 
 export interface WorkoutAnalysisResult extends PrecomputedWorkoutMetrics {
@@ -42,26 +44,26 @@ export interface WorkoutAnalysisResult extends PrecomputedWorkoutMetrics {
 /** Prepare analysis-only records without modifying raw telemetry for export. */
 export function prepareAnalysisContext(input: WorkoutAnalysisInput): AnalysisContext {
   const fit = prepareFitAnalysis(input.rawRecords, input.fitMetadata);
+  const records = repairSpeedTelemetry(fit.records);
   return {
     metadata: input.metadata,
     rawRecords: input.rawRecords,
-    records: fit.records,
+    records,
     laps: fit.laps,
     historicalProfile: input.historicalProfile,
     stridePaceAnchorSecKm: input.stridePaceAnchorSecKm,
-    hasTimerAnnotations: fit.records !== input.rawRecords
+    hasTimerAnnotations: fit.records !== input.rawRecords,
+    hasTelemetryChanges: records !== input.rawRecords
   };
 }
 
-/** Shared import/replay calculation; persistence and historical lookup belong to callers.
- * Load, calibration and coaching retain their existing policies during extraction.
- */
+/** Shared import/replay calculation; persistence and historical lookup belong to callers. */
 export function analyzeWorkout(
   context: AnalysisContext,
   options: { confirmedRunType?: RunType | null; precomputed?: PrecomputedWorkoutMetrics } = {}
 ): WorkoutAnalysisResult {
   const { metadata, records, historicalProfile: profile } = context;
-  const cached = context.hasTimerAnnotations ? undefined : options.precomputed;
+  const cached = context.hasTelemetryChanges ? undefined : options.precomputed;
   const economy = cached?.economy ?? calculateEconomy(records);
   const splits = cached?.splits ?? calculateKmSplits(records, 1000);
   const intervalOptions = {

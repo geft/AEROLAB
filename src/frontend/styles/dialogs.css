@@ -1,0 +1,207 @@
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--modal-overlay);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+}
+
+.modal-content {
+  background: var(--modal-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 2rem;
+  max-width: 500px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+}
+
+.turnpoint-guide-overlay {
+  z-index: 1500;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.turnpoint-guide-modal {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.training-load-guide-overlay {
+  z-index: 1500 !important;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.training-load-guide-modal {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-title {
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
+.drop-area-large {
+  border: 2px dashed rgba(6, 182, 212, 0.4);
+  background: rgba(6, 182, 212, 0.03);
+  border-radius: 12px;
+  padding: 3rem 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.drop-area-large:hover, .drop-area-large.drag-over {
+  border-color: var(--accent-cyan);
+  background: var(--accent-cyan-glow);
+}
+
+/* Loading & Empty states */
+.loading-skeleton {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.03) 25%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.03) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+.load-error-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.8rem;
+  min-height: 240px;
+  padding: 1.5rem;
+  color: var(--text-secondary);
+  text-align: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+}
+
+.load-error-state.compact {
+  min-height: 140px;
+  margin-top: 0.75rem;
+}
+
+.app-load-error-page {
+  display: grid;
+  place-items: center;
+  min-height: calc(100dvh - 2rem);
+}
+
+.app-load-error {
+  width: min(100%, 28rem);
+  min-height: 0;
+  gap: 1.25rem;
+  padding: 2rem;
+}
+
+.app-load-error p {
+  margin: 0;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.app-load-error-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  color: var(--accent-amber);
+  background: color-mix(in srgb, var(--accent-amber) 10%, transparent);
+}
+
+.app-load-error .outline-btn {
+  width: auto;
+}
+
+/* Full-page/suspense loading placeholders (App splash & lazy onboarding).
+   Unstyled before, which produced a bare transparent block during the swap. */
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 40vh;
+  background: var(--bg-base);
+}
+
+/* Shimmer placeholder that stands in for the period progress card, so the
+   loader keeps the same card footprint as the loaded component. */
+.period-progress-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  padding: 1.25rem;
+  width: 100%;
+}
+
+/* Horizontally scrollable SVG chart shell (period progress + threshold trends) */
+.svg-chart-wrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.25rem;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (max-width: 900px) {
+  .browse-grid {
+    grid-template-columns: 1fr;
+  }
+  .sidebar-panel {
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 900px) {
+  .browse-grid {
+    grid-template-columns: minmax(220px, 29%) minmax(0, 1fr);
+  }
+
+  .sidebar-panel {
+    position: sticky;
+    max-height: calc(100vh - 140px);
+  }
+}

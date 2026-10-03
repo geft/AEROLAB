@@ -1,3 +1,4 @@
+import { reserveDatabaseOperation, currentDatabaseOperation, onDatabaseIdle } from '../application/database-operations.js';
 import fs from 'fs';
 import path from 'path';
 import { Worker } from 'worker_threads';
@@ -19,6 +20,7 @@ export interface MaintenanceStatus {
 let worker: Worker | null = null;
 let status: MaintenanceStatus = { status: 'idle' };
 let queuedProfile: { databasePath: string; baselineChanged: boolean } | null = null;
+let queuedStartup: { databasePath: string; onComplete?: () => void } | null = null;
 
 function statusPath(): string {
   return getDatabaseConfigPath().replace(/database-location\.json$/, 'maintenance-status.json');
@@ -43,12 +45,13 @@ export function getMaintenanceStatus(): MaintenanceStatus {
 
 /** A separate thread keeps SQLite recomputation from blocking the local API. */
 export function startMaintenance(databasePath: string, onComplete?: () => void, task: 'startup' | 'profile' = 'startup', baselineChanged = false): void {
-  if (worker) {
+  if (worker || currentDatabaseOperation()) {
     if (task === 'profile') queuedProfile = { databasePath, baselineChanged: Boolean(queuedProfile?.baselineChanged || baselineChanged) };
+    else if (!worker) queuedStartup = { databasePath, onComplete };
     return;
   }
+  const lease = reserveDatabaseOperation('maintenance');
   const startedAt = new Date().toISOString();
-  saveStatus({ status: 'running', startedAt, task });
   const sourceDir = typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url));
   const production = process.env.NODE_ENV === 'production';
   const repoRoot = path.resolve(sourceDir, '..', '..', '..');
@@ -56,7 +59,9 @@ export function startMaintenance(databasePath: string, onComplete?: () => void, 
     ? path.join(sourceDir, 'maintenance-worker.cjs')
     : path.join(repoRoot, 'dist-backend', 'maintenance-worker-dev.cjs');
   let completed = false;
+  let terminal: MaintenanceStatus | null = null;
   try {
+    saveStatus({ status: 'running', startedAt, task });
     if (!production) {
       fs.mkdirSync(path.dirname(entry), { recursive: true });
       execFileSync(process.execPath, [
@@ -75,13 +80,13 @@ export function startMaintenance(databasePath: string, onComplete?: () => void, 
   } catch (error) {
     saveStatus({ status: 'failed', startedAt, finishedAt: new Date().toISOString(), error: String(error) });
     worker = null;
+    lease.release();
     return;
   }
   worker.on('message', (message: MaintenanceStatus) => {
     if (message.status === 'complete') {
       completed = true;
-      saveStatus({ status: 'complete', startedAt, finishedAt: new Date().toISOString(), completedMigrations: message.completedMigrations, syncedActivitiesCount: message.syncedActivitiesCount, task });
-      onComplete?.();
+      terminal = { status: 'complete', startedAt, finishedAt: new Date().toISOString(), completedMigrations: message.completedMigrations, syncedActivitiesCount: message.syncedActivitiesCount, task };
     } else if (message.status === 'failed') {
       saveStatus({ status: 'failed', startedAt, finishedAt: new Date().toISOString(), error: message.error });
       logger.error('DB', 'Background maintenance failed', message.error);
@@ -96,6 +101,9 @@ export function startMaintenance(databasePath: string, onComplete?: () => void, 
       saveStatus({ status: 'interrupted', startedAt, finishedAt: new Date().toISOString(), error: `Worker exited with code ${code}` });
     }
     worker = null;
+    lease.release();
+    if (terminal) saveStatus(terminal);
+    if (completed) onComplete?.();
     if (queuedProfile) {
       const queued = queuedProfile;
       queuedProfile = null;
@@ -109,5 +117,18 @@ export function queueProfileRecompute(databasePath: string, baselineChanged: boo
 }
 
 export function isMaintenanceRunning(): boolean {
-  return worker !== null || queuedProfile !== null;
+  return worker !== null || queuedProfile !== null || queuedStartup !== null;
 }
+
+// Profile writes arriving during another operation retain the strongest refresh request.
+onDatabaseIdle(() => {
+  if (!worker && !currentDatabaseOperation() && queuedProfile) {
+    const queued = queuedProfile;
+    queuedProfile = null;
+    startMaintenance(queued.databasePath, undefined, 'profile', queued.baselineChanged);
+  } else if (!worker && !currentDatabaseOperation() && queuedStartup) {
+    const queued = queuedStartup;
+    queuedStartup = null;
+    startMaintenance(queued.databasePath, queued.onComplete);
+  }
+});

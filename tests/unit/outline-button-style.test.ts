@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import fs from 'fs';
 import path from 'path';
+import { readStylesheet } from '../fixtures/styles.js';
 
 /**
  * Guards the shared secondary-button styling. "Show All in Chart" and similar
@@ -8,7 +8,7 @@ import path from 'path';
  * to its unstyled default (square corners, off-theme colours).
  */
 describe('Shared outline button style', () => {
-  const css = fs.readFileSync(path.resolve(process.cwd(), 'src/frontend/styles/index.css'), 'utf8');
+  const css = readStylesheet(path.resolve(process.cwd(), 'src/frontend/styles/index.css'));
 
   const blockFor = (selector: string): string => {
     const match = css.match(new RegExp(`^\\${selector}\\s*\\{([^}]*)\\}`, 'm'));

@@ -8,9 +8,9 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { IMPORT_BATCH_SIZE } from '../../shared/import-batch.js';
 import type { ImportJobStatus, StagedImportFile } from '../../shared/import-job.js';
-import { isMaintenanceRunning } from './maintenance.js';
+import { reserveDatabaseOperation, currentDatabaseOperation } from '../application/database-operations.js';
 
-interface Job { status: ImportJobStatus; directory: string; databasePath: string; force: boolean; files: StagedImportFile[]; worker?: Worker; staging: boolean; stagingDone?: Promise<void>; expiry?: NodeJS.Timeout }
+interface Job { lease?: ReturnType<typeof reserveDatabaseOperation>; terminal?: Partial<ImportJobStatus>; status: ImportJobStatus; directory: string; databasePath: string; force: boolean; files: StagedImportFile[]; worker?: Worker; staging: boolean; stagingDone?: Promise<void>; expiry?: NodeJS.Timeout }
 let job: Job | undefined;
 const active = (value?: Job) => value && !['complete', 'failed'].includes(value.status.phase);
 export const isImportJobRunning = () => Boolean(active(job));
@@ -52,15 +52,16 @@ function find(id: string): Job {
 export function getImportJob(id: string): ImportJobStatus { return { ...find(id).status }; }
 
 export async function createImportJob(databasePath: string, totalFiles: number, force: boolean): Promise<ImportJobStatus> {
-  if (active(job) || isMaintenanceRunning()) throw new Error('Database is busy');
+  if (active(job) || currentDatabaseOperation()) throw new Error('Database is busy');
   if (databasePath === ':memory:') throw new Error('Background imports require a file database');
   if (!Number.isInteger(totalFiles) || totalFiles < 1 || totalFiles > 2000) throw new Error('Invalid file count');
   const value: Job = { status: { jobId: randomUUID(), phase: 'uploading', completed: 0, total: totalFiles, uploaded: 0, totalFiles },
     directory: '', databasePath, force, files: [], staging: false };
   // Reserve synchronously before the first await, so two requests cannot start jobs.
+  value.lease = reserveDatabaseOperation('import');
   job = value;
   try { value.directory = await fs.mkdtemp(path.join(os.tmpdir(), 'aerolab-import-')); }
-  catch (error) { value.status.phase = 'failed'; throw error; }
+  catch (error) { value.status.phase = 'failed'; value.lease?.release(); throw error; }
   value.expiry = setTimeout(() => {
     if (job === value && value.status.phase === 'uploading') void cancelImportJob(value.status.jobId).catch(() => {});
   }, 30 * 60 * 1000);
@@ -104,16 +105,20 @@ export async function finishImportJob(id: string, totalFiles?: number): Promise<
     const { entry, decoderPath } = await workerBundles();
     value.worker = new Worker(entry, { execArgv: [], workerData: { databasePath: value.databasePath, files: value.files, force: value.force, decoderPath } });
     value.worker.on('message', (message: Partial<ImportJobStatus>) => {
+      if (message.phase === 'complete' || message.phase === 'failed') { value.terminal = message; return; }
       value.status = { ...value.status, ...message };
     });
-    value.worker.on('error', error => { value.status = { ...value.status, phase: 'failed', error: error.message }; });
+    value.worker.on('error', error => { value.terminal = { phase: 'failed', error: error.message }; });
     value.worker.on('exit', () => {
       value.worker = undefined;
+      value.lease?.release();
+      if (value.terminal) value.status = { ...value.status, ...value.terminal };
       if (active(value)) value.status = { ...value.status, phase: 'failed', error: 'Import worker stopped before completion' };
       void cleanup(value).catch(() => {});
     });
   } catch (error) {
     value.status = { ...value.status, phase: 'failed', error: error instanceof Error ? error.message : String(error) };
+    value.lease?.release();
     await cleanup(value);
     throw error;
   }
@@ -127,5 +132,6 @@ export async function cancelImportJob(id: string): Promise<void> {
   value.status.phase = 'failed';
   clearTimeout(value.expiry);
   await value.stagingDone;
+  value.lease?.release();
   await cleanup(value);
 }

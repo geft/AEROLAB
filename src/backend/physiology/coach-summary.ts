@@ -1,17 +1,20 @@
 import { coachMessage } from '../domain/coaching/messages.js';
+import { ANALYSIS_REVISION, type AnalysisProvenance } from '../../shared/analysis-revision.js';
+import { parseClassificationEvidence, type ClassificationEvidence } from '../../shared/contracts/classification.js';
+import { assertDatabaseWritable } from '../application/database-operations.js';
 import { parseCoachMessages, type CoachMessages } from '../../shared/coaching.js';
 import type { SessionVerdict } from '../../shared/session-verdict.js';
 import { getHeartRateProfileAtDate } from './threshold-tracker.js';
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { PauseBreakdown, extractSteadyStateMetrics } from './economy.js';
 import { ZoneDistribution } from './zones.js';
-import { RubricFactor, gradeRun, intensityAudit, driftTargetFor, describeSet, betweenRepRecoveries, intervalDrop, intervalDuration, intervalHr, intervalMaxHr, selectRaceSplits, formatPaceText } from './coach-rubric.js';
+import { RubricFactor, type WalkAudit, gradeRun, intensityAudit, driftTargetFor, describeSet, betweenRepRecoveries, intervalDrop, intervalDuration, intervalHr, intervalMaxHr, selectRaceSplits, formatPaceText } from './coach-rubric.js';
 import { CoachContext, buildContextInsights, loadCoachHistoryContext } from './coach-history.js';
 import { createInsightLog, type CoachInsightTone } from './coach-insight.js';
 import { verifiedAmbientTemperature } from './weather.js';
 import Database from 'better-sqlite3';
 import { activityFromRow, coachSummaryFromRow, objectRow } from '../db/rows.js';
-import { ANALYSIS_RECORD_COLUMNS } from '../db/analysis-records.js';
+import { loadAnalysisRecords, analysisRecordToRow } from '../db/analysis-records.js';
 import { parseSessionVerdict } from '../../shared/session-verdict.js';
 import { qualityWorkoutFailed } from '../ingestion/classifier.js';
 
@@ -19,6 +22,8 @@ import { qualityWorkoutFailed } from '../ingestion/classifier.js';
 export type ScoreFactor = RubricFactor;
 
 export interface CoachSummary {
+  classificationEvidence?: ClassificationEvidence;
+  analysisProvenance?: AnalysisProvenance;
   messages?: CoachMessages;
   verdict: SessionVerdict;
   headline: string;
@@ -42,7 +47,7 @@ export interface CoachSummary {
   /** Which weighted rubric was applied: aerobic, quality or race. */
   rubricFamily?: string;
   /** Walk-break classification when per-second telemetry was available. */
-  walkAudit?: any | null;
+  walkAudit?: WalkAudit | null;
   /** Personal-baseline comparison against the athlete's own recent history. */
   context?: CoachContext | null;
   updatedAt?: string;
@@ -587,7 +592,7 @@ export function syncActivityCoachSummary(
   db: Database.Database,
   activityId: string,
   overrides?: { runType?: string; isFailedWorkout?: boolean; intervals?: unknown[]; splits?: unknown[] },
-  options: { persist?: boolean } = {}
+  options: { persist?: boolean; classificationEvidence?: ClassificationEvidence } = {}
 ): CoachSummary | null {
   const activityValue: unknown = db.prepare('SELECT * FROM activities WHERE id = ?').get(activityId);
   if (!activityValue) return null;
@@ -604,8 +609,7 @@ export function syncActivityCoachSummary(
     return row;
   });
 
-  const records = validateRows(db.prepare(`SELECT ${ANALYSIS_RECORD_COLUMNS} FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC`).all(activityId), 'activity_records',
-    ['elapsed_seconds', 'heart_rate', 'cadence', 'speed_mps', 'distance_m', 'altitude_m', 'lat', 'lon', 'temp', 'vert_osc', 'stance_time'], ['timestamp']);
+  const records = loadAnalysisRecords(db, activityId).map(analysisRecordToRow);
   const pauseBreakdown = extractSteadyStateMetrics(records);
   const intervals = validateRows(db.prepare('SELECT * FROM activity_intervals WHERE activity_id = ? ORDER BY interval_index ASC').all(activityId), 'activity_intervals',
     ['interval_index', 'start_seconds', 'duration_seconds', 'distance_meters', 'avg_speed_mps', 'avg_pace_sec_km', 'avg_heart_rate', 'max_heart_rate', 'avg_cadence', 'peak_cadence', 'peak_speed_mps', 'peak_pace_sec_km', 'min_stance_time', 'hr_drop', 'avg_vert_osc', 'avg_stance_time', 'avg_step_length', 'avg_stride_length', 'avg_vert_ratio'], ['type']);
@@ -623,7 +627,7 @@ export function syncActivityCoachSummary(
     steady_heart_rate: pauseBreakdown.steadyHeartRate ?? activity.steady_heart_rate ?? null
   });
   if (history?.lastSimilarRun) {
-    const priorRecords = validateRows(db.prepare('SELECT elapsed_seconds, heart_rate, cadence FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC').all(history.lastSimilarRun.id), 'activity_records', ['elapsed_seconds', 'heart_rate', 'cadence']);
+    const priorRecords = loadAnalysisRecords(db, history.lastSimilarRun.id).map(analysisRecordToRow);
     const threshold = getHeartRateProfileAtDate(db, history.lastSimilarRun.startTime, history.lastSimilarRun.id).lt1Hr;
     history.lastSimilarRun.aboveCeilingPct = intensityAudit(priorRecords, { lt1Hr: threshold })?.aboveCeilingPct ?? null;
   }
@@ -681,7 +685,19 @@ export function syncActivityCoachSummary(
     ...overrides
   });
 
+  const previousAnalysis = db.prepare('SELECT analysis_json FROM activity_coach_summaries WHERE activity_id = ?').get(activityId) as { analysis_json: string | null } | undefined;
+  let previousEvidence: ClassificationEvidence | undefined;
+  try {
+    const previous: unknown = previousAnalysis?.analysis_json ? JSON.parse(previousAnalysis.analysis_json) : null;
+    if (previous && typeof previous === 'object' && 'classificationEvidence' in previous) previousEvidence = parseClassificationEvidence(previous.classificationEvidence);
+  } catch { /* Legacy summaries do not carry classification evidence. */ }
+  coachSummary.classificationEvidence = options.classificationEvidence ?? previousEvidence;
+  coachSummary.analysisProvenance = { revision: ANALYSIS_REVISION, workoutStartTime: activity.start_time,
+    historicalProfile: { maxHr: maxHeartRate, restingHr, lt1Hr, lt2Hr }, telemetryPolicy: 'fit-timer-and-observed-gaps-v1' };
   const analysis = {
+    revision: ANALYSIS_REVISION,
+    classificationEvidence: coachSummary.classificationEvidence,
+    provenance: coachSummary.analysisProvenance,
     messages: coachSummary.messages,
     verdict: coachSummary.verdict,
     context: coachSummary.context ?? null,
@@ -692,113 +708,113 @@ export function syncActivityCoachSummary(
   };
 
   if (options.persist === false) return coachSummary;
+  assertDatabaseWritable();
 
-  try {
-    db.prepare(`
-      INSERT INTO activity_coach_summaries (
-        activity_id, headline, effectiveness_score, key_insights_json, insight_tones_json,
-        recommendation, steady_pace_sec_km, steady_heart_rate,
-        steady_cadence, steady_stance_time, pause_breakdown_json, score_breakdown_json,
-        analysis_json, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(activity_id) DO UPDATE SET
-        headline = excluded.headline,
-        effectiveness_score = excluded.effectiveness_score,
-        key_insights_json = excluded.key_insights_json,
-        insight_tones_json = excluded.insight_tones_json,
-        recommendation = excluded.recommendation,
-        steady_pace_sec_km = excluded.steady_pace_sec_km,
-        steady_heart_rate = excluded.steady_heart_rate,
-        steady_cadence = excluded.steady_cadence,
-        steady_stance_time = excluded.steady_stance_time,
-        pause_breakdown_json = excluded.pause_breakdown_json,
-        score_breakdown_json = excluded.score_breakdown_json,
-        analysis_json = excluded.analysis_json,
-        updated_at = CURRENT_TIMESTAMP
-    `).run(
-      activityId,
-      coachSummary.headline,
-      coachSummary.effectivenessScore,
-      JSON.stringify(coachSummary.keyInsights),
-      JSON.stringify(coachSummary.insightTones || []),
-      coachSummary.recommendation,
-      pauseBreakdown.steadyPaceSecKm,
-      pauseBreakdown.steadyHeartRate,
-      pauseBreakdown.steadyCadence,
-      pauseBreakdown.steadyStanceTimeMs,
-      JSON.stringify(pauseBreakdown),
-      JSON.stringify(coachSummary.scoreBreakdown),
-      JSON.stringify(analysis)
-    );
+  db.prepare(`
+    INSERT INTO activity_coach_summaries (
+      activity_id, headline, effectiveness_score, key_insights_json, insight_tones_json,
+      recommendation, steady_pace_sec_km, steady_heart_rate,
+      steady_cadence, steady_stance_time, pause_breakdown_json, score_breakdown_json,
+      analysis_json, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(activity_id) DO UPDATE SET
+      headline = excluded.headline,
+      effectiveness_score = excluded.effectiveness_score,
+      key_insights_json = excluded.key_insights_json,
+      insight_tones_json = excluded.insight_tones_json,
+      recommendation = excluded.recommendation,
+      steady_pace_sec_km = excluded.steady_pace_sec_km,
+      steady_heart_rate = excluded.steady_heart_rate,
+      steady_cadence = excluded.steady_cadence,
+      steady_stance_time = excluded.steady_stance_time,
+      pause_breakdown_json = excluded.pause_breakdown_json,
+      score_breakdown_json = excluded.score_breakdown_json,
+      analysis_json = excluded.analysis_json,
+      updated_at = CURRENT_TIMESTAMP
+  `).run(
+    activityId,
+    coachSummary.headline,
+    coachSummary.effectivenessScore,
+    JSON.stringify(coachSummary.keyInsights),
+    JSON.stringify(coachSummary.insightTones || []),
+    coachSummary.recommendation,
+    pauseBreakdown.steadyPaceSecKm,
+    pauseBreakdown.steadyHeartRate,
+    pauseBreakdown.steadyCadence,
+    pauseBreakdown.steadyStanceTimeMs,
+    JSON.stringify(pauseBreakdown),
+    JSON.stringify(coachSummary.scoreBreakdown),
+    JSON.stringify(analysis)
+  );
 
-    const rowValue: unknown = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get(activityId);
-    if (rowValue) {
-      const row = coachSummaryFromRow(rowValue);
-      const scoreVal = row.effectiveness_score;
-      const starsVal = scoreVal >= 85 ? 3 : scoreVal >= 70 ? 2 : 1;
-      let parsedAnalysis: Record<string, unknown> | null = null;
-      try {
-        const parsed: unknown = row.analysis_json ? JSON.parse(row.analysis_json) : null;
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) parsedAnalysis = parsed as Record<string, unknown>;
-      } catch {
-        parsedAnalysis = null;
-      }
-      const parseJsonArray = (json: string | null, fallback: unknown[] = []): unknown[] => {
-        if (!json) return fallback;
-        try { const parsed: unknown = JSON.parse(json); return Array.isArray(parsed) ? parsed : fallback; }
-        catch { return fallback; }
-      };
-      const stringArray = (json: string, fallback: string[]): string[] => {
-        const parsed = parseJsonArray(json);
-        return parsed.every(item => typeof item === 'string') ? parsed as string[] : fallback;
-      };
-      const toneArray = (json: string | null, fallback: CoachInsightTone[]): CoachInsightTone[] => {
-        const parsed = parseJsonArray(json);
-        return parsed.every(item => item === 'positive' || item === 'neutral' || item === 'caution' || item === 'negative')
-          ? parsed as CoachInsightTone[] : fallback;
-      };
-      const scoreArray = (json: string | null): RubricFactor[] => {
-        const parsed = parseJsonArray(json);
-        if (!parsed.every(item => {
-          if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
-          const factor = item as Record<string, unknown>;
-          return typeof factor.category === 'string' && typeof factor.label === 'string'
-            && typeof factor.points === 'number' && Number.isFinite(factor.points)
-            && typeof factor.maxPoints === 'number' && Number.isFinite(factor.maxPoints);
-        })) return coachSummary.scoreBreakdown;
-        return parsed as RubricFactor[];
-      };
-      const parsedFocusAdvice = parsedAnalysis?.focusAdvice;
-      const parsedCoverage = parsedAnalysis?.rubricCoveragePct;
-      const parsedFamily = parsedAnalysis?.rubricFamily;
-      return {
-        messages: parseCoachMessages(parsedAnalysis?.messages) ?? coachSummary.messages,
-        headline: row.headline,
-        verdict: parsedAnalysis ? parseSessionVerdict(parsedAnalysis.verdict) : coachSummary.verdict,
-        effectivenessScore: scoreVal,
-        rating5: Number((scoreVal / 20).toFixed(1)),
-        stars: starsVal,
-        keyInsights: stringArray(row.key_insights_json, coachSummary.keyInsights),
-        // Rows written before tones existed have no column value yet; the UI
-        // falls back to an uncoloured list until the row is re-synced.
-        insightTones: toneArray(row.insight_tones_json, coachSummary.insightTones),
-        recommendation: row.recommendation,
-        scoreBreakdown: scoreArray(row.score_breakdown_json),
-        focusAdvice: typeof parsedFocusAdvice === 'string' ? parsedFocusAdvice : coachSummary.focusAdvice ?? null,
-        rubricCoveragePct: typeof parsedCoverage === 'number' && Number.isFinite(parsedCoverage) ? parsedCoverage : coachSummary.rubricCoveragePct,
-        rubricFamily: parsedFamily === 'aerobic' || parsedFamily === 'quality' || parsedFamily === 'race' ? parsedFamily : coachSummary.rubricFamily,
-        context: coachSummary.context ?? null,
-        ...(row.updated_at ? { updatedAt: row.updated_at } : {}),
-        steadyPaceSecKm: row.steady_pace_sec_km,
-        steadyHeartRate: row.steady_heart_rate,
-        steadyCadence: row.steady_cadence,
-        steadyStanceTime: row.steady_stance_time,
-        pauseBreakdown
-      };
+  const rowValue: unknown = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get(activityId);
+  if (rowValue) {
+    const row = coachSummaryFromRow(rowValue);
+    const scoreVal = row.effectiveness_score;
+    const starsVal = scoreVal >= 85 ? 3 : scoreVal >= 70 ? 2 : 1;
+    let parsedAnalysis: Record<string, unknown> | null = null;
+    try {
+      const parsed: unknown = row.analysis_json ? JSON.parse(row.analysis_json) : null;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) parsedAnalysis = parsed as Record<string, unknown>;
+    } catch {
+      parsedAnalysis = null;
     }
-  } catch (err) {
-    // Non-fatal if table not ready
+    const parseJsonArray = (json: string | null, fallback: unknown[] = []): unknown[] => {
+      if (!json) return fallback;
+      try { const parsed: unknown = JSON.parse(json); return Array.isArray(parsed) ? parsed : fallback; }
+      catch { return fallback; }
+    };
+    const stringArray = (json: string, fallback: string[]): string[] => {
+      const parsed = parseJsonArray(json);
+      return parsed.every(item => typeof item === 'string') ? parsed as string[] : fallback;
+    };
+    const toneArray = (json: string | null, fallback: CoachInsightTone[]): CoachInsightTone[] => {
+      const parsed = parseJsonArray(json);
+      return parsed.every(item => item === 'positive' || item === 'neutral' || item === 'caution' || item === 'negative')
+        ? parsed as CoachInsightTone[] : fallback;
+    };
+    const scoreArray = (json: string | null): RubricFactor[] => {
+      const parsed = parseJsonArray(json);
+      if (!parsed.every(item => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+        const factor = item as Record<string, unknown>;
+        return typeof factor.category === 'string' && typeof factor.label === 'string'
+          && typeof factor.points === 'number' && Number.isFinite(factor.points)
+          && typeof factor.maxPoints === 'number' && Number.isFinite(factor.maxPoints);
+      })) return coachSummary.scoreBreakdown;
+      return parsed as RubricFactor[];
+    };
+    const parsedFocusAdvice = parsedAnalysis?.focusAdvice;
+    const parsedCoverage = parsedAnalysis?.rubricCoveragePct;
+    const parsedFamily = parsedAnalysis?.rubricFamily;
+    return {
+      classificationEvidence: coachSummary.classificationEvidence,
+      analysisProvenance: coachSummary.analysisProvenance,
+      messages: parseCoachMessages(parsedAnalysis?.messages) ?? coachSummary.messages,
+      headline: row.headline,
+      verdict: parsedAnalysis ? parseSessionVerdict(parsedAnalysis.verdict) : coachSummary.verdict,
+      effectivenessScore: scoreVal,
+      rating5: Number((scoreVal / 20).toFixed(1)),
+      stars: starsVal,
+      keyInsights: stringArray(row.key_insights_json, coachSummary.keyInsights),
+      // Rows written before tones existed have no column value yet; the UI
+      // falls back to an uncoloured list until the row is re-synced.
+      insightTones: toneArray(row.insight_tones_json, coachSummary.insightTones),
+      recommendation: row.recommendation,
+      scoreBreakdown: scoreArray(row.score_breakdown_json),
+      focusAdvice: typeof parsedFocusAdvice === 'string' ? parsedFocusAdvice : coachSummary.focusAdvice ?? null,
+      rubricCoveragePct: typeof parsedCoverage === 'number' && Number.isFinite(parsedCoverage) ? parsedCoverage : coachSummary.rubricCoveragePct,
+      rubricFamily: parsedFamily === 'aerobic' || parsedFamily === 'quality' || parsedFamily === 'race' ? parsedFamily : coachSummary.rubricFamily,
+      context: coachSummary.context ?? null,
+      ...(row.updated_at ? { updatedAt: row.updated_at } : {}),
+      steadyPaceSecKm: row.steady_pace_sec_km,
+      steadyHeartRate: row.steady_heart_rate,
+      steadyCadence: row.steady_cadence,
+      steadyStanceTime: row.steady_stance_time,
+      pauseBreakdown
+    };
   }
+
 
   return coachSummary;
 }
@@ -807,7 +823,7 @@ export function syncActivityCoachSummary(
  * Re-evaluates and updates all coach summaries across all activities.
  * Useful when athlete profile thresholds, gear, or baseline changes.
  */
-export function syncAllCoachSummaries(db: Database.Database, activityIds?: string[]): number {
+export function syncAllCoachSummaries(db: Database.Database, activityIds?: string[], classifications?: Map<string, ClassificationEvidence>): number {
   const rows = activityIds?.length
     ? db.prepare(`SELECT id FROM activities WHERE id IN (${activityIds.map(() => '?').join(',')})`).all(...activityIds)
     : db.prepare('SELECT id FROM activities').all();
@@ -818,7 +834,7 @@ export function syncAllCoachSummaries(db: Database.Database, activityIds?: strin
   });
   let count = 0;
   for (const act of activities) {
-    if (syncActivityCoachSummary(db, act.id)) {
+    if (syncActivityCoachSummary(db, act.id, undefined, { classificationEvidence: classifications?.get(act.id) })) {
       count++;
     }
   }

@@ -29,6 +29,7 @@ const activityFields = new Set([
   'z1_seconds', 'z2_seconds', 'z3_seconds', 'z4_seconds', 'z5_seconds', 'effectiveness_score', 'verdict'
 ]);
 const recordFields = new Set([
+  'timerActive', 'timerSegment', 'timerPauseSeconds',
   'id', 'activity_id', 'timestamp', 'elapsed_seconds', 'distance_m', 'speed_mps', 'heart_rate', 'cadence',
   'altitude_m', 'temp', 'vert_osc', 'stance_time', 'step_length', 'vertical_ratio'
 ]);

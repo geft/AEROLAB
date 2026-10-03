@@ -1,3 +1,4 @@
+import { useActivityRevision } from '../features/activity-revision.js';
 import React, { useState, useEffect } from 'react';
 import type { ThresholdsResponse, CalibrationHistoryItem } from '../types/api.js';
 import { TrendingUp, Activity, Zap, ShieldCheck, Calendar, List, LayoutGrid, Award, RefreshCw } from 'lucide-react';
@@ -30,11 +31,13 @@ export const ProgressView: React.FC = () => {
   // Date.now() must not be called during render (react-hooks/purity), so capture a
   // stable "now" once per mount for the time-range fallback.
   const [mountedAt] = React.useState(() => Date.now());
+  const revision = useActivityRevision();
   const [data, setData] = useState<ThresholdData | null>(null);
-  const [completedRequest, setCompletedRequest] = useState<number | null>(null);
+  const [completedRequest, setCompletedRequest] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
-  const loading = completedRequest !== retryCount;
+  const request = [retryCount, revision].join(':');
+  const loading = completedRequest !== request;
   const [historyViewMode, setHistoryViewMode] = useState<'cards' | 'table'>('cards');
   const [calFilter, setCalFilter] = useState<'all' | 'lt1' | 'lt2' | 'race'>('all');
   const [isEconomyGuideOpen, setIsEconomyGuideOpen] = useState<boolean>(false);
@@ -51,16 +54,16 @@ export const ProgressView: React.FC = () => {
         // The route always returns `latest`; the view's stricter local shape
         // mirrors that guarantee rather than the optional contract field.
         setData(resData as unknown as ThresholdData);
-        setCompletedRequest(retryCount);
+        setCompletedRequest(request);
       })
       .catch(err => {
         if (cancelled) return;
         console.error('Failed to load thresholds:', err);
         setLoadError(true);
-        setCompletedRequest(retryCount);
+        setCompletedRequest(request);
       });
     return () => { cancelled = true; };
-  }, [retryCount]);
+  }, [request]);
 
   // Deduplicate history entries by source_activity_id to eliminate repetitive rows
   const uniqueHistory = React.useMemo(() => {

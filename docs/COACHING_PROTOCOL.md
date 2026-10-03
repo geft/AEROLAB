@@ -33,3 +33,23 @@ rubric scores, and existing English copy are unchanged.
 Regression coverage checks wording-independent verdicts, factor identifiers
 across run families, Chinese rendering and interpolation, message validation,
 and persistence/API round trips including text-only legacy summaries.
+
+## Follow-up structure and stored analysis
+
+`physiology/coach-rubric.ts` remains the compatibility entry point and orchestrates
+`coaching/{evidence,aerobic,quality,race,focus}.ts`. The split preserves scoring
+weights and thresholds. Shared concrete detail/coaching DTOs now live in
+`shared/contracts/activity-detail.ts`; stored JSON validators reject malformed
+scores, tones, context and evidence rather than expose `unknown` response fields.
+
+Classifier results carry a stable rule ID, observed measurements, applicable HR
+policy and explicitly heuristic confidence. Import/replay store that evidence in
+summary `analysis_json` and return it with historical HR-profile/telemetry-policy
+provenance. Weather and cosmetic summary refreshes preserve classifier evidence.
+Summary revision `telemetry-policy-v1` drives freshness and the grouped derived
+upgrade. Read-only legacy snapshots remain usable without the new fields.
+
+Dynamic insight sentences, factor descriptions and focus prose remain on the
+legacy adapter. Migrating those emissions and relocating their Chinese copy to
+typed dictionaries is still open; the module split does not close that protocol
+work.

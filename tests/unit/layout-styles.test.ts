@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
+import { readStylesheet } from '../fixtures/styles.js';
 
 /**
  * Layout regression guards.
@@ -13,7 +14,7 @@ import path from 'path';
 describe('Layout stylesheet contracts', () => {
   const rootDir = process.cwd();
   const cssPath = path.join(rootDir, 'src/frontend/styles/index.css');
-  const css = fs.readFileSync(cssPath, 'utf8');
+  const css = readStylesheet(cssPath);
 
   const ruleBody = (selector: string): string => {
     // Escape regex metacharacters, then allow any whitespace between the

@@ -1,0 +1,224 @@
+/* Footer */
+.app-footer {
+  margin-top: auto;
+  border-top: 1px solid var(--border-subtle);
+  padding: 1.5rem 2rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.month-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 40px;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.vdot-pace-range {
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  background: var(--bg-surface);
+}
+
+.vdot-pace-range > div:first-child {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  margin-bottom: 0.15rem;
+}
+
+.chart-point-selector {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.3rem;
+  margin-top: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.chart-point-selector input {
+  width: 100%;
+  min-height: 44px;
+  accent-color: var(--accent-action-bg);
+  touch-action: pan-x;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .chart-point-selector,
+  .telemetry-chart-sample-control {
+    display: none;
+  }
+}
+
+.training-load-chart-scroll {
+  width: 100%;
+  position: relative;
+}
+
+.training-load-axis-label,
+.threshold-chart-axis-label,
+.period-chart-axis-label {
+  font-size: 0.72rem !important;
+}
+
+.period-progress-svg .period-chart-axis-label {
+  font-size: 0.82rem !important;
+}
+
+.period-progress-svg .period-chart-data-label,
+.period-progress-svg .period-chart-point-value {
+  font-size: 0.78rem !important;
+}
+
+.period-progress-svg .period-chart-secondary-label {
+  font-size: 0.72rem !important;
+}
+
+.threshold-trend-tooltip {
+  position: static !important;
+  width: 100%;
+  min-width: 0 !important;
+  margin-top: 0.75rem;
+  pointer-events: auto !important;
+}
+
+.month-picker-overlay {
+  z-index: 1500;
+}
+
+.month-picker-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(28rem, 100%);
+  max-height: min(80dvh, 42rem);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--modal-bg);
+  color: var(--text-primary);
+  box-shadow: var(--card-shadow);
+}
+
+.month-picker-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.month-picker-dialog-header h2 {
+  font-size: 1rem;
+}
+
+.month-picker-options {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.month-picker-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  min-height: 48px;
+  padding: 0.65rem 1rem;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.month-picker-option.active {
+  background: rgba(6, 182, 212, 0.12);
+  color: var(--accent-cyan);
+  font-weight: 700;
+}
+
+.threshold-trend-tooltip {
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  box-shadow: var(--card-shadow);
+}
+
+.footer-version-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+/* Badge icons must never shrink when the commit hash wraps on narrow screens */
+.footer-version-icon {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.footer-version-badge:hover {
+  background: var(--bg-card);
+  border-color: var(--accent-cyan);
+  color: var(--text-primary);
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.15);
+  transform: translateY(-1px);
+}
+
+.footer-version-number {
+  font-weight: 600;
+  color: var(--accent-cyan);
+}
+
+.footer-commit-hash {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.footer-copy-icon {
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.footer-version-badge:hover .footer-copy-icon {
+  opacity: 1;
+  color: var(--accent-cyan);
+}
+
+.footer-copied-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  color: #10b981;
+  font-weight: 600;
+  font-size: 0.7rem;
+}
