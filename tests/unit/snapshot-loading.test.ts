@@ -40,3 +40,54 @@ describe('snapshot streaming progress', () => {
     await expect(loadSnapshot(() => {})).rejects.toThrow();
   });
 });
+
+describe('persistent snapshot cache', () => {
+  function storage() {
+    let saved: Response | undefined;
+    const cache = {
+      put: vi.fn(async (_key: string, value: Response) => { saved = value; }),
+      match: vi.fn(async () => saved?.clone())
+    };
+    vi.stubGlobal('caches', { open: vi.fn().mockResolvedValue(cache) });
+    return cache;
+  }
+
+  it('persists the first download and reopens it offline without a service worker controller', async () => {
+    const cache = storage();
+    const fetchMock = vi.fn().mockResolvedValue(response({ 'Content-Encoding': 'gzip' }));
+    vi.stubGlobal('fetch', fetchMock);
+    await loadSnapshot(() => {});
+    expect(cache.put).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith('/snapshot.json', { cache: 'no-cache' });
+    // Cached bodies are decoded; retaining compressed length/encoding would corrupt progress.
+    expect((await cache.match())?.headers.get('content-encoding')).toBeNull();
+    fetchMock.mockRejectedValue(new TypeError('offline'));
+    expect(await loadSnapshot(() => {})).toEqual(snapshot);
+  });
+
+  it('refreshes online but retains the last valid snapshot after an invalid deployment', async () => {
+    const cache = storage();
+    const fetchMock = vi.fn().mockResolvedValue(response({}));
+    vi.stubGlobal('fetch', fetchMock);
+    await loadSnapshot(() => {});
+    const newer = { ...snapshot, generatedAt: '2026-10-04' };
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(newer)));
+    expect(await loadSnapshot(() => {})).toEqual(newer);
+    fetchMock.mockResolvedValue(new Response('<html>Sign in</html>'));
+    expect(await loadSnapshot(() => {})).toEqual(newer);
+    expect(cache.put).toHaveBeenCalledTimes(2);
+  });
+
+  it('loads online when cache access or writes fail, and still fails offline with no valid cache', async () => {
+    const cache = storage();
+    cache.put.mockRejectedValue(new Error('quota exceeded'));
+    const fetchMock = vi.fn().mockResolvedValue(response({}));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await loadSnapshot(() => {})).toEqual(snapshot);
+    vi.stubGlobal('caches', { open: vi.fn().mockRejectedValue(new Error('storage disabled')) });
+    fetchMock.mockResolvedValue(response({}));
+    expect(await loadSnapshot(() => {})).toEqual(snapshot);
+    fetchMock.mockRejectedValue(new TypeError('offline'));
+    await expect(loadSnapshot(() => {})).rejects.toThrow('offline');
+  });
+});

@@ -30,7 +30,30 @@ export class SnapshotLoadError extends Error {
 
 export async function loadSnapshot(onProgress: (progress: SnapshotLoadingProgress) => void): Promise<Snapshot> {
   onProgress({ stage: 'downloading' });
-  const response = await fetch('/snapshot.json', { cache: 'no-store' });
+  // Cache Storage also works in the parsing worker and survives phone app restarts.
+  // Storage can be unavailable or full; neither should prevent an online load.
+  let cache: Cache | undefined;
+  try {
+    if (typeof caches !== 'undefined') cache = await caches.open('aerolab-snapshot-data-v1');
+  } catch { /* Continue without persistent storage. */ }
+  try {
+    const response = await fetch('/snapshot.json', { cache: 'no-cache' });
+    const { data, text } = await parseSnapshot(response, onProgress);
+    try {
+      await cache?.put('/snapshot.json', new Response(text, { headers: { 'Content-Type': 'application/json' } }));
+    } catch { /* Quota or privacy settings must not break a valid snapshot. */ }
+    return data;
+  } catch (error) {
+    let cached: Response | undefined;
+    try { cached = await cache?.match('/snapshot.json'); } catch { /* Storage is optional. */ }
+    if (cached) {
+      try { return (await parseSnapshot(cached, onProgress)).data; } catch { /* Preserve the original load error. */ }
+    }
+    throw error;
+  }
+}
+
+async function parseSnapshot(response: Response, onProgress: (progress: SnapshotLoadingProgress) => void): Promise<{ data: Snapshot; text: string }> {
   if (!response.ok) throw new SnapshotLoadError(response.status, 'ERR_SNAPSHOT_MISSING', 'Snapshot data is unavailable. Export and rebuild the viewer.');
   const encoding = response.headers.get('content-encoding');
   const length = Number(response.headers.get('content-length'));
@@ -67,7 +90,7 @@ export async function loadSnapshot(onProgress: (progress: SnapshotLoadingProgres
   if (!data.generatedAt || !Array.isArray(data.activities) || !data.details || !data.profile) {
     throw new SnapshotLoadError(200, 'ERR_SNAPSHOT_INVALID', 'Snapshot data is missing required sections. Export it again.');
   }
-  return data;
+  return { data, text };
 }
 
 export type SnapshotWorkerRequest = { type: 'load' } | { type: 'read'; id: number; section: keyof Snapshot; key?: string };

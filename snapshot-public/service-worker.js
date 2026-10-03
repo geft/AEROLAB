@@ -1,10 +1,12 @@
 /* global caches, fetch, Response, self, URL */
 
-const CACHE_NAME = 'aerolab-snapshot-shell-v1';
+const CACHE_NAME = 'aerolab-snapshot-shell-v2';
+// The build plugin includes every emitted chunk, including lazy tabs and the worker.
+const PRECACHE_URLS = ['/'];
 const SNAPSHOT_PATH = '/snapshot.json';
 
 self.addEventListener('install', event => {
-  event.waitUntil(self.skipWaiting());
+  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(PRECACHE_URLS)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', event => {
@@ -12,7 +14,7 @@ self.addEventListener('activate', event => {
     caches.keys()
       .then(cacheNames => Promise.all(
         cacheNames
-          .filter(cacheName => cacheName.startsWith('aerolab-snapshot-') && cacheName !== CACHE_NAME)
+          .filter(cacheName => cacheName.startsWith('aerolab-snapshot-shell-') && cacheName !== CACHE_NAME)
           .map(cacheName => caches.delete(cacheName))
       ))
       .then(() => self.clients.claim())
@@ -32,7 +34,9 @@ self.addEventListener('fetch', event => {
       }
       return response;
     }).catch(async () => {
-      const cached = await caches.match(request);
+      // Precached static files have identical bytes for every Origin header.
+      // Module requests add Origin while install-time requests do not.
+      const cached = await caches.match(request, { ignoreVary: PRECACHE_URLS.includes(url.pathname) });
       if (cached) return cached;
       if (request.mode === 'navigate') {
         const appShell = await caches.match('/');

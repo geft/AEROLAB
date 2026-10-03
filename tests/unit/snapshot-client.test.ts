@@ -70,7 +70,7 @@ describe('snapshot API client', () => {
     expect(await client.getProgressHistory('easy_base')).toEqual(snapshot.progressByRunType.easy_base);
     expect(await client.getVolume({ period: 'month', month: '2026-09' })).toEqual(snapshot.volume['month:2026-09']);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith('/snapshot.json', { cache: 'no-store' });
+    expect(fetchMock).toHaveBeenCalledWith('/snapshot.json', { cache: 'no-cache' });
   });
 
   it('fails clearly for unsupported versions and missing sections', async () => {

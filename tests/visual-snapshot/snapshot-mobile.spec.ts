@@ -1,5 +1,33 @@
 import { test, expect } from '@playwright/test';
 
+test('phone reopens the first cached snapshot offline and opens previously unvisited tabs', async ({ page, context }) => {
+  await page.goto('/');
+  await expect(page.getByText(/Snapshot exported/)).toBeVisible();
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+    if (!navigator.serviceWorker.controller) {
+      await new Promise<void>(resolve => navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true }));
+    }
+  });
+  expect(await page.evaluate(async () => {
+    const cache = await caches.open('aerolab-snapshot-data-v1');
+    return Boolean(await cache.match('/snapshot.json'));
+  })).toBe(true);
+  await page.close();
+  await context.setOffline(true);
+  const reopened = await context.newPage();
+  await reopened.goto('/');
+  await expect(reopened.getByText(/Snapshot exported/)).toBeVisible();
+  for (const [id, selector] of [
+    ['tab-progress-btn', '.progress-grid'],
+    ['tab-stats-btn', '.stats-grid'],
+    ['tab-profile-btn', '.profile-view-container']
+  ] as const) {
+    await reopened.locator(`#${id}`).click();
+    await expect(reopened.locator(selector)).toBeVisible();
+  }
+});
+
 test('snapshot mobile navigation and activity detail stay read-only', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByText(/Snapshot exported/)).toBeVisible();
