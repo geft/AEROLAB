@@ -70,6 +70,20 @@ describe('CoachScoreCard weighted rubric UI', () => {
     expect(screen.queryByText('Revised headline')).toBeNull();
   });
 
+  it('renders dynamic descriptions and insights by ID after English wording changes', () => {
+    const message = coachMessage('description.peaked_at_bpm_hrmax', { p0: 190, p1: 94 });
+    render(<CoachScoreCard language="zh" t={zh} coachSummary={{ ...summary,
+      keyInsights: ['Revised insight'], insightMessages: [{ ...message, text: 'Revised insight' }],
+      scoreBreakdown: [{ categoryId: 'aerobic_intensity', findingId: 'clearly_easy', category: 'Changed', label: 'Changed',
+        points: 80, maxPoints: 85, description: 'Revised description', descriptionMessage: { ...message, text: 'Revised description' } }]
+    }} />);
+    fireEvent.click(screen.getByRole('button', { name: /Some deviation/ }));
+    const translated = zh.browse.coachMessageOverrides[message.id]!.replace('{p0}', '190').replace('{p1}', '94');
+    expect(screen.getAllByText(translated)).toHaveLength(2);
+    expect(screen.queryByText('Revised insight')).toBeNull();
+    expect(screen.queryByText('Revised description')).toBeNull();
+  });
+
   it('shows a verdict and observations without scores, stars or point weights', () => {
     render(<CoachScoreCard coachSummary={summary} language="en" t={en} />);
 

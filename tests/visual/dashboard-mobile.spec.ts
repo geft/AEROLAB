@@ -3,6 +3,8 @@ import { openBrowseFixture } from './browse-fixtures.js';
 
 test('Progress, Stats, and Profile mobile cards', async ({ page }) => {
   await openBrowseFixture(page);
+  // Component captures must not include the sticky navigation over their top edge.
+  await page.addStyleTag({ content: '.navbar, .navbar * { visibility: hidden !important; }' });
 
   await page.locator('#tab-progress-btn').evaluate(button => (button as HTMLButtonElement).click());
   await expect(page.locator('.benchmarks-grid')).toBeVisible();

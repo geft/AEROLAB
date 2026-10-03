@@ -359,7 +359,7 @@ export const ProgressView: React.FC = () => {
                       </span>
                       <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>•</span>
                       <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                        {translateActivityName(h.activity_name || t.progressExtras.calibrationRun, language)} {distKm ? `(${distKm} km)` : ''}
+                        {translateActivityName(h.activity_name || t.progressExtras.calibrationRun, language, t.browse.coachLegacyTemplates)} {distKm ? `(${distKm} km)` : ''}
                       </span>
                     </div>
 
@@ -448,7 +448,7 @@ export const ProgressView: React.FC = () => {
                 {paginatedHistory.map((h, i) => (
                   <tr key={h.id || i}>
                     <td><b>{formatDate(h.effective_date, { month: 'short', day: 'numeric', year: 'numeric' })}</b></td>
-                    <td>{translateActivityName(h.activity_name || t.progressExtras.steadyCalibrationRun, language)}</td>
+                    <td>{translateActivityName(h.activity_name || t.progressExtras.steadyCalibrationRun, language, t.browse.coachLegacyTemplates)}</td>
                     <td style={{ color: '#10b981', fontWeight: 600 }}>{formatPace(h.lt1_pace_sec_km)}</td>
                     <td>{h.lt1_hr ? `${h.lt1_hr} bpm` : '—'}</td>
                     <td style={{ color: '#f59e0b', fontWeight: 600 }}>{formatPace(h.lt2_pace_sec_km)}</td>

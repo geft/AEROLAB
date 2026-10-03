@@ -1,3 +1,6 @@
+import { coachingInterval } from '../../domain/coaching/telemetry.js';
+import { coachMessage, coachJoin, coachCategoryMessage } from '../../domain/coaching/messages.js';
+import type { CoachMessage } from '../../../shared/coaching.js';
 import { RubricFactor, RubricInput, runFamilyOf, driftTargetFor, coefficientOfVariation, INTERVAL_TYPE, intervalDuration, intervalHr, intervalMaxHr, pacingConsistency, HIGH_Z2_BAND_BPM, intensityAudit, WalkAudit, walkSharePct, setFatigueDetail } from './evidence.js';
 import { thresholdZoneShare } from './quality.js';
 export function pickFocus(factors: RubricFactor[]): RubricFactor | null {
@@ -15,30 +18,28 @@ export function pickFocus(factors: RubricFactor[]): RubricFactor | null {
   return worst;
 }
 
-export function buildFocusAdvice(factor: RubricFactor, input: RubricInput, walkAudit: WalkAudit | null): string {
+export function buildFocusAdvice(factor: RubricFactor, input: RubricInput, walkAudit: WalkAudit | null): CoachMessage {
   const lost = factor.maxPoints - factor.points;
-  const prefix = `Biggest Lever — ${factor.category}: `;
-  const tail = ` (${lost} of ${factor.maxPoints} points lost)`;
-  const workReps = (input.intervals || []).filter((i: any) => i.type === INTERVAL_TYPE.work);
+  const prefix = coachMessage("fragment.biggest_lever", { p0: coachCategoryMessage(factor.categoryId) });
+  const tail = coachMessage("fragment.of_points_lost", { p0: lost, p1: factor.maxPoints });
+  const workReps = (input.intervals || []).map(coachingInterval).filter((i) => i.type === INTERVAL_TYPE.work);
 
   switch (factor.categoryId) {
     case 'threshold_zone_time': {
       const zone = thresholdZoneShare(input);
-      return `${prefix}${zone ? `${zone.pct.toFixed(1)}% of observed work-rep time was within the LT2 band (${zone.lower}-${zone.upper} bpm)` : 'threshold-zone time could not be measured'}${tail}. Let heart rate settle near the LT2 anchor during work reps; use pace only to help hold that effort.`;
+      return coachMessage("focus.let_heart_rate_settle_near_the_lt2_anchor", { p0: prefix, p1: zone ? coachMessage("fragment.of_observed_work_rep_time_was_within_the", { p0: zone.pct.toFixed(1), p1: zone.lower, p2: zone.upper }) : coachMessage("fragment.threshold_zone_time_could_not_be_measured"), p2: tail });
     }
     case 'threshold_heart_rate':
-      return `${prefix}work-rep heart rate missed the ${input.lt2Hr} bpm LT2 anchor${tail}. Adjust effort to keep the work near threshold rather than chasing a pace target.`;
+      return coachMessage("focus.work_rep_heart_rate_missed_the_bpm_lt2", { p0: prefix, p1: input.lt2Hr, p2: tail });
     case 'aerobic_decoupling': {
       const target = driftTargetFor(input.ambientTempC, input.durationMin);
       const targetNote = target.conditionsAdjusted
-        ? ` The target for these conditions is ${target.fullAtPct}% (heat and duration both add drift you cannot pace away), so this is about pacing and fuelling rather than fitness.`
+        ? coachMessage('fragment.condition_adjusted_drift_target', { target: target.fullAtPct })
         : '';
-      return `${prefix}${(input.decouplingPct ?? 0).toFixed(1)}% cardiac drift was the largest single cost${tail}.${targetNote} Start the opening 2 km 10-15 sec/km slower and add easy volume at or below ${input.lt1Hr - 12} bpm — capillary density, not speed, is the limiter.`;
+      return coachMessage("focus.cardiac_drift_was_the_largest_single_cost_start", { p0: prefix, p1: (input.decouplingPct ?? 0).toFixed(1), p2: tail, p3: targetNote, p4: input.lt1Hr - 12 });
     }
     case 'pacing_discipline':
-      return runFamilyOf(input.runType) === 'quality'
-        ? `${prefix}work intervals averaged ${Math.round(workReps.reduce((a: number, r: any) => a + intervalHr(r), 0) / Math.max(1, workReps.filter((r: any) => intervalHr(r) > 0).length))} bpm against a ${input.lt2Hr} bpm LT2 anchor${tail}. Set the watch to alert above ${input.lt2Hr} bpm and hold rep 1 back so rep 3 lands on target.`
-        : `${prefix}steady HR reached ${input.steadyHr} bpm against a ${input.lt1Hr} bpm LT1 cap${tail}. Slow the opening 15-20 sec/km and cap the watch at ${input.lt1Hr - 8} bpm so easy days stay easy.`;
+      return runFamilyOf(input.runType) === 'quality' ? coachMessage("focus.work_intervals_averaged_bpm_against_a_bpm_lt2", { p0: prefix, p1: Math.round(workReps.reduce((a: number, r) => a + intervalHr(r), 0) / Math.max(1, workReps.filter((r) => intervalHr(r) > 0).length)), p2: input.lt2Hr, p3: tail, p4: input.lt2Hr }) : coachMessage("focus.steady_hr_reached_bpm_against_a_bpm_lt1", { p0: prefix, p1: input.steadyHr, p2: input.lt1Hr, p3: tail, p4: input.lt1Hr - 8 });
     case 'aerobic_intensity': {
       const audit = intensityAudit(input.records, { lt1Hr: input.lt1Hr });
       const above = audit?.aboveCeilingPct ?? 0;
@@ -47,74 +48,60 @@ export function buildFocusAdvice(factor: RubricFactor, input: RubricInput, walkA
       const targetHigh = input.lt1Hr - 10;
       // Advise on whichever signal actually cost the points.
       if (zone2 >= 40 && above < 5) {
-        const interpretation = zone2 < 60
-          ? 'normal easy'
-          : zone2 <= 75
-            ? 'upper-easy / aerobic steady'
-            : 'potentially too close to LT1 for a routine easy day';
-        const guidance = zone2 < 60
-          ? 'Keep the opening relaxed and let heart rate rise naturally.'
-          : `For a routine easy day, ease the opening kilometres and aim nearer ${targetHigh} bpm.`;
-        return `${prefix}you never crossed the ${input.lt1Hr} bpm LT1 ceiling, and ${zone2.toFixed(1)}% of your running time sat in the top of Zone 2 (${bandLow}-${input.lt1Hr} bpm)${tail}. That is ${interpretation}. ${guidance}`;
+        const interpretation = zone2 < 60 ? coachMessage("fragment.normal_easy") : zone2 <= 75 ? coachMessage("fragment.upper_easy_aerobic_steady") : coachMessage("fragment.potentially_too_close_to_lt1_for_a_routine");
+        const guidance = zone2 < 60 ? coachMessage("fragment.keep_the_opening_relaxed_and_let_heart_rate") : coachMessage("fragment.for_a_routine_easy_day_ease_the_opening", { p0: targetHigh });
+        return coachMessage("focus.you_never_crossed_the_bpm_lt1_ceiling_and", { p0: prefix, p1: input.lt1Hr, p2: zone2.toFixed(1), p3: bandLow, p4: input.lt1Hr, p5: tail, p6: interpretation, p7: guidance });
       }
-      return `${prefix}${above.toFixed(1)}% of your running time sat above the ${input.lt1Hr} bpm LT1 ceiling (${(audit?.firstHalfAboveCeilingPct ?? 0).toFixed(1)}% of it in the first half)${tail}. Set a watch alert at ${bandLow} bpm and walk any climb that pushes you over it — for an easy day, keeping the ceiling is the whole session.`;
+      return coachMessage("focus.of_your_running_time_sat_above_the_bpm", { p0: prefix, p1: above.toFixed(1), p2: input.lt1Hr, p3: (audit?.firstHalfAboveCeilingPct ?? 0).toFixed(1), p4: tail, p5: bandLow });
     }
     case 'running_turnover':
-      return `${prefix}${input.steadyCadence} spm cost the most execution points${tail}. Two weekly sets of 4 x 20s strides at 180+ spm raise turnover without adding aerobic load.`;
+      return coachMessage("focus.spm_cost_the_most_execution_points_two_weekly", { p0: prefix, p1: input.steadyCadence, p2: tail });
     case 'pacing_consistency': {
       const pacing = pacingConsistency(input.records, input.splits, input.runType);
-      const detail = pacing && pacing.source === 'records'
-        ? ` Your running pace held within ±${Math.round(pacing.stdDevSec)}s per kilometre across ${pacing.sampleCount} running km.`
-        : '';
-      const trendNote = pacing && pacing.trendSecPerKm >= 6
-        ? ` The steady ${pacing.trendSecPerKm.toFixed(1)}s/km slowdown through the run points at an opening that was too quick or under-fuelling.`
-        : '';
-      return `${prefix}running pace varied more than it needed to${tail}.${detail}${trendNote} Lock a pace band before the start and check it every kilometre instead of chasing feel.`;
+      const detail = pacing && pacing.source === 'records' ? coachMessage("fragment.your_running_pace_held_within_s_per_kilometre", { p0: Math.round(pacing.stdDevSec), p1: pacing.sampleCount }) : '';
+      const trendNote = pacing && pacing.trendSecPerKm >= 6 ? coachMessage("fragment.the_steady_s_km_slowdown_through_the_run", { p0: pacing.trendSecPerKm.toFixed(1) }) : '';
+      return coachMessage("focus.running_pace_varied_more_than_it_needed_to", { p0: prefix, p1: tail, p2: detail, p3: trendNote });
     }
     case 'workout_completion': {
       if (input.isFailedWorkout) {
-        return `${prefix}the session was aborted before the planned stimulus landed${tail}. Re-check sleep, fuel and the previous 48 hours of load before retrying the same session.`;
+        return coachMessage("focus.the_session_was_aborted_before_the_planned_stimulus", { p0: prefix, p1: tail });
       }
       if (walkAudit && walkAudit.capacityWalkSec > 0) {
-        return `${prefix}${Math.round(walkAudit.capacityWalkSec)}s of mid-run walking started while heart rate was already below your aerobic band${tail}. Worth checking fuelling, sleep and load, or whether the route forces stops.`;
+        return coachMessage("focus.s_of_mid_run_walking_started_while_heart", { p0: prefix, p1: Math.round(walkAudit.capacityWalkSec), p2: tail });
       }
       if (walkAudit && walkAudit.intrusiveWalkSec > 0) {
-        return `${prefix}${Math.round(walkAudit.intrusiveWalkSec)}s of walking started inside work reps at an average of ${walkAudit.avgCorrectiveEntryHr ?? '—'} bpm${tail}. Walking was the right call at that heart rate — the fix is upstream: run the first rep 5-8 sec/km easier or pick a route where reps are not interrupted.`;
+        return coachMessage("focus.s_of_walking_started_inside_work_reps_at", { p0: prefix, p1: Math.round(walkAudit.intrusiveWalkSec), p2: walkAudit.avgCorrectiveEntryHr ?? '—', p3: tail });
       }
       const share = walkSharePct(input.pauseBreakdown);
-      return `${prefix}${(share ?? 0).toFixed(1)}% of moving time was spent in walk breaks${tail}. Pick a loop with fewer crossings, or place walk breaks at fixed points so the aerobic block stays continuous.`;
+      return coachMessage("focus.of_moving_time_was_spent_in_walk_breaks", { p0: prefix, p1: (share ?? 0).toFixed(1), p2: tail });
     }
     case 'interval_execution':
-      return `${prefix}rep durations varied by ${((coefficientOfVariation(workReps.map(intervalDuration))?.cv ?? 0) * 100).toFixed(1)}%${tail}. Fix the rep duration rather than the pace — even reps deliver the intended stimulus.`;
+      return coachMessage("focus.rep_durations_varied_by_fix_the_rep_duration", { p0: prefix, p1: ((coefficientOfVariation(workReps.map(intervalDuration))?.cv ?? 0) * 100).toFixed(1), p2: tail });
     case 'cardiovascular_stimulus': {
       const peakHr = Math.max(0, ...workReps.map(intervalMaxHr), input.activityMaxHr || 0);
       const pct = Math.round((peakHr / (input.maxHeartRate || 1)) * 100);
-      return runFamilyOf(input.runType) === 'race'
-        ? `${prefix}the race peaked at ${pct}% of HRmax${tail}. Practise 2 x 8 min at LT2 so race pace feels controlled rather than unknown.`
-        : `${prefix}peak work HR only reached ${pct}% of HRmax${tail}. Close the final rep at 90%+ HRmax to load stroke volume instead of stopping at threshold.`;
+      return runFamilyOf(input.runType) === 'race' ? coachMessage("focus.the_race_peaked_at_of_hrmax_practise_2", { p0: prefix, p1: pct, p2: tail }) : coachMessage("focus.peak_work_hr_only_reached_of_hrmax_close", { p0: prefix, p1: pct, p2: tail });
     }
     case 'autonomic_recovery':
-      return `${prefix}heart rate fell slowly between reps${tail}. Lengthen recoveries to 90-120s of easy jogging so every rep starts fresh below LT2.`;
+      return coachMessage("focus.heart_rate_fell_slowly_between_reps_lengthen_recoveries", { p0: prefix, p1: tail });
     case 'race_pacing_execution':
-      return `${prefix}opening pace discipline was the biggest cost${tail}. Run the first 2 km about 10 sec/km easier than goal pace — a fast opening kilometre spikes lactate early and forces the fade.`;
+      return coachMessage("focus.opening_pace_discipline_was_the_biggest_cost_run", { p0: prefix, p1: tail });
     case 'race_finish_execution':
-      return `${prefix}the second half slowed noticeably${tail}. Add one long run a week with the final 20 minutes at goal race pace to rehearse late-race form.`;
+      return coachMessage("focus.the_second_half_slowed_noticeably_add_one_long", { p0: prefix, p1: tail });
     case 'rep_to_rep_fatigue': {
       const fatigue = setFatigueDetail(input);
-      const parts: string[] = [];
+      const parts: CoachMessage[] = [];
       if (fatigue.paceFadeSec != null && Math.abs(fatigue.paceFadeSec) >= 3) {
-        parts.push(`the last rep ran ${Math.abs(Math.round(fatigue.paceFadeSec))}s/km ${fatigue.paceFadeSec > 0 ? 'slower' : 'faster'}`);
+        parts.push(coachMessage("fragment.the_last_rep_ran_s_km", { p0: Math.abs(Math.round(fatigue.paceFadeSec)), p1: fatigue.paceFadeSec > 0 ? coachMessage("fragment.slower") : coachMessage("fragment.faster") }));
       }
       if (fatigue.hrClimbBpm != null && Math.abs(fatigue.hrClimbBpm) >= 3) {
-        parts.push(`work HR finished ${Math.abs(Math.round(fatigue.hrClimbBpm))} bpm ${fatigue.hrClimbBpm > 0 ? 'higher' : 'lower'} than the first rep`);
+        parts.push(coachMessage("fragment.work_hr_finished_bpm_than_the_first_rep", { p0: Math.abs(Math.round(fatigue.hrClimbBpm)), p1: fatigue.hrClimbBpm > 0 ? coachMessage("fragment.higher") : coachMessage("fragment.lower") }));
       }
-      const finding = parts.length > 0 ? ` — ${parts.join(' and ')}` : '';
-      const cause = (fatigue.hrClimbBpm ?? 0) > 0
-        ? 'A drifting work HR at held or slower pace points at fuelling, heat and recovery between sets rather than at fitness.'
-        : 'That pattern points at early-rep overreach or under-fuelling rather than at fitness.';
-      return `${prefix}the set decayed as it went${finding}${tail}. ${cause} Start the first rep 5-8 sec/km easier so the final rep lands on target.`;
+      const finding = parts.length > 0 ? coachMessage("fragment.values_4", { p0: coachJoin(parts, ' and ') }) : '';
+      const cause = (fatigue.hrClimbBpm ?? 0) > 0 ? coachMessage("fragment.a_drifting_work_hr_at_held_or_slower") : coachMessage("fragment.that_pattern_points_at_early_rep_overreach_or");
+      return coachMessage("focus.the_set_decayed_as_it_went_start_the", { p0: prefix, p1: finding, p2: tail, p3: cause });
     }
     default:
-      return `${prefix}this factor cost the most points${tail}.`;
+      return coachMessage("focus.this_factor_cost_the_most_points", { p0: prefix, p1: tail });
   }
 }

@@ -1,3 +1,4 @@
+import { COACH_DYNAMIC_MESSAGE_IDS } from './coach-dynamic-messages.js';
 /** Stable machine identifiers; English presentation is owned by the backend. */
 export const COACH_CATEGORY_IDS = [
   'running_turnover',
@@ -70,12 +71,14 @@ export interface CoachingFactor {
   category: string;
   label: string;
   description?: string;
+  descriptionMessage?: CoachMessage;
   points: number;
   maxPoints: number;
   isFocus?: boolean;
 }
 
 export const COACH_MESSAGE_IDS = [
+  ...COACH_DYNAMIC_MESSAGE_IDS,
   "headline.strong_aerobic_adaptation_session",
   "headline.sustained_upper_aerobic_tempo",
   "advice.review_tempo_against_planned_target",
@@ -105,17 +108,30 @@ export const COACH_MESSAGE_IDS = [
   "advice.review_the_work_blocks_against_your_planned_marathon",
 ] as const;
 export type CoachMessageId = typeof COACH_MESSAGE_IDS[number];
-export interface CoachMessage { id: CoachMessageId; text: string; params: Record<string, string | number> }
+export type CoachMessageParam = string | number | CoachMessage | CoachMessageParam[];
+export interface CoachMessage { id: CoachMessageId; text: string; params: Record<string, CoachMessageParam> }
 export interface CoachMessages { headline: CoachMessage; recommendation: CoachMessage }
+/** Nested message parameters localize optional clauses without parsing their English. */
+export function parseCoachMessage(value: unknown, depth = 0): CoachMessage | undefined {
+  if (depth > 12 || !value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const row = value as Record<string, unknown>;
+  if (typeof row.id !== 'string' || !(COACH_MESSAGE_IDS as readonly string[]).includes(row.id) || typeof row.text !== 'string'
+    || !row.params || typeof row.params !== 'object' || Array.isArray(row.params)) return undefined;
+  const validParam = (param: unknown, level: number): boolean => level <= 12 && (typeof param === 'string'
+    || typeof param === 'number' && Number.isFinite(param)
+    || Array.isArray(param) && param.length <= 500 && param.every(item => validParam(item, level + 1))
+    || !!parseCoachMessage(param, level + 1));
+  return Object.values(row.params).every(param => validParam(param, depth)) ? row as unknown as CoachMessage : undefined;
+}
+export function parseCoachMessageArray(value: unknown): CoachMessage[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const messages = value.map(item => parseCoachMessage(item));
+  return messages.every((message): message is CoachMessage => !!message) ? messages : undefined;
+}
 /** Treat persisted JSON as untrusted; absent legacy messages use the text adapter. */
 export function parseCoachMessages(value: unknown): CoachMessages | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const row = value as Record<string, unknown>;
-  const valid = (value: unknown): value is CoachMessage => {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-    const message = value as Record<string, unknown>;
-    if (typeof message.id !== 'string' || !(COACH_MESSAGE_IDS as readonly string[]).includes(message.id) || typeof message.text !== 'string' || !message.params || typeof message.params !== 'object' || Array.isArray(message.params)) return false;
-    return Object.values(message.params).every(param => typeof param === 'string' || typeof param === 'number' && Number.isFinite(param));
-  };
-  return valid(row.headline) && valid(row.recommendation) ? { headline: row.headline, recommendation: row.recommendation } : undefined;
+  const headline = parseCoachMessage(row.headline), recommendation = parseCoachMessage(row.recommendation);
+  return headline && recommendation ? { headline, recommendation } : undefined;
 }

@@ -6,7 +6,7 @@ Undertake a substantial, staged refactor of analysis ownership and contracts. Ke
 
 The highest-value first change is one workout-analysis pipeline shared by import and replay, with explicit normalized telemetry and historical fitness inputs. Next, give edits and recomputation one policy for invalidating dependent history. Folder moves and component extraction should follow those behavioral boundaries.
 
-The original audit reviewed the working tree, including pending background-import work, rather than only committed HEAD. The evidence and line references below describe that initial inspection. The status notes record subsequent committed refactors; pending working-tree changes are not counted as completed checkpoints.
+The original audit reviewed the working tree, including pending background-import work, rather than only committed HEAD. The evidence and line references below describe that initial inspection. The status notes record subsequent implementation checkpoints, including this follow-up; verification is recorded separately below.
 
 ## Completion status
 
@@ -16,13 +16,13 @@ Updated October 3 for the follow-up implementation checkpoint. Earlier commit ID
 | --- | --- | --- | --- |
 | 1. Analysis context | Shared pipeline plus timer/gap-aware load, calibration, coaching, query fallbacks, shared speed repair and historical detail-chart thresholds | Independent physiological validation of the corrected timer policy | Implementation addressed; validation scope noted below |
 | 2. History invalidation | Existing transactional history coordinator plus transactional weather invalidation of edited/later coaching | No automatic weather fetching added | Addressed |
-| 3. Coaching protocol | Existing factor/verdict/headline/advice IDs; rubric now split into evidence, aerobic, quality, race and focus modules | Dynamic insight/description/focus-prose migration; Chinese legacy-adapter copy relocation | Partially addressed |
-| 4. Typed boundaries | Canonical telemetry row adapter, common split/interval persistence, concrete shared detail/coaching DTOs, validated stored JSON, classifier evidence returned/persisted/exposed | Legacy calculation helpers still accept mixed camelCase/snake_case inputs; further narrowing can follow the prose protocol migration | Main API/persistence boundaries addressed |
+| 3. Coaching protocol | IDs and nested parameters for headlines, advice, insights, descriptions and focus; dictionary-owned Chinese templates; legacy text fallback | No open implementation item | Addressed |
+| 4. Typed boundaries | Canonical row adapters and segment persistence, shared DTOs, validated JSON, classifier evidence; explicitly typed coaching compatibility adapters and canonical calculations | Legacy field spellings remain supported at compatibility entry points | Addressed |
 | 5. Migration ownership | Ordered schema/derived registries, grouped equivalent algorithm upgrades, persisted revision and historical-profile/telemetry provenance | Distinct historical data migrations intentionally retain their separate checkpoints | Addressed |
 | 6. Writer coordination | Shared operation ownership for workers, storage, weather and analysis; service guards; worker reservations held through exit; stored detail summaries with explicit freshness | Coordinator is process-local, consistent with the application's single-server architecture | Addressed |
-| 7. Frontend/CSS structure | Browse selection/detail, import, stats and period-progress controllers; feature types/selectors; common invalidation; ordered CSS split | Existing visual baselines and mobile test selector need separate repair before the visual suite can be green | Structure addressed; visual acceptance partially verified |
+| 7. Frontend/CSS structure | Browse selection/detail, import, stats and period-progress controllers; feature types/selectors; common invalidation; ordered CSS split | Reviewed baselines refreshed; mobile test uses current sample sliders | Addressed |
 
-The original evidence below describes the pre-refactor code. The dynamic coaching prose work in finding 3 remains open; this document does not count the entire audit as closed.
+The original evidence below describes the pre-refactor code. The listed implementation follow-ups are addressed. Independent physiological validation and performance benchmarking remain outside this source-structure audit.
 
 ## What already works structurally
 
@@ -65,7 +65,7 @@ Preserve the current atomic affected-history import contract. Do not accidentall
 
 ### 3. P1 — English presentation text serves as a domain protocol
 
-**Status:** existing identifiers are retained and the rubric is split by responsibility. Dynamic prose adapters remain. See `COACHING_PROTOCOL.md`.
+**Status:** new prose uses stable message IDs and nested parameters; Chinese copy is dictionary-owned, including the fallback adapter. See `COACHING_PROTOCOL.md`.
 
 **Evidence:** `physiology/session-verdict.ts:6` maps English factor labels to verdicts and selects factors by English category strings. `physiology/coach-rubric.ts` emits those strings. `frontend/i18n/coachTranslator.ts` is approximately 784 lines of mapping, substring matching, and regular expressions over English headlines, advice, and insights. It also embeds Chinese copy outside the three prescribed dictionary files.
 
@@ -77,7 +77,7 @@ Use plain unions and explicit functions; a configurable rules framework is unnec
 
 ### 4. P2 — Typed boundaries still permit multiple competing representations
 
-**Status:** canonical telemetry rows, shared segment persistence, concrete detail/coaching DTOs and persisted classifier evidence are implemented. Legacy calculation helper inputs still need further narrowing.
+**Status:** canonical telemetry rows, shared segment persistence, concrete DTOs, persisted classifier evidence and explicitly typed coaching adapters are implemented. Calculations use normalized camelCase fields.
 
 **Evidence:** normalized `ActivityRecord` belongs to `ingestion/csv-parser.ts`, although FIT analysis and physiology consume it. `db/realign.ts:32` has an independent `any[]` record mapper and an `any` database argument. Rubric helpers (`coach-rubric.ts:187`) accept both snake_case and camelCase through `any`. Backend shared detail contracts (`shared/activity-detail.ts`) expose open index signatures and `unknown` scoring fields, while `frontend/types/api.ts` separately defines more specific splits, intervals, records, coach summaries, and detail responses.
 
@@ -109,7 +109,7 @@ The classifier should return an explicit evidence record: rule ID, observed meas
 
 ### 7. P2 — Feature controllers and global styling are the frontend growth points
 
-**Status:** feature controllers, shared invalidation and the stylesheet split are implemented. Existing visual-test failures prevent full visual acceptance.
+**Status:** feature controllers, shared invalidation and the stylesheet split are implemented. Reviewed visual baselines and current mobile interaction selectors complete visual acceptance.
 
 **Evidence:** `BrowseView.tsx` is approximately 693 lines; `StatsView.tsx` 670; `PeriodProgressView.tsx` 768; `UploadModal.tsx` 498. They mix fetching, cancellation/retry, selection/filtering, chart derivation, mutations, and rendering. `App.tsx` owns activity lists, refresh callbacks and a detail refresh counter, while other views fetch their own data. `frontend/styles/index.css` is approximately 6,260 lines with shared primitives, feature rules, responsive overrides, and development diagnostics together.
 
@@ -171,7 +171,7 @@ Segmentation should distinguish telemetry detection, FIT-lap refinement, race se
 
 ## Migration sequence and acceptance criteria
 
-Progress against this broader roadmap: step 1 has expanded fixture coverage; step 2 has completed shared-pipeline extraction with remaining adapter/persistence consolidation; step 3 has completed the main invalidation checkpoint with the weather policy outstanding; step 4 has completed IDs and structured headline/advice with remaining prose/DTO/module migration. Steps 5 and 6 have not started. These statuses describe the full acceptance criteria, beyond the completed checkpoints.
+Progress against this roadmap: fixture coverage and the shared pipeline are implemented; typed adapters and segment persistence are consolidated; weather participates in transactional history invalidation; coaching prose and DTO migration are implemented; migrations and writer ownership are centralized; frontend controllers and ordered CSS modules are extracted and visually verified. The sequence below records the original acceptance criteria.
 
 1. **Establish behavioral contracts.** Extend fixture checks across single import, batch import, chronological replay, manual correction, and profile refresh. Check stored load/zones, calibration eligibility, coaching evidence, confirmation retention, and raw-record retention. Record existing intentional differences before correcting them.
 2. **Normalize inputs and extract the shared analysis pipeline.** Keep existing importer/realigner exports as compatibility wrappers. Consolidate mapping and interval/split persistence. Separate extraction from algorithm changes. Require unchanged expected outputs for the extraction commit.
@@ -204,7 +204,7 @@ Do not combine classifier tuning, numerical corrections, schema changes, file mo
 The shared typed workout-analysis pipeline is implemented in `application/analysis/analyze-workout.ts` and used by import and replay. Subsequent checkpoints address prioritized findings 2 and 3:
 
 - History invalidation now has one transactional coordinator. Import corrections, manual physiological confirmations, and baseline-profile recomputation use it. See `HISTORY_INVALIDATION.md` for the change matrix and remaining independent policies.
-- Rubric factors and verdicts use stable identifiers. Headlines and recommendations use structured messages with bilingual dictionary overrides, while legacy payloads remain supported. See `COACHING_PROTOCOL.md` for the compatibility boundary and remaining prose migration.
+- Rubric factors and verdicts use stable identifiers. Headlines and recommendations use structured messages with bilingual dictionary overrides, while legacy payloads remain supported. See `COACHING_PROTOCOL.md` for the compatibility boundary and structured prose protocol.
 
 These checkpoints establish ownership boundaries without changing classifier thresholds or numerical scoring. The broader migration sequence above remains a roadmap; it is not a claim that every suggested subsystem split is complete.
 
@@ -215,5 +215,7 @@ The follow-up adds regression checks for stopped FIT heart rate in load/coaching
 Desktop and snapshot-template builds and the packaged backend smoke test pass. The build still emits the existing CommonJS `import.meta` warnings. TypeScript, zero-warning lint, all 1,146 tests across 109 files, and all 810 dictionary-key references pass. A subsequent DTO validation tightening is covered by focused contract, coaching, API and snapshot regression checks.
 
 The visual suite reports 6 passes and 13 failures both before and after the CSS split. An isolated HEAD checkout reproduced the desktop Browse baseline mismatch and the mobile accessibility test's missing button selector. Eleven of twelve comparable pre/post-split screenshots are pixel-identical; the remaining chart canvas differs by about 0.25% of pixels, below its 1% comparison tolerance. CSS extraction preserved every rule and source order. Existing snapshots were not rewritten. This verifies the stylesheet extraction narrowly; it does not certify the entire existing visual suite.
+
+The follow-up refreshed the reviewed component baselines after the layout changes and replaced the obsolete SVG-button assertions with the current period and threshold range controls. The complete visual suite now passes 19 tests across desktop, mobile and tablet projects. The full repository suite passes 1,174 tests across 113 files; TypeScript, zero-warning lint, and the unused-key check for all 816 dictionary keys also pass.
 
 No selected workout database was migrated or edited during this work; database verification used disposable fixtures. No performance benchmark or independent physiological validation was performed.

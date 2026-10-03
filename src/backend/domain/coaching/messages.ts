@@ -1,9 +1,12 @@
-import type { CoachMessage, CoachMessageId } from '../../../shared/coaching.js';
+import { WMO_CODES } from '../../../shared/weather-conditions.js';
+import type { CoachMessage, CoachMessageId, CoachMessageParam, CoachCategoryId } from '../../../shared/coaching.js';
+import { DYNAMIC_MESSAGE_TEXT } from './dynamic-messages.js';
 /** English API copy remains the source of truth. IDs survive wording changes. */
 export const MESSAGE_TEXT: Record<CoachMessageId, string> = {
+  ...DYNAMIC_MESSAGE_TEXT,
+  "headline.strong_aerobic_adaptation_session": "Strong Aerobic Adaptation Session",
   "headline.sustained_upper_aerobic_tempo": "Sustained Upper-Aerobic Tempo Run",
   "advice.review_tempo_against_planned_target": "Review the sustained work against your planned tempo or marathon-pace target. Warmup and cooldown should remain easy; LT2 and VO2 targets do not apply to this work.",
-  "headline.strong_aerobic_adaptation_session": "Strong Aerobic Adaptation Session",
   "advice.prioritize_light_hydration_and_low_impact_movement_before": "Prioritize light hydration and low-impact movement before your next hard effort.",
   "headline.incomplete_aborted_quality_session": "Incomplete / Aborted Quality Session",
   "advice.assess_underlying_fatigue_heat_stress_or_nutrition_take": "Assess underlying fatigue, heat stress, or nutrition. Take a recovery day before attempting another quality stimulus.",
@@ -29,6 +32,19 @@ export const MESSAGE_TEXT: Record<CoachMessageId, string> = {
   "headline.marathon_pace_long_run": "Marathon-Pace Long Run",
   "advice.review_the_work_blocks_against_your_planned_marathon": "Review the work blocks against your planned marathon pace. The easy-run heart-rate ceiling does not apply to those blocks."
 };
-export function coachMessage(id: CoachMessageId, params: Record<string, string | number> = {}): CoachMessage {
-  return { id, params, text: MESSAGE_TEXT[id].replace(/\{(\w+)\}/g, (token, key: string) => key in params ? String(params[key]) : token) };
+export function coachMessage(id: CoachMessageId, values: Record<string, CoachMessageParam | null | undefined> = {}): CoachMessage {
+  const params = Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value == null ? '—' : value]));
+  const text = (value: CoachMessageParam): string => Array.isArray(value) ? value.map(text).join(text(params.separator ?? ''))
+    : value !== null && typeof value === 'object' ? value.text : String(value);
+  return { id, params, text: MESSAGE_TEXT[id].replace(/\{(\w+)\}/g, (token, key: string) => key in params ? text(params[key]) : token) };
+}
+
+export const coachDescription = (message: CoachMessage) => ({ description: message.text, descriptionMessage: message });
+export const coachJoin = (items: CoachMessage[], separator: string): CoachMessage => coachMessage('fragment.join', { items, separator: separator === ' and ' ? coachMessage('fragment.and') : separator });
+export const coachCategoryMessage = (category: CoachCategoryId): CoachMessage => coachMessage(`category.${category}`);
+
+/** Known provider descriptions are normalized at the external-data boundary. */
+export function coachWeatherCondition(condition: string | null | undefined): CoachMessage | string {
+  const match = Object.entries(WMO_CODES).find(([, text]) => text === condition);
+  return match ? coachMessage(`weather.${match[0]}` as CoachMessageId) : condition ?? '';
 }

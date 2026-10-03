@@ -10,7 +10,7 @@ Summary headlines and recommendations carry `messages` containing a stable ID,
 English text, and interpolation parameters. The backend owns the English
 templates in `domain/coaching/messages.ts`. These objects are stored in existing
 `analysis_json`, returned by activity services, and included in activity-detail
-contracts. No schema migration or forced database rewrite is needed.
+contracts. No schema change is needed; the grouped derived upgrade refreshes writable databases once.
 
 The frontend reads Chinese overrides from the typed dictionaries using IDs and
 formats parameters through `useTranslation`. English override maps remain empty:
@@ -25,10 +25,7 @@ factors only when identifiers are absent. Message parsing rejects malformed or
 unknown message objects, allowing existing presentation text to remain usable.
 The UI retains its old translation adapters for payloads without identifiers.
 
-Dynamic insight prose, factor descriptions, and historical focus-advice prose
-still use existing translation adapters. Their migration is independent of the
-verdict protocol and is not included in this checkpoint. Classifier thresholds,
-rubric scores, and existing English copy are unchanged.
+Dynamic insights, factor descriptions and focus advice now carry stable message IDs and parameters. Nested messages represent optional clauses, translated categories, provider weather conditions and lists. English text remains alongside every object for older clients. The legacy adapter is used only when structured messages are absent; its Chinese copy lives in `zh.browse.coachLegacyTemplates`, with an empty English override map.
 
 Regression coverage checks wording-independent verdicts, factor identifiers
 across run families, Chinese rendering and interpolation, message validation,
@@ -46,10 +43,15 @@ Classifier results carry a stable rule ID, observed measurements, applicable HR
 policy and explicitly heuristic confidence. Import/replay store that evidence in
 summary `analysis_json` and return it with historical HR-profile/telemetry-policy
 provenance. Weather and cosmetic summary refreshes preserve classifier evidence.
-Summary revision `telemetry-policy-v1` drives freshness and the grouped derived
-upgrade. Read-only legacy snapshots remain usable without the new fields.
+Summary revision `coaching-prose-v1` drives freshness and the grouped derived
+upgrade, retaining the earlier telemetry and structured-tempo checkpoints. Read-only legacy snapshots remain usable without the new fields.
 
-Dynamic insight sentences, factor descriptions and focus prose remain on the
-legacy adapter. Migrating those emissions and relocating their Chinese copy to
-typed dictionaries is still open; the module split does not close that protocol
-work.
+Coaching telemetry compatibility inputs are explicitly typed and normalized in
+`domain/coaching/telemetry.ts`. Calculations use camelCase records, intervals and
+splits; database reads use validated row adapters. Timer stops, segment changes
+and long gaps cannot contribute to threshold exposure or connect walk/pace
+evidence. Heart-rate smoothing does not cross timer or gap boundaries.
+
+Persisted nested messages are validated before use. Unknown description messages
+retain their legacy English description. Tests cover nested bilingual formatting,
+English wording changes, malformed nested JSON, timer boundaries and persistence.

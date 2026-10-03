@@ -1,3 +1,4 @@
+import { coachMessage, coachDescription } from '../../domain/coaching/messages.js';
 import { category, finding } from '../../domain/coaching/vocabulary.js';
 import { RubricFactor, RubricInput, curve, band, coefficientOfVariation, formatPaceText, splitPace, selectRaceSplits, WalkAudit, walkSharePct, turnoverFactor } from './evidence.js';
 export function gradeRace(input: RubricInput, walkAudit: WalkAudit | null): RubricFactor[] {
@@ -26,9 +27,7 @@ export function gradeRace(input: RubricInput, walkAudit: WalkAudit | null): Rubr
       points: Math.round(pts),
       maxPoints: max,
       ...(isEarlySurge ? finding('aggressive_early_surge_positive_split') : band(pts / max, finding('laser_race_pacing_discipline'), finding('controlled_race_pacing'), finding('volatile_split_pacing'))),
-      description: isEarlySurge
-        ? `Km 1 opened at ${formatPaceText(firstPace!)} then faded ${Math.round(surgeSec)}s/km to ${formatPaceText(secondPace!)}`
-        : `${(paceStats.cv * 100).toFixed(1)}% split variance (±${Math.round(paceStats.stdDev)}s spread)`
+      ...coachDescription(isEarlySurge ? coachMessage("description.km_1_opened_at_then_faded_s_km", { p0: formatPaceText(firstPace!), p1: Math.round(surgeSec), p2: formatPaceText(secondPace!) }) : coachMessage("description.split_variance_s_spread", { p0: (paceStats.cv * 100).toFixed(1), p1: Math.round(paceStats.stdDev) }))
     });
   }
 
@@ -45,9 +44,7 @@ export function gradeRace(input: RubricInput, walkAudit: WalkAudit | null): Rubr
       points: Math.round(pts),
       maxPoints: max,
       ...(band(pts / max, finding('strong_negative_split_finish'), finding('held_form_to_the_line'), finding('late_race_fade'))),
-      description: fadeSec >= 0
-        ? `${Math.round(fadeSec)}s/km slower in the second half`
-        : `${Math.abs(Math.round(fadeSec))}s/km faster in the second half`
+      ...coachDescription(fadeSec >= 0 ? coachMessage("description.s_km_slower_in_the_second_half", { p0: Math.round(fadeSec) }) : coachMessage("description.s_km_faster_in_the_second_half", { p0: Math.abs(Math.round(fadeSec)) }))
     });
   }
 
@@ -62,7 +59,7 @@ export function gradeRace(input: RubricInput, walkAudit: WalkAudit | null): Rubr
       points: Math.round(pts),
       maxPoints: max,
       ...(band(pts / max, finding('full_race_day_heart_rate_utilisation'), finding('partial_race_day_effort'), finding('conservative_heart_rate_ceiling'))),
-      description: `Peaked at ${peakHr} bpm (${Math.round(pctMax)}% HRmax)`
+      ...coachDescription(coachMessage("description.peaked_at_bpm_hrmax", { p0: peakHr, p1: Math.round(pctMax) }))
     });
   }
 
@@ -87,13 +84,9 @@ export function gradeRace(input: RubricInput, walkAudit: WalkAudit | null): Rubr
 
     const label = input.isFailedWorkout ? finding('aborted_incomplete_quality_workout') : walkAudit && walkAudit.intrusiveWalkSec + walkAudit.capacityWalkSec > 0 ? finding('walk_breaks_inside_the_race_effort') : band(pts / max, finding('unbroken_session'), finding('minor_break_time'), finding('heavily_interrupted_session'));
 
-    const description = input.isFailedWorkout
-      ? 'Target volume was cut short before the planned stimulus was delivered'
-      : walkAudit
-        ? `${walkAudit.blockCount} walk breaks · ${(share != null ? share : 0).toFixed(1)}% of moving time (gradient, start and cool-down walks are free)`
-        : `${(share ?? 0).toFixed(1)}% of moving time in walk breaks (races rarely need them)`;
+    const description = input.isFailedWorkout ? coachMessage("fragment.target_volume_was_cut_short_before_the_planned") : walkAudit ? coachMessage("fragment.walk_breaks_of_moving_time_gradient_start_and", { p0: walkAudit.blockCount, p1: (share != null ? share : 0).toFixed(1) }) : coachMessage("fragment.of_moving_time_in_walk_breaks_races_rarely", { p0: (share ?? 0).toFixed(1) });
 
-    factors.push({ ...(category('workout_completion')), points: Math.round(pts), maxPoints: max, ...label, description });
+    factors.push({ ...(category('workout_completion')), points: Math.round(pts), maxPoints: max, ...label, ...coachDescription(description) });
   }
 
   return factors;

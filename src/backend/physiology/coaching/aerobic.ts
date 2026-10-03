@@ -1,3 +1,5 @@
+import { coachMessage, coachDescription } from '../../domain/coaching/messages.js';
+import type { CoachMessage } from '../../../shared/coaching.js';
 import type { CoachFindingId } from '../../../shared/coaching.js';
 import { category, finding } from '../../domain/coaching/vocabulary.js';
 import { RubricFactor, RubricInput, lateCeilingWeight, lateZone2Weight, curve, band, IntensityAudit, HIGH_Z2_BAND_BPM, WalkAudit, walkSharePct } from './evidence.js';
@@ -13,7 +15,7 @@ export function gradeAerobic(input: RubricInput, walkAudit: WalkAudit | null, in
   // Two signals with different severity: time above the ceiling (a real failure)
   // and sustained time in the top of Zone 2 (a soft one — still aerobic, but no
   // longer an easy day in the recovery sense).
-  const gradeIntensity = (audit: IntensityAudit): { points: number; label: string; findingId: CoachFindingId; description: string } => {
+  const gradeIntensity = (audit: IntensityAudit): { points: number; label: string; findingId: CoachFindingId; description: CoachMessage } => {
     const effectiveAbove = audit.firstHalfAboveCeilingPct + lateWeight * audit.secondHalfAboveCeilingPct;
     const effectiveHighZ2 = (audit.highZ2FirstHalfPct + lateZone2 * audit.highZ2SecondHalfPct) / 2;
     const abovePoints = curve(ABOVE_CEILING_MAX, effectiveAbove, 5, 40);
@@ -25,11 +27,9 @@ export function gradeAerobic(input: RubricInput, walkAudit: WalkAudit | null, in
 
     // Lead the description with whichever signal actually cost the points, so a
     // ceiling-compliant run is never described as a ceiling problem.
-    const zone2Text = `${audit.highZ2Pct.toFixed(1)}% in the top of Zone 2 (${audit.lt1Hr - HIGH_Z2_BAND_BPM}-${audit.lt1Hr} bpm)`;
-    const aboveText = `${audit.aboveCeilingPct.toFixed(1)}% above the ${audit.lt1Hr} bpm LT1 ceiling`;
-    const description = aboveLost > 0 && aboveLost >= zone2Lost
-      ? `${aboveText} (first half: ${audit.firstHalfAboveCeilingPct.toFixed(1)}%) · ${zone2Text}`
-      : `${zone2Text} · ${aboveText} · rising to ${audit.highZ2SecondHalfPct.toFixed(0)}% in the second half`;
+    const zone2Text = coachMessage("fragment.in_the_top_of_zone_2_bpm", { p0: audit.highZ2Pct.toFixed(1), p1: audit.lt1Hr - HIGH_Z2_BAND_BPM, p2: audit.lt1Hr });
+    const aboveText = coachMessage("fragment.above_the_bpm_lt1_ceiling", { p0: audit.aboveCeilingPct.toFixed(1), p1: audit.lt1Hr });
+    const description = aboveLost > 0 && aboveLost >= zone2Lost ? coachMessage("fragment.first_half", { p0: aboveText, p1: audit.firstHalfAboveCeilingPct.toFixed(1), p2: zone2Text }) : coachMessage("fragment.rising_to_in_the_second_half", { p0: zone2Text, p1: aboveText, p2: audit.highZ2SecondHalfPct.toFixed(0) });
 
     // The label names the signal that actually failed, not a blended ratio.
     const label = aboveLost >= 12 ? finding('extended_above_the_lt1_ceiling') : audit.highZ2Pct < 40 ? finding('clearly_easy') : audit.highZ2Pct < 60 ? finding('normal_easy') : audit.highZ2Pct <= 75 ? finding('upper_easy_aerobic_steady') : finding('potentially_too_close_to_lt1');
@@ -48,7 +48,7 @@ export function gradeAerobic(input: RubricInput, walkAudit: WalkAudit | null, in
       points: graded.points,
       maxPoints: 85,
       label: graded.label, findingId: graded.findingId,
-      description: graded.description
+      ...coachDescription(graded.description)
     });
   } else if (input.steadyHr || input.avgHr) {
     // Coarse fallback when there is no per-second telemetry: an average heart
@@ -60,7 +60,7 @@ export function gradeAerobic(input: RubricInput, walkAudit: WalkAudit | null, in
       points: Math.round(pts),
       maxPoints: 85,
       ...(band(pts / 85, finding('disciplined_aerobic_ceiling'), finding('normal_easy'), finding('extended_above_the_lt1_ceiling'))),
-      description: `${hr} bpm average against a ${input.lt1Hr} bpm LT1 ceiling (average only — no per-second telemetry)`
+      ...coachDescription(coachMessage("description.bpm_average_against_a_bpm_lt1_ceiling_average", { p0: hr, p1: input.lt1Hr }))
     });
   }
 
@@ -84,11 +84,9 @@ export function gradeAerobic(input: RubricInput, walkAudit: WalkAudit | null, in
 
     const label = input.isFailedWorkout ? finding('aborted_incomplete_quality_workout') : pts === max ? finding('unbroken_session') : band(pts / max, finding('substantially_walked_session'), finding('walk_dominated_session'), finding('walk_dominated_session'));
 
-    const description = input.isFailedWorkout
-      ? 'Target volume was cut short before the planned stimulus was delivered'
-      : `${walkPct.toFixed(1)}% of moving time in walk breaks (up to 45% is free on easy sessions)`;
+    const description = input.isFailedWorkout ? coachMessage("fragment.target_volume_was_cut_short_before_the_planned") : coachMessage("fragment.of_moving_time_in_walk_breaks_up_to", { p0: walkPct.toFixed(1) });
 
-    factors.push({ ...(category('workout_completion')), points: Math.round(pts), maxPoints: max, ...label, description });
+    factors.push({ ...(category('workout_completion')), points: Math.round(pts), maxPoints: max, ...label, ...coachDescription(description) });
   }
 
   return factors;

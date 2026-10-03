@@ -1,3 +1,7 @@
+import type Database from 'better-sqlite3';
+import type { Activity } from '../../shared/activity.js';
+import { activityFromRow } from '../db/rows.js';
+import { coachMessage } from '../domain/coaching/messages.js';
 import type { RunFamily } from './coach-rubric.js';
 import { runFamilyOf, formatPaceText } from './coach-rubric.js';
 import { createInsightLog, type CoachInsight } from './coach-insight.js';
@@ -245,24 +249,24 @@ export function buildContextInsights(ctx: CoachContext | null | undefined): Coac
 
   // 1. Training load context (explains why today felt the way it did)
   if (ctx.acwr != null) {
-    const ratio = `${ctx.acwr}x your 28-day weekly average`;
+    const ratio = coachMessage("fragment.x_your_28_day_weekly_average", { p0: ctx.acwr });
     if (ctx.acwr >= 1.5) {
-      insights.add('negative', `Training Load Context: your 7-day load is ${ratio} — a high-risk spike. Any pace loss or heart-rate rise today reflects accumulated fatigue, not lost fitness, so keep the next 3 days genuinely easy.`);
+      insights.add('negative', coachMessage("insight.training_load_context_your_7_day_load_is", { p0: ratio }));
     } else if (ctx.acwr >= 1.3) {
-      insights.add('caution', `Training Load Context: your 7-day load is ${ratio} and ramping fast. Expect elevated heart rate at easy pace until this block is absorbed.`);
+      insights.add('caution', coachMessage("insight.training_load_context_your_7_day_load_is_2", { p0: ratio }));
     } else if (ctx.acwr < 0.8) {
-      insights.add('neutral', `Training Load Context: your 7-day load is ${ratio} — a deload window. Fresher legs here explain a faster pace at the same heart rate.`);
+      insights.add('neutral', coachMessage("insight.training_load_context_your_7_day_load_is_3", { p0: ratio }));
     } else {
-      insights.add('positive', `Training Load Context: your 7-day load is ${ratio}, inside the productive 0.8-1.3 tunnel, so this session was absorbed on schedule.`);
+      insights.add('positive', coachMessage("insight.training_load_context_your_7_day_load_is_4", { p0: ratio }));
     }
   }
 
   // 2. Running economy against the athlete's own baseline
   if (ctx.efDeltaPct != null && ctx.baselineEf != null && Math.abs(ctx.efDeltaPct) >= 2) {
     if (ctx.efDeltaPct > 0) {
-      insights.add('positive', `Personal Baseline: running economy reached ${ctx.baselineEf} EF + ${ctx.efDeltaPct}%, above your 28-day median across ${ctx.baselineEfSamples} comparable runs — a real aerobic gain rather than day-to-day noise.`);
+      insights.add('positive', coachMessage("insight.personal_baseline_running_economy_reached_ef_above_your", { p0: ctx.baselineEf, p1: ctx.efDeltaPct, p2: ctx.baselineEfSamples }));
     } else {
-      insights.add('caution', `Personal Baseline: running economy came in ${Math.abs(ctx.efDeltaPct)}% below your 28-day median of ${ctx.baselineEf} EF. A single session is noise, but two in a row usually means accumulated fatigue.`);
+      insights.add('caution', coachMessage("insight.personal_baseline_running_economy_came_in_below_your", { p0: Math.abs(ctx.efDeltaPct), p1: ctx.baselineEf }));
     }
   }
 
@@ -270,29 +274,27 @@ export function buildContextInsights(ctx: CoachContext | null | undefined): Coac
   // A quality workout's session average mixes work, recovery and late drift.
   // It cannot support a same-pace heart-rate claim about the work intervals.
   if (ctx.runFamily === 'aerobic' && ctx.hrAtPaceDeltaBpm != null && ctx.baselineHrAtPace != null && Math.abs(ctx.hrAtPaceDeltaBpm) >= 2) {
-    const paceText = ctx.currentPaceSecKm ? formatPaceText(ctx.currentPaceSecKm) : 'this pace';
+    const paceText = ctx.currentPaceSecKm ? formatPaceText(ctx.currentPaceSecKm) : coachMessage("fragment.this_pace");
     if (ctx.hrAtPaceDeltaBpm < 0) {
-      insights.add('positive', `Pace-Specific Cost: ${paceText} usually costs you ${ctx.baselineHrAtPace} bpm across ${ctx.hrAtPaceSamples} comparable runs; today you paid ${Math.abs(ctx.hrAtPaceDeltaBpm)} bpm less, a direct sign the aerobic engine is stronger.`);
+      insights.add('positive', coachMessage("insight.pace_specific_cost_usually_costs_you_bpm_across", { p0: paceText, p1: ctx.baselineHrAtPace, p2: ctx.hrAtPaceSamples, p3: Math.abs(ctx.hrAtPaceDeltaBpm) }));
     } else {
-      insights.add('caution', `Pace-Specific Cost: ${paceText} usually costs you ${ctx.baselineHrAtPace} bpm across ${ctx.hrAtPaceSamples} comparable runs; today it cost ${ctx.hrAtPaceDeltaBpm} bpm more, so heat, fuelling or accumulated fatigue is the limiter rather than fitness.`);
+      insights.add('caution', coachMessage("insight.pace_specific_cost_usually_costs_you_bpm_across_2", { p0: paceText, p1: ctx.baselineHrAtPace, p2: ctx.hrAtPaceSamples, p3: ctx.hrAtPaceDeltaBpm }));
     }
   }
 
   // 4. Relative standing across the athlete's own history
   if (ctx.decouplingRank != null && ctx.decouplingSamples >= 4) {
-    const bestNote = ctx.decouplingBestPct != null && ctx.decouplingBestPct > 0
-      ? ` (best ${ctx.decouplingBestPct}% drift)`
-      : '';
+    const bestNote = ctx.decouplingBestPct != null && ctx.decouplingBestPct > 0 ? coachMessage("fragment.best_drift", { p0: ctx.decouplingBestPct }) : '';
     if (ctx.decouplingRank === 1) {
-      insights.add('positive', `Relative Standing: this was your most stable aerobic session across the last ${ctx.decouplingSamples} comparable runs.`);
+      insights.add('positive', coachMessage("insight.relative_standing_this_was_your_most_stable_aerobic", { p0: ctx.decouplingSamples }));
     } else {
-      insights.add('neutral', `Relative Standing: aerobic stability ranks ${ctx.decouplingRank} of your last ${ctx.decouplingSamples} comparable runs${bestNote}.`);
+      insights.add('neutral', coachMessage("insight.relative_standing_aerobic_stability_ranks_of_your_last", { p0: ctx.decouplingRank, p1: ctx.decouplingSamples, p2: bestNote }));
     }
   }
 
   // 5. Volume milestone
   if (ctx.isLongestRun && ctx.longestDistanceKm != null) {
-    insights.add('positive', `Volume Milestone: at ${ctx.longestDistanceKm} km this is your longest comparable run in the last ${ctx.windowDays} days, extending your endurance ceiling.`);
+    insights.add('positive', coachMessage("insight.volume_milestone_at_km_this_is_your_longest", { p0: ctx.longestDistanceKm, p1: ctx.windowDays }));
   }
 
   return insights.items;
@@ -304,21 +306,21 @@ export function buildContextInsights(ctx: CoachContext | null | undefined): Coac
  * startup migrations cannot fail because of a comparison query.
  */
 export function loadCoachHistoryContext(
-  db: any,
-  activity: any,
+  db: Database.Database,
+  activity: Activity,
   options: CoachContextOptions = {}
 ): CoachContext | null {
   if (!db || !activity || !activity.start_time) return null;
   try {
     const rows = db.prepare(`
-      SELECT id, start_time, run_type, distance_meters, efficiency_factor,
+      SELECT id, start_time, run_type, distance_meters, duration_seconds, efficiency_factor,
              aerobic_decoupling_pct, avg_cadence, avg_heart_rate,
              steady_heart_rate, avg_pace_sec_km, steady_pace_sec_km, training_load
       FROM activities
       WHERE start_time < ?
       ORDER BY start_time DESC
       LIMIT 400
-    `).all(String(activity.start_time)) as HistoryRow[];
+    `).all(String(activity.start_time)).map(activityFromRow);
 
     if (!rows || rows.length === 0) return null;
 

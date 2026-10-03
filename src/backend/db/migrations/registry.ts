@@ -13,7 +13,7 @@ import type { createMigrationRunner } from '../migrations.js';
 
 type Runner = ReturnType<typeof createMigrationRunner>;
 
-export const ANALYSIS_UPGRADES = ['signal-classification-v1', 'effort-structure-v1', 'stride-recovery-v1', 'historical-fitness-v1', 'recovery-hrr-v1', 'fit-structure-v1', 'analysis-telemetry-policy-v1', 'structured-tempo-v1'] as const;
+export const ANALYSIS_UPGRADES = ['signal-classification-v1', 'effort-structure-v1', 'stride-recovery-v1', 'historical-fitness-v1', 'recovery-hrr-v1', 'fit-structure-v1', 'analysis-telemetry-policy-v1', 'structured-tempo-v1', 'coaching-prose-v1'] as const;
 
 /** Essential compatibility changes always run before scheduling analysis. */
 export function runSchemaMigrations(db: Database.Database, migrations: Runner): void {

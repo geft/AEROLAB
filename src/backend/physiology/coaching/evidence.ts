@@ -1,3 +1,7 @@
+import { coachingRecord, coachingInterval, coachingSplit, type CoachingRecord, type CoachingRecordInput, type CoachingIntervalInput, type CoachingSplitInput } from '../../domain/coaching/telemetry.js';
+import { sameTimerSegment, MAX_OBSERVED_GAP_SECONDS } from '../time-series.js';
+import { coachMessage, coachDescription, coachJoin } from '../../domain/coaching/messages.js';
+import type { CoachMessage } from '../../../shared/coaching.js';
 import { category, finding } from '../../domain/coaching/vocabulary.js';
 import type { CoachingFactor, CoachCategoryId, CoachFindingId } from '../../../shared/coaching.js';
 export type { RunFamily } from '../../../shared/coaching.js';
@@ -46,9 +50,9 @@ export interface RubricInput {
   durationMin?: number | null;
   pauseBreakdown?: PauseBreakdown | null;
   /** Per-second telemetry, used to judge *why* walk breaks happened. */
-  records?: any[] | null;
-  intervals?: any[] | null;
-  splits?: any[] | null;
+  records?: CoachingRecordInput[] | null;
+  intervals?: CoachingIntervalInput[] | null;
+  splits?: CoachingSplitInput[] | null;
 }
 
 export interface RubricResult {
@@ -59,6 +63,7 @@ export interface RubricResult {
   /** How much of the 100-point rubric could actually be observed (0-100). */
   coveragePct: number;
   focusAdvice: string | null;
+  focusAdviceMessage: CoachMessage | null;
   /** Walk-break classification, when per-second telemetry was available. */
   walkAudit: WalkAudit | null;
   /** Condition-adjusted cardiac-drift target used to grade aerobic stability. */
@@ -177,27 +182,29 @@ export const INTERVAL_TYPE = {
   recovery: 'recovery'
 } as const;
 
-export const intervalDuration = (rep: any): number => rep?.duration_seconds ?? rep?.durationSeconds ?? 0;
-export const intervalHr = (rep: any): number => rep?.avg_heart_rate ?? rep?.avgHeartRate ?? 0;
-export const intervalMaxHr = (rep: any): number => rep?.max_heart_rate ?? rep?.maxHeartRate ?? 0;
-export const intervalDrop = (rep: any): number => rep?.hr_drop ?? rep?.hrDrop ?? 0;
-export const splitPace = (s: any): number => s?.avg_pace_sec_km ?? s?.avgPaceSecKm ?? 0;
+export const intervalDuration = (rep: CoachingIntervalInput): number => coachingInterval(rep).durationSeconds;
+export const intervalHr = (rep: CoachingIntervalInput): number => coachingInterval(rep).avgHeartRate;
+export const intervalMaxHr = (rep: CoachingIntervalInput): number => coachingInterval(rep).maxHeartRate;
+export const intervalDrop = (rep: CoachingIntervalInput): number => coachingInterval(rep).hrDrop;
+export const splitPace = (s: CoachingSplitInput): number => coachingSplit(s).avgPaceSecKm ?? 0;
 
 /**
  * Race splits restricted to the recorded effort (work interval window when an
  * interval was detected, otherwise all plausible running splits).
  */
-export function selectRaceSplits(splits: any[] | null | undefined, intervals: any[] | null | undefined): any[] {
+export function selectRaceSplits(splitInput: CoachingSplitInput[] | null | undefined, intervalInput: CoachingIntervalInput[] | null | undefined): CoachingSplitInput[] {
+  const splits = splitInput;
+  const intervals = intervalInput?.map(coachingInterval);
   if (!splits || splits.length < 2) return [];
-  const workRep = (intervals || []).find((i: any) => i.type === INTERVAL_TYPE.work);
-  let raceSplits: any[] = [];
+  const workRep = (intervals || []).find((i) => i.type === INTERVAL_TYPE.work);
+  let raceSplits: CoachingSplitInput[] = [];
 
   if (workRep) {
-    const wStart = workRep.startSeconds ?? workRep.start_seconds ?? 0;
-    const wDur = workRep.durationSeconds ?? workRep.duration_seconds ?? 0;
+    const wStart = workRep.startSeconds;
+    const wDur = workRep.durationSeconds;
     let cumSec = 0;
-    raceSplits = splits.filter((s: any) => {
-      const splitDur = s.duration_seconds || s.durationSeconds || 0;
+    raceSplits = splits.filter((s) => {
+      const splitDur = coachingSplit(s).durationSeconds;
       const splitStart = cumSec;
       cumSec += splitDur;
       return splitStart >= wStart - 30 && splitStart < wStart + wDur - 60;
@@ -205,7 +212,7 @@ export function selectRaceSplits(splits: any[] | null | undefined, intervals: an
   }
 
   if (raceSplits.length < 2) {
-    raceSplits = splits.filter((s: any) => {
+    raceSplits = splits.filter((s) => {
       const p = splitPace(s);
       return p > 120 && p < 720;
     });
@@ -252,22 +259,27 @@ export function gradeAdjustedPace(paceSecKm: number, climbM: number, distM: numb
 }
 
 export function steadyPaceSegments(
-  records: Array<any> | null | undefined,
+  recordInput: CoachingRecordInput[] | null | undefined,
   opts: { minRunDistM?: number } = {}
 ): PaceSegment[] | null {
+  const records = recordInput?.map(coachingRecord);
   if (!records || records.length < 20) return null;
-  if (!records.some(r => (r.cadence ?? r.cad ?? 0) > 50)) return null;
+  if (!records.some(r => (r.cadence ?? 0) > 50)) return null;
   const minRunDistM = opts.minRunDistM ?? 300;
 
   const acc = new Map<number, { runSec: number; runDist: number; stopSec: number; walkSec: number; climb: number; lastAlt: number | null }>();
-  let prev: any = null;
+  let prev: CoachingRecord | null = null;
 
   for (const r of records) {
     if (prev) {
-      const dt = Math.max(1, Math.min(15, (r.elapsed_seconds ?? 0) - (prev.elapsed_seconds ?? 0)));
-      const dd = (r.distance_m ?? 0) - (prev.distance_m ?? 0);
+      const dt = r.elapsedSeconds - prev.elapsedSeconds;
+      if (!sameTimerSegment(prev, r) || dt <= 0 || dt > MAX_OBSERVED_GAP_SECONDS) {
+        prev = r;
+        continue;
+      }
+      const dd = (r.distanceMeters ?? 0) - (prev.distanceMeters ?? 0);
       const cad = prev.cadence ?? 0;
-      const km = Math.max(1, Math.ceil((r.distance_m ?? 0) / 1000));
+      const km = Math.max(1, Math.ceil((r.distanceMeters ?? 0) / 1000));
       const e = acc.get(km) ?? { runSec: 0, runDist: 0, stopSec: 0, walkSec: 0, climb: 0, lastAlt: null };
       if (dd > 0 && dd < 30) {
         if (cad >= WALK_CADENCE_MAX) {
@@ -280,7 +292,7 @@ export function steadyPaceSegments(
         }
         // Sum only plausible positive altitude steps, so sensor spikes cannot
         // invent a climb that never happened.
-        const alt = r.altitude_m ?? null;
+        const alt = r.altitudeMeters ?? null;
         if (alt != null && e.lastAlt != null) {
           const rise = alt - e.lastAlt;
           if (rise > 0 && rise < 3) e.climb += rise;
@@ -365,10 +377,11 @@ export interface PacingConsistency {
  * is what actually wastes energy.
  */
 export function pacingConsistency(
-  records: Array<any> | null | undefined,
-  splits: any[] | null | undefined,
+  recordInput: CoachingRecordInput[] | null | undefined,
+  splits: CoachingSplitInput[] | null | undefined,
   runType: string
 ): PacingConsistency | null {
+  const records = recordInput?.map(coachingRecord);
   const segments = steadyPaceSegments(records);
   if (segments && segments.length >= 3) {
     const values = segments.map(s => gradeAdjustedPace(s.paceSecKm, Math.max(0, s.climbM), s.runDistM));
@@ -406,7 +419,7 @@ export function pacingConsistency(
 }
 
 /** Splits usable when there is no per-second telemetry (drops ramp-walk splits). */
-export function pacingSplitPaces(runType: string, splits: any[] | null | undefined): number[] {
+export function pacingSplitPaces(runType: string, splits: CoachingSplitInput[] | null | undefined): number[] {
   const paces = (splits || [])
     .map(splitPace)
     .filter((p: number) => p > 120 && p < 720);
@@ -449,21 +462,27 @@ export const HIGH_Z2_BAND_BPM = 5;
 /** Aerobic-intensity grading weights: Z3+ is the failure, high Z2 is a soft signal. */
 
 export function intensityAudit(
-  records: Array<any> | null | undefined,
+  recordInput: CoachingRecordInput[] | null | undefined,
   opts: { lt1Hr: number }
 ): IntensityAudit | null {
+  const records = recordInput?.map(coachingRecord);
   if (!records || records.length < 30) return null;
-  const samples: Array<{ t: number; hr: number }> = [];
-  const hasCadence = records.some(r => (r.cadence ?? r.cad ?? 0) > 50);
+  const samples: Array<{ t: number; hr: number; segment: number }> = [];
+  let segment = 0;
+  let previous: CoachingRecord | undefined;
+  const hasCadence = records.some(r => (r.cadence ?? 0) > 50);
 
   for (const r of records) {
-    const hr = r.heart_rate ?? r.heartRate ?? 0;
+    if (previous && (!sameTimerSegment(previous, r) || r.elapsedSeconds - previous.elapsedSeconds > MAX_OBSERVED_GAP_SECONDS || r.elapsedSeconds <= previous.elapsedSeconds)) segment++;
+    previous = r;
+    if (r.timerActive === false) continue;
+    const hr = r.heartRate ?? 0;
     if (!hr || hr <= 40) continue;
-    const cad = r.cadence ?? r.cad ?? 0;
+    const cad = r.cadence ?? 0;
     // Running samples only: walking to control heart rate is deliberate, and a
     // stationary pause at 170 bpm is not an execution failure either.
     if (hasCadence && cad < WALK_CADENCE_MAX) continue;
-    samples.push({ t: r.elapsed_seconds ?? 0, hr });
+    samples.push({ t: r.elapsedSeconds, hr, segment });
   }
   if (samples.length < 30) return null;
 
@@ -474,11 +493,11 @@ export function intensityAudit(
   const smoothed = samples.map((s, i) => {
     let sum = 0;
     let n = 0;
-    for (let j = i; j >= 0 && samples[i].t - samples[j].t <= SMOOTHING_WINDOW_SEC; j--) {
+    for (let j = i; j >= 0 && samples[j].segment === s.segment && samples[i].t - samples[j].t <= SMOOTHING_WINDOW_SEC; j--) {
       sum += samples[j].hr;
       n++;
     }
-    for (let j = i + 1; j < samples.length && samples[j].t - samples[i].t <= SMOOTHING_WINDOW_SEC; j++) {
+    for (let j = i + 1; j < samples.length && samples[j].segment === s.segment && samples[j].t - samples[i].t <= SMOOTHING_WINDOW_SEC; j++) {
       sum += samples[j].hr;
       n++;
     }
@@ -590,7 +609,7 @@ const medianOf = (values: number[]): number | null => {
  * reported set recovery from 2:13 down to 1:54. Warm-up walks and the trailing
  * cool-down are excluded by the duration window and the missing neighbour.
  */
-export function betweenRepRecoveries<T extends { type: string }>(intervals: T[] | null | undefined): T[] {
+export function betweenRepRecoveries<T extends CoachingIntervalInput>(intervals: T[] | null | undefined): T[] {
   const rows = intervals || [];
   return rows.filter((i: T, idx: number) => {
     if (i.type !== INTERVAL_TYPE.recovery && i.type !== 'rest') return false;
@@ -619,9 +638,9 @@ export interface SetShape {
   shortReps: boolean;
 }
 
-export function describeSet(intervals: any[] | null | undefined): SetShape | null {
-  const rows = intervals || [];
-  const workReps = rows.filter((i: any) => i.type === INTERVAL_TYPE.work);
+export function describeSet(intervals: CoachingIntervalInput[] | null | undefined): SetShape | null {
+  const rows = (intervals || []).map(coachingInterval);
+  const workReps = rows.filter((i) => i.type === INTERVAL_TYPE.work);
   if (workReps.length === 0) return null;
 
   const durations = workReps.map(intervalDuration).filter((d: number) => d > 0);
@@ -661,7 +680,7 @@ export function walkSharePct(pb?: PauseBreakdown | null): number | null {
  * Returns null when there is no usable cadence telemetry to judge from.
  */
 export function auditWalkBreaks(
-  records: Array<any> | null | undefined,
+  recordInput: CoachingRecordInput[] | null | undefined,
   opts: {
     lt1Hr: number;
     lt2Hr: number;
@@ -672,11 +691,12 @@ export function auditWalkBreaks(
     workWindows?: Array<{ from: number; to: number }>;
   }
 ): WalkAudit | null {
+  const records = recordInput?.map(coachingRecord);
   if (!records || records.length < 10) return null;
-  if (!records.some(r => (r.cadence ?? r.cad ?? 0) > 50)) return null;
+  if (!records.some(r => (r.cadence ?? 0) > 50)) return null;
 
-  const firstSec = records[0].elapsed_seconds ?? 0;
-  const lastSec = records[records.length - 1].elapsed_seconds ?? firstSec;
+  const firstSec = records[0].elapsedSeconds ?? 0;
+  const lastSec = records[records.length - 1].elapsedSeconds ?? firstSec;
   const spanSec = Math.max(1, lastSec - firstSec);
   const windows = opts.recoveryWindows ?? [];
 
@@ -696,10 +716,15 @@ export function auditWalkBreaks(
   for (let i = 0; i < records.length; i++) {
     const r = records[i];
     const prev = records[i - 1] ?? r;
-    const rSec = r.elapsed_seconds ?? i;
-    const prevSec = prev.elapsed_seconds ?? Math.max(0, rSec - 1);
-    const dt = Math.min(15, Math.max(1, rSec - prevSec));
-    const cad = r.cadence ?? r.cad ?? 0;
+    const rSec = r.elapsedSeconds ?? i;
+    const prevSec = prev.elapsedSeconds ?? Math.max(0, rSec - 1);
+    const dt = i === 0 ? 1 : rSec - prevSec;
+    if (!sameTimerSegment(prev, r) || dt <= 0 || dt > MAX_OBSERVED_GAP_SECONDS) {
+      if (cur && cur.walkSec >= MIN_BLOCK_SEC) blocks.push(toWalkBlock(cur, firstSec, spanSec));
+      cur = null;
+      continue;
+    }
+    const cad = r.cadence ?? 0;
     const isWalk = cad >= WALK_CADENCE_MIN && cad < WALK_CADENCE_MAX;
     const isStop = !cad || cad < WALK_CADENCE_MIN;
 
@@ -708,16 +733,16 @@ export function auditWalkBreaks(
         cur = {
           startSec: rSec,
           walkSec: 0,
-          hrBefore: prev.heart_rate ?? null,
-          altStart: r.altitude_m ?? null,
+          hrBefore: prev.heartRate ?? null,
+          altStart: r.altitudeMeters ?? null,
           altEnd: null,
-          distStart: prev.distance_m ?? null,
+          distStart: prev.distanceMeters ?? null,
           distEnd: null
         };
       }
       cur.walkSec += dt;
-      cur.altEnd = r.altitude_m ?? cur.altEnd;
-      cur.distEnd = r.distance_m ?? cur.distEnd;
+      cur.altEnd = r.altitudeMeters ?? cur.altEnd;
+      cur.distEnd = r.distanceMeters ?? cur.distEnd;
     } else if (cur) {
       if (cur.walkSec >= MIN_BLOCK_SEC) blocks.push(toWalkBlock(cur, firstSec, spanSec));
       cur = null;
@@ -887,15 +912,15 @@ export function turnoverFactor(input: RubricInput, max: number): RubricFactor | 
   const stanceMax = max - cadenceMax;
   const earned = cadencePoints(cadenceMax, cadence) + (stance ? stancePoints(stanceMax, stance) : 0);
   const ratio = earned / max;
-  const parts: string[] = [];
-  if (cadence) parts.push(`${cadence} spm steady cadence`);
-  if (stance) parts.push(`${Math.round(stance)} ms ground contact`);
+  const parts: CoachMessage[] = [];
+  if (cadence) parts.push(coachMessage("fragment.spm_steady_cadence", { p0: cadence }));
+  if (stance) parts.push(coachMessage("fragment.ms_ground_contact", { p0: Math.round(stance) }));
   return {
     ...(category('running_turnover')),
     points: Math.round(earned),
     maxPoints: max,
     ...(band(ratio, finding('optimal_cadence_sweet_spot'), finding('adequate_turnover'), finding('sub_optimal_cadence_turnover'))),
-    description: parts.join(' · ')
+    ...coachDescription(coachJoin(parts, ' · '))
   };
 }
 
@@ -905,11 +930,11 @@ export function turnoverFactor(input: RubricInput, max: number): RubricFactor | 
  * near threshold), so the raw drop between reps is never graded — decay is.
  */
 export function setFatigueDetail(input: RubricInput) {
-  const workReps = (input.intervals || []).filter((i: any) => i.type === INTERVAL_TYPE.work);
+  const workReps = (input.intervals || []).map(coachingInterval).filter((i) => i.type === INTERVAL_TYPE.work);
   const shape = describeSet(input.intervals);
   const paces = workReps
-    .map((r: any) => {
-      const pace = r.avg_pace_sec_km ?? r.avgPaceSecKm ?? (r.avg_speed_mps ? 1000 / r.avg_speed_mps : null);
+    .map((r) => {
+      const pace = r.avgPaceSecKm ?? (r.avgSpeedMps ? 1000 / r.avgSpeedMps : null);
       return typeof pace === 'number' && pace > 60 ? pace : null;
     })
     .filter((p: number | null): p is number => p != null);

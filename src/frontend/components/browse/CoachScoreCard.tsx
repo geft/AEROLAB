@@ -1,4 +1,5 @@
-import type { CoachMessages, CoachCategoryId, CoachFindingId } from '../../../shared/coaching.js';
+import { formatCoachMessage } from '../../i18n/coachMessage.js';
+import type { CoachMessages, CoachMessage, CoachCategoryId, CoachFindingId } from '../../../shared/coaching.js';
 import { SessionVerdictBadge } from './SessionVerdictBadge.js';
 import type { SessionVerdict } from '../../../shared/session-verdict.js';
 import React, { useState } from 'react';
@@ -24,6 +25,8 @@ const signed = (value: number) => (value > 0 ? `+${value}` : `${value}`);
 interface CoachScoreCardProps {
   coachSummary: {
     messages?: CoachMessages;
+    insightMessages?: CoachMessage[];
+    focusAdviceMessage?: CoachMessage | null;
     verdict?: SessionVerdict;
     headline?: string;
     stars?: number;
@@ -35,6 +38,7 @@ interface CoachScoreCardProps {
       category: string;
       label: string;
       description?: string;
+      descriptionMessage?: CoachMessage;
       points: number;
       maxPoints?: number;
       isFocus?: boolean;
@@ -96,8 +100,9 @@ export const CoachScoreCard: React.FC<CoachScoreCardProps> = ({
   // labelling an insight with a neighbour's verdict.
   const rawInsights = coachSummary.keyInsights || [];
   const rawTones = coachSummary.insightTones?.length === rawInsights.length ? coachSummary.insightTones : [];
-  const visibleInsights: Array<{ text: string; tone?: CoachInsightTone; localized?: boolean }> = rawInsights.map((text, index) => ({ text, tone: rawTones[index] }))
-    .filter(entry => !entry.text.startsWith('Rubric Coverage:'));
+  const rawMessages = coachSummary.insightMessages?.length === rawInsights.length ? coachSummary.insightMessages : [];
+  const visibleInsights: Array<{ text: string; tone?: CoachInsightTone; localized?: boolean; message?: CoachMessage }> = rawInsights.map((text, index) => ({ text, tone: rawTones[index], message: rawMessages[index] }))
+    .filter(entry => entry.message ? entry.message.id !== 'insight.rubric_coverage_of_the_grading_rubric_was_measurable' : !entry.text.startsWith('Rubric Coverage:'));
   if (comparisonInsight) visibleInsights.push({ text: comparisonInsight, tone: 'neutral', localized: true });
   const insights = visibleInsights.map(entry => entry.text);
   const tones = visibleInsights.map(entry => entry.tone);
@@ -142,7 +147,7 @@ export const CoachScoreCard: React.FC<CoachScoreCardProps> = ({
         <div className="coach-title-group">
           <span className="coach-tag">{t.browse.coachTag}</span>
           <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-            {coachSummary.messages ? format(t.browse.coachMessageOverrides[coachSummary.messages.headline.id] ?? coachSummary.messages.headline.text, coachSummary.messages.headline.params) : t.browse.coachTextOverrides[coachSummary.headline || ''] ?? translateCoachHeadline(coachSummary.headline || '', language)}
+            {coachSummary.messages ? formatCoachMessage(coachSummary.messages.headline, t, format) : t.browse.coachTextOverrides[coachSummary.headline || ''] ?? translateCoachHeadline(coachSummary.headline || '', language, t.browse.coachLegacyTemplates)}
           </h3>
         </div>
         <button
@@ -176,9 +181,9 @@ export const CoachScoreCard: React.FC<CoachScoreCardProps> = ({
             {(coachSummary.scoreBreakdown || []).map((factor, fIdx) => (
               <div key={fIdx} className="score-factor-row">
                 <div className="score-factor-main">
-                  <span className="score-factor-cat">{factor.categoryId ? t.browse.coachCategoryOverrides[factor.categoryId] ?? factor.category : translateScoreCategory(factor.category, language)}</span>
-                  <span className="score-factor-label">{factor.findingId ? t.browse.coachFindingOverrides[factor.findingId] ?? factor.label : translateScoreLabel(factor.label, language)}</span>
-                  {factor.description && <span className="score-factor-desc">{translateScoreDescription(factor.description, language)}</span>}
+                  <span className="score-factor-cat">{factor.categoryId ? t.browse.coachCategoryOverrides[factor.categoryId] ?? factor.category : translateScoreCategory(factor.category, language, t.browse.coachLegacyTemplates)}</span>
+                  <span className="score-factor-label">{factor.findingId ? t.browse.coachFindingOverrides[factor.findingId] ?? factor.label : translateScoreLabel(factor.label, language, t.browse.coachLegacyTemplates)}</span>
+                  {factor.description && <span className="score-factor-desc">{factor.descriptionMessage ? formatCoachMessage(factor.descriptionMessage, t, format) : translateScoreDescription(factor.description, language, t.browse.coachLegacyTemplates)}</span>}
                 </div>
               </div>
             ))}
@@ -209,7 +214,7 @@ export const CoachScoreCard: React.FC<CoachScoreCardProps> = ({
               <span className="coach-insight-bullet" aria-hidden="true">◆</span>
               <span className="coach-insight-text">
                 {tone && <span className={`coach-insight-tag tone-${tone}`}>{toneLabel(tone)}</span>}
-                {t.browse.coachTextOverrides[entry.text] ?? translateCoachInsight(entry.text, language)}
+                {entry.localized ? entry.text : entry.message ? formatCoachMessage(entry.message, t, format) : t.browse.coachTextOverrides[entry.text] ?? translateCoachInsight(entry.text, language, t.browse.coachLegacyTemplates)}
               </span>
             </li>
           );
@@ -230,7 +235,7 @@ export const CoachScoreCard: React.FC<CoachScoreCardProps> = ({
 
       <div className="coach-recommendation">
         <strong style={{ color: '#06b6d4' }}>{t.browse.nextStep}: </strong>
-        {coachSummary.messages ? format(t.browse.coachMessageOverrides[coachSummary.messages.recommendation.id] ?? coachSummary.messages.recommendation.text, coachSummary.messages.recommendation.params) : t.browse.coachTextOverrides[coachSummary.recommendation || ''] ?? translateCoachRecommendation(coachSummary.recommendation || '', language)}
+        {coachSummary.messages ? formatCoachMessage(coachSummary.messages.recommendation, t, format) : t.browse.coachTextOverrides[coachSummary.recommendation || ''] ?? translateCoachRecommendation(coachSummary.recommendation || '', language, t.browse.coachLegacyTemplates)}
       </div>
     </section>
   );

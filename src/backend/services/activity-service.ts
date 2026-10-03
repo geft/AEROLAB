@@ -6,7 +6,7 @@ import { parseClassificationEvidence } from '../../shared/contracts/classificati
 import { observedIntervals } from '../physiology/time-series.js';
 import { affectedActivityIds } from '../application/analysis/rebuild-history.js';
 import { loadAnalysisRecords, analysisRecordToRow } from '../db/analysis-records.js';
-import { parseCoachMessages } from '../../shared/coaching.js';
+import { parseCoachMessages, parseCoachMessage, parseCoachMessageArray } from '../../shared/coaching.js';
 import { rebuildAffectedHistory } from '../application/analysis/rebuild-history.js';
 import { thresholdTime } from '../../shared/threshold-trend.js';
 import Database from 'better-sqlite3';
@@ -513,6 +513,8 @@ export function getActivityCoachSummaryService(db: Database.Database, id: string
       classificationEvidence: parseClassificationEvidence(analysis?.classificationEvidence),
       analysisProvenance: parseAnalysisProvenance(analysis?.provenance),
       messages: parseCoachMessages(analysis?.messages),
+      insightMessages: parseCoachMessageArray(analysis?.insightMessages),
+      focusAdviceMessage: parseCoachMessage(analysis?.focusAdviceMessage) ?? null,
       headline: coachRow.headline,
       verdict: parseSessionVerdict(analysis?.verdict),
       effectivenessScore: coachRow.effectiveness_score,

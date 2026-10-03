@@ -1,24 +1,26 @@
+import { coachingRecord } from '../../domain/coaching/telemetry.js';
+import { observedIntervals } from '../time-series.js';
+import { coachingInterval } from '../../domain/coaching/telemetry.js';
+import { coachMessage, coachDescription, coachJoin } from '../../domain/coaching/messages.js';
+import type { CoachMessage } from '../../../shared/coaching.js';
 import { category, finding } from '../../domain/coaching/vocabulary.js';
 import { getLt2TrainingBand } from '../zones.js';
 import { RubricFactor, RubricInput, curve, band, coefficientOfVariation, INTERVAL_TYPE, intervalDuration, intervalHr, intervalMaxHr, WalkAudit, describeSet, walkSharePct, turnoverFactor, setFatigueDetail, intensityControlPoints } from './evidence.js';
 export function thresholdZoneShare(input: RubricInput): { pct: number; seconds: number; lower: number; upper: number } | null {
-  const workWindows = (input.intervals || [])
-    .filter((rep: any) => rep.type === INTERVAL_TYPE.work)
-    .map((rep: any) => ({ from: rep.start_seconds ?? rep.startSeconds, to: (rep.start_seconds ?? rep.startSeconds) + intervalDuration(rep) }))
+  const workWindows = (input.intervals || []).map(coachingInterval)
+    .filter((rep) => rep.type === INTERVAL_TYPE.work)
+    .map((rep) => ({ from: rep.startSeconds, to: (rep.startSeconds) + intervalDuration(rep) }))
     .filter((window: { from: number; to: number }) => Number.isFinite(window.from) && window.to > window.from);
   if (workWindows.length === 0 || !input.records || input.records.length < 10) return null;
   const [lower, upper] = getLt2TrainingBand(input.lt2Hr);
   let observed = 0;
   let inZone = 0;
-  const records = input.records;
-  for (let index = 0; index < records.length - 1; index++) {
-    const record = records[index];
-    const time = record.elapsed_seconds ?? record.elapsedSeconds;
-    const nextTime = records[index + 1].elapsed_seconds ?? records[index + 1].elapsedSeconds;
-    const hr = record.heart_rate ?? record.heartRate;
-    if (!Number.isFinite(time) || !Number.isFinite(nextTime) || !Number.isFinite(hr) || hr <= 40) continue;
+  const records = input.records.map(coachingRecord);
+  for (const interval of observedIntervals(records, record => record.elapsedSeconds)) {
+    const hr = interval.a.heartRate;
+    if (hr == null || hr <= 40) continue;
     for (const window of workWindows) {
-      const seconds = Math.max(0, Math.min(nextTime, window.to, time + 15) - Math.max(time, window.from));
+      const seconds = Math.max(0, Math.min(interval.to, window.to) - Math.max(interval.from, window.from));
       observed += seconds;
       if (hr >= lower && hr <= upper) inZone += seconds;
     }
@@ -31,7 +33,7 @@ export function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): R
   const factors: RubricFactor[] = [];
   const isThreshold = input.runType === 'threshold_lt2';
   const isTempo = input.runType === 'tempo';
-  const workReps = (input.intervals || []).filter((i: any) => i.type === INTERVAL_TYPE.work);
+  const workReps = (input.intervals || []).map(coachingInterval).filter((i) => i.type === INTERVAL_TYPE.work);
 
   if (isThreshold) {
     const zone = thresholdZoneShare(input);
@@ -41,7 +43,7 @@ export function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): R
       factors.push({
         ...(category('threshold_zone_time')), points: Math.round(pts), maxPoints: max,
         ...(band(pts / max, finding('sustained_threshold_heart_rate'), finding('partial_threshold_exposure'), finding('little_threshold_exposure'))),
-        description: `${Math.floor(zone.seconds / 60)}m ${String(zone.seconds % 60).padStart(2, '0')}s within the LT2 band (${zone.lower}-${zone.upper} bpm), ${zone.pct.toFixed(1)}% of observed work-rep time`
+        ...coachDescription(coachMessage("description.m_s_within_the_lt2_band_bpm_of", { p0: Math.floor(zone.seconds / 60), p1: String(zone.seconds % 60).padStart(2, '0'), p2: zone.lower, p3: zone.upper, p4: zone.pct.toFixed(1) }))
       });
     }
   }
@@ -60,7 +62,7 @@ export function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): R
       points: Math.round(pts),
       maxPoints: max,
       ...(band(pts / max, finding('laser_rep_consistency'), finding('disciplined_interval_structure'), finding('high_rep_variance_across_set'))),
-      description: `${cvPct.toFixed(1)}% duration variance across ${workReps.length} reps (±${Math.round(durationStats.stdDev)}s spread)`
+      ...coachDescription(coachMessage("description.duration_variance_across_reps_s_spread", { p0: cvPct.toFixed(1), p1: workReps.length, p2: Math.round(durationStats.stdDev) }))
     });
   }
 
@@ -75,7 +77,7 @@ export function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): R
       points: Math.round(pts),
       maxPoints: max,
       ...(band(pts / max, finding('target_vo2_stimulus_achieved'), finding('partial_cardiovascular_stimulus'), finding('insufficient_cardiovascular_stimulus'))),
-      description: `Peaked at ${peakHr} bpm (${Math.round(pctMax)}% HRmax)`
+      ...coachDescription(coachMessage("description.peaked_at_bpm_hrmax", { p0: peakHr, p1: Math.round(pctMax) }))
     });
   }
 
@@ -103,9 +105,7 @@ export function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): R
       points: Math.round(pts),
       maxPoints: max,
       ...(driftedIntoVo2 ? finding('drifted_into_vo2_territory') : band(pts / max, finding('on_target_intensity_control'), finding('grey_zone_intensity_drift'), finding('overreaching_intensity'))),
-      description: usePeak
-        ? `${anchorHr} bpm peak work HR (${shape?.medianRepSec}s reps are too short to average to target) against a ${input.lt2Hr} bpm LT2 anchor`
-        : `${anchorHr} bpm average work HR against a ${input.lt2Hr} bpm LT2 anchor`
+      ...coachDescription(usePeak ? coachMessage("description.bpm_peak_work_hr_s_reps_are_too", { p0: anchorHr, p1: shape?.medianRepSec, p2: input.lt2Hr }) : coachMessage("description.bpm_average_work_hr_against_a_bpm_lt2", { p0: anchorHr, p1: input.lt2Hr }))
     });
   }
 
@@ -121,19 +121,15 @@ export function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): R
     const max = isThreshold ? 10 : 12;
     const pts = curve(max, fatigue.fatiguePct, fatigue.tolerancePct, fatigue.zeroPct);
 
-    const detail: string[] = [];
+    const detail: CoachMessage[] = [];
     if (fatigue.paceFadeSec != null) {
       const deltaSec = Math.round(fatigue.paceFadeSec);
-      detail.push(deltaSec >= 0
-        ? `last rep ${deltaSec}s/km slower than the first`
-        : `last rep ${Math.abs(deltaSec)}s/km faster than the first`);
+      detail.push(deltaSec >= 0 ? coachMessage("fragment.last_rep_s_km_slower_than_the_first", { p0: deltaSec }) : coachMessage("fragment.last_rep_s_km_faster_than_the_first", { p0: Math.abs(deltaSec) }));
     }
     if (fatigue.hrClimbBpm != null) {
       const deltaHr = Math.round(fatigue.hrClimbBpm);
-      const note = fatigue.gradeHr ? '' : ' (not graded: short reps carry HR lag)';
-      detail.push(deltaHr >= 0
-        ? `work HR ${deltaHr} bpm higher by the last rep${note}`
-        : `work HR ${Math.abs(deltaHr)} bpm lower by the last rep${note}`);
+      const note = fatigue.gradeHr ? '' : coachMessage("fragment.not_graded_short_reps_carry_hr_lag");
+      detail.push(deltaHr >= 0 ? coachMessage("fragment.work_hr_bpm_higher_by_the_last_rep", { p0: deltaHr, p1: note }) : coachMessage("fragment.work_hr_bpm_lower_by_the_last_rep", { p0: Math.abs(deltaHr), p1: note }));
     }
 
     factors.push({
@@ -141,7 +137,7 @@ export function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): R
       points: Math.round(pts),
       maxPoints: max,
       ...(fatigue.fatiguePct <= fatigue.tolerancePct ? finding('held_rep_pace_and_hr_to_the_end') : band(pts / max, finding('held_rep_pace_and_hr_to_the_end'), finding('slight_late_rep_fade'), finding('late_rep_collapse'))),
-      description: `${detail.join(' · ')} (across ${fatigue.workReps} reps, ${Math.round(fatigue.tolerancePct)}% drift allowed for the set length)`
+      ...coachDescription(coachMessage("description.across_reps_drift_allowed_for_the_set_length", { p0: coachJoin(detail, ' · '), p1: fatigue.workReps, p2: Math.round(fatigue.tolerancePct) }))
     });
   }
 
@@ -160,13 +156,9 @@ export function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): R
 
     const label = input.isFailedWorkout ? finding('aborted_incomplete_quality_workout') : walkAudit && walkAudit.intrusiveWalkSec > 0 ? finding('rep_interrupting_walk_breaks') : band(pts / max, finding('unbroken_session'), finding('minor_break_time'), finding('heavily_interrupted_session'));
 
-    const description = input.isFailedWorkout
-      ? 'Target volume was cut short before the planned stimulus was delivered'
-      : walkAudit
-        ? `${workReps.length} work reps · ${walkAudit.intrusiveWalkSec}s of walking inside work reps (average entry ${walkAudit.avgCorrectiveEntryHr ?? '—'} bpm)`
-        : `${workReps.length} work reps · ${(share ?? 0).toFixed(1)}% of moving time in walk breaks`;
+    const description = input.isFailedWorkout ? coachMessage("fragment.target_volume_was_cut_short_before_the_planned") : walkAudit ? coachMessage("fragment.work_reps_s_of_walking_inside_work_reps", { p0: workReps.length, p1: walkAudit.intrusiveWalkSec, p2: walkAudit.avgCorrectiveEntryHr ?? '—' }) : coachMessage("fragment.work_reps_of_moving_time_in_walk_breaks", { p0: workReps.length, p1: (share ?? 0).toFixed(1) });
 
-    factors.push({ ...(category('workout_completion')), points: Math.round(pts), maxPoints: max, ...label, description });
+    factors.push({ ...(category('workout_completion')), points: Math.round(pts), maxPoints: max, ...label, ...coachDescription(description) });
   }
 
   return factors;

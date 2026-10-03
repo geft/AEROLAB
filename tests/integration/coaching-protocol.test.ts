@@ -17,12 +17,19 @@ describe('Persisted coaching protocol', () => {
         expect.objectContaining({ categoryId: 'aerobic_intensity', findingId: expect.any(String) })
       ]));
       const stored = db.prepare('SELECT analysis_json FROM activity_coach_summaries WHERE activity_id=?').get('protocol') as { analysis_json: string };
-      expect(JSON.parse(stored.analysis_json).messages).toEqual(summary.messages);
+      const analysis = JSON.parse(stored.analysis_json);
+      expect(analysis.messages).toEqual(summary.messages);
+      expect(analysis.insightMessages).toEqual(summary.insightMessages);
+      expect(summary.insightMessages?.map(message => message.text)).toEqual(summary.keyInsights);
+      expect(summary.scoreBreakdown?.every(factor => factor.descriptionMessage?.text === factor.description)).toBe(true);
+      expect(analysis.focusAdviceMessage).toEqual(summary.focusAdviceMessage);
 
       // Old databases and exported snapshots contain presentation text only.
       db.prepare('UPDATE activity_coach_summaries SET analysis_json=? WHERE activity_id=?').run('{}', 'protocol');
       const legacy = getActivityCoachSummaryService(db, 'protocol')!.coachSummary;
       expect(legacy.messages).toBeUndefined();
+      expect(legacy.insightMessages).toBeUndefined();
+      expect(legacy.focusAdviceMessage).toBeNull();
       expect(legacy.headline).toBe(summary.headline);
       expect(legacy.recommendation).toBe(summary.recommendation);
     } finally { db.close(); }

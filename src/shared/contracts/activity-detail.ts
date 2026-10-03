@@ -1,4 +1,4 @@
-import type { CoachMessages, CoachCategoryId, CoachFindingId } from '../coaching.js';
+import type { CoachMessages, CoachMessage, CoachCategoryId, CoachFindingId } from '../coaching.js';
 import type { SessionVerdict } from '../session-verdict.js';
 import type { Activity } from '../activity.js';
 import type { PauseBreakdown } from '../activity-detail.js';
@@ -95,6 +95,7 @@ export interface ScoreFactor {
   category: string;
   label: string;
   description?: string;
+  descriptionMessage?: CoachMessage;
   points: number;
   /** Weight of this factor in the run-type rubric (100 points in total). */
   maxPoints?: number;
@@ -168,6 +169,8 @@ export interface CoachSummary {
   classificationEvidence?: ClassificationEvidence;
   analysisProvenance?: AnalysisProvenance;
   messages?: CoachMessages;
+  insightMessages?: CoachMessage[];
+  focusAdviceMessage?: CoachMessage | null;
   verdict?: SessionVerdict;
   headline: string;
   effectivenessScore: number;

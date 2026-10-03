@@ -7,12 +7,14 @@
  * through storage into the UI, so the client never has to guess a verdict from
  * English text and the two can not drift apart.
  */
+import type { CoachMessage } from '../../shared/coaching.js';
 export type CoachInsightTone = 'positive' | 'neutral' | 'caution' | 'negative';
 
 /** One graded, readable line of the coach debrief. */
 export interface CoachInsight {
   /** The sentence shown to the athlete (English is the source of truth). */
   text: string;
+  message: CoachMessage;
   tone: CoachInsightTone;
 }
 
@@ -26,8 +28,8 @@ export interface CoachInsight {
 export function createInsightLog() {
   const items: CoachInsight[] = [];
   return {
-    add(tone: CoachInsightTone, text: string): void {
-      items.push({ tone, text });
+    add(tone: CoachInsightTone, message: CoachMessage): void {
+      items.push({ tone, text: message.text, message });
     },
     addAll(insights: CoachInsight[]): void {
       items.push(...insights);
@@ -38,6 +40,7 @@ export function createInsightLog() {
     get tones(): CoachInsightTone[] {
       return items.map(i => i.tone);
     },
+    get messages(): CoachMessage[] { return items.map(item => item.message); },
     /** The collected `{ text, tone }` pairs, in the order they were added. */
     get items(): CoachInsight[] {
       return items;

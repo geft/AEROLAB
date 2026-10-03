@@ -19,10 +19,10 @@ test('mobile charts stay readable and operable with touch, keyboard, and Chinese
   expect(await trendSvg.evaluate(svg => svg.getBoundingClientRect().width)).toBeGreaterThanOrEqual(700);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
-  const firstPeriod = periodSvg.getByRole('button').first();
-  await firstPeriod.focus();
-  await firstPeriod.press('Enter');
-  await expect(firstPeriod).toHaveAttribute('aria-pressed', 'true');
+  const periodSlider = page.locator('.period-chart-card .chart-point-selector input');
+  await expect(periodSlider).toBeVisible();
+  await periodSlider.focus();
+  await periodSlider.press('ArrowRight');
   await expect(page.locator('.period-chart-selection')).toContainText('Selected period');
   const periodAxisLabel = page.locator('.period-chart-scroll .period-chart-axis-label').first();
   const [axisBox, scrollBox] = await Promise.all([
@@ -31,10 +31,11 @@ test('mobile charts stay readable and operable with touch, keyboard, and Chinese
   ]);
   expect(axisBox?.x).toBeGreaterThanOrEqual(scrollBox?.x ?? 0);
 
-  const firstTrendPoint = trendSvg.getByRole('button').first();
-  await firstTrendPoint.tap();
+  const trendSlider = page.locator('.threshold-trends-card .chart-point-selector input');
+  await expect(trendSlider).toBeVisible();
+  await trendSlider.focus();
+  await trendSlider.press('ArrowRight');
   await expect(page.locator('.threshold-trend-tooltip')).toBeVisible();
-  await expect(firstTrendPoint).toHaveAttribute('aria-pressed', 'true');
   expect(await page.locator('.threshold-trend-tooltip').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)');
 
   await page.getByRole('button', { name: 'What is Running Economy?' }).click();

@@ -623,7 +623,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
 
               {activePoint.item.activity_name && (
                 <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: '0.35rem', paddingTop: '0.35rem', color: 'var(--text-muted)', fontSize: '0.7rem' }}>
-                  {translateActivityName(activePoint.item.activity_name, language)}
+                  {translateActivityName(activePoint.item.activity_name, language, t.browse.coachLegacyTemplates)}
                 </div>
               )}
 

@@ -153,8 +153,8 @@ export interface Translations {
     conditions: Record<string, string>;
   };
   runTypes: {
-    tempo: string;
     easy_base: string;
+    tempo: string;
     threshold_lt2: string;
     intervals_vo2: string;
     long_run: string;
@@ -282,6 +282,7 @@ export interface Translations {
     coachContextDecoupling: string;
     coachContextLongest: string;
     /** Title above the coach-debrief tone legend strip. */
+    coachLegacyTemplates: Record<string, string>;
     coachTextOverrides: Record<string, string>;
     coachCategoryOverrides: Partial<Record<CoachCategoryId, string>>;
     coachFindingOverrides: Partial<Record<CoachFindingId, string>>;

@@ -1,4 +1,4 @@
-import { COACH_CATEGORY_IDS, COACH_FINDING_IDS } from '../coaching.js';
+import { COACH_CATEGORY_IDS, COACH_FINDING_IDS, parseCoachMessage } from '../coaching.js';
 import type { CoachContext, CoachInsightTone, ScoreFactor, WalkAudit } from './activity-detail.js';
 import type { PauseBreakdown } from '../activity-detail.js';
 
@@ -15,7 +15,8 @@ export function parseScoreFactors(value: unknown): ScoreFactor[] {
     && (factor.categoryId == null || typeof factor.categoryId === 'string' && (COACH_CATEGORY_IDS as readonly string[]).includes(factor.categoryId))
     && (factor.findingId == null || typeof factor.findingId === 'string' && (COACH_FINDING_IDS as readonly string[]).includes(factor.findingId))
     && (factor.description == null || typeof factor.description === 'string')
-    && (factor.isFocus == null || typeof factor.isFocus === 'boolean'));
+    && (factor.isFocus == null || typeof factor.isFocus === 'boolean'))
+    .map(factor => ({ ...factor, descriptionMessage: parseCoachMessage(factor.descriptionMessage) }));
 }
 
 export function parseInsightTones(value: unknown): CoachInsightTone[] {

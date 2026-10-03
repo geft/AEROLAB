@@ -133,7 +133,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
-              <h1 style={{ margin: 0 }}>{translateActivityName(getDisplayTitle(act, t), language)}</h1>
+              <h1 style={{ margin: 0 }}>{translateActivityName(getDisplayTitle(act, t), language, t.browse.coachLegacyTemplates)}</h1>
               {!readOnly && <button
                 onClick={() => { setCustomTitle(act.name ?? ''); setIsEditingTitle(true); }}
                 title={t.browse.renameTooltip}

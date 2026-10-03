@@ -1,3 +1,4 @@
+import { coachingInterval } from '../domain/coaching/telemetry.js';
 export * from './coaching/evidence.js';
 import { RubricInput, RubricResult, runFamilyOf, driftTargetFor, pacingConsistency, intensityAudit, auditWalkBreaks } from './coaching/evidence.js';
 import { sessionVerdict } from './session-verdict.js';
@@ -13,20 +14,20 @@ export function gradeRun(input: RubricInput): RubricResult {
   // and aerobic runs have no prescribed breaks at all.
   const recoveryWindows = family === 'aerobic'
     ? []
-    : (input.intervals || [])
-        .filter((i: any) => i.type === 'recovery' || i.type === 'rest')
-        .map((i: any) => {
-          const from = i.start_seconds ?? i.startSeconds ?? 0;
-          return { from, to: from + (i.duration_seconds ?? i.durationSeconds ?? 0) };
+    : (input.intervals || []).map(coachingInterval)
+        .filter((i) => i.type === 'recovery' || i.type === 'rest')
+        .map((i) => {
+          const from = i.startSeconds;
+          return { from, to: from + (i.durationSeconds) };
         })
         .filter((w: { from: number; to: number }) => {
           const len = w.to - w.from;
           return len >= 20 && len <= 600;
         });
   const workWindows = family !== 'aerobic'
-    ? (input.intervals || []).filter((i: any) => i.type === 'work').map((i: any) => {
-        const from = i.start_seconds ?? i.startSeconds;
-        const duration = i.duration_seconds ?? i.durationSeconds;
+    ? (input.intervals || []).map(coachingInterval).filter((i) => i.type === 'work').map((i) => {
+        const from = i.startSeconds;
+        const duration = i.durationSeconds;
         return { from, to: from + duration };
       }).filter((w: { from: number; to: number }) => Number.isFinite(w.from) && w.to > w.from)
     : undefined;
@@ -65,6 +66,7 @@ export function gradeRun(input: RubricInput): RubricResult {
   }
 
   const focus = pickFocus(factors);
+  const focusAdviceMessage = focus ? buildFocusAdvice(focus, input, walkAudit) : null;
   return {
     family,
     verdict: input.runType === 'threshold_lt2' && !thresholdZone
@@ -73,7 +75,8 @@ export function gradeRun(input: RubricInput): RubricResult {
     score: Math.max(40, Math.min(98, Math.round(score))),
     factors,
     coveragePct,
-    focusAdvice: focus ? buildFocusAdvice(focus, input, walkAudit) : null,
+    focusAdvice: focusAdviceMessage?.text ?? null,
+    focusAdviceMessage,
     walkAudit,
     driftTarget,
     pacing,

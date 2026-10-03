@@ -125,8 +125,8 @@ export const en: Translations = {
     },
   },
   runTypes: {
-    tempo: 'Tempo',
     easy_base: 'Easy Base',
+    tempo: 'Tempo',
     threshold_lt2: 'Threshold',
     intervals_vo2: 'VO2 Max',
     long_run: 'Long Run',
@@ -247,6 +247,7 @@ export const en: Translations = {
     coachCategoryOverrides: {},
     coachFindingOverrides: {},
     coachMessageOverrides: {},
+    coachLegacyTemplates: {},
     coachTextOverrides: {},
     verdictOnTrack: 'On track',
     verdictSomeDeviation: 'Some deviation',
