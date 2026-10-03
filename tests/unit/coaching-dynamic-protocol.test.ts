@@ -13,6 +13,14 @@ const format = (template: string, values: Record<string, string | number>) => te
 const record = (elapsedSeconds: number, heartRate = 135) => ({ elapsedSeconds, heartRate, cadence: 180, timerActive: true, timerSegment: 0 });
 
 describe('Dynamic coaching protocol', () => {
+  it('localizes completion descriptions without inventing entry heart rate', () => {
+    const unbroken = coachMessage('fragment.work_reps_no_walking_inside_work_reps', { p0: 2 });
+    expect(formatCoachMessage(unbroken, en, format)).toBe('2 work reps · no walking inside work reps');
+    expect(formatCoachMessage(unbroken, zh, format)).toBe('2 个工作间歇 · 组内没有步行');
+    const walking = coachMessage('fragment.work_reps_walking_without_entry_hr', { p0: 2, p1: 40 });
+    expect(formatCoachMessage(walking, en, format)).toBe('2 work reps · 40s of walking inside work reps');
+    expect(formatCoachMessage(walking, zh, format)).toBe('2 个工作间歇 · 组内步行 40 秒');
+  });
   it('localizes nested lists and clauses independently of API English wording', () => {
     const message = coachJoin([
       { ...coachMessage('fragment.stationary_traffic_stop_idle'), text: 'Changed English' },

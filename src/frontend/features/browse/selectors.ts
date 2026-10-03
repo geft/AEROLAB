@@ -1,6 +1,11 @@
 import { en } from '../../i18n/en.js';
 import type { Activity, ActivityUpdate } from '../../types/api.js';
 import type { Translations } from '../../i18n/types.js';
+/** Shared list keeps visible filters and their counts in sync. */
+export const SIDEBAR_FILTER_TAGS = [
+  'All', 'Threshold', 'Tempo', 'VO2 Max', 'Easy Base', 'Long Run', 'Race', 'Strides', 'Marathon Pace', 'Recovery'
+];
+
 /** A workout row as used by the browse list. Same shape as the API contract. */
 export type ActivitySummary = Activity;
 

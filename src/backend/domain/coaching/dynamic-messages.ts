@@ -103,6 +103,8 @@ export const DYNAMIC_MESSAGE_TEXT: Record<CoachDynamicMessageId, string> = {
   "fragment.work_hr_bpm_higher_by_the_last_rep": "work HR {p0} bpm higher by the last rep{p1}",
   "fragment.work_hr_bpm_lower_by_the_last_rep": "work HR {p0} bpm lower by the last rep{p1}",
   "description.across_reps_drift_allowed_for_the_set_length": "{p0} (across {p1} reps, {p2}% drift allowed for the set length)",
+  "fragment.work_reps_no_walking_inside_work_reps": "{p0} work reps · no walking inside work reps",
+  "fragment.work_reps_walking_without_entry_hr": "{p0} work reps · {p1}s of walking inside work reps",
   "fragment.work_reps_s_of_walking_inside_work_reps": "{p0} work reps · {p1}s of walking inside work reps (average entry {p2} bpm)",
   "fragment.work_reps_of_moving_time_in_walk_breaks": "{p0} work reps · {p1}% of moving time in walk breaks",
   "description.km_1_opened_at_then_faded_s_km": "Km 1 opened at {p0} then faded {p1}s/km to {p2}",

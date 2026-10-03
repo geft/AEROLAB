@@ -107,6 +107,35 @@ function makeRecordsWithSpeed(segments: Array<{ sec: number; speed: number }>) {
   return out;
 }
 
+describe('Quality workout completion descriptions', () => {
+  const intervals = [
+    { type: 'work', start_seconds: 0, duration_seconds: 300 },
+    { type: 'recovery', start_seconds: 300, duration_seconds: 60 },
+    { type: 'work', start_seconds: 360, duration_seconds: 300 }
+  ];
+
+  it.each(['tempo', 'threshold_lt2', 'intervals_vo2'])('describes uninterrupted %s reps without a missing entry heart rate', runType => {
+    const grade = gradeRun({ ...baseAerobic, runType, intervals,
+      records: makeRecords([{ kind: 'run', sec: 300, hr: 170 },
+        { kind: 'walk', sec: 60, hr: 172 }, { kind: 'run', sec: 300, hr: 170 }]) });
+    const completion = grade.factors.find(f => f.categoryId === 'workout_completion')!;
+    expect(completion.label).toBe('Unbroken Session');
+    expect(completion.points).toBe(completion.maxPoints);
+    expect(completion.description).toBe('2 work reps · no walking inside work reps');
+    expect(completion.descriptionMessage?.id).toBe('fragment.work_reps_no_walking_inside_work_reps');
+  });
+
+  it('retains walking duration and measured entry heart rate for interrupted work', () => {
+    const grade = gradeRun({ ...baseAerobic, runType: 'threshold_lt2', intervals,
+      records: makeRecords([{ kind: 'run', sec: 120, hr: 170 },
+        { kind: 'walk', sec: 40, hr: 170 }, { kind: 'run', sec: 500, hr: 170 }]) });
+    const completion = grade.factors.find(f => f.categoryId === 'workout_completion')!;
+    expect(completion.label).toBe('Rep-Interrupting Walk Breaks');
+    expect(completion.description).toBe('2 work reps · 40s of walking inside work reps (average entry 170 bpm)');
+    expect(completion.points).toBeLessThan(completion.maxPoints);
+  });
+});
+
 describe('Weighted Execution Rubric', () => {
   it('separates run-type families with different weight profiles', () => {
     expect(runFamilyOf('easy_base')).toBe('aerobic');

@@ -7,11 +7,8 @@ import { Calendar, X } from 'lucide-react';
 import { BrowseCalendarPicker } from './BrowseCalendarPicker';
 import { translateTag } from '../../i18n/tagTranslator';
 import { useTranslation } from '../../i18n/LanguageContext';
-import { ActivitySummary } from '../../features/browse/selectors.js';
+import { ActivitySummary, SIDEBAR_FILTER_TAGS } from '../../features/browse/selectors.js';
 
-const SIDEBAR_FILTER_TAGS = [
-  'All', 'Threshold', 'VO2 Max', 'Easy Base', 'Long Run', 'Race', 'Strides', 'Marathon Pace', 'Recovery'
-];
 
 
 interface BrowseSidebarProps {

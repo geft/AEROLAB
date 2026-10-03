@@ -439,6 +439,8 @@ export const zh: Translations = {
       "fragment.work_hr_bpm_higher_by_the_last_rep": "末组工作心率比首组高 {p0} bpm{p1}",
       "fragment.work_hr_bpm_lower_by_the_last_rep": "末组工作心率比首组低 {p0} bpm{p1}",
       "description.across_reps_drift_allowed_for_the_set_length": "{p0}（共 {p1} 组，按整组长度允许 {p2}% 漂移）",
+      "fragment.work_reps_no_walking_inside_work_reps": "{p0} 个工作间歇 · 组内没有步行",
+      "fragment.work_reps_walking_without_entry_hr": "{p0} 个工作间歇 · 组内步行 {p1} 秒",
       "fragment.work_reps_s_of_walking_inside_work_reps": "{p0} 个工作间歇 · 组内步行 {p1} 秒（平均进入心率 {p2} bpm）",
       "fragment.work_reps_of_moving_time_in_walk_breaks": "{p0} 个工作间歇 · 运动时间中 {p1}% 为步行休息",
       "description.km_1_opened_at_then_faded_s_km": "第 1 公里以 {p0} 开跑，随后每公里放慢 {p1} 秒至 {p2}",

@@ -102,6 +102,8 @@ export const COACH_DYNAMIC_MESSAGE_IDS = [
   "fragment.work_hr_bpm_higher_by_the_last_rep",
   "fragment.work_hr_bpm_lower_by_the_last_rep",
   "description.across_reps_drift_allowed_for_the_set_length",
+  "fragment.work_reps_no_walking_inside_work_reps",
+  "fragment.work_reps_walking_without_entry_hr",
   "fragment.work_reps_s_of_walking_inside_work_reps",
   "fragment.work_reps_of_moving_time_in_walk_breaks",
   "description.km_1_opened_at_then_faded_s_km",

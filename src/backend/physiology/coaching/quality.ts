@@ -156,7 +156,20 @@ export function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): R
 
     const label = input.isFailedWorkout ? finding('aborted_incomplete_quality_workout') : walkAudit && walkAudit.intrusiveWalkSec > 0 ? finding('rep_interrupting_walk_breaks') : band(pts / max, finding('unbroken_session'), finding('minor_break_time'), finding('heavily_interrupted_session'));
 
-    const description = input.isFailedWorkout ? coachMessage("fragment.target_volume_was_cut_short_before_the_planned") : walkAudit ? coachMessage("fragment.work_reps_s_of_walking_inside_work_reps", { p0: workReps.length, p1: walkAudit.intrusiveWalkSec, p2: walkAudit.avgCorrectiveEntryHr ?? '—' }) : coachMessage("fragment.work_reps_of_moving_time_in_walk_breaks", { p0: workReps.length, p1: (share ?? 0).toFixed(1) });
+    let description: CoachMessage;
+    if (input.isFailedWorkout) {
+      description = coachMessage("fragment.target_volume_was_cut_short_before_the_planned");
+    } else if (walkAudit) {
+      if (walkAudit.intrusiveWalkSec === 0) {
+        description = coachMessage("fragment.work_reps_no_walking_inside_work_reps", { p0: workReps.length });
+      } else if (walkAudit.avgCorrectiveEntryHr != null) {
+        description = coachMessage("fragment.work_reps_s_of_walking_inside_work_reps", { p0: workReps.length, p1: walkAudit.intrusiveWalkSec, p2: walkAudit.avgCorrectiveEntryHr });
+      } else {
+        description = coachMessage("fragment.work_reps_walking_without_entry_hr", { p0: workReps.length, p1: walkAudit.intrusiveWalkSec });
+      }
+    } else {
+      description = coachMessage("fragment.work_reps_of_moving_time_in_walk_breaks", { p0: workReps.length, p1: (share ?? 0).toFixed(1) });
+    }
 
     factors.push({ ...(category('workout_completion')), points: Math.round(pts), maxPoints: max, ...label, ...coachDescription(description) });
   }

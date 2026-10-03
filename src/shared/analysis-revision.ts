@@ -1,5 +1,5 @@
 /** Bump when a persisted analysis policy changes; upgrades refresh history once. */
-export const ANALYSIS_REVISION = 'coaching-prose-v1';
+export const ANALYSIS_REVISION = 'coaching-prose-v2';
 export interface AnalysisFreshness {
   revision: string | null;
   status: 'fresh' | 'stale' | 'missing' | 'updating';

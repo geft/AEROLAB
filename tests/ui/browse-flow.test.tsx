@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, act, within } from '@testing-library/react';
 import { BrowseView, getDisplayTitle, ActivitySummary } from '../../src/frontend/components/BrowseView.js';
 
 describe('BrowseView User Flow & Navigation Tests', () => {
@@ -145,6 +145,22 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     expect(getDisplayTitle({ name: 'Singapore Running', run_type: 'intervals_vo2' })).toBe('VO2 Max Intervals');
     expect(getDisplayTitle({ name: 'Running', run_type: 'tempo' })).toBe('Tempo Run');
     expect(getDisplayTitle({ name: 'StanChart Half Marathon 2026', run_type: 'race' })).toBe('StanChart Half Marathon 2026');
+  });
+
+  it('counts and filters Tempo sessions even without a Tempo tag', async () => {
+    const tempo = { ...mockActivities[0], id: 'act-tempo', name: 'Tempo Test Session', run_type: 'tempo', tags: '[]' };
+    render(<BrowseView activities={[...mockActivities, tempo]} selectedActivityId="act-101"
+      onSelectActivity={vi.fn()} onOpenUpload={vi.fn()} />);
+    await screen.findByText('Easy Aerobic Base');
+    const filter = screen.getByRole('button', { name: /^Tempo \(1\)$/ });
+    fireEvent.click(filter);
+    const sidebar = within(document.querySelector('aside')!);
+    expect(sidebar.getAllByRole('button').filter(button => button.classList.contains('session-card'))).toHaveLength(1);
+    const session = within(sidebar.getAllByRole('button').find(button => button.classList.contains('session-card'))!);
+    expect(session.getByText('Tempo')).toBeTruthy();
+    expect(session.queryByText('Easy Base')).toBeNull();
+    fireEvent.click(filter);
+    expect(sidebar.getAllByRole('button').filter(button => button.classList.contains('session-card'))).toHaveLength(2);
   });
 
   it('renders sidebar sessions and loads activity telemetry deep dive', async () => {

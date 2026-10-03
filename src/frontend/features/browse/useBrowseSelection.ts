@@ -1,11 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import type { ActivitySummary, BrowseViewProps } from './selectors.js';
-import { doesActivityMatchTag } from './selectors.js';
+import { doesActivityMatchTag, SIDEBAR_FILTER_TAGS } from './selectors.js';
 import { useTranslation } from '../../i18n/LanguageContext.js';
-
-const SIDEBAR_FILTER_TAGS = [
-  'All', 'Threshold', 'VO2 Max', 'Easy Base', 'Long Run', 'Race', 'Strides', 'Marathon Pace', 'Recovery'
-];
 
 export function useBrowseSelection(activities: ActivitySummary[], selectedActivityId: string | null, onSelectActivity: BrowseViewProps['onSelectActivity']) {
   const safeActivities = useMemo(() => (Array.isArray(activities) ? activities : []), [activities]);
