@@ -79,7 +79,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         }[activeTab]}
       </span>
 
-      <nav className="nav-tabs" aria-label="Main Navigation">
+      <nav className="nav-tabs" aria-label={t.nav.navigationLabel}>
         <button
           id="tab-browse-btn"
           className={`nav-tab-btn ${activeTab === 'browse' ? 'active' : ''}`}
@@ -177,8 +177,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="font-stepper-btn"
               onClick={decreaseFontSize}
               disabled={fontSize === 'small'}
-              aria-label="Decrease font size"
-              title="Decrease font size (-)"
+              aria-label={t.nav.decreaseFont}
+              title={t.nav.decreaseFontTooltip}
             >
               <Minus size={13} />
             </button>
@@ -192,8 +192,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="font-stepper-btn"
               onClick={increaseFontSize}
               disabled={fontSize === 'xlarge'}
-              aria-label="Increase font size"
-              title="Increase font size (+)"
+              aria-label={t.nav.increaseFont}
+              title={t.nav.increaseFontTooltip}
             >
               <Plus size={13} />
             </button>
@@ -237,7 +237,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {moreMenuOpen && (
             <div className="nav-dropdown-menu nav-more-dropdown-menu" role="menu">
-              <div className="nav-dropdown-section-title">{t.nav.langTitle || 'Language'}</div>
+              <div className="nav-dropdown-section-title">{t.nav.langTitle}</div>
               {SUPPORTED_LANGUAGES.map(code => (
                 <button
                   key={code}

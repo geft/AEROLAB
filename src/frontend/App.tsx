@@ -321,7 +321,7 @@ export const App: React.FC = () => {
           id="dev-mode-trigger-btn"
           className="dev-floating-trigger"
           onClick={() => setIsDevDrawerOpen(true)}
-          title="Open Dev Diagnostics (Ctrl+Shift+D)"
+          title={t.common.devDiagnosticsTooltip}
         >
           <Terminal size={13} />
           <span>{t.common.devMode}</span>

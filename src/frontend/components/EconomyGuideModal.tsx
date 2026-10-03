@@ -87,7 +87,7 @@ export const EconomyGuideModal: React.FC<EconomyGuideModalProps> = ({
           <button
             className="modal-close-btn"
             onClick={onClose}
-            aria-label="Close guide"
+            aria-label={t.common.closeGuide}
           >
             <X size={18} />
           </button>

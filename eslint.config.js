@@ -1,3 +1,4 @@
+import { createUiRules } from './tools/eslint-ui-rules.mjs';
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import reactHooks from 'eslint-plugin-react-hooks';
@@ -74,9 +75,8 @@ const localRules = {
 
 /** Units, symbols and brand tokens that are legitimately language-neutral. */
 const NEUTRAL_TEXT = [
-  '^[\\s\\d.,:%+\\-–—/()·•×★☆◆◇°²³~±©÷=<>?|●*#📄]+$',
-  '^\\s*(MB|KM|/km|s/km|s|h|m|bpm|ml/kg/min|°C|VDOT|Vercel)\\s*[):]*$',
-  '^[\\s\\d.,:%+\\-–—/()·•×★☆◆◇°²³]+$',
+  '^[\\s\\d.,:%+\\-–—/()·•×★☆◆◇°²³~±©÷=<>?|●○*#&📄]+$',
+  '^\\s*(MB|KM|km|/km|s/km|s|h|m|bpm|ml/kg/min|°C|VDOT|Vercel|Z[1-5])\\s*[():]*$',
   '^(km|m|mi|kg|cm|mm|ms|sec|min|hrs?|bpm|spm|rpm|w|kj|kcal|ef|lt1|lt2|vo2|vdot|acwr|hrr|hr|pb|pr|gps|csv|fit|gpx|tcx|sqlite|ok|id)$',
   '^(AEROLAB|EF|VO2|LT1|LT2|ACWR|HRR|GPS|CSV|FIT|PRs?|GPX|TCX)$',
   '^(en|zh|en-US|zh-CN)$',
@@ -107,29 +107,29 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
 
-  // Keep maintainability diagnostics at warning severity for editor feedback.
+  // Report maintainability and correctness diagnostics as errors in editors.
   // The lint script enforces zero warnings as well as zero errors.
   {
     plugins: { 'unused-imports': unusedImports },
     rules: {
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-explicit-any': 'error',
       // The dedicated plugin is auto-fixable (`npm run lint:fix` strips dead
       // imports), so use it instead of the non-fixable core rule for imports.
       '@typescript-eslint/no-unused-vars': 'off',
-      'unused-imports/no-unused-imports': 'warn',
+      'unused-imports/no-unused-imports': 'error',
       'unused-imports/no-unused-vars': [
-        'warn',
+        'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }
       ],
-      '@typescript-eslint/no-unsafe-function-type': 'warn',
-      '@typescript-eslint/no-require-imports': 'warn',
+      '@typescript-eslint/no-unsafe-function-type': 'error',
+      '@typescript-eslint/no-require-imports': 'error',
       // Empty catch blocks hide real failures (audit finding: silent migrations).
       // Intentional ignores must be annotated with a comment inside the block.
       'no-empty': 'error',
-      'no-useless-escape': 'warn',
-      'no-control-regex': 'warn',
-      'no-constant-condition': 'warn',
-      'no-cond-assign': 'warn'
+      'no-useless-escape': 'error',
+      'no-control-regex': 'error',
+      'no-constant-condition': 'error',
+      'no-cond-assign': 'error'
     }
   },
 
@@ -139,13 +139,13 @@ export default tseslint.config(
     plugins: { 'react-hooks': reactHooks, aerolab: localRules },
     rules: {
       ...(reactHooks.configs.recommended?.rules ?? {}),
-      'react-hooks/exhaustive-deps': 'warn',
-      // Surface hook correctness diagnostics in editors; CI rejects warnings.
-      'react-hooks/set-state-in-effect': 'warn',
-      'react-hooks/immutability': 'warn',
-      'react-hooks/purity': 'warn',
-      'react-hooks/preserve-manual-memoization': 'warn',
-      'aerolab/no-hardcoded-metric-text': 'warn'
+      'react-hooks/exhaustive-deps': 'error',
+      // Hook correctness is enforced in editors and CI.
+      'react-hooks/set-state-in-effect': 'error',
+      'react-hooks/immutability': 'error',
+      'react-hooks/purity': 'error',
+      'react-hooks/preserve-manual-memoization': 'error',
+      'aerolab/no-hardcoded-metric-text': 'error'
     }
   },
 
@@ -156,10 +156,13 @@ export default tseslint.config(
     // The diagnostics drawer is developer tooling that never ships, so it is
     // intentionally English-only and exempt from the localization rule.
     ignores: ['src/frontend/components/DevDiagnosticsDrawer.tsx'],
-    plugins: { i18next },
+    plugins: { i18next, 'aerolab-ui': { rules: createUiRules(NEUTRAL_TEXT) } },
     rules: {
+      'aerolab-ui/no-untranslated-ui-expression': 'error',
+      'aerolab-ui/no-inline-language-copy': 'error',
+      'aerolab-ui/no-hardcoded-date-locale': 'error',
       'i18next/no-literal-string': [
-        'warn',
+        'error',
         {
           mode: 'jsx-text-only',
           'jsx-attributes': { include: [] },

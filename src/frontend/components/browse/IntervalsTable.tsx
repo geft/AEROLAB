@@ -66,7 +66,7 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
               className={`filter-pill-btn ${intervalFilter === 'work_only' ? 'active' : ''}`}
               onClick={() => setIntervalFilter('work_only')}
             >
-              {isQualityRun ? `Work Reps Only (${workIntervals.length})` : `Steady & Strides Only (${workIntervals.length})`}
+              {isQualityRun ? format(t.browse.workOnlyCount, { count: workIntervals.length }) : format(t.browse.steadyOnlyCount, { count: workIntervals.length })}
             </button>
             <button
               className={`filter-pill-btn ${intervalFilter === 'all' ? 'active' : ''}`}

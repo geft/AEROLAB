@@ -299,14 +299,14 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
               onClick={() => setTimeRange('3m')}
               style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem', borderRadius: 6 }}
             >
-              {t.progress.range3m || '3M'}
+              {t.progress.range3m}
             </button>
             <button
               className={`filter-pill-btn ${timeRange === '6m' ? 'active' : ''}`}
               onClick={() => setTimeRange('6m')}
               style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem', borderRadius: 6 }}
             >
-              {t.progress.range6m || '6M'}
+              {t.progress.range6m}
             </button>
             <button
               className={`filter-pill-btn ${timeRange === '12m' ? 'active' : ''}`}
@@ -320,7 +320,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
               onClick={() => setTimeRange('all')}
               style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem', borderRadius: 6 }}
             >
-              {t.progress.rangeAll || 'All'}
+              {t.progress.rangeAll}
             </button>
           </div>
         </div>

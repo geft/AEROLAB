@@ -133,7 +133,7 @@ export const ProgressView: React.FC = () => {
           <div className="benchmark-card-main">
             <span className="benchmark-label">{t.progress.lt1Title}</span>
             <div className="benchmark-value" style={{ color: '#10b981' }}>
-              {data.latest.lt1?.lt1_pace_sec_km ? formatPace(data.latest.lt1.lt1_pace_sec_km) : '5:10/km (Est.)'}
+              {formatPace(data.currentThresholds?.lt1PaceSecKm ?? data.latest.lt1?.lt1_pace_sec_km)}
             </div>
             <span className="benchmark-sub">
               {t.progress.lt1Sub}
@@ -148,7 +148,7 @@ export const ProgressView: React.FC = () => {
           <div className="benchmark-card-main">
             <span className="benchmark-label">{t.progress.lt2Title}</span>
             <div className="benchmark-value" style={{ color: '#f59e0b' }}>
-              {data.latest.lt2?.lt2_pace_sec_km ? `${formatPace(data.latest.lt2.lt2_pace_sec_km)}${data.latest.lt2?.is_estimated ? ' (Est.)' : ''}` : '--'}
+              {data.latest.lt2?.lt2_pace_sec_km ? (data.latest.lt2.is_estimated ? format(t.progress.estimatedPace, { pace: formatPace(data.latest.lt2.lt2_pace_sec_km) }) : formatPace(data.latest.lt2.lt2_pace_sec_km)) : '--'}
             </div>
             <span className="benchmark-sub">
               {t.progress.lt2Sub}
@@ -262,14 +262,14 @@ export const ProgressView: React.FC = () => {
                 onClick={() => { setHistoryRange('3m'); setVisibleHistoryCount(10); }}
                 style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem', borderRadius: 6 }}
               >
-                {t.progress.range3m || '3M'}
+                {t.progress.range3m}
               </button>
               <button
                 className={`filter-pill-btn ${historyRange === '6m' ? 'active' : ''}`}
                 onClick={() => { setHistoryRange('6m'); setVisibleHistoryCount(15); }}
                 style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem', borderRadius: 6 }}
               >
-                {t.progress.range6m || '6M'}
+                {t.progress.range6m}
               </button>
               <button
                 className={`filter-pill-btn ${historyRange === '12m' ? 'active' : ''}`}
@@ -283,7 +283,7 @@ export const ProgressView: React.FC = () => {
                 onClick={() => setHistoryRange('all')}
                 style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem', borderRadius: 6 }}
               >
-                {t.progress.rangeAll || 'All'}
+                {t.progress.rangeAll}
               </button>
             </div>
 
@@ -320,7 +320,7 @@ export const ProgressView: React.FC = () => {
               <button
                 className={`view-mode-btn ${historyViewMode === 'cards' ? 'active' : ''}`}
                 onClick={() => setHistoryViewMode('cards')}
-                title="Organized Milestone Cards"
+                title={t.progress.milestoneCardsTooltip}
               >
                 <LayoutGrid size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
                 {t.progress.cardsView}
@@ -328,7 +328,7 @@ export const ProgressView: React.FC = () => {
               <button
                 className={`view-mode-btn ${historyViewMode === 'table' ? 'active' : ''}`}
                 onClick={() => setHistoryViewMode('table')}
-                title="Data Table View"
+                title={t.progress.tableTooltip}
               >
                 <List size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
                 {t.progress.tableView}

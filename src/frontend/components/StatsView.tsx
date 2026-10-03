@@ -442,8 +442,8 @@ export const StatsView: React.FC = () => {
                 type="button"
                 onClick={() => setIsMarginGuideOpen(true)}
                 className="guide-info-trigger-btn"
-                title="Learn about Aerobic Turnpoint Margin & Target Benchmarks"
-                aria-label="Aerobic Turnpoint Margin Guide"
+                title={t.stats.turnpointGuideTooltip}
+                aria-label={t.stats.turnpointGuideTitle}
               >
                 <HelpCircle size={14} />
               </button>
@@ -615,7 +615,7 @@ export const StatsView: React.FC = () => {
                   style={{ width: 'auto', padding: '0.45rem 1.25rem', fontSize: '0.82rem' }}
                   onClick={() => setIsMarginGuideOpen(false)}
                 >
-                  {t.stats.turnpointGotIt || 'Got It'}
+                  {t.stats.turnpointGotIt}
                 </button>
               </div>
             </div>

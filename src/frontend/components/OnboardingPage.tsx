@@ -351,7 +351,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
                   min="30"
                   max="120"
                   required
-                  placeholder="e.g. 54"
+                  placeholder={t.onboarding.restingHrPlaceholder}
                   value={restingHr}
                   onChange={e => setRestingHr(e.target.value)}
                   style={inputStyle}
@@ -417,7 +417,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
                     {t.onboarding.calculatedMaxHr}
                   </span>
                   <strong style={{ fontSize: '0.95rem', color: '#38bdf8' }}>
-                    {tanakaMaxHr ? `${tanakaMaxHr} bpm` : 'Enter DOB above'}
+                    {tanakaMaxHr ? `${tanakaMaxHr} bpm` : t.onboarding.enterDob}
                   </strong>
                 </div>
               ) : (
@@ -427,7 +427,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
                     min="100"
                     max="230"
                     required={!isAutoMaxHr}
-                    placeholder="e.g. 195"
+                    placeholder={t.onboarding.maxHrPlaceholder}
                     value={manualMaxHr}
                     onChange={e => setManualMaxHr(e.target.value)}
                     style={inputStyle}

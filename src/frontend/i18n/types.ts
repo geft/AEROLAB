@@ -71,6 +71,11 @@ export interface Translations {
     deploySnapshotMissing: string;
   };
   nav: {
+    navigationLabel: string;
+    decreaseFont: string;
+    decreaseFontTooltip: string;
+    increaseFont: string;
+    increaseFontTooltip: string;
     browse: string;
     progress: string;
     stats: string;
@@ -86,6 +91,8 @@ export interface Translations {
     moreOptions: string;
   };
   common: {
+    devDiagnosticsTooltip: string;
+    closeGuide: string;
     save: string;
     cancel: string;
     type: string;
@@ -161,6 +168,19 @@ export interface Translations {
     marathonPace: string;
   };
   browse: {
+    jumpYear: PluralForms;
+    activityNamePlaceholder: string;
+    renameTooltip: string;
+    filterYear: string;
+    previousYear: string;
+    nextYear: string;
+    previousMonth: string;
+    nextMonth: string;
+    closeCalendar: string;
+    filterDateTooltip: string;
+    showSessionsTooltip: string;
+    workOnlyCount: string;
+    steadyOnlyCount: string;
     intervalWorkReps: string;
     steadySegments: string;
     segmentsRecoveries: string;
@@ -312,6 +332,9 @@ export interface Translations {
     stdDev: string;
   };
   progress: {
+    estimatedPace: string;
+    milestoneCardsTooltip: string;
+    tableTooltip: string;
     vdotGuideTitle: string;
     vdotGuideAria: string;
     economyGuideTitle: string;
@@ -404,6 +427,7 @@ export interface Translations {
     noTrendData: string;
   };
   stats: {
+    turnpointGuideTooltip: string;
     title: string;
     subtitle: string;
     aerobicTurnpoint: string;
@@ -606,6 +630,7 @@ export interface Translations {
     skippedFiles: PluralForms;
   };
   backup: {
+    directoryPlaceholder: string;
     cardTitle: string;
     cardSubtitle: string;
     downloadSnapshot: string;
@@ -671,6 +696,9 @@ export interface Translations {
     maintenanceFailed: string;
   };
   onboarding: {
+    restingHrPlaceholder: string;
+    maxHrPlaceholder: string;
+    enterDob: string;
     ageLabel: string;
     ageYears: string;
     tanakaUsage: string;
@@ -811,6 +839,7 @@ export interface Translations {
     resultError: string;
   };
   trainingLoad: {
+    guideTooltip: string;
     acwrValue: string;
     optimalRangeLabel: string;
     maintainingRangeLabel: string;
@@ -847,6 +876,8 @@ export interface Translations {
     statusDescriptions: Record<string, string>;
   };
   periodProgress: {
+    bestLt1Tooltip: PluralForms;
+    bestLt2Tooltip: PluralForms;
     window3m: string;
     window6m: string;
     window12m: string;

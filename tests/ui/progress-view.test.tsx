@@ -439,6 +439,19 @@ describe('ProgressView UI Tests', () => {
     });
   });
 
+  it.each([[undefined, '—'], [360, '6:00/km']] as const)('uses available LT1 evidence without inventing a pace: %s', async (pace, expected) => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      const data = url.includes('/api/thresholds')
+        ? { ...mockThresholdData, latest: { ...mockThresholdData.latest, lt1: null }, currentThresholds: { ...mockThresholdData.currentThresholds, lt1PaceSecKm: pace } }
+        : mockProgressHistory;
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(data) });
+    }));
+    const view = render(<ProgressView />);
+    await screen.findAllByText('Estimated LT1 Pace');
+    expect(view.container.querySelector('.benchmarks-grid .benchmark-value')?.textContent).toBe(expected);
+    expect(screen.queryByText('5:10/km (Est.)')).toBeNull();
+  });
+
   it('shows a retry action when threshold data fails to load', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     let thresholdAttempts = 0;

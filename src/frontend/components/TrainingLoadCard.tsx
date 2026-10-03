@@ -170,7 +170,7 @@ export const TrainingLoadCard: React.FC = () => {
                 alignItems: 'center',
                 padding: 0
               }}
-              title="Training Load Guide"
+              title={t.trainingLoad.guideTooltip}
             >
               <HelpCircle size={14} />
             </button>

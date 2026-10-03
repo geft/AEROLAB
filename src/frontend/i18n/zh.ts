@@ -35,6 +35,11 @@ export const zh: Translations = {
     deploySnapshotMissing: '此本地快照已不存在，请刷新列表后重试。'
   },
   nav: {
+    navigationLabel: "主导航",
+    decreaseFont: "缩小字体",
+    decreaseFontTooltip: "缩小字体（-）",
+    increaseFont: "放大字体",
+    increaseFontTooltip: "放大字体（+）",
     browse: '跑步记录',
     progress: '训练进展',
     stats: '生理指标',
@@ -50,6 +55,8 @@ export const zh: Translations = {
     moreOptions: '选项与偏好'
   },
   common: {
+    devDiagnosticsTooltip: '打开开发诊断（Ctrl+Shift+D）',
+    closeGuide: "关闭指南",
     save: "保存",
     cancel: "取消",
     type: "类型",
@@ -134,6 +141,19 @@ export const zh: Translations = {
     marathonPace: '马拉松配速'
   },
   browse: {
+    jumpYear: {"one":"跳转至{year}年（{count}次跑步）","other":"跳转至{year}年（{count}次跑步）"},
+    activityNamePlaceholder: "例如 渣打马拉松",
+    renameTooltip: "重命名活动或为赛事命名",
+    filterYear: "按年份筛选",
+    previousYear: "上一年（-1年）",
+    nextYear: "下一年（+1年）",
+    previousMonth: "上个月",
+    nextMonth: "下个月",
+    closeCalendar: "关闭日期日历",
+    filterDateTooltip: "按日期筛选跑步记录",
+    showSessionsTooltip: "显示全部跑步记录",
+    workOnlyCount: "仅工作组（{count}）",
+    steadyOnlyCount: "仅稳定区间与加速跑（{count}）",
     intervalWorkReps: '间歇工作组（{count}）',
     steadySegments: '稳定区间与加速跑（{count}）',
     segmentsRecoveries: '全部区间与恢复段（{count}）',
@@ -277,6 +297,9 @@ export const zh: Translations = {
     stdDev: '标准差'
   },
   progress: {
+    estimatedPace: "{pace}（估算）",
+    milestoneCardsTooltip: "按里程碑查看卡片",
+    tableTooltip: "查看数据表格",
     vdotGuideTitle: "什么是 VDOT 和最大摄氧量？查看等效比赛配速",
     vdotGuideAria: "什么是 VDOT 和最大摄氧量？",
     economyGuideTitle: "什么是跑步经济性？查看参考等级",
@@ -369,6 +392,7 @@ export const zh: Translations = {
     noTrendData: '所选时间段内暂无足够估算数据。'
   },
   stats: {
+    turnpointGuideTooltip: "了解有氧转折点边际与目标标准",
     title: '生理特征与能力画像',
     loadFailed: '无法加载统计数据。',
     volumeLoadFailed: '无法加载训练量数据。',
@@ -562,6 +586,7 @@ export const zh: Translations = {
     }
   },
   backup: {
+    directoryPlaceholder: "例如 C:\\Users\\YourName\\Dropbox\\AEROLAB_Backups",
     cardTitle: '数据库备份与云端同步',
     cardSubtitle: '创建和管理本地 SQLite 快照',
     downloadSnapshot: '即刻下载完整数据库',
@@ -627,6 +652,9 @@ export const zh: Translations = {
     maintenanceFailed: '训练分析更新中断。请重启应用后重试。'
   },
   onboarding: {
+    restingHrPlaceholder: "例如 54",
+    maxHrPlaceholder: "例如 195",
+    enterDob: "请先输入出生日期",
     ageLabel: "年龄：",
     ageYears: "{age}岁",
     tanakaUsage: "用于田中公式",
@@ -766,6 +794,7 @@ export const zh: Translations = {
     resultError: '错误'
   },
   trainingLoad: {
+    guideTooltip: "训练负荷指南",
     acwrValue: "（ACWR：{value}）",
     optimalRangeLabel: "最佳（ACWR {min} - {max}）",
     maintainingRangeLabel: "维持（{min} - {max}）",
@@ -811,6 +840,8 @@ export const zh: Translations = {
     }
   },
   periodProgress: {
+    bestLt1Tooltip: {"one":"本时段{count}次校准中的最佳LT1有氧基础配速","other":"本时段{count}次校准中的最佳LT1有氧基础配速"},
+    bestLt2Tooltip: {"one":"本时段{count}次校准中的最佳LT2阈值配速","other":"本时段{count}次校准中的最佳LT2阈值配速"},
     window3m: '近 3 个月',
     window6m: '近 6 个月',
     window12m: '近 12 个月',

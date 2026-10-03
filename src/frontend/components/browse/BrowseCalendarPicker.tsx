@@ -94,7 +94,7 @@ export const BrowseCalendarPicker: React.FC<BrowseCalendarPickerProps> = ({
             border: '1px solid var(--border-subtle)'
           }}
           role="group"
-          aria-label="Filter by year"
+          aria-label={t.browse.filterYear}
         >
           {availableYears.map(yr => {
             const count = activities.filter(a => a.start_time?.startsWith(yr)).length;
@@ -123,7 +123,7 @@ export const BrowseCalendarPicker: React.FC<BrowseCalendarPickerProps> = ({
                   gap: '0.3rem',
                   transition: 'all 0.15s ease'
                 }}
-                title={`Jump to ${yr} (${count} runs)`}
+                title={format(plural(count, t.browse.jumpYear), { year: yr })}
               >
                 <span>{yr}</span>
                 <span style={{ fontSize: '0.66rem', opacity: isCur ? 0.9 : 0.6 }}>({count})</span>
@@ -149,7 +149,7 @@ export const BrowseCalendarPicker: React.FC<BrowseCalendarPickerProps> = ({
               display: 'flex',
               alignItems: 'center'
             }}
-            title="Previous year (-1 year)"
+            title={t.browse.previousYear}
           >
             <ChevronsLeft size={16} />
           </button>
@@ -166,7 +166,7 @@ export const BrowseCalendarPicker: React.FC<BrowseCalendarPickerProps> = ({
               display: 'flex',
               alignItems: 'center'
             }}
-            title="Previous month"
+            title={t.browse.previousMonth}
           >
             <ChevronLeft size={16} />
           </button>
@@ -190,7 +190,7 @@ export const BrowseCalendarPicker: React.FC<BrowseCalendarPickerProps> = ({
               display: 'flex',
               alignItems: 'center'
             }}
-            title="Next month"
+            title={t.browse.nextMonth}
           >
             <ChevronRight size={16} />
           </button>
@@ -207,7 +207,7 @@ export const BrowseCalendarPicker: React.FC<BrowseCalendarPickerProps> = ({
               display: 'flex',
               alignItems: 'center'
             }}
-            title="Next year (+1 year)"
+            title={t.browse.nextYear}
           >
             <ChevronsRight size={16} />
           </button>
@@ -369,7 +369,7 @@ export const BrowseCalendarPicker: React.FC<BrowseCalendarPickerProps> = ({
               onMouseEnter={e => (e.currentTarget.style.color = '#f43f5e')}
               onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
             >
-              {t.browse?.showAll || 'Show All Runs'}
+              {t.browse.showAll}
             </button>
           )}
         </div>

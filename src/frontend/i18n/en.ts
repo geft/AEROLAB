@@ -35,6 +35,11 @@ export const en: Translations = {
     deploySnapshotMissing: 'That local snapshot no longer exists. Refresh the list and retry.'
   },
   nav: {
+    navigationLabel: "Main Navigation",
+    decreaseFont: "Decrease font size",
+    decreaseFontTooltip: "Decrease font size (-)",
+    increaseFont: "Increase font size",
+    increaseFontTooltip: "Increase font size (+)",
     browse: 'Browse',
     progress: 'Progress',
     stats: 'Stats',
@@ -50,6 +55,8 @@ export const en: Translations = {
     moreOptions: 'Options & Appearance'
   },
   common: {
+    devDiagnosticsTooltip: 'Open Dev Diagnostics (Ctrl+Shift+D)',
+    closeGuide: "Close guide",
     save: "Save",
     cancel: "Cancel",
     type: "Type",
@@ -134,6 +141,19 @@ export const en: Translations = {
     marathonPace: 'Marathon Pace'
   },
   browse: {
+    jumpYear: {"one":"Jump to {year} ({count} run)","other":"Jump to {year} ({count} runs)"},
+    activityNamePlaceholder: "e.g. Standard Chartered Marathon",
+    renameTooltip: "Rename activity or name special race",
+    filterYear: "Filter by year",
+    previousYear: "Previous year (-1 year)",
+    nextYear: "Next year (+1 year)",
+    previousMonth: "Previous month",
+    nextMonth: "Next month",
+    closeCalendar: "Close date calendar",
+    filterDateTooltip: "Filter sessions by date",
+    showSessionsTooltip: "Show all sessions",
+    workOnlyCount: "Work Reps Only ({count})",
+    steadyOnlyCount: "Steady & Strides Only ({count})",
     intervalWorkReps: 'Interval Work Reps ({count})',
     steadySegments: 'Steady Segments & Strides ({count})',
     segmentsRecoveries: 'All Segments & Recoveries ({count})',
@@ -273,6 +293,9 @@ export const en: Translations = {
     stdDev: 'Std Dev'
   },
   progress: {
+    estimatedPace: "{pace} (Est.)",
+    milestoneCardsTooltip: "Organized Milestone Cards",
+    tableTooltip: "Data Table View",
     vdotGuideTitle: "What is VDOT & VO2 Max? View equivalent race paces",
     vdotGuideAria: "What is VDOT & VO2 Max?",
     economyGuideTitle: "What is Running Economy? View benchmark tiers",
@@ -365,6 +388,7 @@ export const en: Translations = {
     noTrendData: 'Not enough estimate data in the selected range.'
   },
   stats: {
+    turnpointGuideTooltip: "Learn about Aerobic Turnpoint Margin & Target Benchmarks",
     title: 'Physiological Profiling & Capabilities',
     subtitle: 'Heart rate thresholds, physiological turnpoints, and race predictions',
     aerobicTurnpoint: 'Estimated LT1',
@@ -552,6 +576,7 @@ export const en: Translations = {
     }
   },
   backup: {
+    directoryPlaceholder: "e.g. C:\\Users\\YourName\\Dropbox\\AEROLAB_Backups",
     cardTitle: 'Database Backup & Snapshots',
     cardSubtitle: 'Create and manage local SQLite snapshots',
     downloadSnapshot: 'Download Database Snapshot',
@@ -617,6 +642,9 @@ export const en: Translations = {
     maintenanceFailed: 'Workout analysis update was interrupted. Restart the app to retry.'
   },
   onboarding: {
+    restingHrPlaceholder: "e.g. 54",
+    maxHrPlaceholder: "e.g. 195",
+    enterDob: "Enter DOB above",
     ageLabel: "Age:",
     ageYears: "{age} yrs",
     tanakaUsage: "Used for Tanaka formula",
@@ -756,6 +784,7 @@ export const en: Translations = {
     resultError: 'Error'
   },
   trainingLoad: {
+    guideTooltip: "Training Load Guide",
     acwrValue: "(ACWR: {value})",
     optimalRangeLabel: "Optimal ({min} - {max} ACWR)",
     maintainingRangeLabel: "Maintaining ({min} - {max})",
@@ -788,6 +817,8 @@ export const en: Translations = {
     statusDescriptions: {}
   },
   periodProgress: {
+    bestLt1Tooltip: {"one":"Best LT1 Aerobic Base pace this period across {count} calibration","other":"Best LT1 Aerobic Base pace this period across {count} calibrations"},
+    bestLt2Tooltip: {"one":"Best LT2 Threshold pace this period across {count} calibration","other":"Best LT2 Threshold pace this period across {count} calibrations"},
     window3m: 'Last 3 Months',
     window6m: 'Last 6 Months',
     window12m: 'Last 12 Months',

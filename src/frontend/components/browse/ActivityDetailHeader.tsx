@@ -98,7 +98,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
                 type="text"
                 value={customTitle}
                 onChange={e => setCustomTitle(e.target.value)}
-                placeholder="e.g. Standard Chartered Marathon"
+                placeholder={t.browse.activityNamePlaceholder}
                 style={{
                   background: '#172036',
                   color: '#fff',
@@ -136,7 +136,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
               <h1 style={{ margin: 0 }}>{translateActivityName(getDisplayTitle(act, t), language)}</h1>
               {!readOnly && <button
                 onClick={() => { setCustomTitle(act.name ?? ''); setIsEditingTitle(true); }}
-                title="Rename activity or name special race"
+                title={t.browse.renameTooltip}
                 style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '0.2rem', display: 'flex', alignItems: 'center' }}
               >
                 <Edit2 size={16} />

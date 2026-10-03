@@ -151,7 +151,7 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
             whiteSpace: 'nowrap',
             flexShrink: 0
           }}
-          title={showCalendar ? 'Close date calendar' : 'Filter sessions by date'}
+          title={showCalendar ? t.browse.closeCalendar : t.browse.filterDateTooltip}
         >
           <Calendar size={13} />
           <span>{showCalendar ? t.browse.close : (selectedDate ? formatDate(`${selectedDate}T00:00:00`, { month: 'short', day: 'numeric' }) : t.browse.calendar)}</span>
@@ -203,9 +203,9 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
             }}
             onMouseEnter={e => (e.currentTarget.style.color = '#f43f5e')}
             onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
-            title="Show all sessions"
+            title={t.browse.showSessionsTooltip}
           >
-            <span>{t.common?.all || 'All'}</span>
+            <span>{t.common.all}</span>
             <X size={11} />
           </button>
         </div>

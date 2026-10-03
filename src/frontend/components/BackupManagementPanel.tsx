@@ -434,7 +434,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
               type="text"
               value={backupDirectory}
               onChange={e => setBackupDirectory(e.target.value)}
-              placeholder="e.g. C:\Users\YourName\Dropbox\AEROLAB_Backups"
+              placeholder={t.backup.directoryPlaceholder}
               style={{
                 flex: '1 1 240px',
                 background: 'var(--bg-card)',
@@ -497,7 +497,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
                 cursor: isBackingUp ? 'wait' : 'pointer'
               }}
             >
-              {isBackingUp ? t.backup.backingUp : (t.backup.backupNowButton || 'Backup Now to Folder')}
+              {isBackingUp ? t.backup.backingUp : t.backup.backupNowButton}
             </button>
           </div>
 
@@ -519,7 +519,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
       <div className="backup-snapshot-section" style={{ background: 'var(--bg-surface)', padding: '1.25rem', borderRadius: 12, border: '1px solid var(--border-subtle)' }}>
         <div className="backup-snapshot-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
           <div>
-            <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>{t.backup.localSnapshots || 'Local Snapshots & Rollback'}</span>
+            <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>{t.backup.localSnapshots}</span>
             {t.backup.retentionPolicy ? (
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>({t.backup.retentionPolicy})</span>
             ) : null}
@@ -554,7 +554,7 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
               }}>
                 <HardDrive size={24} style={{ color: 'var(--text-muted)', opacity: 0.6 }} />
                 <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: 600 }}>
-                  {t.backup.noSnapshots || 'No local database snapshots found. Click "Backup Now to Folder" above to create one.'}
+                  {t.backup.noSnapshots}
                 </div>
               </div>
             );
@@ -565,10 +565,10 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
               <table className="backup-snapshot-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                 <thead>
                   <tr style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-subtle)', textAlign: 'left' }}>
-                    <th style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)' }}>{t.backup.tableSnapshotName || 'Snapshot File'}</th>
-                    <th style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)' }}>{t.backup.tableCreated || 'Created At'}</th>
-                    <th style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)' }}>{t.backup.tableSize || 'Size'}</th>
-                    <th style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)', textAlign: 'right' }}>{t.backup.tableAction || 'Action'}</th>
+                    <th style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)' }}>{t.backup.tableSnapshotName}</th>
+                    <th style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)' }}>{t.backup.tableCreated}</th>
+                    <th style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)' }}>{t.backup.tableSize}</th>
+                    <th style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)', textAlign: 'right' }}>{t.backup.tableAction}</th>
                   </tr>
                 </thead>
                 <tbody>

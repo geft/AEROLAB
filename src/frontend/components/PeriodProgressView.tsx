@@ -557,7 +557,7 @@ export const PeriodProgressView: React.FC = () => {
                       <span className="period-title">{formatPeriodLabel(p)}</span>
                       {isLatest && (
                         <span className="run-badge badge-easy_base" style={{ fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
-                          {t.progress.currentBlock || 'Current Block'}
+                          {t.progress.currentBlock}
                         </span>
                       )}
                     </div>
@@ -640,7 +640,7 @@ export const PeriodProgressView: React.FC = () => {
                           <span
                             className="run-badge badge-threshold_lt2"
                             style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem' }}
-                            title={`Best LT2 Threshold pace this period across ${lt2Cals.length} calibration${lt2Cals.length !== 1 ? 's' : ''}`}
+                            title={plural(lt2Cals.length, t.periodProgress.bestLt2Tooltip)}
                           >
                             {t.progress.lt2Peak}: {formatPace(bestLt2.lt2_pace_sec_km)}
                             {lt2Cals.length > 1 && <span style={{ opacity: 0.65, marginLeft: '0.3rem' }}>×{lt2Cals.length}</span>}
@@ -650,7 +650,7 @@ export const PeriodProgressView: React.FC = () => {
                           <span
                             className="run-badge badge-easy_base"
                             style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem' }}
-                            title={`Best LT1 Aerobic Base pace this period across ${lt1Cals.length} calibration${lt1Cals.length !== 1 ? 's' : ''}`}
+                            title={plural(lt1Cals.length, t.periodProgress.bestLt1Tooltip)}
                           >
                             {t.progress.lt1Base}: {formatPace(bestLt1.lt1_pace_sec_km)}
                             {lt1Cals.length > 1 && <span style={{ opacity: 0.65, marginLeft: '0.3rem' }}>×{lt1Cals.length}</span>}
