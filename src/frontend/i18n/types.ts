@@ -149,6 +149,7 @@ export interface Translations {
     conditions: Record<string, string>;
   };
   runTypes: {
+    tempo: string;
     easy_base: string;
     threshold_lt2: string;
     intervals_vo2: string;

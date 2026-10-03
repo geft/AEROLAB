@@ -242,7 +242,7 @@ export function getThresholdsService(db: Database.Database, runTypeFilter?: stri
     if (runTypeFilter === 'easy') {
       query += ` AND (run_type = 'easy_base' OR run_type = 'long_run')`;
     } else if (runTypeFilter === 'threshold') {
-      query += ` AND (run_type = 'threshold_lt2' OR run_type = 'intervals_vo2')`;
+      query += ` AND (run_type = 'threshold_lt2' OR run_type = 'intervals_vo2' OR run_type = 'tempo')`;
     } else {
       query += ` AND run_type = ?`;
       params.push(runTypeFilter);

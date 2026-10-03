@@ -9,7 +9,7 @@ export function buildSessionTags(
   runType: RunType, records: ActivityRecord[], intervals: DetectedInterval[], profile: AthleteHrProfile
 ): string[] {
   const labels: Record<RunType, string> = {
-    easy_base: 'Easy Base', long_run: 'Long Run', threshold_lt2: 'Threshold',
+    easy_base: 'Easy Base', long_run: 'Long Run', tempo: 'Tempo', threshold_lt2: 'Threshold',
     intervals_vo2: 'VO2 Max', race: 'Race', recovery: 'Recovery'
   };
   const tags = [labels[runType]];

@@ -7,7 +7,10 @@ import { getDefaultZones, getLt2TrainingBand, calculateZoneDistribution, recordD
 import { continuousRaceEffort } from './continuous-effort.js';
 import { timeWeightedMean } from '../physiology/time-series.js';
 
-export type RunType = 'easy_base' | 'long_run' | 'threshold_lt2' | 'intervals_vo2' | 'race' | 'recovery';
+export type RunType = 'easy_base' | 'long_run' | 'tempo' | 'threshold_lt2' | 'intervals_vo2' | 'race' | 'recovery';
+
+/** Endurance-dose default; intensity-based workout rules retain precedence. */
+export const LONG_RUN_MIN_SECONDS = 100 * 60;
 
 export interface ClassificationResult {
   runType: RunType;
@@ -246,16 +249,6 @@ export function classifyRun(
     }
   }
 
-  // Walking recoveries also occur in genuine quality sessions. Evaluate their
-  // work bouts first so aerobic warmups cannot hide the interval stimulus.
-  if (isGallowaySession) {
-    return result('aerobic_run_walk', {
-      runType: durationMin >= 110 ? 'long_run' : 'easy_base',
-      confidence: 0.92,
-      reason: `Aerobic base run with Galloway run/walk intervals (${gallowayWalkCount} walk breaks, avg HR ${avgHr} bpm)`
-    });
-  }
-
   // 3. Continuous Threshold / Tempo check (profile-relative zone occupancy)
   const thresholdHrPct = validHrSeconds > 0 ? thresholdHrSeconds / validHrSeconds * 100 : 0;
   if (thresholdHrPct >= 35) {
@@ -266,8 +259,30 @@ export function classifyRun(
     });
   }
 
-  // 4. Long Run check (duration on feet only: >= 110 mins — pace-free)
-  if (durationMin >= 110) {
+  // Sustained upper-aerobic work can be diluted by easy warmup/cooldown.
+  // Require a substantial work block, not isolated surges or duration alone.
+  const tempoWorkSeconds = workIntervals.filter(interval => interval.durationSeconds >= 1200 &&
+    interval.avgHeartRate > lt1 && interval.avgHeartRate < thresholdHrFloor)
+    .reduce((sum, interval) => sum + interval.durationSeconds, 0);
+  if (tempoWorkSeconds >= metadata.totalDurationSeconds * 0.25 && tempoWorkSeconds > 0) {
+    return result('structured_tempo', {
+      runType: 'tempo', confidence: 0.88,
+      reason: `Sustained upper-aerobic tempo work (${(tempoWorkSeconds / 60).toFixed(0)} mins above LT1 and below the LT2 training band)`
+    }, { tempoWorkSeconds });
+  }
+
+  // Walking recoveries also occur in genuine quality sessions. Evaluate their
+  // work bouts first so easy warmups and walk breaks cannot hide tempo work.
+  if (isGallowaySession) {
+    return result('aerobic_run_walk', {
+      runType: metadata.totalDurationSeconds >= LONG_RUN_MIN_SECONDS ? 'long_run' : 'easy_base',
+      confidence: 0.92,
+      reason: `Aerobic base run with Galloway run/walk intervals (${gallowayWalkCount} walk breaks, avg HR ${avgHr} bpm)`
+    });
+  }
+
+  // 4. Long Run check (active duration: >= 100 mins — pace-free)
+  if (metadata.totalDurationSeconds >= LONG_RUN_MIN_SECONDS) {
     return result('long_duration', {
       runType: 'long_run',
       confidence: 0.9,

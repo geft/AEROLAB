@@ -48,7 +48,7 @@ describe('Shared workout analysis contract', () => {
     expect(confirmed.runType).toBe(run.expectedRunType);
     expect(confirmed.classification).toEqual(automatic.classification);
     expect(confirmed.tags[0]).toBe({ easy_base: 'Easy Base', long_run: 'Long Run', recovery: 'Recovery',
-      threshold_lt2: 'Threshold', intervals_vo2: 'VO2 Max', race: 'Race' }[run.expectedRunType]);
+      tempo: 'Tempo', threshold_lt2: 'Threshold', intervals_vo2: 'VO2 Max', race: 'Race' }[run.expectedRunType]);
     expect(analyzeWorkout(context, { confirmedRunType: run.expectedRunType })).toEqual(confirmed);
   });
 

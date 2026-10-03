@@ -121,6 +121,7 @@ export const en: Translations = {
     },
   },
   runTypes: {
+    tempo: 'Tempo',
     easy_base: 'Easy Base',
     threshold_lt2: 'Threshold',
     intervals_vo2: 'VO2 Max',
@@ -272,7 +273,7 @@ export const en: Translations = {
       intervals_vo2: 'VO2 Max Intervals',
       recovery: 'Recovery Jog',
       strides: 'Base + Strides',
-      tempo: 'Marathon / Tempo Pace',
+      tempo: 'Tempo Run',
       failed_workout: 'Aborted / Failed Workout',
       accidental_tempo: 'Unplanned Tempo',
       race: 'Race / Time Trial',

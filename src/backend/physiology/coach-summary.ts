@@ -544,6 +544,9 @@ export function generateCoachSummary(params: {
   } else if (runType === 'easy_base' || runType === 'long_run') {
     headlineMessage = finalScore >= 90 ? coachMessage('headline.near_perfect_aerobic_base_execution') : coachMessage('headline.productive_zone_2_aerobic_foundation');
     recommendationMessage = decouplingPct !== null && decouplingPct < 4.0 ? coachMessage('advice.your_aerobic_system_is_absorbing_current_volume_smoothly') : coachMessage('advice.maintain_easy_efforts_at_this_heart_rate_cap');
+  } else if (runType === 'tempo') {
+    headlineMessage = coachMessage('headline.sustained_upper_aerobic_tempo');
+    recommendationMessage = coachMessage('advice.review_tempo_against_planned_target');
   } else if (runType === 'threshold_lt2') {
     headlineMessage = !rubric.factors.some(factor => factor.categoryId === 'threshold_zone_time') ? coachMessage('headline.threshold_zone_not_verified') : finalScore >= 85 ? coachMessage('headline.high_quality_lactate_clearance_stimulus') : coachMessage('headline.threshold_stimulus_with_compromised_execution');
     recommendationMessage = coachMessage('advice.allow_48_hours_of_recovery_or_easy_aerobic');

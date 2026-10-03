@@ -65,7 +65,7 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
   const activity = (value: unknown): ReplayActivity => {
     const row = objectRow(value, 'activities');
     const manual = row.manual_run_type;
-    if (manual != null && !['easy_base', 'long_run', 'threshold_lt2', 'intervals_vo2', 'race', 'recovery'].includes(String(manual))) throw new Error('Invalid activities.manual_run_type');
+    if (manual != null && !['easy_base', 'long_run', 'tempo', 'threshold_lt2', 'intervals_vo2', 'race', 'recovery'].includes(String(manual))) throw new Error('Invalid activities.manual_run_type');
     if (row.manual_failed_workout != null && row.manual_failed_workout !== 0 && row.manual_failed_workout !== 1) throw new Error('Invalid activities.manual_failed_workout');
     return { ...activityFromRow(row), manual_run_type: manual as RunType | null ?? null, manual_failed_workout: row.manual_failed_workout as number | null ?? null };
   };

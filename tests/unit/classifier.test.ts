@@ -220,13 +220,13 @@ describe('Run Classifier Engine (Unit)', () => {
     expect(slowRes.isFailedWorkout).toBe(fastRes.isFailedWorkout);
   });
 
-  it('classifies as long_run when duration >= 110 minutes', () => {
+  it('classifies as long_run when duration >= 100 minutes', () => {
     const meta: ActivityMetadata = {
       ...baseMetadata,
-      totalDurationSeconds: 6900, // 115 min
+      totalDurationSeconds: 6000, // 100 min
       totalDistanceMeters: 20000 // 20 km
     };
-    const records = createMockRecords(6900, 138);
+    const records = createMockRecords(6000, 138);
     const result = classifyRun(meta, records, baseEconomy, []);
     expect(result.runType).toBe('long_run');
   });
@@ -240,6 +240,23 @@ describe('Run Classifier Engine (Unit)', () => {
     const records = createMockRecords(5400, 138);
     const result = classifyRun(meta, records, baseEconomy, []);
     expect(result.runType).toBe('easy_base');
+  });
+
+  it.each([5999, 6000])('uses the same endurance cutoff for continuous and run/walk sessions at %i seconds', seconds => {
+    const metadata = { ...baseMetadata, totalDurationSeconds: seconds };
+    const records = createMockRecords(seconds, 138);
+    const profile = { maxHr: 203, restingHr: 54, lt1Hr: 152, lt2Hr: 178 };
+    const expected = seconds < 6000 ? 'easy_base' : 'long_run';
+    expect(classifyRun(metadata, records, baseEconomy, [], profile).runType).toBe(expected);
+    for (const start of [100, 300, 500, 700]) {
+      for (let index = start; index < start + 20; index++) {
+        records[index].cadence = 110;
+        records[index].speedMps = 1.2;
+      }
+    }
+    const result = classifyRun(metadata, records, baseEconomy, [], profile);
+    expect(result.evidence.ruleId).toBe('aerobic_run_walk');
+    expect(result.runType).toBe(expected);
   });
 
   it('classifies as threshold_lt2 when significant continuous time is spent in Zone 4', () => {

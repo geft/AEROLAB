@@ -143,6 +143,7 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     expect(getDisplayTitle({ name: 'Singapore Running', run_type: 'easy_base' })).toBe('Easy Aerobic Base');
     expect(getDisplayTitle({ name: 'Singapore Running', run_type: 'threshold_lt2' })).toBe('Lactate Threshold (LT2)');
     expect(getDisplayTitle({ name: 'Singapore Running', run_type: 'intervals_vo2' })).toBe('VO2 Max Intervals');
+    expect(getDisplayTitle({ name: 'Running', run_type: 'tempo' })).toBe('Tempo Run');
     expect(getDisplayTitle({ name: 'StanChart Half Marathon 2026', run_type: 'race' })).toBe('StanChart Half Marathon 2026');
   });
 

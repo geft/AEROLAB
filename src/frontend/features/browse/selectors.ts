@@ -50,7 +50,7 @@ export function doesActivityMatchTag(a: ActivitySummary, tag: string): boolean {
     tagsArr = [];
   }
   if (tagsArr.some(t => t.toLowerCase() === lower)) return true;
-  if (lower === 'threshold' && (a.run_type === 'threshold_lt2' || a.run_type === 'tempo')) return true;
+  if (lower === 'threshold' && a.run_type === 'threshold_lt2') return true;
   if (lower === 'vo2 max' && a.run_type === 'intervals_vo2') return true;
   if (lower === 'easy base' && a.run_type === 'easy_base') return true;
   if (lower === 'long run' && a.run_type === 'long_run') return true;

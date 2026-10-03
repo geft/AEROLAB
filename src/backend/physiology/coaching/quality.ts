@@ -30,6 +30,7 @@ export function thresholdZoneShare(input: RubricInput): { pct: number; seconds: 
 export function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): RubricFactor[] {
   const factors: RubricFactor[] = [];
   const isThreshold = input.runType === 'threshold_lt2';
+  const isTempo = input.runType === 'tempo';
   const workReps = (input.intervals || []).filter((i: any) => i.type === INTERVAL_TYPE.work);
 
   if (isThreshold) {
@@ -65,7 +66,7 @@ export function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): R
 
   // 2. Cardiovascular stimulus (peak work HR as a share of HRmax) — 20 pts
   const peakHr = Math.max(0, ...workReps.map(intervalMaxHr), input.activityMaxHr || 0);
-  if (!isThreshold && peakHr > 0 && input.maxHeartRate > 0) {
+  if (!isThreshold && !isTempo && peakHr > 0 && input.maxHeartRate > 0) {
     const max = 20;
     const pctMax = (peakHr / input.maxHeartRate) * 100;
     const pts = curve(max, pctMax, 90, 75);
@@ -92,7 +93,7 @@ export function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): R
     ? Math.round(workHrsAll.reduce((a: number, b: number) => a + b, 0) / workHrsAll.length)
     : 0;
   const anchorHr = usePeak && peakWorkHr > 0 ? peakWorkHr : avgWorkHr;
-  if (anchorHr > 0) {
+  if (anchorHr > 0 && !isTempo) {
     const max = isThreshold ? 15 : 20;
     const pts = intensityControlPoints(max, anchorHr, input.lt2Hr, input.maxHeartRate, vo2Target);
     const overshootBpm = anchorHr - input.lt2Hr;
@@ -155,7 +156,7 @@ export function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): R
     // A partly interrupted rep set is never scored as a total write-off.
     let pts = input.isFailedWorkout ? 0 : Math.max(curve(max, intrusiveShare, 0, 15), max * 0.35);
     // A quality session with fewer than two work reps never delivered its structure.
-    if (!input.isFailedWorkout && workReps.length < 2) pts = Math.min(pts, max * 0.6);
+    if (!input.isFailedWorkout && !isTempo && workReps.length < 2) pts = Math.min(pts, max * 0.6);
 
     const label = input.isFailedWorkout ? finding('aborted_incomplete_quality_workout') : walkAudit && walkAudit.intrusiveWalkSec > 0 ? finding('rep_interrupting_walk_breaks') : band(pts / max, finding('unbroken_session'), finding('minor_break_time'), finding('heavily_interrupted_session'));
 

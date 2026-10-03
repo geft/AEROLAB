@@ -1,5 +1,5 @@
 export const CLASSIFICATION_RULE_IDS = ['continuous_race', 'structured_threshold', 'structured_vo2',
-  'aerobic_run_walk', 'continuous_threshold', 'long_duration', 'low_hrr_recovery', 'aerobic_default'] as const;
+  'aerobic_run_walk', 'continuous_threshold', 'structured_tempo', 'long_duration', 'low_hrr_recovery', 'aerobic_default'] as const;
 export type ClassificationRuleId = typeof CLASSIFICATION_RULE_IDS[number];
 
 export interface ClassificationEvidence {

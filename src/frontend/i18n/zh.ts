@@ -121,6 +121,7 @@ export const zh: Translations = {
     },
   },
   runTypes: {
+    tempo: '节奏跑',
     easy_base: '有氧基础',
     threshold_lt2: '乳酸阈值',
     intervals_vo2: '最大摄氧量',
@@ -302,6 +303,8 @@ export const zh: Translations = {
   "drifting_into_high_zone_2": "漂移至 2 区上部"
 },
     coachMessageOverrides: {
+  "headline.sustained_upper_aerobic_tempo": "持续有氧高强度节奏跑",
+  "advice.review_tempo_against_planned_target": "请将持续训练段与计划的节奏跑或马拉松配速目标对照。热身和冷身应保持轻松；本次训练段不适用LT2或最大摄氧量目标。",
   "headline.strong_aerobic_adaptation_session": "高效有氧适应训练",
   "advice.prioritize_light_hydration_and_low_impact_movement_before": "在下一次高强度训练前，优先进行适当补水与低冲击活动。",
   "headline.incomplete_aborted_quality_session": "未完成 / 提前终止的质量训练",
@@ -362,7 +365,7 @@ export const zh: Translations = {
       intervals_vo2: '最大摄氧量间歇 (VO2 Max)',
       recovery: '超慢恢复慢跑',
       strides: '有氧跑 + 跨步冲刺',
-      tempo: '马拉松配速节奏跑',
+      tempo: '节奏跑',
       failed_workout: '未达标/中止课表',
       accidental_tempo: '意外跑快的节奏跑',
       race: '正式比赛 / 计时测验',

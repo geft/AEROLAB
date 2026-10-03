@@ -18,6 +18,22 @@ const baseAerobic = {
   splits: null
 } as const;
 
+it('does not judge a continuous tempo block against VO2/LT2 or missing repetitions', () => {
+  const result = gradeRun({ ...baseAerobic, runType: 'tempo', steadyHr: 157,
+    intervals: [{ type: 'work', start_seconds: 1200, duration_seconds: 3600,
+      avg_heart_rate: 157, max_heart_rate: 162 }],
+    pauseBreakdown: { stopCount: 0, stopDurationSeconds: 0, walkCount: 0,
+      walkDurationSeconds: 0, walkDistanceMeters: 0, steadyRunningDurationSeconds: 6000,
+      steadyRunningDistanceMeters: 16000, steadyPaceSecKm: 375, steadyHeartRate: 157,
+      steadyCadence: 178, steadyStanceTimeMs: 240, steadyVertOscMm: 70 }
+  });
+  expect(result.verdict).toBe('insufficient_evidence');
+  expect(result.factors.some(factor => ['cardiovascular_stimulus', 'threshold_heart_rate',
+    'pacing_discipline'].includes(factor.categoryId ?? ''))).toBe(false);
+  const completion = result.factors.find(factor => factor.categoryId === 'workout_completion');
+  expect(completion?.points).toBe(completion?.maxPoints);
+});
+
 function breakDown(stopSeconds: number, walkSeconds: number) {
   return {
     stopCount: stopSeconds > 0 ? 1 : 0,

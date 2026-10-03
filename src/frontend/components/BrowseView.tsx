@@ -49,7 +49,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
     const list = detailData?.intervals || [];
     if (list.length === 0) return false;
     const runType = detailData?.activity?.run_type;
-    if (runType === 'threshold_lt2' || runType === 'intervals_vo2' || runType === 'race') return true;
+    if (runType === 'threshold_lt2' || runType === 'intervals_vo2' || runType === 'tempo' || runType === 'race') return true;
     return list.some((i: ActivityInterval) => i.type === 'stride');
   }, [detailData]);
 

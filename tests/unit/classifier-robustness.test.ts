@@ -53,6 +53,32 @@ function analyze(records: ActivityRecord[], profile: typeof profiles[number]) {
 }
 
 describe('Classifier robustness across independent recording variations', () => {
+  it.each(profiles)('classifies 20m warmup / 60m tempo / 20m cooldown as tempo: %j', profile => {
+    const easyHr = profile.lt1Hr - 12;
+    const tempoHr = Math.round((profile.lt1Hr + profile.lt2Hr - 5) / 2);
+    for (const speed of [2, 4]) {
+      for (const sampling of [[1], [5], [1, 8, 3, 2, 5]]) {
+        const records = recording([
+          { seconds: 1200, hr: easyHr, cadence: 170, speed },
+          { seconds: 3600, hr: tempoHr, cadence: 184, speed: speed * 1.3 },
+          { seconds: 1200, hr: easyHr, cadence: 170, speed }
+        ], sampling);
+        const result = analyze(records, profile);
+        expect(result.classification.runType).toBe('tempo');
+        expect(result.classification.evidence.ruleId).toBe('structured_tempo');
+        expect(result.tags).toEqual(['Tempo']);
+        // Easy warmup walk breaks must not trigger the aerobic run/walk rule
+        // ahead of the sustained work block, as happened in the reported run.
+        const withWalks = records.map(record => [100, 300, 500, 700].some(start =>
+          record.elapsedSeconds >= start && record.elapsedSeconds < start + 20)
+          ? { ...record, cadence: 110, speedMps: 1.2 } : record);
+        expect(analyze(withWalks, profile).classification.runType).toBe('tempo');
+        const easy = analyze(recording([{ seconds: 5400, hr: easyHr, cadence: 170, speed }], sampling), profile);
+        expect(easy.classification.runType).toBe('easy_base');
+      }
+    }
+  });
+
   it.each(profiles)('preserves the workout family across pace and sampling changes: %j', profile => {
     const reserve = profile.maxHr - profile.restingHr;
     const recoveryHr = Math.round(profile.restingHr + reserve * 0.40);

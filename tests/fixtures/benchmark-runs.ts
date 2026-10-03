@@ -114,7 +114,7 @@ function vo2max5x3(): BenchmarkRun {
     'intervals_vo2', ['VO2 Max'], '5x3:00/2:00, must detect 5 work reps with dynamics');
 }
 
-/** 120 min steady @ HR 140 — long_run (>= 110 min). */
+/** 120 min steady @ HR 140 — long_run (>= 100 min). */
 function longRun120(): BenchmarkRun {
   const rows: BenchRow[] = [];
   steady(rows, 0, 7200, 140, 170, 3.2);

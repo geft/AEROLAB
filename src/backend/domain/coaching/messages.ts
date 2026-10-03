@@ -1,6 +1,8 @@
 import type { CoachMessage, CoachMessageId } from '../../../shared/coaching.js';
 /** English API copy remains the source of truth. IDs survive wording changes. */
 export const MESSAGE_TEXT: Record<CoachMessageId, string> = {
+  "headline.sustained_upper_aerobic_tempo": "Sustained Upper-Aerobic Tempo Run",
+  "advice.review_tempo_against_planned_target": "Review the sustained work against your planned tempo or marathon-pace target. Warmup and cooldown should remain easy; LT2 and VO2 targets do not apply to this work.",
   "headline.strong_aerobic_adaptation_session": "Strong Aerobic Adaptation Session",
   "advice.prioritize_light_hydration_and_low_impact_movement_before": "Prioritize light hydration and low-impact movement before your next hard effort.",
   "headline.incomplete_aborted_quality_session": "Incomplete / Aborted Quality Session",

@@ -1,5 +1,5 @@
 /** Bump when a persisted analysis policy changes; upgrades refresh history once. */
-export const ANALYSIS_REVISION = 'telemetry-policy-v1';
+export const ANALYSIS_REVISION = 'structured-tempo-v1';
 export interface AnalysisFreshness {
   revision: string | null;
   status: 'fresh' | 'stale' | 'missing' | 'updating';

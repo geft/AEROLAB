@@ -77,6 +77,8 @@ export interface CoachingFactor {
 
 export const COACH_MESSAGE_IDS = [
   "headline.strong_aerobic_adaptation_session",
+  "headline.sustained_upper_aerobic_tempo",
+  "advice.review_tempo_against_planned_target",
   "advice.prioritize_light_hydration_and_low_impact_movement_before",
   "headline.incomplete_aborted_quality_session",
   "advice.assess_underlying_fatigue_heat_stress_or_nutrition_take",

@@ -31,6 +31,7 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
     : allIntervals;
 
   const isQualityRun = activityRunType === 'threshold_lt2' ||
+    activityRunType === 'tempo' ||
     activityRunType === 'intervals_vo2' ||
     activityRunType === 'race';
 
