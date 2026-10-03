@@ -1,3 +1,5 @@
+import { rebuildAffectedHistory } from '../application/analysis/rebuild-history.js';
+import { thresholdTime } from '../../shared/threshold-trend.js';
 import Database from 'better-sqlite3';
 import { activityFromRow, activityIntervalFromRow, activityRecordFromRow, activitySplitFromRow, coachSummaryFromRow, heartRateRecordFromRow, objectRow, progressActivityFromRow, volumeActivityFromRow } from '../db/rows.js';
 import { parseSessionVerdict } from '../../shared/session-verdict.js';
@@ -646,18 +648,24 @@ export function updateActivityService(db: Database.Database, id: string, input: 
     return { ok: false, status: 400, code: 'ERR_NO_FIELDS_TO_UPDATE', error: 'No fields to update' };
   }
 
-  if (!db.prepare('SELECT 1 FROM activities WHERE id = ?').get(id)) {
+  const previous = db.prepare('SELECT start_time FROM activities WHERE id = ?').get(id) as { start_time: string } | undefined;
+  if (!previous) {
     return { ok: false, status: 404, code: 'ERR_ACTIVITY_NOT_FOUND', error: 'Activity not found' };
   }
 
-  params.push(id);
-  db.prepare(`UPDATE activities SET ${updates.join(', ')} WHERE id = ?`).run(...params);
-
-  // Continuous update: re-evaluate and persist coach summary into activity_coach_summaries
-  const coachSummary = syncActivityCoachSummary(db, id, run_type ? { runType: run_type } : undefined);
-
-  const updated = db.prepare('SELECT * FROM activities WHERE id = ?').get(id);
-  return { ok: true, response: { activity: activityFromRow(updated), coachSummary } };
+  return db.transaction(() => {
+    params.push(id);
+    db.prepare(`UPDATE activities SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+    if (run_type || is_failed_workout !== undefined) {
+      rebuildAffectedHistory(db, { fromTime: thresholdTime(previous.start_time) });
+      // An explicitly supplied tag edit remains authoritative for this request.
+      const tagIndex = updates.indexOf('tags = ?');
+      if (tagIndex >= 0) db.prepare('UPDATE activities SET tags = ? WHERE id = ?').run(params[tagIndex], id);
+    }
+    const coachSummary = syncActivityCoachSummary(db, id);
+    const updated = db.prepare('SELECT * FROM activities WHERE id = ?').get(id);
+    return { ok: true as const, response: { activity: activityFromRow(updated), coachSummary } };
+  })();
 }
 
 export function parseActivityUpdate(value: unknown): UpdateActivityInput | null {

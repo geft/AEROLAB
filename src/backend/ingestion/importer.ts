@@ -5,7 +5,7 @@ import Database from 'better-sqlite3';
 import { parseRunCSV, type ParsedCSV } from './csv-parser';
 import { parseRunFit, isFitBuffer, isZipBuffer } from './fit-parser.js';
 import { evaluateThresholdUpdate, getStridePaceAnchorSecKmAtDate, getHeartRateProfileAtDate } from '../physiology/threshold-tracker.js';
-import { realignDatabase } from '../db/realign.js';
+import { affectedActivityIds, rebuildAffectedHistory } from '../application/analysis/rebuild-history.js';
 import { thresholdTime } from '../../shared/threshold-trend.js';
 import { syncActivityCoachSummary } from '../physiology/coach-summary.js';
 import { calculateActivityTrainingLoad } from '../physiology/training-load.js';
@@ -391,14 +391,9 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
     // leave their labels/zones stale or commit only half of an affected history.
     const ref = Math.min(thresholdTime(metadata.date), thresholdTime(existing?.start_time ?? metadata.date));
     if (options.deferredReplay) options.deferredReplay.earliestTime = Math.min(options.deferredReplay.earliestTime, ref);
-    const laterIds = options.deferredReplay ? [] : (db.prepare('SELECT id,start_time FROM activities WHERE id <> ?').all(metadata.id) as
-      Array<{ id: string; start_time: string }>)
-      .filter(activity => thresholdTime(activity.start_time) > ref).map(activity => activity.id);
-    if (laterIds.length && !options.deferredReplay) {
-      // Include the corrected run too: moving its date later can first change
-      // intervening workouts, whose evidence must then precede its own analysis.
-      const replay = realignDatabase(db, { activityIds: [metadata.id, ...laterIds] });
-      if (replay.activitiesFailed.length) throw new Error(`Dependent reanalysis failed: ${replay.activitiesFailed.join('; ')}`);
+    const affected = options.deferredReplay ? [] : affectedActivityIds(db, ref);
+    if (affected.some(id => id !== metadata.id) && !options.deferredReplay) {
+      rebuildAffectedHistory(db, { fromTime: ref });
       refreshed = db.prepare(`SELECT run_type,(SELECT COUNT(*) FROM activity_intervals WHERE activity_id=activities.id) AS interval_count
         FROM activities WHERE id=?`).get(metadata.id) as { run_type: string; interval_count: number };
     }
@@ -449,10 +444,7 @@ export function importParsedRuns(db: Database.Database, files: Array<{ parsed: P
       }
     }
     if (results.some(result => result.status === 'imported')) {
-      const affected = (db.prepare('SELECT id,start_time FROM activities').all() as Array<{ id: string; start_time: string }>)
-        .filter(activity => thresholdTime(activity.start_time) >= deferredReplay.earliestTime).map(activity => activity.id);
-      const replay = realignDatabase(db, { activityIds: affected });
-      if (replay.activitiesFailed.length) throw new Error(`Dependent reanalysis failed: ${replay.activitiesFailed.join('; ')}`);
+      rebuildAffectedHistory(db, { fromTime: deferredReplay.earliestTime });
       for (const result of results) {
         if (result.status !== 'imported') continue;
         const refreshed = db.prepare(`SELECT run_type, efficiency_factor, aerobic_decoupling_pct,

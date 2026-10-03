@@ -19,6 +19,8 @@ export interface RealignStats {
 }
 
 export interface RealignOptions {
+  /** Corrections must surface finalization failures; maintenance remains best effort. */
+  strict?: boolean;
   logger?: (msg: string) => void;
   /** Restrict to specific activity ids (default: all). */
   activityIds?: string[];
@@ -259,7 +261,7 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
         SELECT MAX(id) FROM physiological_thresholds WHERE source_kind = 'workout' AND source_activity_id IS NOT NULL GROUP BY source_activity_id
       )
     `).run();
-  } catch { /* non-fatal */ }
+  } catch (error) { if (options.strict) throw error; /* non-fatal maintenance */ }
 
   // Current profile follows the rebuilt history; each summary uses its own date.
   try {
@@ -275,8 +277,9 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
         stats.profileLt1Hr = current.lt1Hr;
         stats.profileLt2Hr = current.lt2Hr;
       }
-    } catch { /* non-fatal */ }
+    } catch (error) { if (options.strict) throw error; /* non-fatal maintenance */ }
   } catch (err: any) {
+    if (options.strict) throw err;
     log(`  profile sync skipped: ${err?.message || err}`);
   }
 
@@ -284,6 +287,7 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
     const synced = syncAllCoachSummaries(db, options.activityIds);
     log(`  coach summaries re-synced for ${synced} activities`);
   } catch (err: any) {
+    if (options.strict) throw err;
     log(`  coach re-sync skipped: ${err?.message || err}`);
   }
 

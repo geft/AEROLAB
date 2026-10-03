@@ -17,7 +17,8 @@ describe('API Server Integration Tests', () => {
   beforeAll(() => {
     // In-memory test DB
     process.env.DATABASE_PATH = ':memory:';
-    seedBenchmarkProfile(getDatabase(':memory:'));
+    // A replay must retain dated external evidence, rather than an arbitrary current cache.
+    seedBenchmarkProfile(getDatabase(':memory:'), { datedThresholds: true });
     app = createServer();
   });
 
