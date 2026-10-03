@@ -24,7 +24,7 @@
     "test:visual:update": "playwright test --update-snapshots",
     "test:visual:report": "playwright show-report",
     "visual": "node scripts/visual-review.js",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "i18n:unused": "node scripts/find-unused-i18n-keys.mjs",
     "db:location": "tsx scripts/configure-database.ts",

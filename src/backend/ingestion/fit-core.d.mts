@@ -1,8 +1,20 @@
-export interface FitMessage { [field: string]: any }
+export interface FitMessage { [field: string]: unknown }
+export interface FitRecord extends FitMessage { timestamp: string }
+export interface FitSession extends FitMessage {
+  start_time: string;
+  total_distance?: number;
+  total_timer_time?: number;
+  total_elapsed_time?: number;
+  avg_heart_rate?: number;
+  max_heart_rate?: number;
+  total_calories?: number;
+  total_ascent?: number;
+  total_descent?: number;
+}
 export interface FitData {
-  records: FitMessage[];
-  session: FitMessage | null;
-  sessions: FitMessage[];
+  records: FitRecord[];
+  session: FitSession | null;
+  sessions: FitSession[];
   laps: FitMessage[];
   events: FitMessage[];
   workouts: FitMessage[];
@@ -14,11 +26,11 @@ export interface FitData {
   profileVersion: number;
   sourceFit: Uint8Array;
 }
-export interface FitExportOptions { id?: string; name?: string; session?: FitMessage; utcOffsetSeconds?: number }
+export interface FitExportOptions { id?: string; name?: string; session?: FitSession; utcOffsetSeconds?: number }
 export interface FitExport {
   id: string; name: string; date: string; sport: string;
   metadataFields: Record<string, number | null | undefined>;
-  metadata: FitMessage; records: FitMessage[]; session: FitMessage;
+  metadata: FitMessage; records: FitRecord[]; session: FitSession;
 }
 export const FIT_EXPORT_VERSION: number;
 export function isFitBuffer(input: ArrayBuffer | ArrayBufferView): boolean;

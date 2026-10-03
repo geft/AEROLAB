@@ -143,15 +143,14 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
     };
   }, [showTagMenu]);
 
-  // Auto-dismiss tag menu on activity change
-  useEffect(() => {
-    setShowTagMenu(false);
-  }, [selectedActivityId]);
 
   const [detailData, setDetailData] = useState<ActivityDetailResponse | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState<boolean>(false);
-  const [detailError, setDetailError] = useState<string | null>(null);
+  const [completedDetailRequest, setCompletedDetailRequest] = useState<string | null>(null);
+  const [requestError, setDetailError] = useState<string | null>(null);
   const [retryCounter, setRetryCounter] = useState<number>(0);
+  const detailRequest = [selectedActivityId, retryCounter, dataRefreshKey].join(':');
+  const loadingDetail = !!selectedActivityId && completedDetailRequest !== detailRequest;
+  const detailError = completedDetailRequest === detailRequest ? requestError : null;
   const [isRefreshingWeather, setIsRefreshingWeather] = useState<boolean>(false);
 
   const handleRefreshWeather = async () => {
@@ -256,35 +255,25 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
     }
   }, [safeActivities, selectedActivityId, onSelectActivity]);
 
-  const prevSelectedIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!selectedActivityId || safeActivities.length === 0) return;
-    const isDifferent = prevSelectedIdRef.current !== null && prevSelectedIdRef.current !== selectedActivityId;
-    prevSelectedIdRef.current = selectedActivityId;
-
-    if (!isDifferent) return;
-
+  const [previousSelection, setPreviousSelection] = useState(selectedActivityId);
+  if (previousSelection !== selectedActivityId) {
+    setPreviousSelection(selectedActivityId);
+    setShowTagMenu(false);
     const target = safeActivities.find(a => a.id === selectedActivityId);
-    if (!target) return;
-
-    if (selectedMonth !== 'all' && !target.start_time?.startsWith(selectedMonth)) {
-      setSelectedMonth('all');
+    if (previousSelection && target) {
+      if (selectedMonth !== 'all' && !target.start_time?.startsWith(selectedMonth)) setSelectedMonth('all');
+      if (selectedTagFilter !== 'all' && !doesActivityMatchTag(target, selectedTagFilter)) setSelectedTagFilter('all');
+      setMobileSubTab('detail');
     }
-    if (selectedTagFilter !== 'all' && !doesActivityMatchTag(target, selectedTagFilter)) {
-      setSelectedTagFilter('all');
-    }
-
-    setMobileSubTab('detail');
-  }, [selectedActivityId, safeActivities]);
+  }
 
   useEffect(() => {
     if (!selectedActivityId) return;
 
     const controller = new AbortController();
-    setLoadingDetail(true);
-    setDetailError(null);
     getActivityDetail(selectedActivityId, controller.signal)
       .then(data => {
+        if (controller.signal.aborted) return;
         setDetailData(data);
         if (!data.intervals || data.intervals.length === 0) {
           setActiveSubTab(prev => (prev === 'strides' ? 'telemetry' : prev));
@@ -302,17 +291,17 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
           });
         }
         setDetailError(null);
-        setLoadingDetail(false);
+        setCompletedDetailRequest(detailRequest);
       })
       .catch(err => {
-        if (err.name === 'AbortError') return;
+        if (controller.signal.aborted || err.name === 'AbortError') return;
         console.error('Failed to load activity detail:', err);
         setDetailError(err.message || 'Failed to load activity telemetry profile');
-        setLoadingDetail(false);
+        setCompletedDetailRequest(detailRequest);
       });
 
     return () => controller.abort();
-  }, [selectedActivityId, retryCounter, dataRefreshKey]);
+  }, [selectedActivityId, detailRequest, onActivityUpdated]);
 
   const act = detailData?.activity;
 
@@ -324,11 +313,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
     return list.some((i: ActivityInterval) => i.type === 'stride');
   }, [detailData]);
 
-  useEffect(() => {
-    if (!intervalsTabVisible) {
-      setActiveSubTab(prev => (prev === 'strides' ? 'telemetry' : prev));
-    }
-  }, [intervalsTabVisible]);
+  const displayedSubTab = activeSubTab === 'strides' && !intervalsTabVisible ? 'telemetry' : activeSubTab;
 
   const formatPace = (secKm: number | null) => formatPaceUtil(secKm, false);
 
@@ -547,6 +532,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
 
             {/* Overview Header Card */}
             <ActivityDetailHeader
+              key={act.id}
               act={act}
               records={detailData.records}
               fitMetadata={detailData.fitMetadata}
@@ -571,7 +557,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
             <div className="detail-subtabs" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem', flexWrap: 'wrap' }}>
               <button
                 id="subtab-telemetry-btn"
-                className={`filter-pill-btn ${activeSubTab === 'telemetry' ? 'active' : ''}`}
+                className={`filter-pill-btn ${displayedSubTab === 'telemetry' ? 'active' : ''}`}
                 onClick={() => setActiveSubTab('telemetry')}
               >
                 {t.browse.tabTelemetry}
@@ -579,7 +565,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               {(detailData.splits?.length ?? 0) > 0 && (
                 <button
                   id="subtab-splits-btn"
-                  className={`filter-pill-btn ${activeSubTab === 'splits' ? 'active' : ''}`}
+                  className={`filter-pill-btn ${displayedSubTab === 'splits' ? 'active' : ''}`}
                   onClick={() => setActiveSubTab('splits')}
                 >
                   {t.browse.tabSplits} ({detailData.splits.length})
@@ -588,7 +574,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               {intervalsTabVisible && (
                 <button
                   id="subtab-strides-btn"
-                  className={`filter-pill-btn ${activeSubTab === 'strides' ? 'active' : ''}`}
+                  className={`filter-pill-btn ${displayedSubTab === 'strides' ? 'active' : ''}`}
                   onClick={() => setActiveSubTab('strides')}
                 >
                   {t.browse.tabIntervals} ({detailData.intervals.filter(interval => interval.type === 'work' || interval.type === 'stride').length})
@@ -596,7 +582,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               )}
               <button
                 id="subtab-coach-btn"
-                className={`filter-pill-btn ${activeSubTab === 'coach' ? 'active' : ''}`}
+                className={`filter-pill-btn ${displayedSubTab === 'coach' ? 'active' : ''}`}
                 onClick={() => setActiveSubTab('coach')}
               >
                 {t.browse.tabCoach}
@@ -604,7 +590,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
             </div>
 
             {/* SUBTAB 1: Telemetry & Chart */}
-            {activeSubTab === 'telemetry' && (
+            {displayedSubTab === 'telemetry' && (
               <>
                 <section className="chart-card">
                   <div className="chart-header">
@@ -667,7 +653,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
             )}
 
             {/* SUBTAB: KM Splits & Pace Variation (Full Interactive Mode) */}
-            {activeSubTab === 'splits' && (
+            {displayedSubTab === 'splits' && (
               <KmSplitsVisualizer
                 splits={detailData.splits || []}
                 overallAvgPace={act.avg_pace_sec_km}
@@ -676,7 +662,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
             )}
 
             {/* SUBTAB 2: Strides & Intervals */}
-            {activeSubTab === 'strides' && intervalsTabVisible && (
+            {displayedSubTab === 'strides' && intervalsTabVisible && (
               <IntervalsTable
                 intervals={detailData.intervals || []}
                 activityRunType={detailData.activity?.run_type ?? undefined}
@@ -686,7 +672,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
             )}
 
             {/* SUBTAB 3: Session Analysis */}
-            {activeSubTab === 'coach' && (
+            {displayedSubTab === 'coach' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 {detailData.coachSummary && (
                   <CoachScoreCard

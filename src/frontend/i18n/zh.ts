@@ -50,6 +50,11 @@ export const zh: Translations = {
     moreOptions: '选项与偏好'
   },
   common: {
+    save: "保存",
+    cancel: "取消",
+    type: "类型",
+    monthsShort: "{count}个月",
+    quotedText: "“{text}”",
     loading: '加载中...',
     retry: '重试',
     close: '关闭',
@@ -129,6 +134,19 @@ export const zh: Translations = {
     marathonPace: '马拉松配速'
   },
   browse: {
+    intervalWorkReps: '间歇工作组（{count}）',
+    steadySegments: '稳定区间与加速跑（{count}）',
+    segmentsRecoveries: '全部区间与恢复段（{count}）',
+    intervalExplanation: "时长显示检测到的区间边界，并附有取整的训练结构提示。峰值心率反映记录到的刺激，恢复下降显示观测到的心率降幅。",
+    allSegmentsCount: "全部区间（{count}）",
+    averagePeak: "平均 · 峰值",
+    peakAverage: "峰值 · 平均",
+    recoveryDrop: "恢复下降",
+    averageHr: "平均 {value}",
+    noIntervals: "未检测到间歇组。",
+    hrSummaryTooltip: "峰值心率反映心血管刺激；平均心率反映漂移或滞后。",
+    tagLabel: "标签",
+    allInMonth: "{month}全部活动（{count}）",
     title: '跑步记录列表',
     totalRuns: '次训练',
     tabTelemetry: '遥测图表',
@@ -259,6 +277,13 @@ export const zh: Translations = {
     stdDev: '标准差'
   },
   progress: {
+    vdotGuideTitle: "什么是 VDOT 和最大摄氧量？查看等效比赛配速",
+    vdotGuideAria: "什么是 VDOT 和最大摄氧量？",
+    economyGuideTitle: "什么是跑步经济性？查看参考等级",
+    economyGuideAria: "什么是跑步经济性？",
+    liveCalibrationsValues: "LT1：{lt1} 次/分 • LT2：{lt2} 次/分",
+    displayedCount: "{shown} / {total}",
+    noCalibrations: "所选筛选条件下没有阈值校准记录。",
     chartPointSelector: '选择图表数据点',
     title: '训练进展与进阶趋势',
     subtitle: '长期追踪跑量累积、有氧经济性与阈值体能的动态演进',
@@ -448,6 +473,7 @@ export const zh: Translations = {
     }
   },
   profile: {
+    efficiencyBadge: "效率",
     title: '跑者基准档案',
     subtitle: '维护个人生理基准、静息/最大心率、跑鞋轮换矩阵与周课表',
     personalInfo: '个人基本信息',
@@ -509,6 +535,7 @@ export const zh: Translations = {
     saveFailed: '无法保存跑者档案。'
   },
   upload: {
+    currentFile: "当前：{filename}",
     title: '导入 Garmin 跑步记录 (FIT 或 ZIP)',
     dragDrop: '将 FIT 或 Garmin 活动 ZIP 文件拖拽至此处即可批量导入',
     selectFiles: '支持批量上传 Garmin FIT 和活动 ZIP 文件',
@@ -600,6 +627,14 @@ export const zh: Translations = {
     maintenanceFailed: '训练分析更新中断。请重启应用后重试。'
   },
   onboarding: {
+    ageLabel: "年龄：",
+    ageYears: "{age}岁",
+    tanakaUsage: "用于田中公式",
+    formulaTanaka: "公式（田中）",
+    manual: "手动",
+    calculatedMaxHr: "计算的最大心率：",
+    returnDashboard: "返回仪表盘",
+    supportedBackups: "支持 runs.db 和 runs-backup-*.db",
     brandTitle: 'AEROLAB',
     brandSubtitle: '心血管生理基线校准',
     stepRequired: '完成初始基线校准或还原历史数据，即可开启您的专属训练分析看板。',
@@ -731,6 +766,11 @@ export const zh: Translations = {
     resultError: '错误'
   },
   trainingLoad: {
+    acwrValue: "（ACWR：{value}）",
+    optimalRangeLabel: "最佳（ACWR {min} - {max}）",
+    maintainingRangeLabel: "维持（{min} - {max}）",
+    recoveryRangeLabel: "恢复（< {max}）",
+    overreachingRangeLabel: "负荷过高（> {min}）",
     loading: '正在计算训练负荷...',
     title: '训练负荷与最适区间',
     subtitle: '基于缩放后的TRIMP，对比7天急性负荷与28天长期基线',

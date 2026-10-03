@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { errorMessage } from '../utils/errors.js';
 import { ApiRequestError, getDevDiagnostics, simulateDevError } from '../api/client.js';
 import { apiErrorMessage } from '../api/errors.js';
@@ -20,40 +20,33 @@ export const DevDiagnosticsDrawer: React.FC<DevDiagnosticsDrawerProps> = ({
 }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'logs' | 'server' | 'sandbox'>('logs');
-  const [clientLogs, setClientLogs] = useState<ClientLogEntry[]>([]);
+  const [clientLogs, setClientLogs] = useState<ClientLogEntry[]>(() => clientLogger.getLogs());
   const [serverDiag, setServerDiag] = useState<ServerDiagnostics | null>(null);
-  const [loadingServer, setLoadingServer] = useState<boolean>(false);
+  const [loadingServer, setLoadingServer] = useState<boolean>(true);
   const [serverError, setServerError] = useState<string | null>(null);
   const [logFilter, setLogFilter] = useState<'ALL' | 'ERROR' | 'WARN' | 'INFO'>('ALL');
   const [simulatingError, setSimulatingError] = useState<boolean>(false);
 
   // Subscribe to client logs
   useEffect(() => {
-    setClientLogs(clientLogger.getLogs());
     const unsubscribe = clientLogger.subscribe(() => {
       setClientLogs(clientLogger.getLogs());
     });
     return unsubscribe;
   }, []);
 
-  const fetchServerDiagnostics = async () => {
-    try {
-      setLoadingServer(true);
-      setServerError(null);
-      const data = await getDevDiagnostics();
-      setServerDiag(data);
-    } catch (err) {
-      setServerError(apiErrorMessage(t, err, t.apiErrors.devDiagnosticsFailed));
-    } finally {
-      setLoadingServer(false);
-    }
-  };
+  const fetchServerDiagnostics = useCallback(() => getDevDiagnostics().then(data => {
+    setServerDiag(data);
+    setServerError(null);
+  }).catch(err => {
+    setServerError(apiErrorMessage(t, err, t.apiErrors.devDiagnosticsFailed));
+  }).finally(() => setLoadingServer(false)), [t]);
 
   useEffect(() => {
     if (isOpen) {
       fetchServerDiagnostics();
     }
-  }, [isOpen]);
+  }, [isOpen, fetchServerDiagnostics]);
 
   const handleSimulateApiError = async () => {
     try {
@@ -105,7 +98,7 @@ export const DevDiagnosticsDrawer: React.FC<DevDiagnosticsDrawerProps> = ({
             <button
               type="button"
               className="dev-refresh-btn"
-              onClick={fetchServerDiagnostics}
+              onClick={() => { setLoadingServer(true); void fetchServerDiagnostics(); }}
               title="Refresh diagnostics"
               disabled={loadingServer}
             >

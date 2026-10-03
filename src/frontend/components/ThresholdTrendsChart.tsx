@@ -313,7 +313,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
               onClick={() => setTimeRange('12m')}
               style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem', borderRadius: 6 }}
             >
-              12M
+              {format(t.common.monthsShort, { count: 12 })}
             </button>
             <button
               className={`filter-pill-btn ${timeRange === 'all' ? 'active' : ''}`}
@@ -629,7 +629,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
 
               {activePoint.item.notes && (
                 <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.68rem', marginTop: '0.2rem' }}>
-                  "{translateCalibrationNote(activePoint.item.notes, language)}"
+                  {format(t.common.quotedText, { text: translateCalibrationNote(activePoint.item.notes, language) })}
                 </div>
               )}
             </div>

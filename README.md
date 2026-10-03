@@ -417,7 +417,7 @@ The diagnostics drawer, the floating dev-mode button, and the whole `/api/dev/*`
 ### Verification
 `npx tsc --noEmit`, `npm run lint`, `npm test`, and `npm run i18n:unused` must all pass before a commit. Use the `gh` CLI for GitHub work (`gh run list`, `gh workflow run release.yml`).
 
-The ESLint config surfaces the remaining backlog as **warnings** (including hardcoded UI strings, untyped `any` payloads, and React effect patterns) so lint stays a useful, non-blocking signal while it is burned down. Genuinely broken code — including an unannotated empty `catch` — is an **error** and fails the lint.
+The lint script requires **zero warnings and zero errors**. It checks hardcoded UI strings, untyped `any` payloads, unused declarations, and React hook patterns. Language-neutral units, symbols, and brand names are allowed; user-facing copy belongs in the bilingual dictionaries.
 ## Installable phone snapshot
 
 AEROLAB can build a static, read-only copy of the local dashboard for phone use.

@@ -27,6 +27,7 @@ interface ProfileViewProps {
 export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) => {
   const { t, format } = useTranslation();
   const [loading, setLoading] = useState(true);
+  const [loadFailure, setLoadFailure] = useState<{ error: unknown } | null>(null);
   const [saving, setSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -43,13 +44,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
   const [tanakaMaxHr, setTanakaMaxHr] = useState<number | null>(null);
 
   useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  const fetchProfile = async () => {
-    try {
-      setLoading(true);
-      const data = await getProfile();
+    let cancelled = false;
+    getProfile().then(data => {
+      if (cancelled) return;
       if (data.profile) {
         const rawDob = data.profile.dob ? String(data.profile.dob).trim() : '';
         setDob(/^\d{4}-\d{2}$/.test(rawDob) ? `${rawDob}-15` : rawDob);
@@ -71,13 +68,17 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
       if (data.tanakaMaxHr) {
         setTanakaMaxHr(data.tanakaMaxHr);
       }
-    } catch (err) {
-      console.error('Failed to load profile:', err);
-      setStatusMessage({ type: 'error', text: apiErrorMessage(t, err, t.profile.loadFailed) });
-    } finally {
       setLoading(false);
-    }
-  };
+    }).catch(err => {
+      if (cancelled) return;
+      console.error('Failed to load profile:', err);
+      setLoadFailure({ error: err });
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const displayedStatus = statusMessage ?? (loadFailure ? { type: 'error', text: apiErrorMessage(t, loadFailure.error, t.profile.loadFailed) } : null);
 
   // Dynamic age calculation from DOB
   const computedAge = useMemo(() => {
@@ -184,10 +185,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
         </button>}
       </div>
 
-      {statusMessage && (
-        <div className={`profile-status-banner ${statusMessage.type}`}>
-          {statusMessage.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
-          <span>{statusMessage.text}</span>
+      {displayedStatus && (
+        <div className={`profile-status-banner ${displayedStatus.type}`}>
+          {displayedStatus.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+          <span>{displayedStatus.text}</span>
         </div>
       )}
 
@@ -233,7 +234,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
           <div className="threshold-ref-box economy">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span className="threshold-ref-label">{t.browse.efficiencyFactor}</span>
-              <span className="threshold-tag-pill economy">EFFICIENCY</span>
+              <span className="threshold-tag-pill economy">{t.profile.efficiencyBadge}</span>
             </div>
             <div className="threshold-ref-val">
               {currentThresholds?.baselineEconomyEf ? Number(currentThresholds.baselineEconomyEf).toFixed(2) : '—'}

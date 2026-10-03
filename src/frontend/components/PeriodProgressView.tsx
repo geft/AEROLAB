@@ -185,7 +185,7 @@ export const PeriodProgressView: React.FC = () => {
                 style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
                 title={t.periodProgress.window3m}
               >
-                3M
+                {format(t.common.monthsShort, { count: 3 })}
               </button>
               <button
                 className={`filter-pill-btn ${visibleMonthsCount === 6 ? 'active' : ''}`}
@@ -193,7 +193,7 @@ export const PeriodProgressView: React.FC = () => {
                 style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
                 title={t.periodProgress.window6m}
               >
-                6M
+                {format(t.common.monthsShort, { count: 6 })}
               </button>
               {allPeriods.length > 6 && (
                 <button
@@ -202,7 +202,7 @@ export const PeriodProgressView: React.FC = () => {
                   style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
                   title={t.periodProgress.window12m}
                 >
-                  12M
+                  {format(t.common.monthsShort, { count: 12 })}
                 </button>
               )}
               <button

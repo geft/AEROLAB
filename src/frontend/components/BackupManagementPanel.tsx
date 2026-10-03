@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { DatabaseStatus, DatabaseSnapshot } from '../types/api.js';
 import {
   HardDrive, Download, FileUp, RefreshCw, FolderOpen,
@@ -157,22 +157,15 @@ export const BackupManagementPanel: React.FC<BackupManagementPanelProps> = ({
   const [restoreMessage, setRestoreMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const restoreFileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const fetchDbStatus = async () => {
-    try {
-      {
-        const data = await getDatabaseStatus();
-        setDbStatus(data);
-        if (data.settings) {
-          setBackupDirectory(data.settings.backupDirectory || '');
-        }
-      }
-    } catch { /* intentionally ignored: non-fatal */ }
-  };
+  const fetchDbStatus = useCallback(() => getDatabaseStatus().then(data => {
+    setDbStatus(data);
+    if (data.settings) setBackupDirectory(data.settings.backupDirectory || '');
+  }).catch(() => { /* Non-fatal: backup actions remain available. */ }), []);
 
 
   useEffect(() => {
-    fetchDbStatus();
-  }, []);
+    void fetchDbStatus();
+  }, [fetchDbStatus]);
 
   const handleDownloadSnapshot = () => {
     window.open('/api/database/download', '_blank');

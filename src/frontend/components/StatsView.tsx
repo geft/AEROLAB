@@ -20,17 +20,20 @@ export const StatsView: React.FC = () => {
     return name;
   };
   const [data, setData] = useState<ThresholdsResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [completedRequest, setCompletedRequest] = useState<number | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const loading = completedRequest !== retryCount;
   const [volumePeriod, setVolumePeriod] = useState<'week' | 'month' | 'year' | 'all'>('month');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
   const [availableMonths, setAvailableMonths] = useState<{ period: string; label: string }[]>([]);
   const [volumeData, setVolumeData] = useState<VolumeData | null>(null);
-  const [loadingVolume, setLoadingVolume] = useState<boolean>(false);
+  const [completedVolumeRequest, setCompletedVolumeRequest] = useState<string | null>(null);
   const [volumeLoadError, setVolumeLoadError] = useState(false);
   const [volumeRetryCount, setVolumeRetryCount] = useState(0);
+  const volumeRequest = [volumePeriod, selectedMonth, volumeRetryCount].join(':');
+  const loadingVolume = completedVolumeRequest !== volumeRequest;
   const [isMarginGuideOpen, setIsMarginGuideOpen] = useState<boolean>(false);
   const [demographics, setDemographics] = useState<{ age: number | null; gender: string | null } | null>(null);
   const [openPredictionInfo, setOpenPredictionInfo] = useState<string | null>(null);
@@ -53,49 +56,55 @@ export const StatsView: React.FC = () => {
   ];
 
   useEffect(() => {
-    setLoading(true);
-    setLoadError(false);
+    let cancelled = false;
     getThresholds()
       .then(resData => {
+        if (cancelled) return;
+        setLoadError(false);
         setData(resData);
-        setLoading(false);
+        setCompletedRequest(retryCount);
       })
       .catch(err => {
+        if (cancelled) return;
         console.error('Failed to load stats:', err);
         setLoadError(true);
-        setLoading(false);
+        setCompletedRequest(retryCount);
       });
 
     getProgressHistory()
       .then(hist => {
-        if (hist.months) {
+        if (!cancelled && hist.months) {
           setAvailableMonths(hist.months);
         }
       })
       .catch(() => {});
 
     getProfile()
-      .then(response => setDemographics({ age: response.profile?.age ?? null, gender: response.profile?.gender ?? null }))
-      .catch(() => setDemographics(null));
+      .then(response => { if (!cancelled) setDemographics({ age: response.profile?.age ?? null, gender: response.profile?.gender ?? null }); })
+      .catch(() => { if (!cancelled) setDemographics(null); });
+    return () => { cancelled = true; };
   }, [retryCount]);
 
   useEffect(() => {
-    setLoadingVolume(true);
-    setVolumeLoadError(false);
+    let cancelled = false;
     getVolume({
       period: volumePeriod,
       ...(volumePeriod === 'month' && selectedMonth !== 'all' ? { month: selectedMonth } : {})
     })
       .then(vData => {
+        if (cancelled) return;
+        setVolumeLoadError(false);
         setVolumeData(vData);
-        setLoadingVolume(false);
+        setCompletedVolumeRequest(volumeRequest);
       })
       .catch(err => {
+        if (cancelled) return;
         console.error('Failed to load volume stats:', err);
         setVolumeLoadError(true);
-        setLoadingVolume(false);
+        setCompletedVolumeRequest(volumeRequest);
       });
-  }, [volumePeriod, selectedMonth, volumeRetryCount]);
+    return () => { cancelled = true; };
+  }, [volumePeriod, selectedMonth, volumeRequest]);
 
   if (loading) {
     return (
@@ -121,7 +130,6 @@ export const StatsView: React.FC = () => {
   const lt1PaceSecKm = lt1?.lt1_pace_sec_km;
   const lt2PaceSecKm = lt2?.lt2_pace_sec_km;
   const lt1Hr = data.currentThresholds?.lt1Hr ?? lt1?.lt1_hr ?? '—';
-  const hasTurnpointPaces = lt1PaceSecKm != null && lt2PaceSecKm != null;
   const estimatedGapSeconds = estimateTurnpointGapSeconds(lt1PaceSecKm);
   const turnpointGapSeconds = lt1PaceSecKm != null && lt2PaceSecKm != null
     ? Math.round(lt1PaceSecKm - lt2PaceSecKm)

@@ -86,6 +86,11 @@ export interface Translations {
     moreOptions: string;
   };
   common: {
+    save: string;
+    cancel: string;
+    type: string;
+    monthsShort: string;
+    quotedText: string;
     loading: string;
     retry: string;
     close: string;
@@ -156,6 +161,19 @@ export interface Translations {
     marathonPace: string;
   };
   browse: {
+    intervalWorkReps: string;
+    steadySegments: string;
+    segmentsRecoveries: string;
+    intervalExplanation: string;
+    allSegmentsCount: string;
+    averagePeak: string;
+    peakAverage: string;
+    recoveryDrop: string;
+    averageHr: string;
+    noIntervals: string;
+    hrSummaryTooltip: string;
+    tagLabel: string;
+    allInMonth: string;
     title: string;
     totalRuns: string;
     tabTelemetry: string;
@@ -294,6 +312,13 @@ export interface Translations {
     stdDev: string;
   };
   progress: {
+    vdotGuideTitle: string;
+    vdotGuideAria: string;
+    economyGuideTitle: string;
+    economyGuideAria: string;
+    liveCalibrationsValues: string;
+    displayedCount: string;
+    noCalibrations: string;
     chartPointSelector: string;
     title: string;
     subtitle: string;
@@ -487,6 +512,7 @@ export interface Translations {
     };
   };
   profile: {
+    efficiencyBadge: string;
     title: string;
     subtitle: string;
     personalInfo: string;
@@ -554,6 +580,7 @@ export interface Translations {
     saveFailed: string;
   };
   upload: {
+    currentFile: string;
     title: string;
     dragDrop: string;
     selectFiles: string;
@@ -644,6 +671,14 @@ export interface Translations {
     maintenanceFailed: string;
   };
   onboarding: {
+    ageLabel: string;
+    ageYears: string;
+    tanakaUsage: string;
+    formulaTanaka: string;
+    manual: string;
+    calculatedMaxHr: string;
+    returnDashboard: string;
+    supportedBackups: string;
     brandTitle: string;
     brandSubtitle: string;
     stepRequired: string;
@@ -776,6 +811,11 @@ export interface Translations {
     resultError: string;
   };
   trainingLoad: {
+    acwrValue: string;
+    optimalRangeLabel: string;
+    maintainingRangeLabel: string;
+    recoveryRangeLabel: string;
+    overreachingRangeLabel: string;
     loading: string;
     title: string;
     subtitle: string;

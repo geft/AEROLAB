@@ -112,6 +112,33 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     vi.restoreAllMocks();
   });
 
+  it('ignores an older activity response after the selection changes', async () => {
+    let resolveFirst!: (response: Response) => void;
+    const firstResponse = new Promise<Response>(resolve => { resolveFirst = resolve; });
+    const second = { ...mockActivities[0], id: 'act-102', name: 'Latest Selected Workout' };
+    vi.mocked(globalThis.fetch).mockImplementation(url => {
+      if (String(url).endsWith('/act-101')) return firstResponse;
+      return Promise.resolve(new Response(JSON.stringify({
+        ...mockDetailData, activity: second
+      }), { headers: { 'Content-Type': 'application/json' } }));
+    });
+    const onActivityUpdated = vi.fn();
+    const props = {
+      activities: [...mockActivities, second],
+      onSelectActivity: vi.fn(),
+      onOpenUpload: vi.fn(),
+      onActivityUpdated
+    };
+    const view = render(<BrowseView {...props} selectedActivityId="act-101" />);
+    view.rerender(<BrowseView {...props} selectedActivityId="act-102" />);
+    await waitFor(() => expect(onActivityUpdated).toHaveBeenCalledWith(expect.objectContaining({ id: 'act-102' })));
+    await act(async () => {
+      resolveFirst(new Response(JSON.stringify(mockDetailData), { headers: { 'Content-Type': 'application/json' } }));
+    });
+    expect(onActivityUpdated).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('heading', { name: 'Latest Selected Workout' })).toBeTruthy();
+  });
+
   it('evaluates getDisplayTitle with smart overrides and presets', () => {
     expect(getDisplayTitle({ name: 'Singapore Running', run_type: 'easy_base' })).toBe('Easy Aerobic Base');
     expect(getDisplayTitle({ name: 'Singapore Running', run_type: 'threshold_lt2' })).toBe('Lactate Threshold (LT2)');

@@ -1,6 +1,5 @@
 import { SessionVerdictBadge } from './SessionVerdictBadge.js';
 import React from 'react';
-import type { Activity } from '../../types/api.js';
 
 import type { DisplayTitleFn } from '../BrowseView.js';
 import type { Translations } from '../../i18n/types.js';

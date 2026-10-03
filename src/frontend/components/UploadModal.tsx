@@ -27,7 +27,7 @@ interface BatchSummary {
 }
 
 export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSuccess }) => {
-  const { t, plural } = useTranslation();
+  const { t, plural, format } = useTranslation();
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<{ current: number; total: number; currentFileName: string } | null>(null);
@@ -288,7 +288,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
             </div>
 
             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              Current: {progress.currentFileName}
+              {format(t.upload.currentFile, { filename: progress.currentFileName })}
             </p>
           </div>
         )}

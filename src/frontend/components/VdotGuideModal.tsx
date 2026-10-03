@@ -163,7 +163,7 @@ export const VdotGuideModal: React.FC<VdotGuideModalProps> = ({
                   </div>
 
                   <div className="tier-desc" style={{ marginTop: '0.35rem', color: 'var(--text-secondary)' }}>
-                    <b>{t.vdotGuide.equivRaceTimes}:</b> 5K: {tier.equiv5k} • {t.vdotGuide.equivHalf}: {tier.equivHalf} • {t.vdotGuide.equivFull}: {tier.equivMarathon}
+                    <b>{t.vdotGuide.equivRaceTimes}:</b> {t.stats.fiveK}: {tier.equiv5k} • {t.vdotGuide.equivHalf}: {tier.equivHalf} • {t.vdotGuide.equivFull}: {tier.equivMarathon}
                   </div>
                 </div>
               ))}

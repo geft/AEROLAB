@@ -39,3 +39,6 @@ export interface TrainingStatusResult {
 export interface TrainingLoadResponse {
   trainingStatus: TrainingStatusResult;
 }
+
+/** Shared ACWR boundaries for status classification and its guide. */
+export const ACWR_THRESHOLDS = { recovery: 0.8, maintaining: 1.05, optimal: 1.3, veryHigh: 1.5 } as const;

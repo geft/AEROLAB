@@ -12,14 +12,14 @@ import {
   Sparkles
 } from 'lucide-react';
 import { calculateAgeFromDob } from '../utils/formatters.js';
-import { useLanguage } from '../i18n/LanguageContext.js';
+import { useTranslation } from '../i18n/LanguageContext.js';
 
 interface OnboardingPageProps {
   onCompleted: () => void;
 }
 
 export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) => {
-  const { t } = useLanguage();
+  const { t, format } = useTranslation();
   const [activeTab, setActiveTab] = useState<'setup' | 'restore'>('setup');
 
   // Form states. Everything starts empty on purpose: a fresh database carries
@@ -317,9 +317,9 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
                   style={inputStyle}
                 />
                 {computedAge !== null ? (
-                  <p style={hintStyle}>Age: <b style={{ color: '#38bdf8' }}>{computedAge} yrs</b></p>
+                  <p style={hintStyle}>{t.onboarding.ageLabel} <b style={{ color: '#38bdf8' }}>{format(t.onboarding.ageYears, { age: computedAge })}</b></p>
                 ) : (
-                  <p style={hintStyle}>Used for Tanaka formula</p>
+                  <p style={hintStyle}>{t.onboarding.tanakaUsage}</p>
                 )}
               </div>
               <div>
@@ -383,7 +383,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
                       fontWeight: 600
                     }}
                   >
-                    Formula (Tanaka)
+                    {t.onboarding.formulaTanaka}
                   </button>
                   <button
                     type="button"
@@ -398,7 +398,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
                       fontWeight: 600
                     }}
                   >
-                    Manual
+                    {t.onboarding.manual}
                   </button>
                 </div>
               </div>
@@ -414,7 +414,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
                   alignItems: 'center'
                 }}>
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    Calculated Max HR:
+                    {t.onboarding.calculatedMaxHr}
                   </span>
                   <strong style={{ fontSize: '0.95rem', color: '#38bdf8' }}>
                     {tanakaMaxHr ? `${tanakaMaxHr} bpm` : 'Enter DOB above'}
@@ -485,7 +485,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
                   gap: '0.4rem'
                 }}
               >
-                <span>Return to Dashboard</span>
+                <span>{t.onboarding.returnDashboard}</span>
                 <ArrowRight size={15} />
               </button>
             )}
@@ -546,7 +546,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
                   {isRestoring ? t.backup.restoring : t.onboarding.dropDbPrompt}
                 </div>
                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                  Supports runs.db and runs-backup-*.db
+                  {t.onboarding.supportedBackups}
                 </div>
               </div>
             </div>

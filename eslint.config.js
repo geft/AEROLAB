@@ -74,6 +74,8 @@ const localRules = {
 
 /** Units, symbols and brand tokens that are legitimately language-neutral. */
 const NEUTRAL_TEXT = [
+  '^[\\s\\d.,:%+\\-–—/()·•×★☆◆◇°²³~±©÷=<>?|●*#📄]+$',
+  '^\\s*(MB|KM|/km|s/km|s|h|m|bpm|ml/kg/min|°C|VDOT|Vercel)\\s*[):]*$',
   '^[\\s\\d.,:%+\\-–—/()·•×★☆◆◇°²³]+$',
   '^(km|m|mi|kg|cm|mm|ms|sec|min|hrs?|bpm|spm|rpm|w|kj|kcal|ef|lt1|lt2|vo2|vdot|acwr|hrr|hr|pb|pr|gps|csv|fit|gpx|tcx|sqlite|ok|id)$',
   '^(AEROLAB|EF|VO2|LT1|LT2|ACWR|HRR|GPS|CSV|FIT|PRs?|GPX|TCX)$',
@@ -105,9 +107,8 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
 
-  // Baseline: the pre-existing backlog is surfaced as warnings so `npm run lint`
-  // stays a useful, non-blocking signal. Burn the backlog down over time, then
-  // promote these rules back to 'error'.
+  // Keep maintainability diagnostics at warning severity for editor feedback.
+  // The lint script enforces zero warnings as well as zero errors.
   {
     plugins: { 'unused-imports': unusedImports },
     rules: {
@@ -139,8 +140,7 @@ export default tseslint.config(
     rules: {
       ...(reactHooks.configs.recommended?.rules ?? {}),
       'react-hooks/exhaustive-deps': 'warn',
-      // Hook ordering/effect issues are real bugs, but part of the existing
-      // backlog; keep them visible as warnings rather than blocking lint.
+      // Surface hook correctness diagnostics in editors; CI rejects warnings.
       'react-hooks/set-state-in-effect': 'warn',
       'react-hooks/immutability': 'warn',
       'react-hooks/purity': 'warn',

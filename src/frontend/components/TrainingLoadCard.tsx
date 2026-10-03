@@ -1,3 +1,4 @@
+import { ACWR_THRESHOLDS } from '../../shared/training-load.js';
 import React, { useState, useEffect, useRef } from 'react';
 import { Activity, Flame, ShieldAlert, CheckCircle2, TrendingUp, HelpCircle, X } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
@@ -29,25 +30,28 @@ export interface TrainingStatusData {
 }
 
 export const TrainingLoadCard: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, format } = useTranslation();
   const [days, setDays] = useState<number>(30);
   const [data, setData] = useState<TrainingStatusData | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loadedDays, setLoadedDays] = useState<number | null>(null);
+  const loading = loadedDays !== days;
   const [hoveredDay, setHoveredDay] = useState<DayLoadPoint | null>(null);
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
   const chartScrollRef = useRef<HTMLDivElement>(null);
   const [showGuide, setShowGuide] = useState<boolean>(false);
 
   useEffect(() => {
-    setLoading(true);
+    let cancelled = false;
     getTrainingLoad(days)
       .then(json => {
+        if (cancelled) return;
         if (json.trainingStatus) {
           setData(json.trainingStatus);
         }
-        setLoading(false);
+        setLoadedDays(days);
       })
-      .catch(() => setLoading(false));
+      .catch(() => { if (!cancelled) setLoadedDays(days); });
+    return () => { cancelled = true; };
   }, [days]);
 
   if (loading && !data) {
@@ -221,7 +225,7 @@ export const TrainingLoadCard: React.FC = () => {
             {data.status === 'maintaining' && <TrendingUp size={14} />}
             <span>{getLocalizedStatusLabel(data.status, data.statusLabel)}</span>
             <span style={{ opacity: 0.7, fontSize: '0.72rem', fontWeight: 500 }}>
-              (ACWR: {data.acwr})
+              {format(t.trainingLoad.acwrValue, { value: data.acwr })}
             </span>
           </div>
         </div>
@@ -508,10 +512,10 @@ export const TrainingLoadCard: React.FC = () => {
                 {t.trainingLoad.guideIntro}
               </p>
               <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
-                <li><strong>Optimal (0.8 - 1.3 ACWR)</strong>: {t.trainingLoad.guideOptimal}</li>
-                <li><strong>Maintaining (0.8 - 1.05)</strong>: {t.trainingLoad.guideMaintaining}</li>
-                <li><strong>Recovery (&lt; 0.8)</strong>: {t.trainingLoad.guideRecovery}</li>
-                <li><strong>Overreaching (&gt; 1.3)</strong>: {t.trainingLoad.guideOverreaching}</li>
+                <li><strong>{format(t.trainingLoad.optimalRangeLabel, { min: ACWR_THRESHOLDS.recovery, max: ACWR_THRESHOLDS.optimal })}</strong>: {t.trainingLoad.guideOptimal}</li>
+                <li><strong>{format(t.trainingLoad.maintainingRangeLabel, { min: ACWR_THRESHOLDS.recovery, max: ACWR_THRESHOLDS.maintaining })}</strong>: {t.trainingLoad.guideMaintaining}</li>
+                <li><strong>{format(t.trainingLoad.recoveryRangeLabel, { max: ACWR_THRESHOLDS.recovery })}</strong>: {t.trainingLoad.guideRecovery}</li>
+                <li><strong>{format(t.trainingLoad.overreachingRangeLabel, { min: ACWR_THRESHOLDS.optimal })}</strong>: {t.trainingLoad.guideOverreaching}</li>
               </ul>
             </div>
 

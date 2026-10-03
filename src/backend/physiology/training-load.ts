@@ -1,3 +1,4 @@
+import { ACWR_THRESHOLDS } from '../../shared/training-load.js';
 import { MAX_OBSERVED_GAP_SECONDS } from './time-series.js';
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { getDefaultZones } from './zones.js';
@@ -229,8 +230,8 @@ export function calculateTrainingStatus(
 
     // ACWR (Acute to Chronic Workload Ratio)
     const acwr = normalizedChronic > 5 ? Number((runningAcute / normalizedChronic).toFixed(2)) : 1.0;
-    const optimalMin = Math.round(normalizedChronic * 0.8);
-    const optimalMax = Math.round(normalizedChronic * 1.3);
+    const optimalMin = Math.round(normalizedChronic * ACWR_THRESHOLDS.recovery);
+    const optimalMax = Math.round(normalizedChronic * ACWR_THRESHOLDS.optimal);
 
     fullPoints.push({
       date: dateStr,
@@ -273,19 +274,19 @@ export function calculateTrainingStatus(
     status = 'establishing';
     statusLabel = 'Establishing';
     statusDescription = 'Logging more runs will establish your long-term fitness baseline and optimal load tunnel.';
-  } else if (currentAcwr < 0.8) {
+  } else if (currentAcwr < ACWR_THRESHOLDS.recovery) {
     status = 'recovery';
     statusLabel = 'Recovery';
     statusDescription = 'Your training load has decreased below your baseline. Ideal for deloading or race taper.';
-  } else if (currentAcwr > 1.5) {
+  } else if (currentAcwr > ACWR_THRESHOLDS.veryHigh) {
     status = 'very_high';
     statusLabel = 'Very High';
     statusDescription = 'Acute fatigue is significantly elevated relative to fitness. High risk of overtraining.';
-  } else if (currentAcwr > 1.3) {
+  } else if (currentAcwr > ACWR_THRESHOLDS.optimal) {
     status = 'overreaching';
     statusLabel = 'Overreaching';
     statusDescription = 'Training load is ramping up quickly. Maintain adequate recovery to absorb adaptations.';
-  } else if (currentAcwr >= 0.8 && currentAcwr <= 1.05 && currentAcute < currentChronic) {
+  } else if (currentAcwr >= ACWR_THRESHOLDS.recovery && currentAcwr <= ACWR_THRESHOLDS.maintaining && currentAcute < currentChronic) {
     status = 'maintaining';
     statusLabel = 'Maintaining';
     statusDescription = 'Training load is steady and sufficient to maintain your current aerobic fitness level.';

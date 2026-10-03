@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import type { Activity, ActivityRecord, ActivityUpdate } from '../../types/api.js';
 
 import type { DisplayTitleFn } from '../BrowseView.js';
@@ -64,10 +64,6 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
     currentTags = [];
   }
 
-  // Dismiss edit mode if activity ID changes
-  useEffect(() => {
-    setIsEditingTitle(false);
-  }, [act.id]);
 
   const handleUpdateTags = async (tags: string[]) => {
     try {
@@ -126,13 +122,13 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
                 }}
                 style={{ background: '#06b6d4', color: '#07090e', border: 'none', borderRadius: 6, padding: '0.4rem 0.75rem', fontWeight: 600, cursor: 'pointer' }}
               >
-                Save
+                {t.common.save}
               </button>
               {!readOnly && <button
                 onClick={() => setIsEditingTitle(false)}
                 style={{ background: 'transparent', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, padding: '0.4rem 0.75rem', cursor: 'pointer' }}
               >
-                Cancel
+                {t.common.cancel}
               </button>}
             </div>
           ) : (
@@ -208,7 +204,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
                 }}
               >
                 <Plus size={12} />
-                <span>Tag</span>
+                <span>{t.browse.tagLabel}</span>
               </button>
 
               {showTagMenu && (

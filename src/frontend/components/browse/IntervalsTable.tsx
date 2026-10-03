@@ -21,7 +21,7 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
   formatPace,
   formatTime
 }) => {
-  const { t } = useTranslation();
+  const { t, format } = useTranslation();
   const [intervalFilter, setIntervalFilter] = useState<'work_only' | 'all'>('work_only');
 
   const allIntervals = intervals || [];
@@ -51,13 +51,12 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
           <span className="sidebar-title">
             {intervalFilter === 'work_only'
-              ? (isQualityRun ? `Interval Work Reps (${workIntervals.length})` : `Steady Segments & Strides (${workIntervals.length})`)
-              : `All Segments & Recoveries (${allIntervals.length})`}
+              ? (isQualityRun ? format(t.browse.intervalWorkReps, { count: workIntervals.length }) : format(t.browse.steadySegments, { count: workIntervals.length }))
+              : format(t.browse.segmentsRecoveries, { count: allIntervals.length })}
             {prescLabel && <span className="workreps-presc">{prescLabel}</span>}
           </span>
           <p style={{ fontSize: '0.76rem', color: '#94a3b8', margin: 0 }}>
-            Durations show raw detection with snapped prescription hint (e.g. 14:03 → 14:00).
-            HR Peak is the stimulus; Recovery Drop measures parasympathetic rebound.
+            {t.browse.intervalExplanation}
           </p>
         </div>
 
@@ -73,7 +72,7 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
               className={`filter-pill-btn ${intervalFilter === 'all' ? 'active' : ''}`}
               onClick={() => setIntervalFilter('all')}
             >
-              All Segments ({allIntervals.length})
+              {format(t.browse.allSegmentsCount, { count: allIntervals.length })}
             </button>
           </div>
         )}
@@ -85,19 +84,19 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
             <thead>
               <tr>
                 <th>#</th>
-                <th>Type</th>
-                <th>Duration</th>
-                <th>Distance</th>
+                <th>{t.common.type}</th>
+                <th>{t.common.duration}</th>
+                <th>{t.common.distance}</th>
                 <th>
                   <div className="th-stacked">
-                    <span>Pace</span>
-                    <span className="th-sub">Avg · Peak</span>
+                    <span>{t.common.pace}</span>
+                    <span className="th-sub">{t.browse.averagePeak}</span>
                   </div>
                 </th>
-                <th title="Peak HR is cardiovascular stimulus; Avg HR reflects drift or lag.">
+                <th title={t.browse.hrSummaryTooltip}>
                   <div className="th-stacked">
-                    <span>Heart Rate</span>
-                    <span className="th-sub">Peak · Avg</span>
+                    <span>{t.common.heartRate}</span>
+                    <span className="th-sub">{t.browse.peakAverage}</span>
                   </div>
                 </th>
                 <th>
@@ -107,7 +106,7 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
                 </th>
                 <th>
                   <div className="th-stacked">
-                    <span>Rec Drop</span>
+                    <span>{t.browse.recoveryDrop}</span>
                   </div>
                 </th>
               </tr>
@@ -173,7 +172,7 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
                           </span>
                           {inv.avg_heart_rate && inv.avg_heart_rate !== inv.max_heart_rate && (
                             <span className="val-secondary">
-                              {inv.avg_heart_rate} avg
+                              {format(t.browse.averageHr, { value: inv.avg_heart_rate })}
                             </span>
                           )}
                         </div>
@@ -243,7 +242,7 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
         </div>
       ) : (
         <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>
-          No interval reps found.
+          {t.browse.noIntervals}
         </div>
       )}
     </section>

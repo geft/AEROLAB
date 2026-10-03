@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import type { ActivityUpdate } from './types/api.js';
 import { Navbar, TabType } from './components/Navbar';
 import { BrowseView, ActivitySummary } from './components/BrowseView';
@@ -106,41 +106,29 @@ export const App: React.FC = () => {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  const checkProfileConfigured = async () => {
-    try {
-      {
-        const data = await getProfile();
-        const p = data?.profile;
-        const configured = data?.isConfigured === true && p?.is_configured !== 0 && !!p?.resting_hr && (!!p?.dob || !!p?.age);
-        setIsConfigured(configured);
-        setProfileLoadFailed(false);
-        localStorage.setItem('aerolab_profile_configured', String(configured));
-      }
-    } catch (err) {
-      console.error('Failed to check profile configuration status:', err);
-      setProfileLoadFailed(true);
-      setLoading(false);
-      const cached = localStorage.getItem('aerolab_profile_configured');
-      setIsConfigured(cached === 'true');
-    }
-  };
+  const checkProfileConfigured = useCallback(() => getProfile().then(data => {
+    const p = data?.profile;
+    const configured = data?.isConfigured === true && p?.is_configured !== 0 && !!p?.resting_hr && (!!p?.dob || !!p?.age);
+    setIsConfigured(configured);
+    setProfileLoadFailed(false);
+    localStorage.setItem('aerolab_profile_configured', String(configured));
+  }).catch(err => {
+    console.error('Failed to check profile configuration status:', err);
+    setProfileLoadFailed(true);
+    setLoading(false);
+    setIsConfigured(localStorage.getItem('aerolab_profile_configured') === 'true');
+  }), []);
 
-  const fetchActivities = async (preferredSelectedId?: string) => {
-    setLoading(true);
-    try {
-      const data = await listActivities();
-      const list = data.activities;
-      setActivities(list);
-      setHistoryLoadFailed(false);
-      setSelectedActivityId(resolveSelectedActivityId(list, preferredSelectedId, selectedActivityId));
-    } catch (err) {
-      console.error('Failed to load activities:', err);
-      setHistoryLoadFailed(true);
-      clientLogger.error('App', 'Failed to load activities', { error: String(err) });
-    } finally {
-      setLoading(false);
-    }
-  };
+  const fetchActivities = useCallback((preferredSelectedId?: string) => listActivities().then(data => {
+    const list = data.activities;
+    setActivities(list);
+    setHistoryLoadFailed(false);
+    setSelectedActivityId(current => resolveSelectedActivityId(list, preferredSelectedId, current));
+  }).catch(err => {
+    console.error('Failed to load activities:', err);
+    setHistoryLoadFailed(true);
+    clientLogger.error('App', 'Failed to load activities', { error: String(err) });
+  }).finally(() => setLoading(false)), []);
 
   useEffect(() => {
     if (SNAPSHOT_MODE) {
@@ -160,14 +148,14 @@ export const App: React.FC = () => {
         .finally(() => setSnapshotReady(true));
       return;
     }
-    checkProfileConfigured();
-  }, []);
+    void checkProfileConfigured();
+  }, [checkProfileConfigured]);
 
   useEffect(() => {
     if (!SNAPSHOT_MODE && isConfigured === true) {
       fetchActivities();
     }
-  }, [isConfigured]);
+  }, [isConfigured, fetchActivities]);
 
   const handleUploadSuccess = async (importedActivityId?: string) => {
     setIsUploadOpen(false);
@@ -179,11 +167,11 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleActivityUpdated = (updatedActivity: ActivityUpdate) => {
+  const handleActivityUpdated = useCallback((updatedActivity: ActivityUpdate) => {
     setActivities(prev =>
       prev.map(a => (a.id === updatedActivity.id ? { ...a, ...updatedActivity } : a))
     );
-  };
+  }, []);
 
   const handleOnboardingComplete = () => {
     setIsConfigured(true);

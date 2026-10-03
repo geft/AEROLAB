@@ -50,6 +50,11 @@ export const en: Translations = {
     moreOptions: 'Options & Appearance'
   },
   common: {
+    save: "Save",
+    cancel: "Cancel",
+    type: "Type",
+    monthsShort: "{count}M",
+    quotedText: "\"{text}\"",
     loading: 'Loading...',
     retry: 'Try again',
     close: 'Close',
@@ -129,6 +134,19 @@ export const en: Translations = {
     marathonPace: 'Marathon Pace'
   },
   browse: {
+    intervalWorkReps: 'Interval Work Reps ({count})',
+    steadySegments: 'Steady Segments & Strides ({count})',
+    segmentsRecoveries: 'All Segments & Recoveries ({count})',
+    intervalExplanation: "Durations show detected boundaries with a snapped prescription hint. Peak HR describes the recorded stimulus; recovery drop shows the observed HR decrease.",
+    allSegmentsCount: "All Segments ({count})",
+    averagePeak: "Avg · Peak",
+    peakAverage: "Peak · Avg",
+    recoveryDrop: "Rec Drop",
+    averageHr: "{value} avg",
+    noIntervals: "No interval reps found.",
+    hrSummaryTooltip: "Peak HR is cardiovascular stimulus; Avg HR reflects drift or lag.",
+    tagLabel: "Tag",
+    allInMonth: "All in {month} ({count})",
     title: 'Sessions',
     totalRuns: 'workouts',
     tabTelemetry: 'Telemetry',
@@ -255,6 +273,13 @@ export const en: Translations = {
     stdDev: 'Std Dev'
   },
   progress: {
+    vdotGuideTitle: "What is VDOT & VO2 Max? View equivalent race paces",
+    vdotGuideAria: "What is VDOT & VO2 Max?",
+    economyGuideTitle: "What is Running Economy? View benchmark tiers",
+    economyGuideAria: "What is Running Economy?",
+    liveCalibrationsValues: "LT1 @ {lt1} bpm • LT2 @ {lt2} bpm",
+    displayedCount: "{shown} of {total}",
+    noCalibrations: "No threshold calibrations match the selected filter.",
     chartPointSelector: 'Select a chart point',
     title: 'Progress Over Months & Years',
     subtitle: 'Track volume, aerobic efficiency, and threshold fitness evolution over time',
@@ -438,6 +463,7 @@ export const en: Translations = {
     }
   },
   profile: {
+    efficiencyBadge: "EFFICIENCY",
     title: 'Runner Baseline Profile',
     subtitle: 'Personal physiological baseline, resting/max HR, shoe rotation matrix and weekly schedule',
     personalInfo: 'Personal Information',
@@ -499,6 +525,7 @@ export const en: Translations = {
     saveFailed: 'Failed to save the athlete profile.'
   },
   upload: {
+    currentFile: "Current: {filename}",
     title: 'Import Garmin Runs (FIT or ZIP)',
     dragDrop: 'Drag & Drop FIT or Garmin activity ZIP files here',
     selectFiles: 'Supports multi-file batch upload — Garmin FIT and activity ZIP files',
@@ -590,6 +617,14 @@ export const en: Translations = {
     maintenanceFailed: 'Workout analysis update was interrupted. Restart the app to retry.'
   },
   onboarding: {
+    ageLabel: "Age:",
+    ageYears: "{age} yrs",
+    tanakaUsage: "Used for Tanaka formula",
+    formulaTanaka: "Formula (Tanaka)",
+    manual: "Manual",
+    calculatedMaxHr: "Calculated Max HR:",
+    returnDashboard: "Return to Dashboard",
+    supportedBackups: "Supports runs.db and runs-backup-*.db",
     brandTitle: 'AEROLAB',
     brandSubtitle: 'Cardiovascular Physiological Baseline Calibration',
     stepRequired: 'Complete baseline calibration or restore historical backups to unlock your personalized training dashboard.',
@@ -721,6 +756,11 @@ export const en: Translations = {
     resultError: 'Error'
   },
   trainingLoad: {
+    acwrValue: "(ACWR: {value})",
+    optimalRangeLabel: "Optimal ({min} - {max} ACWR)",
+    maintainingRangeLabel: "Maintaining ({min} - {max})",
+    recoveryRangeLabel: "Recovery (< {max})",
+    overreachingRangeLabel: "Overreaching (> {min})",
     loading: 'Calculating training load...',
     title: 'Training Load & Optimal Tunnel',
     subtitle: 'Scaled TRIMP: 7-day acute load vs. 28-day chronic baseline',

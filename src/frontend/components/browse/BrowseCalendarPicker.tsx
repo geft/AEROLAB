@@ -33,7 +33,7 @@ export const BrowseCalendarPicker: React.FC<BrowseCalendarPickerProps> = ({
   t,
   activities = []
 }) => {
-  const { formatDate, plural } = useTranslation();
+  const { formatDate, plural, format } = useTranslation();
   const [viewYearStr, viewMonthStr] = calendarViewYm.split('-');
   const viewYear = parseInt(viewYearStr, 10);
   const viewMonth = parseInt(viewMonthStr, 10) - 1; // 0-indexed
@@ -346,7 +346,7 @@ export const BrowseCalendarPicker: React.FC<BrowseCalendarPickerProps> = ({
                   cursor: 'pointer'
                 }}
               >
-                All in {monthLabel.split(' ')[0]} ({monthRunCount})
+                {format(t.browse.allInMonth, { month: formatDate(new Date(viewYear, viewMonth, 1), { month: 'long' }), count: monthRunCount })}
               </button>
             );
           })()}
@@ -376,9 +376,9 @@ export const BrowseCalendarPicker: React.FC<BrowseCalendarPickerProps> = ({
 
         <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.66rem', color: 'var(--text-muted)', opacity: 0.85 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ color: '#10b981' }}>● {t.tags?.easyBase || 'Base'}</span>
-            <span style={{ color: '#f59e0b' }}>● {t.tags?.threshold || 'Threshold'}</span>
-            <span style={{ color: '#a855f7' }}>● {t.tags?.vo2Max || 'VO2 Max'}</span>
+            <span style={{ color: '#10b981' }}>● {t.tags.easyBase}</span>
+            <span style={{ color: '#f59e0b' }}>● {t.tags.threshold}</span>
+            <span style={{ color: '#a855f7' }}>● {t.tags.vo2Max}</span>
           </span>
         </div>
       </div>

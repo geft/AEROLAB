@@ -5,7 +5,7 @@ import { PeriodProgressView } from './PeriodProgressView';
 import { ThresholdTrendsChart } from './ThresholdTrendsChart';
 import { EconomyGuideModal } from './EconomyGuideModal';
 import { VdotGuideModal } from './VdotGuideModal';
-import { formatPace, formatDate } from '../utils/formatters.js';
+import { formatPace } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { translateCalibrationNote, translateActivityName } from '../i18n/coachTranslator.js';
 import { getThresholds } from '../api/client.js';
@@ -25,15 +25,16 @@ interface ThresholdData {
 }
 
 export const ProgressView: React.FC = () => {
-  const { t, format, language } = useTranslation();
+  const { t, format, formatDate, language } = useTranslation();
 
   // Date.now() must not be called during render (react-hooks/purity), so capture a
   // stable "now" once per mount for the time-range fallback.
   const [mountedAt] = React.useState(() => Date.now());
   const [data, setData] = useState<ThresholdData | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [completedRequest, setCompletedRequest] = useState<number | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const loading = completedRequest !== retryCount;
   const [historyViewMode, setHistoryViewMode] = useState<'cards' | 'table'>('cards');
   const [calFilter, setCalFilter] = useState<'all' | 'lt1' | 'lt2' | 'race'>('all');
   const [isEconomyGuideOpen, setIsEconomyGuideOpen] = useState<boolean>(false);
@@ -42,20 +43,23 @@ export const ProgressView: React.FC = () => {
   const [visibleHistoryCount, setVisibleHistoryCount] = useState<number>(10);
 
   useEffect(() => {
-    setLoading(true);
-    setLoadError(false);
+    let cancelled = false;
     getThresholds()
       .then(resData => {
+        if (cancelled) return;
+        setLoadError(false);
         // The route always returns `latest`; the view's stricter local shape
         // mirrors that guarantee rather than the optional contract field.
         setData(resData as unknown as ThresholdData);
-        setLoading(false);
+        setCompletedRequest(retryCount);
       })
       .catch(err => {
+        if (cancelled) return;
         console.error('Failed to load thresholds:', err);
         setLoadError(true);
-        setLoading(false);
+        setCompletedRequest(retryCount);
       });
+    return () => { cancelled = true; };
   }, [retryCount]);
 
   // Deduplicate history entries by source_activity_id to eliminate repetitive rows
@@ -68,7 +72,7 @@ export const ProgressView: React.FC = () => {
       seen.add(key);
       return true;
     });
-  }, [data?.history]);
+  }, [data]);
 
   const filteredHistory = React.useMemo(() => {
     const typeFiltered = uniqueHistory.filter(h => {
@@ -163,8 +167,8 @@ export const ProgressView: React.FC = () => {
                 type="button"
                 onClick={() => setIsVdotGuideOpen(true)}
                 className="info-circle-btn"
-                title="What is VDOT & VO2 Max? View equivalent race paces"
-                aria-label="What is VDOT & VO2 Max?"
+                title={t.progress.vdotGuideTitle}
+                aria-label={t.progress.vdotGuideAria}
               >
                 ?
               </button>
@@ -187,8 +191,8 @@ export const ProgressView: React.FC = () => {
                 type="button"
                 onClick={() => setIsEconomyGuideOpen(true)}
                 className="info-circle-btn"
-                title="What is Running Economy? View benchmark tiers"
-                aria-label="What is Running Economy?"
+                title={t.progress.economyGuideTitle}
+                aria-label={t.progress.economyGuideAria}
               >
                 ?
               </button>
@@ -210,7 +214,7 @@ export const ProgressView: React.FC = () => {
           <ShieldCheck size={20} color="#10b981" />
           <div>
             <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              {t.progress.liveCalibrations}: LT1 @ {lt1Display} bpm • LT2 @ {data.zones?.z4?.[0] ?? data.currentThresholds?.lt2Hr ?? '—'} bpm
+              {t.progress.liveCalibrations}: {format(t.progress.liveCalibrationsValues, { lt1: lt1Display, lt2: data.currentThresholds?.lt2Hr ?? data.latest.lt2?.lt2_hr ?? '—' })}
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
               {t.progress.liveCalibrationsDesc}
@@ -242,7 +246,7 @@ export const ProgressView: React.FC = () => {
               <Award size={18} color="#06b6d4" />
               <span className="sidebar-title">{t.progress.benchmarksTitle}</span>
               <span className="calibration-count-badge">
-                {filteredHistory.length} of {uniqueHistory.length}
+                {format(t.progress.displayedCount, { shown: filteredHistory.length, total: uniqueHistory.length })}
               </span>
             </div>
             <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
@@ -272,7 +276,7 @@ export const ProgressView: React.FC = () => {
                 onClick={() => { setHistoryRange('12m'); setVisibleHistoryCount(20); }}
                 style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem', borderRadius: 6 }}
               >
-                12M
+                {format(t.common.monthsShort, { count: 12 })}
               </button>
               <button
                 className={`filter-pill-btn ${historyRange === 'all' ? 'active' : ''}`}
@@ -348,7 +352,7 @@ export const ProgressView: React.FC = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                       <Calendar size={14} color="#94a3b8" />
                       <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                        {formatDate(h.effective_date)}
+                        {formatDate(h.effective_date, { month: 'short', day: 'numeric', year: 'numeric' })}
                       </span>
                       <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>•</span>
                       <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
@@ -393,7 +397,7 @@ export const ProgressView: React.FC = () => {
                         <div className="calibration-metric-item">
                           <span className="calibration-metric-label">{t.progress.aerobicHrLabel}</span>
                           <span className="calibration-metric-val" style={{ color: '#10b981' }}>
-                            ~{h.lt1_hr || 136} <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>bpm</span>
+                            ~{h.lt1_hr ?? '—'} <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>bpm</span>
                           </span>
                         </div>
                       </>
@@ -409,7 +413,7 @@ export const ProgressView: React.FC = () => {
 
                   {h.notes && (
                     <div className="calibration-card-note">
-                      "{translateCalibrationNote(h.notes ?? '', language)}"
+                      {format(t.common.quotedText, { text: translateCalibrationNote(h.notes ?? '', language) })}
                     </div>
                   )}
                 </div>
@@ -440,7 +444,7 @@ export const ProgressView: React.FC = () => {
               <tbody>
                 {paginatedHistory.map((h, i) => (
                   <tr key={h.id || i}>
-                    <td><b>{formatDate(h.effective_date)}</b></td>
+                    <td><b>{formatDate(h.effective_date, { month: 'short', day: 'numeric', year: 'numeric' })}</b></td>
                     <td>{translateActivityName(h.activity_name || t.progressExtras.steadyCalibrationRun, language)}</td>
                     <td style={{ color: '#10b981', fontWeight: 600 }}>{formatPace(h.lt1_pace_sec_km)}</td>
                     <td>{h.lt1_hr ? `${h.lt1_hr} bpm` : '—'}</td>
@@ -454,7 +458,7 @@ export const ProgressView: React.FC = () => {
                 {filteredHistory.length === 0 && (
                   <tr>
                     <td colSpan={8} style={{ textAlign: 'center', color: '#64748b', padding: '2rem' }}>
-                      No threshold calibrations match the selected filter.
+                      {t.progress.noCalibrations}
                     </td>
                   </tr>
                 )}
