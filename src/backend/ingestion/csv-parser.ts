@@ -18,6 +18,10 @@ export interface ActivityMetadata {
 }
 
 export interface ActivityRecord {
+  /** Analysis-only timer state; never persisted over raw telemetry. */
+  timerActive?: boolean;
+  timerSegment?: number;
+  timerPauseSeconds?: number;
   timestamp: string;
   elapsedSeconds: number;
   heartRate: number | null;

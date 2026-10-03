@@ -49,12 +49,15 @@ export interface SplitLap {
 }
 
 type Movement = 'stop' | 'walk' | 'run';
-type SensorRecord = Pick<ActivityRecord, 'elapsedSeconds' | 'distanceMeters' | 'speedMps' | 'cadence' | 'heartRate' | 'stanceTime' | 'verticalOscillation'>;
+type SensorRecord = Pick<ActivityRecord, 'elapsedSeconds' | 'distanceMeters' | 'speedMps' | 'cadence' | 'heartRate' | 'stanceTime' | 'verticalOscillation' | 'timerActive' | 'timerSegment' | 'timerPauseSeconds'>;
 
 // Accept ingestion and stored-record field names at this existing API boundary.
 function normalize(records: any[]): SensorRecord[] {
   return (records ?? []).map(r => ({
     elapsedSeconds: r.elapsedSeconds ?? r.elapsed_seconds,
+    timerActive: r.timerActive,
+    timerSegment: r.timerSegment,
+    timerPauseSeconds: r.timerPauseSeconds,
     distanceMeters: r.distanceMeters ?? r.distance_m,
     speedMps: r.speedMps ?? r.speed_mps,
     cadence: r.cadence ?? r.cad,
@@ -150,6 +153,13 @@ export function extractSteadyStateMetrics(records: any[]): PauseBreakdown {
     }
   }
   finish();
+  // Timer pauses supply explicit stop duration even when no records were saved.
+  for (const record of records) {
+    if (record.timerPauseSeconds > 0) {
+      totals.stop += record.timerPauseSeconds;
+      if (record.timerPauseSeconds >= 3) stopCount++;
+    }
+  }
   const avg = (key: keyof typeof weights) => weights[key].seconds > 0 ? weights[key].sum / weights[key].seconds : null;
   const speed = runDistance > 0 && totals.run > 0 ? runDistance / totals.run : avg('speedMps');
   const round = (value: number | null, digits = 0) => value == null ? null : Number(value.toFixed(digits));

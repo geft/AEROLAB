@@ -4,6 +4,7 @@ import { calculateRunningHrExposure, EconomyMetrics } from '../physiology/econom
 import { DetectedInterval, inferWorkoutPrescription } from './interval-detector';
 import { getDefaultZones, getLt2TrainingBand, calculateZoneDistribution, recordDurationSeconds } from '../physiology/zones';
 import { continuousRaceEffort } from './continuous-effort.js';
+import { timeWeightedMean } from '../physiology/time-series.js';
 
 export type RunType = 'easy_base' | 'long_run' | 'threshold_lt2' | 'intervals_vo2' | 'race' | 'recovery';
 
@@ -64,7 +65,9 @@ export function classifyRun(
   profile?: AthleteHrProfile
 ): ClassificationResult {
   const durationMin = metadata.totalDurationSeconds / 60;
-  const avgHr = metadata.avgHeartRate;
+  const avgHr = records.some(record => (record.timerPauseSeconds ?? 0) > 0)
+    ? timeWeightedMean(records, r => r.elapsedSeconds, r => r.heartRate, hr => hr > 40 && hr <= 240) ?? metadata.avgHeartRate
+    : metadata.avgHeartRate;
 
   const profileWithMeta = profile ?? (metadata.maxHeartRate && metadata.maxHeartRate >= 100 ? { maxHr: metadata.maxHeartRate } : undefined);
   const { maxHr: effMax, restingHr: resting, lt1Hr: lt1, lt2Hr: lt2 } = resolveHeartRateProfile(profileWithMeta);

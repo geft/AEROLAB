@@ -1,6 +1,6 @@
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import type { ActivityRecord } from '../ingestion/csv-parser';
-import { MAX_OBSERVED_GAP_SECONDS } from './time-series.js';
+import { MAX_OBSERVED_GAP_SECONDS, sameTimerSegment } from './time-series.js';
 
 export interface HeartRateZones {
   z1: [number, number]; // Recovery (< 68% HRmax or < LT1 - 15)
@@ -102,6 +102,7 @@ export function calculateZoneDistribution(records: ActivityRecord[], zones: Hear
  * recording interval, or one second when that interval is unavailable.
  */
 export function recordDurationSeconds(records: Pick<ActivityRecord, 'elapsedSeconds'>[], index: number): number {
+  if (!sameTimerSegment(records[index], records[index + 1] ?? records[index])) return 0;
   const current = records[index].elapsedSeconds;
   const next = records[index + 1]?.elapsedSeconds;
   const seconds = next == null ? current - (records[index - 1]?.elapsedSeconds ?? current - 1) : next - current;

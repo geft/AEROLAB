@@ -1,6 +1,7 @@
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { inferWorkoutPrescription, type WorkoutPrescription } from '../../shared/prescription.js';
 import { ActivityRecord } from './csv-parser';
+import type { AnalysisLap } from './fit-analysis.js';
 import { MAX_OBSERVED_GAP_SECONDS, observedIntervals, timeDistribution, timeWeightedMean } from '../physiology/time-series.js';
 
 const time = (r: ActivityRecord) => r.elapsedSeconds;
@@ -78,6 +79,7 @@ export interface DetectedInterval {
 }
 
 export interface DetectIntervalsOptions {
+  laps?: AnalysisLap[];
   isRace?: boolean;
   lt1Hr?: number;
   lt2Hr?: number;
@@ -102,13 +104,13 @@ export function detectIntervals(
   const traces: ActivityRecord[][] = [];
   let trace: ActivityRecord[] = [];
   for (const record of records) {
-    if (!Number.isFinite(record.elapsedSeconds)) {
+    if (record.timerActive === false || !Number.isFinite(record.elapsedSeconds)) {
       if (trace.length) traces.push(trace);
       trace = [];
       continue;
     }
     const previous = trace.at(-1);
-    if (previous && (record.elapsedSeconds <= previous.elapsedSeconds || record.elapsedSeconds - previous.elapsedSeconds > MAX_OBSERVED_GAP_SECONDS)) {
+    if (previous && (record.timerSegment !== previous.timerSegment || record.elapsedSeconds <= previous.elapsedSeconds || record.elapsedSeconds - previous.elapsedSeconds > MAX_OBSERVED_GAP_SECONDS)) {
       traces.push(trace);
       trace = [];
     }
@@ -125,6 +127,9 @@ export function detectIntervals(
   if (options.isRace) {
     return detectRaceInterval(records, options);
   }
+
+  const lapIntervals = detectLapIntervals(records, options);
+  if (lapIntervals) return lapIntervals;
 
   const cadences = timeDistribution(records, time, r => r.cadence, v => v > 0);
   const hrs = timeDistribution(records, time, r => r.heartRate, v => v > 0);
@@ -551,6 +556,59 @@ function detectRaceInterval(records: ActivityRecord[], options: DetectIntervalsO
   return buildFinalIntervals(records, blocks);
 }
 
+/** Intensity labels describe structure, never physiological workout type.
+ * Require measured quality effort and explicit recovery/warmup/cooldown.
+ * Distance autolaps containing only active labels cannot create repetitions.
+ */
+function detectLapIntervals(records: ActivityRecord[], options: DetectIntervalsOptions): DetectedInterval[] | null {
+  if (!options.laps?.length) return null;
+  const { lt2Hr } = resolveHeartRateProfile(options);
+  const first = records[0].elapsedSeconds, last = records.at(-1)!.elapsedSeconds;
+  const candidates = options.laps.filter(lap => lap.end > first && lap.start < last)
+    .map(lap => ({ ...lap, start: Math.max(first, lap.start), end: Math.min(last, lap.end) })).map(lap => {
+    const startIndex = records.findIndex(record => record.elapsedSeconds >= lap.start);
+    let endIndex = records.findIndex(record => record.elapsedSeconds >= lap.end);
+    if (endIndex < 0) endIndex = records.length - 1;
+    const samples = records.slice(startIndex, endIndex + 1);
+    const duration = observedIntervals(samples, time).reduce((sum, interval) => sum + interval.seconds, 0);
+    const effort = lap.intensity === 'active' && duration >= 30 && mean(samples, r => r.cadence) >= 128;
+    const work = effort && mean(samples, r => r.heartRate) >= lt2Hr - 5;
+    return { lap, startIndex, endIndex, work, effort, duration };
+  });
+  const works = candidates.filter(candidate => candidate.work);
+  const explicitRecovery = (intensity: string) => ['rest', 'recovery'].includes(intensity);
+  const repeated = works.some((work, index) => index > 0 && candidates.some(candidate =>
+    candidate.lap.start >= works[index - 1].lap.end - 0.5 && candidate.lap.end <= work.lap.start + 0.5 &&
+    explicitRecovery(candidate.lap.intensity) && candidate.duration >= 30));
+  const sustained = works.length === 1 && works[0].duration >= 450 && candidates.some(candidate =>
+    ['warmup', 'cooldown'].includes(candidate.lap.intensity) && candidate.duration >= 30);
+  if (!repeated && !sustained) return null;
+  // Missing lap coverage falls back to telemetry rather than hiding unlabelled work.
+  if (!candidates.length || candidates[0].lap.start > first + 1 || candidates.at(-1)!.lap.end < last - 1 ||
+      candidates.some((candidate, index) => index > 0 && candidate.lap.start - candidates[index - 1].lap.end > 1)) return null;
+  // Once measured quality work validates the structure, keep lower-HR active
+  // reps too: missed stimulus/late fade must not disappear as recovery.
+  const strides = detectIntervals(records, { ...options, laps: undefined }).filter(interval => interval.type === 'stride');
+  const blocks: { type: 'work' | 'recovery' | 'stride'; startIndex: number; endIndex: number }[] = [];
+  for (const candidate of candidates) {
+    if (candidate.effort) {
+      blocks.push({ type: 'work', startIndex: candidate.startIndex, endIndex: candidate.endIndex });
+      continue;
+    }
+    let startIndex = candidate.startIndex;
+    for (const stride of strides.filter(stride => stride.startSeconds >= candidate.lap.start &&
+      stride.startSeconds + stride.durationSeconds <= candidate.lap.end)) {
+      const strideStart = records.findIndex(record => record.elapsedSeconds >= stride.startSeconds);
+      const strideEnd = records.findIndex(record => record.elapsedSeconds >= stride.startSeconds + stride.durationSeconds);
+      if (strideStart > startIndex) blocks.push({ type: 'recovery', startIndex, endIndex: strideStart });
+      blocks.push({ type: 'stride', startIndex: strideStart, endIndex: strideEnd });
+      startIndex = strideEnd;
+    }
+    if (startIndex < candidate.endIndex) blocks.push({ type: 'recovery', startIndex, endIndex: candidate.endIndex });
+  }
+  return buildFinalIntervals(records, blocks);
+}
+
 function buildFinalIntervals(
   records: ActivityRecord[],
   blocks: { type: 'work' | 'recovery' | 'stride'; startIndex: number; endIndex: number }[]
@@ -625,6 +683,17 @@ function buildFinalIntervals(
         avgVertRatio = Number((voInMm / (avgStepLength * 10)).toFixed(1));
       }
     }
+    const measuredStep = timeWeightedMean(recs, time, r => r.stepLength, value => value > 0 && value < 3);
+    const measuredRatio = timeWeightedMean(recs, time, r => r.verticalRatio, value => value > 0 && value < 30);
+    if (measuredStep !== null) {
+      avgStepLength = Number(measuredStep.toFixed(2));
+      avgStrideLength = Number((measuredStep * 2).toFixed(2));
+      if (avgVo && measuredRatio === null) {
+        const voInMm = avgVo < 25 ? avgVo * 10 : avgVo;
+        avgVertRatio = Number((voInMm / (measuredStep * 10)).toFixed(1));
+      }
+    }
+    if (measuredRatio !== null) avgVertRatio = Number(measuredRatio.toFixed(1));
 
     let hrDrop: number | undefined;
     if (block.type === 'recovery' && durSec >= 3) {

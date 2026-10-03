@@ -6,6 +6,8 @@ AEROLAB decodes FIT directly with Garmin's pinned FIT SDK. It retains the origin
 
 Records retain running power, cadence fractions, vertical ratio, ground-contact balance, step length, respiration, core temperature, and developer/unknown fields when available. Additional messages include laps, timer events, workout prescriptions, device information, RR interval arrays, zones, user profile, training effect, and recorded workout feeling/RPE. RR arrays retain the preceding timestamp for synchronization; they are not converted into invented per-second samples. Absent sensor metrics remain null.
 
+Classification uses timer events to exclude paused effort and validated lap structure to refine work/recovery boundaries. Measured step length and vertical ratio refine interval summaries. See [FIT telemetry and classification](fit-classification.md) for safeguards, replay behavior, and the review of other available telemetry.
+
 **Export CSV** remains available for AI analysis. Exports contain a `FIT Metadata` JSON comment with the additional messages and units, plus quoted JSON cells for custom record data. GCT uses milliseconds, vertical oscillation millimetres, step length metres, and cadence total steps/minute including fractional cadence. FIT metadata's session/lap fields retain SDK units; their raw step lengths are millimetres and workout RPE is stored on Garmin's 0–100 encoding (divide by ten for 0–10).
 
 The optional sibling extension and AEROLAB vendor the identical `fit-core.mjs` with the same pinned SDK and ZIP dependencies. After editing the extension's canonical source, copy it to `src/backend/ingestion/fit-core.mjs`, run its build/tests, and verify parity:

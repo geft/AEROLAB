@@ -1,5 +1,5 @@
 import type { ActivityRecord } from './csv-parser.js';
-import { MAX_OBSERVED_GAP_SECONDS } from '../physiology/time-series.js';
+import { MAX_OBSERVED_GAP_SECONDS, sameTimerSegment } from '../physiology/time-series.js';
 
 interface Effort {
   start: number;
@@ -36,7 +36,7 @@ export function continuousRaceEffort(
     const record = records[i];
     const dt = records[i + 1].elapsedSeconds - record.elapsedSeconds;
     // Unobserved gaps cannot supply evidence of sustained intensity.
-    if (!Number.isFinite(dt) || dt <= 0 || dt > MAX_OBSERVED_GAP_SECONDS) {
+    if (!sameTimerSegment(record, records[i + 1]) || !Number.isFinite(dt) || dt <= 0 || dt > MAX_OBSERVED_GAP_SECONDS) {
       finish();
       continue;
     }

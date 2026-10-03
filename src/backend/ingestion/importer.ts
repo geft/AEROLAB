@@ -6,6 +6,7 @@ import { parseRunFit, isFitBuffer, isZipBuffer } from './fit-parser.js';
 import { calculateEconomy, calculateKmSplits } from '../physiology/economy.js';
 import { detectIntervals } from './interval-detector.js';
 import { classifyRun } from './classifier.js';
+import { prepareFitAnalysis } from './fit-analysis.js';
 import { buildSessionTags } from './session-tags.js';
 import { evaluateThresholdUpdate, getStridePaceAnchorSecKmAtDate, getHeartRateProfileAtDate } from '../physiology/threshold-tracker.js';
 import { realignDatabase } from '../db/realign.js';
@@ -122,23 +123,28 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
   // 2. Compute Physiology & Intervals
   const confirmed = existing ? db.prepare('SELECT manual_run_type, manual_failed_workout FROM activities WHERE id = ?').get(existing.id) as
     { manual_run_type: import('./classifier.js').RunType | null; manual_failed_workout: number | null } : undefined;
-  const economy = calculateEconomy(records);
-  const splits = calculateKmSplits(records, 1000);
+  const storedFit = existing && !parsed.fitMetadata ? db.prepare('SELECT metadata_json FROM activity_fit_details WHERE activity_id = ?')
+    .get(existing.id) as { metadata_json: string } | undefined : undefined;
+  const analysis = prepareFitAnalysis(records, parsed.fitMetadata ?? (storedFit ? JSON.parse(storedFit.metadata_json) : undefined));
+  const analysisRecords = analysis.records;
+  const economy = calculateEconomy(analysisRecords);
+  const splits = calculateKmSplits(analysisRecords, 1000);
   const hrProfile = getHeartRateProfileAtDate(db, metadata.date, existing?.id ?? metadata.id);
   const stridePaceAnchorSecKm = getStridePaceAnchorSecKmAtDate(db, metadata.date, existing?.id ?? metadata.id);
 
   const intervalOpts = {
+    laps: analysis.laps,
     lt1Hr: hrProfile.lt1Hr ?? undefined,
     lt2Hr: hrProfile.lt2Hr ?? undefined,
     stridePaceAnchorSecKm: stridePaceAnchorSecKm ?? undefined,
     maxHr: hrProfile.maxHr ?? undefined,
     restingHr: hrProfile.restingHr ?? undefined
   };
-  let intervals = detectIntervals(records, intervalOpts);
-  const classification = classifyRun(metadata, records, economy, intervals, hrProfile);
+  let intervals = detectIntervals(analysisRecords, intervalOpts);
+  const classification = classifyRun(metadata, analysisRecords, economy, intervals, hrProfile);
   const runType = confirmed?.manual_run_type || classification.runType;
   if (runType === 'race') {
-    intervals = detectIntervals(records, { ...intervalOpts, isRace: true });
+    intervals = detectIntervals(analysisRecords, { ...intervalOpts, isRace: true });
   }
 
   // 3. Compute Averages from records
@@ -240,7 +246,7 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
     workoutLon = Number((sumLon / targetRecords.length).toFixed(6));
   }
 
-  const initialTags = buildSessionTags(runType, records, intervals, hrProfile);
+  const initialTags = buildSessionTags(runType, analysisRecords, intervals, hrProfile);
 
   const pb = economy.pauseBreakdown;
 

@@ -359,6 +359,10 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
       const result = realignDatabase(db);
       if (result.activitiesFailed.length > 0) throw new Error(`${result.activitiesFailed.length} activities failed recovery-HRR reanalysis`);
     });
+    if (!deferDerivedMigrations) migrations.run('fit-structure-v1', () => {
+      const result = realignDatabase(db);
+      if (result.activitiesFailed.length > 0) throw new Error(`${result.activitiesFailed.length} activities failed FIT-structure reanalysis`);
+    });
   } catch (err: any) {
     // Migrations are non-fatal so a bad row cannot block startup, but the failure
     // must be visible — this previously swallowed errors silently (see audit).

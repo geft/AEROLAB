@@ -1,12 +1,18 @@
 /** Adjacent observed intervals only. Never infer evidence across recording gaps. */
 export const MAX_OBSERVED_GAP_SECONDS = 15;
 
+export function sameTimerSegment(a: unknown, b: unknown): boolean {
+  const from = a as { timerActive?: boolean; timerSegment?: number };
+  const to = b as { timerActive?: boolean; timerSegment?: number };
+  return from.timerActive !== false && to.timerActive !== false && from.timerSegment === to.timerSegment;
+}
+
 export function observedIntervals<T>(records: T[], time: (record: T) => number) {
   const intervals: Array<{ a: T; b: T; from: number; to: number; seconds: number }> = [];
   for (let i = 1; i < records.length; i++) {
     const a = records[i - 1], b = records[i];
     const from = time(a), to = time(b), seconds = to - from;
-    if (Number.isFinite(from) && Number.isFinite(to) && seconds > 0 && seconds <= MAX_OBSERVED_GAP_SECONDS) {
+    if (sameTimerSegment(a, b) && Number.isFinite(from) && Number.isFinite(to) && seconds > 0 && seconds <= MAX_OBSERVED_GAP_SECONDS) {
       intervals.push({ a, b, from, to, seconds });
     }
   }

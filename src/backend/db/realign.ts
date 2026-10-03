@@ -1,6 +1,7 @@
 import { getAthleteHeartRateProfile } from '../physiology/athlete-profile.js';
 import { detectIntervals } from '../ingestion/interval-detector.js';
 import { classifyRun } from '../ingestion/classifier.js';
+import { prepareFitAnalysis } from '../ingestion/fit-analysis.js';
 import { buildSessionTags } from '../ingestion/session-tags.js';
 import { calculateEconomy, calculateKmSplits } from '../physiology/economy.js';
 import { evaluateThresholdUpdate, getCurrentThresholds, getStridePaceAnchorSecKmAtDate, getHeartRateProfileAtDate } from '../physiology/threshold-tracker.js';
@@ -38,7 +39,14 @@ function mapRecords(rows: any[]): any[] {
     longitude: r.lon,
     temperature: r.temp,
     verticalOscillation: r.vert_osc,
-    stanceTime: r.stance_time
+    stanceTime: r.stance_time,
+    stepLength: r.step_length_m,
+    verticalRatio: r.vertical_ratio,
+    stanceTimeBalance: r.stance_time_balance,
+    power: r.power_w,
+    respirationRate: r.respiration_rate,
+    coreTemperature: r.core_temperature_c,
+    fractionalCadence: r.fractional_cadence
   }));
 }
 
@@ -133,10 +141,14 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
       }
       const rebuilt = db.transaction(() => {
         db.prepare("DELETE FROM physiological_thresholds WHERE source_activity_id = ? AND source_kind = 'workout'").run(act.id);
-        const mapped = mapRecords(records);
+        const rawMapped = mapRecords(records);
+        const storedFit = db.prepare('SELECT metadata_json FROM activity_fit_details WHERE activity_id = ?').get(act.id) as { metadata_json: string } | undefined;
+        const analysis = prepareFitAnalysis(rawMapped, storedFit ? JSON.parse(storedFit.metadata_json) : undefined);
+        const mapped = analysis.records;
         const hrProfile = getHeartRateProfileAtDate(db, act.start_time);
         const stridePaceAnchorSecKm = getStridePaceAnchorSecKmAtDate(db, act.start_time);
         const intervalOptions = {
+          laps: analysis.laps,
           lt1Hr: hrProfile?.lt1Hr ?? undefined,
           lt2Hr: hrProfile?.lt2Hr ?? undefined,
           stridePaceAnchorSecKm: stridePaceAnchorSecKm ?? undefined,
@@ -199,7 +211,10 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
             steady_pace_sec_km = ?,
             steady_heart_rate = ?,
             steady_cadence = ?,
-            steady_stance_time = ?
+            steady_stance_time = ?,
+            pause_duration_seconds = ?,
+            walk_duration_seconds = ?,
+            walk_distance_meters = ?
           WHERE id = ?
         `).run(
           runType,
@@ -212,6 +227,9 @@ export function realignDatabase(db: any, options: RealignOptions = {}): RealignS
           economy.steadyHeartRate,
           economy.steadyCadence,
           economy.steadyStanceTimeMs,
+          economy.pauseBreakdown?.stopDurationSeconds ?? 0,
+          economy.pauseBreakdown?.walkDurationSeconds ?? 0,
+          economy.pauseBreakdown?.walkDistanceMeters ?? 0,
           act.id
         );
 
