@@ -1,5 +1,5 @@
 import { coachingRecord, coachingInterval, coachingSplit, type CoachingRecord, type CoachingRecordInput, type CoachingIntervalInput, type CoachingSplitInput } from '../../domain/coaching/telemetry.js';
-import { sameTimerSegment, MAX_OBSERVED_GAP_SECONDS } from '../time-series.js';
+import { sameTimerSegment, MAX_OBSERVED_GAP_SECONDS, observedIntervals } from '../time-series.js';
 import { coachMessage, coachDescription, coachJoin } from '../../domain/coaching/messages.js';
 import type { CoachMessage } from '../../../shared/coaching.js';
 import { category, finding } from '../../domain/coaching/vocabulary.js';
@@ -468,62 +468,65 @@ export function intensityAudit(
   opts: { lt1Hr: number }
 ): IntensityAudit | null {
   const records = recordInput?.map(coachingRecord);
-  if (!records || records.length < 30) return null;
-  const samples: Array<{ t: number; hr: number; segment: number }> = [];
-  let segment = 0;
-  let previous: CoachingRecord | undefined;
+  if (!records || records.length < 2) return null;
   const hasCadence = records.some(r => (r.cadence ?? 0) > 50);
+  const eligible = (r: CoachingRecord) => r.heartRate != null && Number.isFinite(r.heartRate)
+    && r.heartRate > 40 && (!hasCadence || (r.cadence ?? 0) >= WALK_CADENCE_MAX);
+  const intervals = observedIntervals(records, r => r.elapsedSeconds)
+    .filter(i => eligible(i.a) && eligible(i.b));
+  const total = intervals.reduce((sum, i) => sum + i.seconds, 0);
+  if (total < 30) return null;
 
-  for (const r of records) {
-    if (previous && (!sameTimerSegment(previous, r) || r.elapsedSeconds - previous.elapsedSeconds > MAX_OBSERVED_GAP_SECONDS || r.elapsedSeconds <= previous.elapsedSeconds)) segment++;
-    previous = r;
-    if (r.timerActive === false) continue;
-    const hr = r.heartRate ?? 0;
-    if (!hr || hr <= 40) continue;
-    const cad = r.cadence ?? 0;
-    // Running samples only: walking to control heart rate is deliberate, and a
-    // stationary pause at 170 bpm is not an execution failure either.
-    if (hasCadence && cad < WALK_CADENCE_MAX) continue;
-    samples.push({ t: r.elapsedSeconds, hr, segment });
+  // Integrate HR within contiguous running evidence. Pauses, walking, missing
+  // sensors and gaps fence smoothing within 60 seconds on either side.
+  const blocks: typeof intervals[] = [];
+  for (const interval of intervals) {
+    const block = blocks.at(-1);
+    if (block?.at(-1)?.b === interval.a) block.push(interval);
+    else blocks.push([interval]);
   }
-  if (samples.length < 30) return null;
-
-  // Smooth heart rate over 60 s before binning: sustained time in a band is what
-  // matters, and beat-to-beat jitter around a compliant average (or a 3 s spike
-  // over the ceiling) must not create or erase an execution failure.
-  const SMOOTHING_WINDOW_SEC = 60;
-  const smoothed = samples.map((s, i) => {
-    let sum = 0;
-    let n = 0;
-    for (let j = i; j >= 0 && samples[j].segment === s.segment && samples[i].t - samples[j].t <= SMOOTHING_WINDOW_SEC; j--) {
-      sum += samples[j].hr;
-      n++;
-    }
-    for (let j = i + 1; j < samples.length && samples[j].segment === s.segment && samples[j].t - samples[i].t <= SMOOTHING_WINDOW_SEC; j++) {
-      sum += samples[j].hr;
-      n++;
-    }
-    return { t: s.t, hr: n > 0 ? sum / n : s.hr };
-  });
-
   const lt1 = opts.lt1Hr;
-  const half = smoothed[Math.floor(smoothed.length / 2)].t;
+  const half = total / 2;
   let aboveEarly = 0, aboveLate = 0, highEarly = 0, highLate = 0, earlySec = 0, lateSec = 0;
-
-  for (const s of smoothed) {
-    const isEarly = s.t <= half;
-    if (isEarly) earlySec++;
-    else lateSec++;
-    if (s.hr > lt1) {
-      if (isEarly) aboveEarly++;
-      else aboveLate++;
-    } else if (s.hr >= lt1 - HIGH_Z2_BAND_BPM) {
-      if (isEarly) highEarly++;
-      else highLate++;
+  let activeSeconds = 0;
+  for (const block of blocks) {
+    const prefix = [0];
+    for (const i of block) prefix.push(prefix.at(-1)! + (i.a.heartRate! + i.b.heartRate!) / 2 * i.seconds);
+    const start = block[0].from, end = block.at(-1)!.to;
+    const integral = (at: number): number => {
+      if (at <= start) return 0;
+      if (at >= end) return prefix.at(-1)!;
+      let lo = 0, hi = block.length - 1;
+      while (lo < hi) {
+        const mid = Math.floor((lo + hi) / 2);
+        if (block[mid].to < at) lo = mid + 1;
+        else hi = mid;
+      }
+      const i = block[lo], seconds = at - i.from;
+      const hr = i.a.heartRate! + (i.b.heartRate! - i.a.heartRate!) * seconds / i.seconds;
+      return prefix[lo] + (i.a.heartRate! + hr) / 2 * seconds;
+    };
+    // Time-based quadrature keeps band decisions independent of record density.
+    // The final fractional second is retained, and halves split active HR time.
+    for (let from = start; from < end;) {
+      const seconds = Math.min(1, end - from, activeSeconds < half ? half - activeSeconds : Infinity);
+      const midpoint = from + seconds / 2;
+      const left = Math.max(start, midpoint - 60), right = Math.min(end, midpoint + 60);
+      const hr = (integral(right) - integral(left)) / (right - left);
+      const early = activeSeconds < half;
+      if (early) earlySec += seconds;
+      else lateSec += seconds;
+      if (hr > lt1) {
+        if (early) aboveEarly += seconds;
+        else aboveLate += seconds;
+      } else if (hr >= lt1 - HIGH_Z2_BAND_BPM) {
+        if (early) highEarly += seconds;
+        else highLate += seconds;
+      }
+      from += seconds;
+      activeSeconds += seconds;
     }
   }
-
-  const total = Math.max(1, earlySec + lateSec);
   const pct = (n: number, d: number) => (d > 0 ? Number(((n / d) * 100).toFixed(1)) : 0);
 
   return {

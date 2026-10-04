@@ -69,7 +69,7 @@ describe('Coaching telemetry boundaries', () => {
   it('excludes stopped high heart rate even when cadence remains elevated', () => {
     const records = Array.from({ length: 60 }, (_, i) => record(i));
     records.push(...Array.from({ length: 60 }, (_, i) => ({ ...record(i + 60, 190), timerActive: false })));
-    expect(intensityAudit(records, { lt1Hr: 148 })).toMatchObject({ sampledSec: 60, aboveCeilingPct: 0 });
+    expect(intensityAudit(records, { lt1Hr: 148 })).toMatchObject({ sampledSec: 59, aboveCeilingPct: 0 });
   });
 
   it('does not smooth heart rate across timer segments or recording gaps', () => {
