@@ -2,27 +2,68 @@
 
 ## Recommendation
 
-Undertake a substantial, staged refactor of analysis ownership and contracts. Keep the existing local application, React frontend, Express backend, worker threads, and single SQLite database. The evidence supports reorganizing responsibilities within this architecture; it does not justify replacing the stack or rewriting the application.
+The main analysis-ownership and coaching-protocol refactor is implemented. The recording-density correction, economy input typing and lightweight dependency-boundary checks are now implemented. Keep the existing local application, React frontend, Express backend, worker threads, and single SQLite database.
 
-The highest-value first change is one workout-analysis pipeline shared by import and replay, with explicit normalized telemetry and historical fitness inputs. Next, give edits and recomputation one policy for invalidating dependent history. Folder moves and component extraction should follow those behavioral boundaries.
+Import and replay now share workout analysis, edits share history invalidation, and coaching uses structured identifiers. Further module extraction should follow concrete ownership needs; the illustrative folder layout below is not a requirement to move every file.
 
 The original audit reviewed the working tree, including pending background-import work, rather than only committed HEAD. The evidence and line references below describe that initial inspection. The status notes record subsequent implementation checkpoints, including this follow-up; verification is recorded separately below.
 
 ## Completion status
 
-Updated October 3 for the follow-up implementation checkpoint. Earlier commit IDs remain historical checkpoints; the additions below describe the implementation included with this update.
+Rechecked October 3 against `919932a` and the current source. This includes the tempo/classification checkpoint `eaa4587`, storage/snapshot checkpoint `996a020`, and audit follow-up `919932a`. Concurrent source edits and generated `data/` / `output/` artifacts are outside this documentation update. Earlier verification counts are historical results, not checks rerun for this document-only review.
 
 | Finding | Implemented work | Remaining work | Status |
 | --- | --- | --- | --- |
-| 1. Analysis context | Shared pipeline plus timer/gap-aware load, calibration, coaching, query fallbacks, shared speed repair and historical detail-chart thresholds | Independent physiological validation of the corrected timer policy | Implementation addressed; validation scope noted below |
-| 2. History invalidation | Existing transactional history coordinator plus transactional weather invalidation of edited/later coaching | No automatic weather fetching added | Addressed |
+| 1. Analysis context | Shared pipeline plus timer/gap-aware load, calibration, coaching, query fallbacks, shared speed repair and historical detail-chart thresholds | Independent physiological validation remains unperformed | Timer and recording-density policies addressed |
+| 2. History invalidation | Existing transactional history coordinator plus transactional weather invalidation of edited/later coaching | None in the documented change matrix; automatic weather fetching is outside scope | Addressed |
 | 3. Coaching protocol | IDs and nested parameters for headlines, advice, insights, descriptions and focus; dictionary-owned Chinese templates; legacy text fallback | No open implementation item | Addressed |
-| 4. Typed boundaries | Canonical row adapters and segment persistence, shared DTOs, validated JSON, classifier evidence; explicitly typed coaching compatibility adapters and canonical calculations | Legacy field spellings remain supported at compatibility entry points | Addressed |
+| 4. Typed boundaries | Canonical row adapters and segment persistence, shared DTOs, validated JSON, classifier evidence; explicitly typed coaching compatibility adapters and canonical calculations | None in the documented implementation scope | Addressed, including economy inputs and dependency guards |
 | 5. Migration ownership | Ordered schema/derived registries, grouped equivalent algorithm upgrades, persisted revision and historical-profile/telemetry provenance | Distinct historical data migrations intentionally retain their separate checkpoints | Addressed |
 | 6. Writer coordination | Shared operation ownership for workers, storage, weather and analysis; service guards; worker reservations held through exit; stored detail summaries with explicit freshness | Coordinator is process-local, consistent with the application's single-server architecture | Addressed |
-| 7. Frontend/CSS structure | Browse selection/detail, import, stats and period-progress controllers; feature types/selectors; common invalidation; ordered CSS split | Reviewed baselines refreshed; mobile test uses current sample sliders | Addressed |
+| 7. Frontend/CSS structure | Browse selection/detail, import, stats and period-progress controllers; feature types/selectors; common invalidation; ordered CSS split; reviewed baselines and current mobile range controls | No open frontend implementation item identified in this recheck | Addressed |
 
-The original evidence below describes the pre-refactor code. The listed implementation follow-ups are addressed. Independent physiological validation and performance benchmarking remain outside this source-structure audit.
+The previous implementation checklist is complete, but that does not close every acceptance criterion in the broader roadmap. The latest follow-up and remaining external validation are listed below. Original evidence and line references later in this document describe the pre-refactor code and must not be read as present-day defects.
+
+## Latest follow-up implementation
+
+### P2 — Weight coaching intensity by observed duration
+
+At the source recheck, `src/backend/physiology/coaching/evidence.ts:487` required 30 samples. Its binning at `:513` increments early/late counters once per sample, and `:528` returns their sum as `sampledSec`. Timer and gap boundaries are respected, but recording density still controls coverage and the percentages presented as running time.
+
+A read-only `tsx` check using the same two-minute constant-HR run produced `sampledSec: 120` with one-second records and `null` with five-second records. This demonstrates a coverage difference; unequal-density percentage distortion follows from the counters, but was not separately measured in this review.
+
+- [x] Use active observed interval durations for coverage, band percentages and temporal halves; make smoothing time-aware while preserving timer/gap fences.
+- [x] Add equivalent one-second, five-second and irregular-recording fixtures, including stopped segments and gaps. Verify meaningful durations and comparable results rather than identical sample counts.
+
+This is a numerical correction and should be reviewed separately from module moves. The persisted revision is now `coaching-duration-v1`; the matching migration joins the existing atomic grouped refresh. A reopen regression verifies persisted revision and one-time refresh.
+
+### P2 — Finish economy input typing
+
+At the source recheck, `src/backend/physiology/economy.ts:55` normalized `any[]`, and `:131` exposed `extractSteadyStateMetrics(records: any[])`. It also imported `ActivityRecord` through the CSV parser compatibility export at `:1`, although the canonical type now lives in `domain/telemetry.ts`. These were the remaining entry points at the source recheck; the follow-up now uses `EconomyRecordInput` and the canonical domain import, and validates migration rows through the existing row adapter.
+
+- [x] Define explicit legacy-compatible economy input types, normalize them at the entry point, and import the canonical domain telemetry type directly.
+- [x] Preserve missing-sensor, snake_case compatibility, timer/gap and numerical behavior with the existing economy/split fixtures.
+
+Legacy field spellings are supported compatibility, not a reason to rename the public API.
+
+### P3 — Enforce the established dependency boundaries
+
+The original roadmap requested lightweight import-boundary checks. The source recheck found no architecture import guard. The follow-up adds `architecture/dependency-boundaries` to the existing lint workflow, with regression tests for imports, re-exports, dynamic imports and type-only imports.
+
+- [x] Add checks preventing domain-to-SQLite/HTTP/jobs imports, shared-to-application imports, and feature-child imports of page/controller modules for common types.
+- [x] Include type-only imports in the policy explicitly and enforce the checks in the existing verification workflow.
+
+### Optional structural cleanup
+
+`physiology/threshold-tracker.ts` still combines evidence evaluation, SQLite reads/writes, historical selection, rolling estimates and profile-cache updates (`evaluateThresholdUpdate` at `:281`, `computeRollingThresholds` at `:717`). `physiology/training-load.ts` combines pure activity-load calculation with the database-backed `calculateTrainingStatus` query at `:150`. These are remaining seams from the proposed boundaries, not demonstrated calculation defects. Extract them only when their callers or future changes justify the additional modules.
+
+## Remaining validation
+
+- [x] Rebuild desktop/backend and snapshot targets and run packaged smoke checks against the latest code before release; earlier packaged results below predate the final coaching and snapshot-loading changes.
+- [x] Exercise the exported snapshot browser workflow for the latest combined checkpoint; the 19-test app visual suite does not include the separate `tests/visual-snapshot` project.
+- [ ] Obtain independent physiological validation of timer/gap and scoring policies if making physiological-accuracy claims.
+
+Performance benchmarking and coverage measurement were not rerun in this source recheck. They are validation opportunities, not evidence of a performance or coverage regression.
 
 ## What already works structurally
 
@@ -37,7 +78,7 @@ The original evidence below describes the pre-refactor code. The listed implemen
 
 ### 1. P1 — Analysis context is assembled independently and reaches only some consumers
 
-**Status:** shared preparation now reaches load, calibration, coaching and query fallbacks; speed repair and historical detail thresholds share named policies. See completion status above.
+**Status:** shared preparation now reaches load, calibration, coaching and query fallbacks; speed repair and historical detail thresholds share named policies. Recording-density handling in coaching intensity is addressed by the duration follow-up above.
 
 **Evidence:** `ingestion/importer.ts:130` prepares FIT-aware analysis, then calculates economy, splits, intervals, and classification from the annotated records. `db/realign.ts:149` assembles essentially the same pipeline. Import-time training load (`importer.ts:256`) and calibration (`importer.ts:409`) receive raw records. Replay passes annotated records to those functions. `physiology/coach-summary.ts:611` loads raw SQLite telemetry and extracts steady-state metrics without rebuilding FIT timer state. `physiology/profile-recompute.ts` also loads only time/HR columns.
 
@@ -77,7 +118,7 @@ Use plain unions and explicit functions; a configurable rules framework is unnec
 
 ### 4. P2 — Typed boundaries still permit multiple competing representations
 
-**Status:** canonical telemetry rows, shared segment persistence, concrete DTOs, persisted classifier evidence and explicitly typed coaching adapters are implemented. Calculations use normalized camelCase fields.
+**Status:** canonical telemetry rows, shared segment persistence, concrete DTOs, persisted classifier evidence and explicitly typed coaching adapters are implemented. Economy compatibility inputs and automated import guards are also implemented by the latest follow-up.
 
 **Evidence:** normalized `ActivityRecord` belongs to `ingestion/csv-parser.ts`, although FIT analysis and physiology consume it. `db/realign.ts:32` has an independent `any[]` record mapper and an `any` database argument. Rubric helpers (`coach-rubric.ts:187`) accept both snake_case and camelCase through `any`. Backend shared detail contracts (`shared/activity-detail.ts`) expose open index signatures and `unknown` scoring fields, while `frontend/types/api.ts` separately defines more specific splits, intervals, records, coach summaries, and detail responses.
 
@@ -214,8 +255,20 @@ The follow-up adds regression checks for stopped FIT heart rate in load/coaching
 
 Desktop and snapshot-template builds and the packaged backend smoke test pass. The build still emits the existing CommonJS `import.meta` warnings. TypeScript, zero-warning lint, all 1,146 tests across 109 files, and all 810 dictionary-key references pass. A subsequent DTO validation tightening is covered by focused contract, coaching, API and snapshot regression checks.
 
-The visual suite reports 6 passes and 13 failures both before and after the CSS split. An isolated HEAD checkout reproduced the desktop Browse baseline mismatch and the mobile accessibility test's missing button selector. Eleven of twelve comparable pre/post-split screenshots are pixel-identical; the remaining chart canvas differs by about 0.25% of pixels, below its 1% comparison tolerance. CSS extraction preserved every rule and source order. Existing snapshots were not rewritten. This verifies the stylesheet extraction narrowly; it does not certify the entire existing visual suite.
+At the earlier CSS-extraction checkpoint, the visual suite reported 6 passes and 13 failures both before and after the split. An isolated HEAD checkout reproduced the desktop Browse baseline mismatch and the mobile accessibility test's missing button selector. Eleven of twelve comparable pre/post-split screenshots were pixel-identical; the remaining chart canvas differed by about 0.25% of pixels, below its 1% comparison tolerance. CSS extraction preserved every rule and source order. Snapshots were not rewritten at that checkpoint. This verified the stylesheet extraction narrowly; the later baseline repair is recorded below.
 
 The follow-up refreshed the reviewed component baselines after the layout changes and replaced the obsolete SVG-button assertions with the current period and threshold range controls. The complete visual suite now passes 19 tests across desktop, mobile and tablet projects. The full repository suite passes 1,174 tests across 113 files; TypeScript, zero-warning lint, and the unused-key check for all 816 dictionary keys also pass.
 
 No selected workout database was migrated or edited during this work; database verification used disposable fixtures. No performance benchmark or independent physiological validation was performed.
+
+This documentation recheck inspected the current source, migration revision, compatibility adapters, lint policy and test inventory, and reproduced the coaching recording-density coverage difference with an in-memory input. `git diff --check` passed. No application source was changed and the full test/build suites were not rerun for this documentation-only update.
+
+## Duration and dependency follow-up verification — October 3, 2026
+
+Coaching intensity now integrates adjacent active running intervals and smooths piecewise-linear HR using time-weighted integrals within contiguous evidence blocks. Coverage requires 30 observed seconds rather than 30 records. Band classification uses one-second midpoint quadrature with fractional endpoints retained; halves split observed running HR duration. Stops, walking, missing/nonfinite HR, timer changes and recording gaps fence both coverage and smoothing. One-second, five-second and irregular fixtures agree for a linear-HR trace and separated constant-HR blocks. This verifies recording-density behavior, not independent physiological accuracy.
+
+Economy accepts explicitly typed camelCase and legacy snake_case sensor inputs; absent sensor values retain their prior behavior. Domain and shared import boundaries and feature-child dependencies are enforced by ESLint, including type-only dependencies.
+
+TypeScript and zero-warning lint pass, and all 816 dictionary keys are referenced. The full suite passed 1,201 tests across 115 files; the subsequently added migration-reopen regression passed in the 13-test focused migration suite. Desktop/backend, snapshot-template and exported snapshot builds pass. Packaged backend smoke passes, and both snapshot-browser tests pass, including first-load offline caching and mobile read-only navigation. Builds retain the pre-existing CommonJS `import.meta` warnings. Snapshot verification used the existing exported snapshot; no selected workout database was changed. Concurrent snapshot/chart edits in the working tree are included in these combined verification results, but are outside this follow-up's implementation scope.
+
+Optional module extraction and independent physiological validation remain as documented above. No performance benchmark or coverage measurement was added.

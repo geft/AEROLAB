@@ -1,5 +1,6 @@
 import { migrateCompression } from '../compression.js';
 import { loadAnalysisRecords } from '../analysis-records.js';
+import { activityRecordFromRow } from '../rows.js';
 import type Database from 'better-sqlite3';
 import { getAthleteHeartRateProfile } from '../../physiology/athlete-profile.js';
 import { extractSteadyStateMetrics, calculateEconomy } from '../../physiology/economy.js';
@@ -137,7 +138,7 @@ export function runDerivedMigrations(db: Database.Database, migrations: Runner):
     for (const act of unbackfilledSteady) {
       const records = db.prepare('SELECT * FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC').all(act.id);
       if (records.length > 0) {
-        const bd = extractSteadyStateMetrics(records);
+        const bd = extractSteadyStateMetrics(records.map(activityRecordFromRow));
         db.prepare(`
           UPDATE activities SET
             steady_pace_sec_km = ?,

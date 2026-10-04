@@ -1,4 +1,4 @@
-import { ActivityRecord } from '../ingestion/csv-parser';
+import type { ActivityRecord } from '../domain/telemetry.js';
 import { distanceSeries } from './distance-series.js';
 import { observedIntervals } from './time-series.js';
 
@@ -50,20 +50,29 @@ export interface SplitLap {
 
 type Movement = 'stop' | 'walk' | 'run' | 'unknown';
 type SensorRecord = Pick<ActivityRecord, 'elapsedSeconds' | 'distanceMeters' | 'speedMps' | 'cadence' | 'heartRate' | 'stanceTime' | 'verticalOscillation' | 'timerActive' | 'timerSegment' | 'timerPauseSeconds'>;
+export type EconomyRecordInput = Partial<SensorRecord> & {
+  elapsed_seconds?: number | null;
+  distance_m?: number | null;
+  speed_mps?: number | null;
+  cad?: number | null;
+  heart_rate?: number | null;
+  stance_time?: number | null;
+  vert_osc?: number | null;
+};
 
 // Accept ingestion and stored-record field names at this existing API boundary.
-function normalize(records: any[]): SensorRecord[] {
+function normalize(records: EconomyRecordInput[]): SensorRecord[] {
   return (records ?? []).map(r => ({
-    elapsedSeconds: r.elapsedSeconds ?? r.elapsed_seconds,
+    elapsedSeconds: r.elapsedSeconds ?? r.elapsed_seconds ?? NaN,
     timerActive: r.timerActive,
     timerSegment: r.timerSegment,
     timerPauseSeconds: r.timerPauseSeconds,
-    distanceMeters: r.distanceMeters ?? r.distance_m,
-    speedMps: r.speedMps ?? r.speed_mps,
-    cadence: r.cadence ?? r.cad,
-    heartRate: r.heartRate ?? r.heart_rate,
-    stanceTime: r.stanceTime ?? r.stance_time,
-    verticalOscillation: r.verticalOscillation ?? r.vert_osc
+    distanceMeters: r.distanceMeters ?? r.distance_m ?? null,
+    speedMps: r.speedMps ?? r.speed_mps ?? null,
+    cadence: r.cadence ?? r.cad ?? null,
+    heartRate: r.heartRate ?? r.heart_rate ?? null,
+    stanceTime: r.stanceTime ?? r.stance_time ?? null,
+    verticalOscillation: r.verticalOscillation ?? r.vert_osc ?? null
   }));
 }
 const finite = (v: number | null | undefined, floor = 0): v is number => v != null && Number.isFinite(v) && v > floor;
@@ -160,7 +169,7 @@ export function calculateRunningHrExposure(records: ActivityRecord[], ceilingHr:
 }
 
 /** Pauses and walking are classified before integration, using original adjacent records. */
-export function extractSteadyStateMetrics(records: any[]): PauseBreakdown {
+export function extractSteadyStateMetrics(records: EconomyRecordInput[]): PauseBreakdown {
   const evidence = runningEvidence(normalize(records));
   const totals = { stop: 0, walk: 0, run: 0, unknown: 0 };
   let runDistance = 0, walkDistance = 0, stopCount = 0, walkCount = 0;
@@ -187,7 +196,7 @@ export function extractSteadyStateMetrics(records: any[]): PauseBreakdown {
   finish();
   // Timer pauses supply explicit stop duration even when no records were saved.
   for (const record of records) {
-    if (record.timerPauseSeconds > 0) {
+    if (record.timerPauseSeconds != null && record.timerPauseSeconds > 0) {
       totals.stop += record.timerPauseSeconds;
       if (record.timerPauseSeconds >= 3) stopCount++;
     }
