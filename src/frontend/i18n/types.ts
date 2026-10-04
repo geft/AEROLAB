@@ -635,6 +635,8 @@ export interface Translations {
     fitZipOnly: string;
     /** Fallback per-file error when an upload fails with an unmapped code. */
     importFailed: string;
+    importFailedReason: string;
+    errorOverrides: Record<string, string>;
     dupTip: string;
     /** Plural copy for the number of skipped duplicate files. */
     skippedFiles: PluralForms;

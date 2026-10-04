@@ -7,6 +7,32 @@ import * as importJob from '../../src/frontend/utils/import-job.js';
 import type { ImportJobStatus } from '../../src/shared/import-job.js';
 
 describe('UploadModal Multi-File UI Component Tests', () => {
+  it('shows the server reason when a whole import job is rejected', async () => {
+    vi.spyOn(importJob, 'uploadImportJob').mockRejectedValue(new Error('Invalid file count'));
+    const onUploadSuccess = vi.fn();
+    render(<UploadModal isOpen={true} onClose={vi.fn()} onUploadSuccess={onUploadSuccess} />);
+    fireEvent.change(document.querySelector('input[type="file"]')!, { target: {
+      files: Array.from({ length: 9 }, (_, index) => new File(['data'], `run${index}.fit`))
+    } });
+    await waitFor(() => expect(screen.getAllByText('Import failed: Invalid file count').length).toBeGreaterThan(0));
+    expect(screen.getByText('Batch Ingestion Failed')).toBeTruthy();
+    expect(onUploadSuccess).not.toHaveBeenCalled();
+  });
+
+  it('keeps per-file decoding reasons when other files import successfully', async () => {
+    vi.spyOn(importJob, 'uploadImportJob').mockResolvedValue([
+      { status: 'error', error: 'FIT checksum mismatch' },
+      ...Array.from({ length: 8 }, () => ({ status: 'imported' as const })),
+    ]);
+    render(<UploadModal isOpen={true} onClose={vi.fn()} onUploadSuccess={vi.fn()} />);
+    fireEvent.change(document.querySelector('input[type="file"]')!, { target: {
+      files: Array.from({ length: 9 }, (_, index) => new File(['data'], `run${index}.fit`))
+    } });
+    await waitFor(() => expect(screen.getByText('Import failed: FIT checksum mismatch')).toBeTruthy());
+    expect(screen.getByText(/run0\.fit/)).toBeTruthy();
+    expect(screen.getByText('Batch Ingestion Completed with Warnings')).toBeTruthy();
+  });
+
   it('changes the phase label while keeping overall progress monotonic', async () => {
     let report!: (status: ImportJobStatus) => void;
     let finish!: (results: []) => void;
@@ -166,7 +192,7 @@ describe('UploadModal Multi-File UI Component Tests', () => {
       expect(screen.getByText(/batch ingestion failed/i)).toBeTruthy();
       expect(screen.getByText(/error details/i)).toBeTruthy();
       expect(screen.getByText(/failed_run\.fit/i)).toBeTruthy();
-      expect(screen.getByText(/request could not be completed/i)).toBeTruthy();
+      expect(screen.getByText(/UNIQUE constraint failed: activities.id/i)).toBeTruthy();
       expect(screen.getByText(/retry with overwrite/i)).toBeTruthy();
     });
 

@@ -1170,6 +1170,18 @@ export const zh: Translations = {
     batchFailed: '批量导入失败',
     fitZipOnly: '请上传 FIT 或 Garmin 活动 ZIP 文件。每个 ZIP 必须包含一个 FIT 活动。',
     importFailed: '导入失败。',
+    importFailedReason: '导入失败：{reason}',
+    errorOverrides: {
+      'Invalid file count': '文件数量无效。请选择至少一个文件。',
+      'Database is busy': '数据库正在处理其他任务，请稍后重试。',
+      'Network request failed': '无法连接本地服务，请确认 AEROLAB 正在运行后重试。',
+      'Invalid JSON response': '本地服务返回了无效响应，请重试。',
+      'FIT checksum mismatch': 'FIT 文件校验失败，文件可能已损坏，请重新从 Garmin 导出。',
+      'Invalid FIT file length': 'FIT 文件长度无效，文件可能不完整，请重新从 Garmin 导出。',
+      'Not a valid FIT file (signature mismatch)': '文件不是有效的 FIT 文件。',
+      'Import job has missing files': '部分文件尚未上传，请重新选择文件并重试。',
+      'Import worker stopped before completion': '导入进程提前停止，请重试。',
+    },
     dupTip: '💡 提示：该训练已存在于数据库中。勾选“强制覆盖并重新计算”选项以替换。',
     skippedFiles: {
       one: 'ℹ️ 已跳过 {count} 个已有训练记录。如需重新计算并覆盖，请点击下方的“强制覆盖并重试”。',

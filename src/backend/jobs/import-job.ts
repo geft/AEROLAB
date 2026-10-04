@@ -54,7 +54,8 @@ export function getImportJob(id: string): ImportJobStatus { return { ...find(id)
 export async function createImportJob(databasePath: string, totalFiles: number, force: boolean): Promise<ImportJobStatus> {
   if (active(job) || currentDatabaseOperation()) throw new Error('Database is busy');
   if (databasePath === ':memory:') throw new Error('Background imports require a file database');
-  if (!Number.isInteger(totalFiles) || totalFiles < 1 || totalFiles > 2000) throw new Error('Invalid file count');
+  // Upload chunks and decoded files are bounded independently of the job count.
+  if (!Number.isSafeInteger(totalFiles) || totalFiles < 1) throw new Error('Invalid file count');
   const value: Job = { status: { jobId: randomUUID(), phase: 'uploading', completed: 0, total: totalFiles, uploaded: 0, totalFiles },
     directory: '', databasePath, force, files: [], staging: false };
   // Reserve synchronously before the first await, so two requests cannot start jobs.

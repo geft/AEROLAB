@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type Database from 'better-sqlite3';
 import { getDatabase, closeDatabase, openDatabase } from '../../src/backend/db/client.js';
 import { createServer } from '../../src/backend/server.js';
-import { getImportJob, cancelImportJob } from '../../src/backend/jobs/import-job.js';
+import { createImportJob, getImportJob, cancelImportJob } from '../../src/backend/jobs/import-job.js';
 import { importParsedRun } from '../../src/backend/ingestion/importer.js';
 import { parseRunFit } from '../../src/backend/ingestion/fit-parser.js';
 import { realignDatabase } from '../../src/backend/db/realign.js';
@@ -62,6 +62,24 @@ describe('background import jobs with real decoding workers', () => {
     }
     throw new Error('Import job timed out');
   }
+
+  it('accepts full export jobs above 2,000 files while keeping staging chunks bounded', async () => {
+    const id = await start(7820);
+    expect(getImportJob(id)).toMatchObject({ phase: 'uploading', totalFiles: 7820, uploaded: 0 });
+    const file = { filename: 'run.fit', content: runFit(1, 140).toString('base64') };
+    expect((await request(app).post(`/api/ingest/jobs/${id}/files`).send({ files: Array(9).fill(file) })).status).toBe(400);
+    expect(getImportJob(id).uploaded).toBe(0);
+    expect((await request(app).post(`/api/ingest/jobs/${id}/files`).send({ files: [file] })).status).toBe(200);
+    expect(getImportJob(id).uploaded).toBe(1);
+    expect(db.prepare('SELECT COUNT(*) n FROM activities').get()).toEqual({ n: 0 });
+  });
+
+  it('rejects invalid file counts in both the route and job service', async () => {
+    for (const totalFiles of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      expect((await request(app).post('/api/ingest/jobs').send({ totalFiles })).status).toBe(400);
+      await expect(createImportJob(db.name, totalFiles, false)).rejects.toThrow('Invalid file count');
+    }
+  });
 
   it('decodes out of order, replays the whole job once, and matches serial analysis', async () => {
     const files = [3, 1, 2].map(day => ({ filename: `${day}.fit`, content: runFit(day, day === 1 ? 170 : 153).toString('base64') }));

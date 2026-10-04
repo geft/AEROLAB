@@ -578,6 +578,8 @@ export const en: Translations = {
     batchFailed: 'Batch Ingestion Failed',
     fitZipOnly: 'Please upload FIT or Garmin activity ZIP files. Each ZIP must contain one FIT activity.',
     importFailed: 'Import failed.',
+    importFailedReason: 'Import failed: {reason}',
+    errorOverrides: {},
     dupTip: '💡 Tip: This activity already exists in the database. Enable the "Overwrite / re-calculate" option to replace it.',
     skippedFiles: {
       one: 'ℹ️ {count} file was skipped because the workout already exists in your database. Click "Retry with Overwrite" below if you wish to re-calculate and overwrite existing data.',

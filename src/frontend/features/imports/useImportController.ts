@@ -8,7 +8,7 @@ import { useTranslation } from '../../i18n/LanguageContext.js';
 import type { UploadModalProps, BatchSummary, FileError } from './types.js';
 
 export function useImportController(onClose: UploadModalProps['onClose'], onUploadSuccess: UploadModalProps['onUploadSuccess']) {
-  const { t } = useTranslation();
+  const { t, format } = useTranslation();
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<{ current: number; total: number; currentFileName: string; label: string; percent: number } | null>(null);
@@ -19,6 +19,13 @@ export function useImportController(onClose: UploadModalProps['onClose'], onUplo
   const [, setLastUploadedFiles] = useState<File[]>([]);
   const [lastSingleActivityId, setLastSingleActivityId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const importErrorMessage = (err: unknown) => {
+    const reason = err instanceof Error ? err.message : '';
+    return reason
+      ? format(t.upload.importFailedReason, { reason: t.upload.errorOverrides[reason] ?? reason })
+      : apiErrorMessage(t, err, t.upload.importFailed);
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -75,7 +82,7 @@ export function useImportController(onClose: UploadModalProps['onClose'], onUplo
         skippedDetails.push({ filename, reason: t.upload.nonRunCard });
       } else {
         errors++;
-        errorDetails.push({ filename, error: t.upload.importFailed });
+        errorDetails.push({ filename, error: result.error ? importErrorMessage(new Error(result.error)) : t.upload.importFailed });
       }
     };
 
@@ -92,7 +99,9 @@ export function useImportController(onClose: UploadModalProps['onClose'], onUplo
         results.forEach((result, index) => acceptResult(result, validFiles[index].name));
       } catch (err) {
         errors = validFiles.length;
-        validFiles.forEach(file => errorDetails.push({ filename: file.name, error: apiErrorMessage(t, err, t.upload.importFailed) }));
+        const message = importErrorMessage(err);
+        setError(message);
+        validFiles.forEach(file => errorDetails.push({ filename: file.name, error: message }));
       }
     } else {
 
@@ -120,7 +129,7 @@ export function useImportController(onClose: UploadModalProps['onClose'], onUplo
           if (item.status === 'fulfilled') payloads.push(item.value);
           else {
             errors++;
-            errorDetails.push({ filename: batch[index].name, error: apiErrorMessage(t, item.reason, t.upload.importFailed) });
+            errorDetails.push({ filename: batch[index].name, error: importErrorMessage(item.reason) });
           }
         });
         try {
@@ -132,7 +141,7 @@ export function useImportController(onClose: UploadModalProps['onClose'], onUplo
           }
         } catch (err) {
           errors += payloads.length;
-          payloads.forEach(file => errorDetails.push({ filename: file.filename, error: apiErrorMessage(t, err, t.upload.importFailed) }));
+          payloads.forEach(file => errorDetails.push({ filename: file.filename, error: importErrorMessage(err) }));
         }
         i += batch.length;
       }

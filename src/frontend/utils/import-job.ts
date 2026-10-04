@@ -39,7 +39,7 @@ export async function uploadImportJob(files: File[], force: boolean, onProgress:
       const payload: Array<{ filename: string; content: string }> = [];
       prepared.forEach((item, offset) => {
         if (item.status === 'fulfilled') { payload.push(item.value); stagedIndices.push(index + offset); }
-        else results[index + offset] = { status: 'error' };
+        else results[index + offset] = { status: 'error', error: item.reason instanceof Error ? item.reason.message : undefined };
       });
       if (payload.length) onProgress(await stageImportJob(job.jobId, payload));
       index += batch.length;

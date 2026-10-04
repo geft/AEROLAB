@@ -13,7 +13,7 @@ import { createImportJob, getImportJob, stageImportFiles, finishImportJob, cance
 export const ingestRouter = Router();
 
 ingestRouter.post('/jobs', async (req, res) => {
-  if (!Number.isInteger(req.body?.totalFiles) || req.body.totalFiles < 1 || req.body.totalFiles > 2000) return res.status(400).json({ error: 'Invalid file count' });
+  if (!Number.isSafeInteger(req.body?.totalFiles) || req.body.totalFiles < 1) return res.status(400).json({ error: 'Invalid file count' });
   try {
     return res.status(201).json(await createImportJob(getDatabase().name, req.body.totalFiles, Boolean(req.body.force)));
   } catch (error) {

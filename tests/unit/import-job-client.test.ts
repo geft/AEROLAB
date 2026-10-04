@@ -44,7 +44,7 @@ describe('whole-job upload client', () => {
     mockStart();
     vi.mocked(api.finishImportJob).mockResolvedValue(status('complete', [{ status: 'imported' }]));
     expect(await uploadImportJob([file('bad.fit', true), file('good.fit')], false, vi.fn()))
-      .toEqual([{ status: 'error' }, { status: 'imported' }]);
+      .toEqual([{ status: 'error', error: 'unreadable' }, { status: 'imported' }]);
     expect(api.finishImportJob).toHaveBeenCalledWith('job', 1);
     expect(api.stageImportJob).toHaveBeenCalledWith('job', [{ filename: 'good.fit', content: btoa('data') }]);
   });
@@ -66,7 +66,7 @@ describe('whole-job upload client', () => {
 
   it('cancels without processing if none of the selected files can be read', async () => {
     mockStart();
-    expect(await uploadImportJob([file('bad.fit', true)], false, vi.fn())).toEqual([{ status: 'error' }]);
+    expect(await uploadImportJob([file('bad.fit', true)], false, vi.fn())).toEqual([{ status: 'error', error: 'unreadable' }]);
     expect(api.cancelImportJob).toHaveBeenCalledWith('job');
     expect(api.finishImportJob).not.toHaveBeenCalled();
   });
