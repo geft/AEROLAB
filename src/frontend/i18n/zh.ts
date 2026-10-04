@@ -243,6 +243,7 @@ export const zh: Translations = {
     coachContextDecoupling: '心率漂移排名 {rank}/{total}',
     coachContextLongest: '{days} 天内最长距离',
     coachCategoryOverrides: {
+      "sustained_intensity": "持续训练强度",
   "running_turnover": "步频运转",
   "aerobic_intensity": "有氧强度",
   "workout_completion": "课表完成度",
@@ -259,6 +260,12 @@ export const zh: Translations = {
   "autonomic_recovery": "自主神经恢复"
 },
     coachFindingOverrides: {
+      "controlled_upper_aerobic_work": "稳定的上有氧强度训练",
+      "mixed_upper_aerobic_work": "上有氧强度不稳定",
+      "missed_upper_aerobic_work": "未达到上有氧强度",
+      "steady_sustained_pacing": "持续训练配速稳定",
+      "uneven_sustained_pacing": "持续训练配速不均匀",
+      "volatile_sustained_pacing": "持续训练配速波动较大",
   "optimal_cadence_sweet_spot": "最佳步频甜点区",
   "adequate_turnover": "步频尚可",
   "sub_optimal_cadence_turnover": "步频运转偏慢",
@@ -305,6 +312,16 @@ export const zh: Translations = {
   "drifting_into_high_zone_2": "漂移至 2 区上部"
 },
     coachMessageOverrides: {
+      "description.sustained_completion": "{count} 个记录训练段 · 训练段内步行 {seconds} 秒。不包括热身和放松，未验证计划训练时长。",
+      "category.sustained_intensity": "持续训练强度",
+      "description.sustained_intensity": "在有心率记录的 {minutes} 分钟训练段中，{pct}% 的时间高于 LT1（{lower} bpm）且低于 LT2 区间（{upper} bpm）。此项评估上有氧训练执行情况，未验证是否符合计划马拉松配速。",
+      "description.sustained_pacing": "训练段内 {count} 个跑步公里分段的配速变异为 {pct}%，不包括热身和放松。",
+      "finding.controlled_upper_aerobic_work": "稳定的上有氧强度训练",
+      "finding.mixed_upper_aerobic_work": "上有氧强度不稳定",
+      "finding.missed_upper_aerobic_work": "未达到上有氧强度",
+      "finding.steady_sustained_pacing": "持续训练配速稳定",
+      "finding.uneven_sustained_pacing": "持续训练配速不均匀",
+      "finding.volatile_sustained_pacing": "持续训练配速波动较大",
       "weather.0": "晴朗",
       "weather.1": "大致晴朗",
       "weather.2": "局部多云",

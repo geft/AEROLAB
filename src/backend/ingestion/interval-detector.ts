@@ -159,14 +159,24 @@ export function detectIntervals(
   const isRunningCadence = (c: number) => c >= 128;
   const avgRunningHr = mean(records, r => isRunningCadence(r.cadence ?? 0) ? r.heartRate : null);
 
+  // A long work block can occupy the middle 60% of a generic recording: the
+  // usual 20th percentile then lands in cooldown, hiding the warmup contrast.
+  // Use a running-only lower tail for sustained sessions, so walks/stops cannot
+  // manufacture this contrast. Brief surges retain the existing detector.
+  const runningSpeeds = timeDistribution(records, time, r =>
+    isRunningCadence(r.cadence ?? 0) ? r.speedMps : null, v => v > 0.5);
+  const sustainedLowSpeed = runningSpeeds.quantile(0.10);
+  const sustainedContrast = runningSpeeds.seconds >= 30 * 60 && avgRunningHr > athleteLt1 &&
+    runningSpeeds.quantile(0.85) - sustainedLowSpeed >= 0.6;
+
   // Speed contrast between work and recovery
-  const hasSpeedContrast = movingSpeeds.seconds > 30 && (
+  const hasSpeedContrast = sustainedContrast || movingSpeeds.seconds > 30 && (
     p85Spd - p50Spd >= 0.5 ||
     p85Spd - p20Spd >= 0.6 ||
     (p50Spd > 0 && (p85Spd - p50Spd) / p50Spd >= 0.18)
   );
   // Threshold sits between recovery pace and work pace
-  const workSpeedThreshold = (p85Spd + p20Spd) / 2;
+  const workSpeedThreshold = (p85Spd + (sustainedContrast ? Math.min(p20Spd, sustainedLowSpeed) : p20Spd)) / 2;
 
   // Cadence contrast between work and recovery (relative to athlete's cadence distribution)
   const hasCadenceContrast = (p90Cad - p20Cad >= 18) || (p90Cad - p50Cad >= 12);
@@ -374,7 +384,7 @@ export function detectIntervals(
       prev && prev.type === 'work' &&
       next && next.type === 'work' &&
       dur <= 60 &&
-      prevDur >= 150 &&
+      (prevDur >= 150 || (prevDur >= 60 && nextDur >= 1200 && blockRecs.every(r => (r.cadence ?? 0) >= 128))) &&
       (nextDur >= 150 || (dur <= 20 && nextDur >= 60 &&
         blockRecs.every(r => (r.cadence ?? 0) >= 128))) &&
       hrDrop < 15;
@@ -436,10 +446,21 @@ export function detectIntervals(
     // cooldown can itself be a work-shaped block when cadence stays elevated;
     // including it in the reference would make the cooldown redefine the set.
     const fastestSustainedSpeed = sustainedSpeeds[sustainedSpeeds.length - 1] ?? 0;
+    // One dominant continuous effort also establishes a set. Its slow, high-
+    // cadence cooldown must not become the second anchor used to prune itself.
+    const dominant = [...sustainedCandidates].sort((a, b) =>
+      (records[b.endIndex].elapsedSeconds - records[b.startIndex].elapsedSeconds) -
+      (records[a.endIndex].elapsedSeconds - records[a.startIndex].elapsedSeconds))[0];
+    const workSeconds = workBlocks.reduce((sum, b) => sum + records[b.endIndex].elapsedSeconds - records[b.startIndex].elapsedSeconds, 0);
+    const dominantSeconds = dominant ? records[dominant.endIndex].elapsedSeconds - records[dominant.startIndex].elapsedSeconds : 0;
+    const continuous = dominantSeconds >= 1200 && dominantSeconds >= workSeconds * 0.6;
+    const anchorHr = continuous ? mean(records.slice(dominant.startIndex, dominant.endIndex + 1), r => r.heartRate) : 0;
+    const speedRatio = continuous ? 0.9 : 0.85;
+    const anchorSpeed = continuous ? mean(records.slice(dominant.startIndex, dominant.endIndex + 1), r => r.speedMps) : fastestSustainedSpeed;
     const sustained = sustainedCandidates.filter(b => {
       const recs = records.slice(b.startIndex, b.endIndex + 1);
       const avgSpeed = mean(recs, r => r.speedMps);
-      return fastestSustainedSpeed <= 0 || avgSpeed >= fastestSustainedSpeed * 0.85;
+      return anchorSpeed <= 0 || avgSpeed >= anchorSpeed * speedRatio;
     });
     const referenceSpeed = sustained.length > 0
       ? sustained.reduce((sum, b) => {
@@ -452,12 +473,25 @@ export function detectIntervals(
 
     const pruned: RawBlock[] = [];
     for (const b of validBlocks) {
+      // A modest late slowdown with sustained/rising HR is not evidence of
+      // cooldown. Keep it in work so fatigue cannot disappear from assessment.
+      if (continuous && b.type === 'recovery' && b.startIndex > lastWork) {
+        const blockRecs = records.slice(b.startIndex, b.endIndex + 1);
+        const duration = records[b.endIndex].elapsedSeconds - records[b.startIndex].elapsedSeconds;
+        const runningSeconds = timeDistribution(blockRecs, time, r => r.cadence, v => v >= 128).seconds;
+        if (duration >= 180 && runningSeconds >= duration * 0.9 &&
+            mean(blockRecs, r => r.heartRate) >= anchorHr && mean(blockRecs, r => r.speedMps) >= referenceSpeed * 0.85) {
+          pruned.push({ ...b, type: 'work' });
+          continue;
+        }
+      }
       if (b.type === 'work') {
         const blockRecs = records.slice(b.startIndex, b.endIndex + 1);
         const avgHr = mean(blockRecs, r => r.heartRate);
         const avgSpeed = mean(blockRecs, r => r.speedMps);
-        const outsideSet = sustained.length >= 2 && (b.endIndex < firstWork || b.startIndex > lastWork);
-        if (outsideSet && referenceSpeed > 0 && avgSpeed < referenceSpeed * 0.85 && avgHr < athleteLt2 - 5) {
+        const outsideSet = (continuous || sustained.length >= 2) && (b.endIndex < firstWork || b.startIndex > lastWork);
+        const recoveringHr = !continuous || avgHr < anchorHr - 5;
+        if (outsideSet && referenceSpeed > 0 && avgSpeed < referenceSpeed * speedRatio && avgHr < athleteLt2 - 5 && recoveringHr) {
           pruned.push({ ...b, type: 'recovery' });
           continue;
         }

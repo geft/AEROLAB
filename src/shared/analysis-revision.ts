@@ -1,5 +1,5 @@
 /** Bump when a persisted analysis policy changes; upgrades refresh history once. */
-export const ANALYSIS_REVISION = 'classification-telemetry-v1';
+export const ANALYSIS_REVISION = 'sustained-work-v1';
 export interface AnalysisFreshness {
   revision: string | null;
   status: 'fresh' | 'stale' | 'missing' | 'updating';

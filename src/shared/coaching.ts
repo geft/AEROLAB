@@ -1,6 +1,7 @@
 import { COACH_DYNAMIC_MESSAGE_IDS } from './coach-dynamic-messages.js';
 /** Stable machine identifiers; English presentation is owned by the backend. */
 export const COACH_CATEGORY_IDS = [
+  'sustained_intensity',
   'running_turnover',
   'aerobic_intensity',
   'workout_completion',
@@ -18,6 +19,12 @@ export const COACH_CATEGORY_IDS = [
 ] as const;
 export type CoachCategoryId = typeof COACH_CATEGORY_IDS[number];
 export const COACH_FINDING_IDS = [
+  'controlled_upper_aerobic_work',
+  'mixed_upper_aerobic_work',
+  'missed_upper_aerobic_work',
+  'steady_sustained_pacing',
+  'uneven_sustained_pacing',
+  'volatile_sustained_pacing',
   'optimal_cadence_sweet_spot',
   'adequate_turnover',
   'sub_optimal_cadence_turnover',

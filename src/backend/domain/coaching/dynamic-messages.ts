@@ -1,5 +1,15 @@
 import type { CoachDynamicMessageId } from '../../../shared/coach-dynamic-messages.js';
 export const DYNAMIC_MESSAGE_TEXT: Record<CoachDynamicMessageId, string> = {
+  "description.sustained_completion": "{count} recorded work blocks · {seconds}s of walking inside the work blocks. Warmup and cooldown excluded; planned duration is not verified.",
+  "category.sustained_intensity": "Sustained Work Intensity",
+  "description.sustained_intensity": "{pct}% of {minutes} observed work minutes above LT1 ({lower} bpm) and below the LT2 band ({upper} bpm). This assesses upper-aerobic execution; planned marathon-pace adherence is not verified.",
+  "description.sustained_pacing": "{pct}% pace variation across {count} running kilometre segments inside the work blocks; warmup and cooldown excluded.",
+  "finding.controlled_upper_aerobic_work": "Controlled Upper-Aerobic Work",
+  "finding.mixed_upper_aerobic_work": "Mixed Upper-Aerobic Work",
+  "finding.missed_upper_aerobic_work": "Missed Upper-Aerobic Work",
+  "finding.steady_sustained_pacing": "Steady Sustained Pacing",
+  "finding.uneven_sustained_pacing": "Uneven Sustained Pacing",
+  "finding.volatile_sustained_pacing": "Volatile Sustained Pacing",
   "insight.incomplete_aborted_quality_effort_target_interval_volume_was": "⚠️ Incomplete / Aborted Quality Effort: Target interval volume was cut short or pace collapsed. Re-evaluate fatigue levels before your next hard effort.",
   "fragment.m_s": "{p0}m {p1}s",
   "fragment.s": "{p0}s",

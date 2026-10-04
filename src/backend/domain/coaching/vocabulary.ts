@@ -1,6 +1,7 @@
 import type { CoachCategoryId, CoachFindingId, CoachingFactor } from '../../../shared/coaching.js';
 
 export const CATEGORY_TEXT: Record<CoachCategoryId, string> = {
+  "sustained_intensity": "Sustained Work Intensity",
   "running_turnover": "Running Turnover",
   "aerobic_intensity": "Aerobic Intensity",
   "workout_completion": "Workout Completion",
@@ -17,6 +18,12 @@ export const CATEGORY_TEXT: Record<CoachCategoryId, string> = {
   "autonomic_recovery": "Autonomic Recovery"
 };
 export const FINDING_TEXT: Record<CoachFindingId, string> = {
+  "controlled_upper_aerobic_work": "Controlled Upper-Aerobic Work",
+  "mixed_upper_aerobic_work": "Mixed Upper-Aerobic Work",
+  "missed_upper_aerobic_work": "Missed Upper-Aerobic Work",
+  "steady_sustained_pacing": "Steady Sustained Pacing",
+  "uneven_sustained_pacing": "Uneven Sustained Pacing",
+  "volatile_sustained_pacing": "Volatile Sustained Pacing",
   "optimal_cadence_sweet_spot": "Optimal Cadence Sweet Spot",
   "adequate_turnover": "Adequate Turnover",
   "sub_optimal_cadence_turnover": "Sub-Optimal Cadence Turnover",

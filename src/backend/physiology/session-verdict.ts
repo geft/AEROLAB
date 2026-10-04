@@ -5,6 +5,12 @@ import { identifyLegacyFactor } from '../domain/coaching/vocabulary.js';
 // Use the engine's purpose-specific findings, never its aggregate score.
 // Form, cadence, economy and weather observations do not change the verdict.
 const findings: Partial<Record<CoachFindingId, Exclude<SessionVerdict, 'insufficient_evidence'>>> = {
+  'controlled_upper_aerobic_work': 'on_track',
+  'mixed_upper_aerobic_work': 'some_deviation',
+  'missed_upper_aerobic_work': 'off_target',
+  'steady_sustained_pacing': 'on_track',
+  'uneven_sustained_pacing': 'some_deviation',
+  'volatile_sustained_pacing': 'off_target',
   'disciplined_aerobic_ceiling': 'on_track',
   'clearly_easy': 'on_track',
   'normal_easy': 'on_track',
@@ -51,9 +57,12 @@ export function sessionVerdict(input: {
   runType: string;
 }): SessionVerdict {
   if (input.isFailedWorkout || input.isAccidentalTempo) return 'off_target';
-  // These session types need a dedicated target model; LT2 is not their target.
-  if (['strides', 'tempo', 'marathon_pace'].includes(input.runType)) return 'insufficient_evidence';
-  const primary = input.runType === 'threshold_lt2' ? ['threshold_zone_time']
+  // Strides still need a dedicated target model. Sustained work is assessed
+  // against observed upper-aerobic execution, not a prescribed marathon pace.
+  if (input.runType === 'strides') return 'insufficient_evidence';
+  const sustained = ['tempo', 'marathon_pace'].includes(input.runType);
+  const primary = sustained ? ['sustained_intensity', 'pacing_consistency']
+    : input.runType === 'threshold_lt2' ? ['threshold_zone_time']
     : input.family === 'aerobic' ? ['aerobic_intensity']
     : input.family === 'quality' ? ['pacing_discipline', 'interval_execution']
       : ['race_pacing_execution', 'race_finish_execution'];
@@ -62,7 +71,7 @@ export function sessionVerdict(input: {
   if (!primary.every(categoryId => factors.some(f => f.categoryId === categoryId && f.findingId && findings[f.findingId]))) {
     return 'insufficient_evidence';
   }
-  const relevant = new Set([...primary, 'workout_completion', ...(input.family === 'quality' && input.runType !== 'threshold_lt2' ? ['rep_to_rep_fatigue'] : [])]);
+  const relevant = new Set([...primary, 'workout_completion', ...(input.family === 'quality' && input.runType !== 'threshold_lt2' && !sustained ? ['rep_to_rep_fatigue'] : [])]);
   const verdicts = factors.filter(f => f.categoryId && relevant.has(f.categoryId)).map(f => f.findingId && findings[f.findingId]);
   if (verdicts.includes('off_target')) return 'off_target';
   if (verdicts.includes('some_deviation')) return 'some_deviation';

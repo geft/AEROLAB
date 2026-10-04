@@ -121,8 +121,13 @@ describe('Quality workout completion descriptions', () => {
     const completion = grade.factors.find(f => f.categoryId === 'workout_completion')!;
     expect(completion.label).toBe('Unbroken Session');
     expect(completion.points).toBe(completion.maxPoints);
-    expect(completion.description).toBe('2 work reps · no walking inside work reps');
-    expect(completion.descriptionMessage?.id).toBe('fragment.work_reps_no_walking_inside_work_reps');
+    if (runType === 'tempo') {
+      expect(completion.description).toBe('2 recorded work blocks · 0s of walking inside the work blocks. Warmup and cooldown excluded; planned duration is not verified.');
+      expect(completion.descriptionMessage?.id).toBe('description.sustained_completion');
+    } else {
+      expect(completion.description).toBe('2 work reps · no walking inside work reps');
+      expect(completion.descriptionMessage?.id).toBe('fragment.work_reps_no_walking_inside_work_reps');
+    }
   });
 
   it('retains walking duration and measured entry heart rate for interrupted work', () => {

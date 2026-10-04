@@ -5,6 +5,7 @@ import { coachMessage, coachDescription, coachJoin } from '../../domain/coaching
 import type { CoachMessage } from '../../../shared/coaching.js';
 import { category, finding } from '../../domain/coaching/vocabulary.js';
 import { getLt2TrainingBand } from '../zones.js';
+import { gradeSustained } from './sustained.js';
 import { RubricFactor, RubricInput, curve, band, coefficientOfVariation, INTERVAL_TYPE, intervalDuration, intervalHr, intervalMaxHr, WalkAudit, describeSet, walkSharePct, turnoverFactor, setFatigueDetail, intensityControlPoints } from './evidence.js';
 export function thresholdZoneShare(input: RubricInput): { pct: number; seconds: number; lower: number; upper: number } | null {
   const workWindows = (input.intervals || []).map(coachingInterval)
@@ -32,7 +33,8 @@ export function thresholdZoneShare(input: RubricInput): { pct: number; seconds: 
 export function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): RubricFactor[] {
   const factors: RubricFactor[] = [];
   const isThreshold = input.runType === 'threshold_lt2';
-  const isTempo = input.runType === 'tempo';
+  const isTempo = input.runType === 'tempo' || input.runType === 'marathon_pace';
+  if (isTempo) factors.push(...gradeSustained(input));
   const workReps = (input.intervals || []).map(coachingInterval).filter((i) => i.type === INTERVAL_TYPE.work);
 
   if (isThreshold) {
@@ -53,7 +55,7 @@ export function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): R
   const durationStats = coefficientOfVariation(durations);
   // Stride-length reps are too short for duration consistency to mean anything.
   const repsLongEnough = (describeSet(input.intervals)?.medianRepSec ?? 0) >= 20;
-  if (durationStats && repsLongEnough) {
+  if (!isTempo && durationStats && repsLongEnough) {
     const max = isThreshold ? 10 : 22;
     const cvPct = durationStats.cv * 100;
     const pts = curve(max, cvPct, 6, 25);
@@ -110,14 +112,14 @@ export function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): R
   }
 
   // 3. Form & efficiency: turnover and ground contact hold up under fatigue — 16 pts
-  const turnover = turnoverFactor(input, isThreshold ? 5 : 16);
+  const turnover = turnoverFactor(input, isTempo ? 10 : isThreshold ? 5 : 16);
   if (turnover) factors.push(turnover);
 
   // 4. Set fatigue: did the last work rep match the first? Tolerances scale with
   // the set's work time, and short reps are judged on pace only (HR lag makes
   // their average rise regardless of execution).
   const fatigue = setFatigueDetail(input);
-  if (fatigue.paceFadePct != null || (fatigue.gradeHr && fatigue.hrClimbPct != null)) {
+  if (!isTempo && (fatigue.paceFadePct != null || (fatigue.gradeHr && fatigue.hrClimbPct != null))) {
     const max = isThreshold ? 10 : 12;
     const pts = curve(max, fatigue.fatiguePct, fatigue.tolerancePct, fatigue.zeroPct);
 
@@ -159,6 +161,8 @@ export function gradeQuality(input: RubricInput, walkAudit: WalkAudit | null): R
     let description: CoachMessage;
     if (input.isFailedWorkout) {
       description = coachMessage("fragment.target_volume_was_cut_short_before_the_planned");
+    } else if (isTempo && walkAudit) {
+      description = coachMessage('description.sustained_completion', { count: workReps.length, seconds: walkAudit.intrusiveWalkSec });
     } else if (walkAudit) {
       if (walkAudit.intrusiveWalkSec === 0) {
         description = coachMessage("fragment.work_reps_no_walking_inside_work_reps", { p0: workReps.length });

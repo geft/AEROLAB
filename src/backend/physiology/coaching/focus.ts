@@ -25,6 +25,8 @@ export function buildFocusAdvice(factor: RubricFactor, input: RubricInput, walkA
   const workReps = (input.intervals || []).map(coachingInterval).filter((i) => i.type === INTERVAL_TYPE.work);
 
   switch (factor.categoryId) {
+    case 'sustained_intensity':
+      return coachMessage('advice.review_tempo_against_planned_target');
     case 'threshold_zone_time': {
       const zone = thresholdZoneShare(input);
       return coachMessage("focus.let_heart_rate_settle_near_the_lt2_anchor", { p0: prefix, p1: zone ? coachMessage("fragment.of_observed_work_rep_time_was_within_the", { p0: zone.pct.toFixed(1), p1: zone.lower, p2: zone.upper }) : coachMessage("fragment.threshold_zone_time_could_not_be_measured"), p2: tail });
@@ -57,6 +59,7 @@ export function buildFocusAdvice(factor: RubricFactor, input: RubricInput, walkA
     case 'running_turnover':
       return coachMessage("focus.spm_cost_the_most_execution_points_two_weekly", { p0: prefix, p1: input.steadyCadence, p2: tail });
     case 'pacing_consistency': {
+      if (['tempo', 'marathon_pace'].includes(input.runType)) return coachMessage('advice.review_tempo_against_planned_target');
       const pacing = pacingConsistency(input.records, input.splits, input.runType);
       const detail = pacing && pacing.source === 'records' ? coachMessage("fragment.your_running_pace_held_within_s_per_kilometre", { p0: Math.round(pacing.stdDevSec), p1: pacing.sampleCount }) : '';
       const trendNote = pacing && pacing.trendSecPerKm >= 6 ? coachMessage("fragment.the_steady_s_km_slowdown_through_the_run", { p0: pacing.trendSecPerKm.toFixed(1) }) : '';
