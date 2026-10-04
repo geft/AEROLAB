@@ -1,7 +1,7 @@
 import type { ClassificationEvidence, ClassificationRuleId } from '../../shared/contracts/classification.js';
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { ActivityMetadata, ActivityRecord } from './csv-parser';
-import { calculateRunningHrExposure, EconomyMetrics } from '../physiology/economy';
+import { createRunningHrExposureCalculator, EconomyMetrics } from '../physiology/economy';
 import { DetectedInterval, inferWorkoutPrescription } from './interval-detector';
 import { getDefaultZones, getLt2TrainingBand, calculateZoneDistribution, recordDurationSeconds } from '../physiology/zones';
 import { continuousRaceEffort } from './continuous-effort.js';
@@ -11,6 +11,14 @@ export type RunType = 'easy_base' | 'long_run' | 'tempo' | 'threshold_lt2' | 'in
 
 /** Endurance-dose default; intensity-based workout rules retain precedence. */
 export const LONG_RUN_MIN_SECONDS = 100 * 60;
+/** Conservative stimulus support; peaks and recovery HR cannot certify work. */
+export const CLASSIFICATION_TELEMETRY_POLICY = {
+  minHrCoverage: 0.60, minContinuousSeconds: 120, continuousThresholdPct: 35,
+  minVo2Seconds: 20, minVo2Pct: 20, minVo2StreakSeconds: 15,
+  longVo2Seconds: 120, longVo2Pct: 25, longVo2MaxRepSeconds: 600,
+  thresholdRepPct: 50, thresholdMeanTolerance: 0.5, thresholdMeanMinPct: 25,
+  summaryHrDisagreement: 8
+} as const;
 
 export interface ClassificationResult {
   runType: RunType;
@@ -90,41 +98,71 @@ export function classifyRun(
   // High LT2/max-HR ratios are valid individual profiles. A max-HR fraction
   // must never bypass the athlete's threshold band and relabel it as VO2.
   const nearMaxVo2Floor = Math.max(effMax * 0.91, thresholdHrCeiling + 1);
-  let validHrSeconds = 0;
-  let vo2HrSeconds = 0;
-  let thresholdHrSeconds = 0;
-  for (let index = 0; index < records.length; index++) {
-    const hr = records[index].heartRate;
-    if (hr == null || !Number.isFinite(hr) || hr <= 40 || hr > 240) continue;
-    const seconds = recordDurationSeconds(records, index);
-    validHrSeconds += seconds;
-    if (hr >= vo2HrFloor) vo2HrSeconds += seconds;
-    if (hr >= thresholdHrFloor) thresholdHrSeconds += seconds;
-  }
+  const exposureFor = createRunningHrExposureCalculator(records);
+  const running = exposureFor(vo2HrFloor, thresholdHrFloor);
+  const { validHrSeconds, aboveCeilingSeconds: vo2HrSeconds, atOrAboveLt1Seconds: thresholdHrSeconds } = running;
+  const hrCoverage = running.runningSeconds > 0 ? validHrSeconds / running.runningSeconds : 0;
+  const policy = CLASSIFICATION_TELEMETRY_POLICY;
+  const intensityObserved = hrCoverage >= policy.minHrCoverage && validHrSeconds >= policy.minContinuousSeconds;
   const vo2HrPct = validHrSeconds > 0
     ? vo2HrSeconds / validHrSeconds * 100
     : 0;
 
   const workIntervals = detectedIntervals.filter(i => i.type === 'work');
+  const repExposure = new Map(workIntervals.map(interval => [interval,
+    exposureFor(Math.min(vo2HrFloor, nearMaxVo2Floor), thresholdHrFloor,
+      interval.startSeconds, interval.startSeconds + interval.durationSeconds)]));
+  const repCovered = (interval: DetectedInterval) => repExposure.get(interval)!.validHrSeconds >= interval.durationSeconds * policy.minHrCoverage;
+  const thresholdRep = (interval: DetectedInterval) => {
+    const rep = repExposure.get(interval)!;
+    return repCovered(interval) && ((rep.atOrAboveLt1Pct ?? 0) >= policy.thresholdRepPct ||
+      ((rep.avgHr ?? 0) >= thresholdHrFloor - policy.thresholdMeanTolerance &&
+        (rep.atOrAboveLt1Pct ?? 0) >= policy.thresholdMeanMinPct));
+  };
   const qualityWorkIndexes = detectedIntervals.map((interval, index) => ({ interval, index })).filter(({ interval }) =>
-    interval.type === 'work' && interval.durationSeconds >= 120 && interval.avgHeartRate >= thresholdHrFloor);
+    interval.type === 'work' && interval.durationSeconds >= 120 && thresholdRep(interval));
   const hasRepeatedQualityWork = qualityWorkIndexes.some((work, index) => {
     const previous = qualityWorkIndexes[index - 1];
     return previous && detectedIntervals.slice(previous.index + 1, work.index).some(interval =>
       interval.type === 'recovery' && interval.durationSeconds >= 30);
   });
 
+  const supportedRepCount = workIntervals.filter(thresholdRep).length;
+  const workHrSeconds = workIntervals.reduce((sum, interval) => sum + repExposure.get(interval)!.validHrSeconds, 0);
+  const totalWorkSeconds = workIntervals.reduce((sum, interval) => sum + interval.durationSeconds, 0);
+  const contradictoryRepCount = workIntervals.filter(interval => repCovered(interval) &&
+    Math.abs((repExposure.get(interval)!.avgHr ?? interval.avgHeartRate) - interval.avgHeartRate) >= policy.summaryHrDisagreement).length;
+  const movementCoverage = running.observedSeconds > 0 ? running.movementSeconds / running.observedSeconds : 0;
+  const observedCoverage = Math.min(1, running.observedSeconds / Math.max(1, metadata.totalDurationSeconds));
   const result = (ruleId: ClassificationRuleId, classification: Omit<ClassificationResult, 'evidence'>,
-    additional: Record<string, number | null> = {}): ClassificationResult => ({
-    ...classification,
-    evidence: { ruleId, confidence: { kind: 'heuristic', score: classification.confidence },
-      measurements: { durationSeconds: metadata.totalDurationSeconds, avgHr, validHrSeconds, vo2HrPct,
-        thresholdHrPct: validHrSeconds > 0 ? thresholdHrSeconds / validHrSeconds * 100 : 0,
-        workCount: workIntervals.length, workSeconds: workIntervals.reduce((sum, interval) => sum + interval.durationSeconds, 0), ...additional },
-      policy: { maxHr: effMax, restingHr: resting, lt1Hr: lt1, lt2Hr: lt2,
-        thresholdHrFloor, thresholdHrCeiling, vo2HrFloor, nearMaxVo2Floor }
-    }
-  });
+    additional: Record<string, number | null> = {}): ClassificationResult => {
+    const structured = ruleId === 'structured_threshold' || ruleId === 'structured_vo2' || ruleId === 'structured_tempo';
+    const support = structured ? supportedRepCount / Math.max(1, workIntervals.length) : 1;
+    const coverage = structured ? Math.min(1, workHrSeconds / Math.max(1, totalWorkSeconds)) : hrCoverage;
+    const confidence = Number((classification.confidence * (0.55 + 0.45 * coverage) *
+      (0.8 + 0.2 * movementCoverage) * (0.8 + 0.2 * observedCoverage) * (0.9 + 0.1 * support) *
+      (running.speedFallbackSeconds > 0 ? 0.95 : 1) *
+      (1 - 0.15 * contradictoryRepCount / Math.max(1, workIntervals.length))).toFixed(3));
+    return {
+      ...classification,
+      confidence,
+      evidence: { ruleId, confidence: { kind: 'heuristic', score: confidence },
+        measurements: { durationSeconds: metadata.totalDurationSeconds, avgHr, validHrSeconds, vo2HrPct,
+          thresholdHrPct: validHrSeconds > 0 ? thresholdHrSeconds / validHrSeconds * 100 : 0,
+          runningSeconds: running.runningSeconds, runningAvgHr: running.avgHr, hrCoverage, movementCoverage, observedCoverage,
+          speedFallbackSeconds: running.speedFallbackSeconds, supportedRepCount, contradictoryRepCount, workHrSeconds,
+          workVo2Seconds: workIntervals.reduce((sum, interval) => sum + repExposure.get(interval)!.aboveCeilingSeconds, 0),
+          ...Object.fromEntries(workIntervals.flatMap((interval, index) => {
+            const rep = repExposure.get(interval)!;
+            return [[`rep${index + 1}HrSeconds`, rep.validHrSeconds], [`rep${index + 1}MeanHr`, rep.avgHr], [`rep${index + 1}ThresholdSeconds`, rep.atOrAboveLt1Seconds],
+              [`rep${index + 1}Vo2Seconds`, rep.aboveCeilingSeconds], [`rep${index + 1}Vo2StreakSeconds`, rep.longestAboveCeilingSeconds]];
+          })),
+          workCount: workIntervals.length, workSeconds: workIntervals.reduce((sum, interval) => sum + interval.durationSeconds, 0), ...additional },
+        policy: { maxHr: effMax, restingHr: resting, lt1Hr: lt1, lt2Hr: lt2,
+          thresholdHrFloor, thresholdHrCeiling, vo2HrFloor, nearMaxVo2Floor, ...policy }
+      }
+    };
+  };
 
   // Whole-session averages dilute a benchmark with its warmup/cooldown.
   // Evaluate sustained high-intensity bouts before threshold/interval rules.
@@ -184,22 +222,23 @@ export function classifyRun(
     const prescription = inferWorkoutPrescription(detectedIntervals);
     const prescLabel = prescription ? ` (${prescription.label})` : '';
 
-    const vo2RepCount = workIntervals.filter(i => i.maxHeartRate >= vo2HrFloor || i.maxHeartRate >= nearMaxVo2Floor).length;
-    const hasVo2Intensity = vo2RepCount >= 2 || (vo2RepCount >= 1 && vo2HrPct >= 4) || (vo2HrPct >= 6 && vo2HrSeconds >= 120);
+    const vo2Rep = (interval: DetectedInterval) => {
+      const rep = repExposure.get(interval)!;
+      return repCovered(interval) && rep.aboveCeilingSeconds >= policy.minVo2Seconds &&
+        rep.aboveCeilingSeconds >= interval.durationSeconds * policy.minVo2Pct / 100 &&
+        rep.longestAboveCeilingSeconds >= policy.minVo2StreakSeconds;
+    };
+    const vo2RepCount = workIntervals.filter(vo2Rep).length;
+    const hasVo2Intensity = vo2RepCount >= 2;
     // Distance-based or slower VO2 reps can exceed six minutes. Require sustained
     // near-max HR in two separate reps for this exception; peaks alone are not
     // enough to turn long threshold work into VO2. No training pace is involved.
     const sustainedVo2Reps = workIntervals.filter(interval => {
       // Prolonged threshold bouts can drift toward max HR too. Keep the
       // exception within interval-length efforts, not 15–20 minute blocks.
-      if (interval.durationSeconds > 600) return false;
-      const end = interval.startSeconds + interval.durationSeconds;
-      const highSeconds = records.reduce((sum, record, index) => {
-        if (record.elapsedSeconds < interval.startSeconds || record.elapsedSeconds >= end ||
-            record.heartRate == null || record.heartRate < nearMaxVo2Floor || record.heartRate > effMax) return sum;
-        return sum + Math.min(recordDurationSeconds(records, index), end - record.elapsedSeconds);
-      }, 0);
-      return highSeconds >= 120 && highSeconds >= interval.durationSeconds * 0.25;
+      if (interval.durationSeconds > policy.longVo2MaxRepSeconds || !vo2Rep(interval)) return false;
+      const highSeconds = repExposure.get(interval)!.aboveCeilingSeconds;
+      return highSeconds >= policy.longVo2Seconds && highSeconds >= interval.durationSeconds * policy.longVo2Pct / 100;
     });
     const hasSustainedVo2Structure = sustainedVo2Reps.length >= 2 && hasRepeatedQualityWork;
     const isSporadicSurges =
@@ -208,17 +247,14 @@ export function classifyRun(
     const isVo2Intervals = !isSporadicSurges && workIntervals.length >= 2 &&
       ((medianWorkSec <= 360 && hasVo2Intensity) || hasSustainedVo2Structure);
 
-    const repInThresholdBand = (hr: number): boolean => hr >= thresholdHrFloor;
-    const thresholdRepCount = workIntervals.filter(i =>
-      repInThresholdBand(i.avgHeartRate)
-    ).length;
+    const thresholdRepCount = workIntervals.filter(thresholdRep).length;
 
     // A. Long Threshold Intervals: sustained structure (median work >= 6 min)
     //    with threshold-band HR occupancy (profile-relative).
     const isThresholdIntervals =
       (medianWorkSec >= 360 &&
         thresholdRepCount >= Math.max(1, Math.ceil(workIntervals.length / 2))) ||
-      workIntervals.some(i => i.durationSeconds >= 450 && repInThresholdBand(i.avgHeartRate));
+      workIntervals.some(i => i.durationSeconds >= 450 && thresholdRep(i));
 
     if (isThresholdIntervals && !isVo2Intervals) {
       const isFailed = qualityWorkoutFailed('threshold_lt2', workIntervals, profileWithMeta);
@@ -251,7 +287,7 @@ export function classifyRun(
 
   // 3. Continuous Threshold / Tempo check (profile-relative zone occupancy)
   const thresholdHrPct = validHrSeconds > 0 ? thresholdHrSeconds / validHrSeconds * 100 : 0;
-  if (thresholdHrPct >= 35) {
+  if (intensityObserved && thresholdHrPct >= policy.continuousThresholdPct) {
     return result('continuous_threshold', {
       runType: 'threshold_lt2',
       confidence: 0.88,
@@ -261,8 +297,8 @@ export function classifyRun(
 
   // Sustained upper-aerobic work can be diluted by easy warmup/cooldown.
   // Require a substantial work block, not isolated surges or duration alone.
-  const tempoWorkSeconds = workIntervals.filter(interval => interval.durationSeconds >= 1200 &&
-    interval.avgHeartRate > lt1 && interval.avgHeartRate < thresholdHrFloor)
+  const tempoWorkSeconds = workIntervals.filter(interval => interval.durationSeconds >= 1200 && repCovered(interval) &&
+    (repExposure.get(interval)!.avgHr ?? 0) > lt1 && (repExposure.get(interval)!.avgHr ?? Infinity) < thresholdHrFloor)
     .reduce((sum, interval) => sum + interval.durationSeconds, 0);
   if (tempoWorkSeconds >= metadata.totalDurationSeconds * 0.25 && tempoWorkSeconds > 0) {
     return result('structured_tempo', {
@@ -294,9 +330,9 @@ export function classifyRun(
   // Recovery depends on dose and negligible intensity, not Zone 1 occupancy.
   // Use observed running evidence so walking/stops cannot lower average HR.
   const recoveryCeilingHr = resting + (effMax - resting) * 0.60;
-  const recovery = calculateRunningHrExposure(records, recoveryCeilingHr, lt1);
+  const recovery = exposureFor(recoveryCeilingHr, lt1);
   const avgHrrPct = recovery.avgHr == null ? null : (recovery.avgHr - resting) / (effMax - resting) * 100;
-  if (recovery.runningSeconds > 0 && recovery.runningSeconds <= 50 * 60 &&
+  if (intensityObserved && recovery.runningSeconds > 0 && recovery.runningSeconds <= 50 * 60 &&
       avgHrrPct != null && avgHrrPct <= 60 &&
       recovery.aboveCeilingPct != null && recovery.aboveCeilingPct <= 10 &&
       recovery.atOrAboveLt1Pct != null && recovery.atOrAboveLt1Pct <= 1) {

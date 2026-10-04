@@ -8,11 +8,33 @@ import { openDatabase } from '../../src/backend/db/client.js';
 import { importRunContent } from '../../src/backend/ingestion/importer.js';
 import { workoutTrace, traceCsv } from '../fixtures/workout-trace.js';
 import { getBenchmark, seedBenchmarkProfile, toCsv } from '../fixtures/benchmark-runs.js';
+import { ANALYSIS_REVISION } from '../../src/shared/analysis-revision.js';
 
 describe('named database migrations', () => {
   const roots: string[] = [];
   afterEach(() => {
     for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it.each(['classification-telemetry-v1'])('refreshes pending %s once and persists the current revision', migration => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aerolab-duration-migration-'));
+    roots.push(root);
+    const file = path.join(root, 'runs.db');
+    const first = openDatabase(file);
+    const trace = workoutTrace([{ seconds: 120, hr: 140 }], { id: 'density', steps: [5] });
+    expect(importRunContent(first, traceCsv(trace), 'run.csv').status).toBe('imported');
+    first.prepare('DELETE FROM schema_migrations WHERE name=?').run(migration);
+    first.prepare("UPDATE activity_coach_summaries SET headline='outdated'").run();
+    first.close();
+    const migrated = openDatabase(file);
+    const summary = migrated.prepare('SELECT headline, analysis_json, updated_at FROM activity_coach_summaries').get() as { headline: string; analysis_json: string; updated_at: string };
+    expect(summary.headline).not.toBe('outdated');
+    expect(JSON.parse(summary.analysis_json).revision).toBe(ANALYSIS_REVISION);
+    expect(migrated.prepare('SELECT name FROM schema_migrations WHERE name=?').get(migration)).toBeTruthy();
+    migrated.close();
+    const reopened = openDatabase(file);
+    expect(reopened.prepare('SELECT headline, analysis_json, updated_at FROM activity_coach_summaries').get()).toEqual(summary);
+    reopened.close();
   });
 
   it('rolls back an interrupted step and retries it on the next start', () => {

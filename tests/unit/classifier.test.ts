@@ -58,7 +58,8 @@ describe('Run Classifier Engine (Unit)', () => {
       const records = createMockRecords(1200, 175);
       const res = classifyRun(meta, records, baseEconomy, []);
       expect(res.runType).toBe('race');
-      expect(res.confidence).toBe(0.88);
+      expect(res.confidence).toBeLessThanOrEqual(0.88);
+      expect(res.evidence.confidence.score).toBe(res.confidence);
     }
   });
 
@@ -83,7 +84,9 @@ describe('Run Classifier Engine (Unit)', () => {
   it('recognizes six-minute VO2 reps before the overlapping threshold duration rule', () => {
     const work = { intervalIndex: 1, type: 'work' as const, startSeconds: 200, durationSeconds: 360, distanceMeters: 1200, avgSpeedMps: 3.3, avgPaceSecKm: 303, avgHeartRate: 190, maxHeartRate: 195, avgCadence: 175 };
     const intervals = [work, { ...work, intervalIndex: 2, startSeconds: 800 }];
-    expect(classifyRun(baseMetadata, createMockRecords(1800, 150), baseEconomy, intervals,
+    const records = createMockRecords(2400, 150);
+    for (const work of intervals) for (let i = work.startSeconds; i <= work.startSeconds + work.durationSeconds; i++) records[i].heartRate = 190;
+    expect(classifyRun(baseMetadata, records, baseEconomy, intervals,
       { maxHr: 203, restingHr: 55, lt1Hr: 148, lt2Hr: 167 }).runType).toBe('intervals_vo2');
   });
 
@@ -112,12 +115,14 @@ describe('Run Classifier Engine (Unit)', () => {
 
   it('classifies as intervals_vo2 when 2+ work reps are detected', () => {
     const intervals: DetectedInterval[] = [
-      { intervalIndex: 1, type: 'work', startSeconds: 100, durationSeconds: 180, distanceMeters: 900, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 165, maxHeartRate: 172, avgCadence: 180 },
+      { intervalIndex: 1, type: 'work', startSeconds: 100, durationSeconds: 180, distanceMeters: 900, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 175, maxHeartRate: 175, avgCadence: 180 },
       { intervalIndex: 2, type: 'recovery', startSeconds: 280, durationSeconds: 60, distanceMeters: 100, avgSpeedMps: 1.6, avgPaceSecKm: 600, avgHeartRate: 140, maxHeartRate: 165, avgCadence: 110 },
-      { intervalIndex: 3, type: 'work', startSeconds: 340, durationSeconds: 180, distanceMeters: 900, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 168, maxHeartRate: 175, avgCadence: 182 }
+      { intervalIndex: 3, type: 'work', startSeconds: 340, durationSeconds: 180, distanceMeters: 900, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 175, maxHeartRate: 175, avgCadence: 182 }
     ];
 
-    const records = createMockRecords(1200, 150);
+    const records = createMockRecords(2400, 150);
+    for (const work of intervals.filter(i => i.type === 'work'))
+      for (let i = work.startSeconds; i <= work.startSeconds + work.durationSeconds; i++) records[i].heartRate = 175;
     const result = classifyRun(baseMetadata, records, baseEconomy, intervals);
     expect(result.runType).toBe('intervals_vo2');
     expect(result.isFailedWorkout).toBe(false);
@@ -134,6 +139,8 @@ describe('Run Classifier Engine (Unit)', () => {
       { intervalIndex: 5, type: 'work', startSeconds: 580, durationSeconds: 180, distanceMeters: 900, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 160, maxHeartRate: 165, avgCadence: 178 }
     ];
     const recs = createMockRecords(1200, 155);
+    for (const work of fadedIntervals.filter(i => i.type === 'work'))
+      for (let i = work.startSeconds; i <= work.startSeconds + work.durationSeconds; i++) recs[i].heartRate = work.maxHeartRate;
     const resFade = classifyRun(baseMetadata, recs, baseEconomy, fadedIntervals);
     expect(resFade.runType).toBe('intervals_vo2');
     expect(resFade.isFailedWorkout).toBe(true);
@@ -143,7 +150,10 @@ describe('Run Classifier Engine (Unit)', () => {
       { intervalIndex: 1, type: 'work', startSeconds: 100, durationSeconds: 100, distanceMeters: 500, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 165, maxHeartRate: 175, avgCadence: 180 },
       { intervalIndex: 2, type: 'work', startSeconds: 260, durationSeconds: 100, distanceMeters: 500, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 168, maxHeartRate: 175, avgCadence: 180 }
     ];
-    const resShort = classifyRun(baseMetadata, recs, baseEconomy, shortIntervals);
+    const shortRecords = createMockRecords(1200, 145);
+    for (const work of shortIntervals)
+      for (let i = work.startSeconds; i <= work.startSeconds + work.durationSeconds; i++) shortRecords[i].heartRate = work.maxHeartRate;
+    const resShort = classifyRun(baseMetadata, shortRecords, baseEconomy, shortIntervals);
     expect(resShort.runType).toBe('intervals_vo2');
     expect(resShort.isFailedWorkout).toBe(true);
 
@@ -308,7 +318,7 @@ describe('Run Classifier Engine (Unit)', () => {
     expect(result.runType).toBe('recovery');
   });
 
-  it('classifies threshold intervals when zoneDist.z4Pct >= 20 even if work HR is lower', () => {
+  it('does not borrow threshold exposure outside low-intensity work windows', () => {
     const meta = { ...baseMetadata, name: 'Threshold Intervals Mixed' };
     const intervals: DetectedInterval[] = [
       { intervalIndex: 1, type: 'work', startSeconds: 300, durationSeconds: 500, distanceMeters: 2000, avgSpeedMps: 4.0, avgPaceSecKm: 250, avgHeartRate: 155, maxHeartRate: 160, avgCadence: 175 }
@@ -316,13 +326,13 @@ describe('Run Classifier Engine (Unit)', () => {
     // Create records with 25% zone 4
     const records = [
       ...createMockRecords(900, 130), // 75% Z2
-      ...createMockRecords(300, 168)  // 25% Z4
+      ...createMockRecords(300, 168).map(r => ({ ...r, elapsedSeconds: r.elapsedSeconds + 900 })) // 25% Z4
     ];
     const res = classifyRun(meta, records, baseEconomy, intervals);
-    expect(res.runType).toBe('threshold_lt2');
+    expect(res.runType).toBe('easy_base');
   });
 
-  it('classifies vo2 intervals triggered by Zone 5 percentage or peak VO2 HR', () => {
+  it('classifies vo2 intervals with sustained within-rep high HR', () => {
     const meta = { ...baseMetadata, maxHeartRate: 200 };
     const intervals: DetectedInterval[] = [
       { intervalIndex: 1, type: 'work', startSeconds: 100, durationSeconds: 180, distanceMeters: 900, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 182, maxHeartRate: 188, avgCadence: 180 },
@@ -330,6 +340,8 @@ describe('Run Classifier Engine (Unit)', () => {
       { intervalIndex: 3, type: 'work', startSeconds: 340, durationSeconds: 180, distanceMeters: 900, avgSpeedMps: 5.0, avgPaceSecKm: 200, avgHeartRate: 184, maxHeartRate: 189, avgCadence: 180 }
     ];
     const records = createMockRecords(1200, 165);
+    for (const work of intervals.filter(i => i.type === 'work'))
+      for (let i = work.startSeconds; i <= work.startSeconds + work.durationSeconds; i++) records[i].heartRate = work.maxHeartRate;
     const res = classifyRun(meta, records, baseEconomy, intervals);
     expect(res.runType).toBe('intervals_vo2');
   });

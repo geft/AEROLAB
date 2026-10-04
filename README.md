@@ -128,14 +128,17 @@ Clicking the Coach AI score pill opens the **Interactive Breakdown Modal**, show
 
 AEROLAB classifies recorded effort using the athlete's historical LT1, LT2, maximum HR, and resting HR profile. Workout intensity comes from HR; segmentation also uses movement telemetry and within-run speed contrast. Titles, fixed training paces, and distance do not determine the label.
 
-The six core categories are:
+The seven categories are:
 
 1. **Recovery Run (`recovery`)**: Up to 50 minutes of observed running with very low cardiovascular strain relative to personal heart-rate reserve and negligible exposure at or above LT1. Walking and stops cannot dilute the running HR evidence.
 2. **Easy Aerobic Base (`easy_base`)**: Aerobic running that does not meet the quality, race, long-run, or recovery criteria. Aerobic run/walk sessions and isolated strides can retain this label; tempo exposure is reported through tags.
-3. **Long Run (`long_run`)**: At least 110 minutes of session timer duration when quality/race criteria do not take precedence. Distance is not a trigger.
+3. **Long Run (`long_run`)**: At least 100 minutes of session timer duration when quality/race criteria do not take precedence. Distance is not a trigger.
 4. **Lactate Threshold (`threshold_lt2`)**: Sustained work intervals or continuous effort with sufficient exposure near or above the athlete's LT2 training band.
-5. **VO2 Max Intervals (`intervals_vo2`)**: Repeated work/recovery structure with profile-relative high-intensity HR evidence. Threshold HR alone does not establish VO2 work.
+5. **VO2 Max Intervals (`intervals_vo2`)**: Repeated work/recovery structure with sustained profile-relative high-intensity HR inside at least two work reps. Isolated peaks, elevated recovery HR, and threshold HR alone cannot establish VO2 work.
 6. **Race / Time Trial (`race`)**: A dominant continuous bout of sufficiently sustained, near-maximal cardiovascular effort. Recoveries, timer pauses, and recording gaps interrupt continuous evidence.
+7. **Tempo (`tempo`)**: Substantial sustained upper-aerobic work above LT1 and below the LT2 training band, including work surrounded by easy warmup and cooldown.
+
+Intensity decisions use observed running HR, excluding walking, standing, invalid readings, timer pauses, and unobserved recording gaps. Missing cadence uses the shared speed fallback when available; missing movement evidence stays unknown. Classification confidence is heuristic and reflects usable coverage, rep support, and contradictory summaries. Athlete-confirmed labels and failure overrides remain separate from automatic predictions.
 
 ### FIT laps, timer events, and additional telemetry
 
@@ -146,9 +149,9 @@ The six core categories are:
 - **Other telemetry remains supporting data**: Developer fields, device metadata, and HRV do not currently affect classification. Power, respiration rate, core temperature, and ground contact balance are retained for possible future refinements; no new intensity rules use them.
 - **Consistent historical replay**: Import and reanalysis share the same FIT-aware classification. A one-time migration creates a safety backup and refreshes existing histories while preserving manual overrides. Older runs or invalid/incomplete lap data use telemetry-only detection.
 
-These timer refinements apply to classification, segmentation, and running-economy summaries. Other raw-record consumers, including coach calculations and training-load recomputation, do not yet reconstruct timer state from FIT metadata themselves.
+Import and chronological replay share the FIT-aware analysis context for classification, segmentation, economy, and training load. Versioned maintenance refreshes dependent coaching and preserves raw records and source FIT bytes.
 
-See [FIT telemetry and classification](docs/fit-classification.md) for the implementation safeguards and telemetry review, and [FIT import details](docs/fit-import.md) for retained fields and units.
+See [classification telemetry results](docs/CLASSIFICATION_TELEMETRY_RESULTS.md) for the running-only policy, replay validation, and reproducible reporting command; [FIT telemetry and classification](docs/fit-classification.md) and [FIT import details](docs/fit-import.md) describe segmentation safeguards and retained fields.
 
 ---
 

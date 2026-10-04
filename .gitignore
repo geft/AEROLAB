@@ -24,6 +24,7 @@ playwright-report/
 
 # Local scratch scripts
 scratch/
+output/classification/
 
 # Local databases
 data/*.db

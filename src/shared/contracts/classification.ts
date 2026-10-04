@@ -6,7 +6,7 @@ export interface ClassificationEvidence {
   ruleId: ClassificationRuleId;
   measurements: Record<string, number | null>;
   policy: Record<string, number>;
-  /** Fixed rule strength is not a statistically calibrated probability. */
+  /** Rule strength adjusted for evidence quality, not a calibrated probability. */
   confidence: { kind: 'heuristic'; score: number };
 }
 

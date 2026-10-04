@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.3.0 — 2026-10-03
+## 1.3.0 â€” 2026-10-04
 
 ### Phone snapshots
 
@@ -17,6 +17,8 @@
 - Compress stored FIT data losslessly and checkpoint the SQLite WAL automatically.
 - Add weekly startup database snapshots and improve background FIT/ZIP imports.
 - Improve workout classification using FIT laps, timer events, time-weighted telemetry, and individual thresholds; add Tempo filtering and a 100-minute long-run cutoff.
+- Use running-only heart-rate exposure so walking, standing, pauses, and recording gaps cannot distort classification. Require sustained high-intensity evidence inside repeated work reps for VO2 labels, and adjust confidence for coverage and contradictory evidence.
+- Refresh historical classification and dependent coaching while preserving confirmed labels and original telemetry. Replay validation covers 341 activities; the October 22, 2025 session now correctly classifies as threshold.
 - Improve chart interactions, coaching explanations, translation coverage, and analysis consistency across imports and replays.
 
 ## Release notes workflow

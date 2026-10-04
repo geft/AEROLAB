@@ -1,5 +1,6 @@
 import type { ActivityRecord } from './csv-parser.js';
 import { MAX_OBSERVED_GAP_SECONDS, sameTimerSegment } from '../physiology/time-series.js';
+import { runningMovement } from '../physiology/economy.js';
 
 interface Effort {
   start: number;
@@ -15,7 +16,7 @@ interface Effort {
  * Short HR dips are tolerated; recoveries and recording gaps separate bouts.
  */
 export function continuousRaceEffort(
-  records: Pick<ActivityRecord, 'elapsedSeconds' | 'heartRate' | 'cadence'>[],
+  records: (Pick<ActivityRecord, 'elapsedSeconds' | 'heartRate' | 'cadence'> & Partial<Pick<ActivityRecord, 'speedMps'>>)[],
   profile: { maxHr: number; restingHr: number; lt2Hr: number }
 ): { durationSeconds: number; nearMaxPct: number } | null {
   const { maxHr, restingHr, lt2Hr } = profile;
@@ -42,7 +43,8 @@ export function continuousRaceEffort(
     }
     const hr = record.heartRate;
     const valid = hr != null && Number.isFinite(hr) && hr > 40 && hr <= maxHr;
-    const running = record.cadence == null || record.cadence >= 128;
+    const running = runningMovement({ cadence: record.cadence, speedMps: record.speedMps ?? null }) === 'run' &&
+      runningMovement({ cadence: records[i + 1].cadence, speedMps: records[i + 1].speedMps ?? null }) === 'run';
     const hard = valid && running && hr > lt2Hr;
     if (effort && record.elapsedSeconds - lastHardEnd > 30) finish();
     if (hard) {

@@ -21,7 +21,7 @@ describe('Recovery running HR exposure', () => {
     [152.99, 100, 0],
     [153, 100, 100]
   ])('treats HR %s with strict HRR and inclusive LT1 boundaries', (hr, aboveCeilingPct, atOrAboveLt1Pct) => {
-    expect(exposure([record(0, hr), record(10, hr)])).toEqual({
+    expect(exposure([record(0, hr), record(10, hr)])).toMatchObject({
       runningSeconds: 10, avgHr: hr, aboveCeilingPct, atOrAboveLt1Pct
     });
   });
@@ -45,18 +45,18 @@ describe('Recovery running HR exposure', () => {
 
   it('does not invent intensity evidence across gaps exceeding 15 seconds', () => {
     expect(exposure([record(0, 130), record(15, 130), record(100, 160), record(105, 160)]))
-      .toEqual({ runningSeconds: 20, avgHr: 137.5, aboveCeilingPct: 25, atOrAboveLt1Pct: 25 });
+      .toMatchObject({ runningSeconds: 20, avgHr: 137.5, aboveCeilingPct: 25, atOrAboveLt1Pct: 25 });
   });
 
   it.each([0, -1, 16])('ignores a non-observed interval of %s seconds', seconds => {
-    expect(exposure([record(0, 130), record(seconds, 130)])).toEqual({
+    expect(exposure([record(0, 130), record(seconds, 130)])).toMatchObject({
       runningSeconds: 0, avgHr: null, aboveCeilingPct: null, atOrAboveLt1Pct: null
     });
   });
 
   it.each([null, NaN, Infinity, 0, 40, 241])('excludes invalid HR %s without losing running duration', hr => {
     const result = exposure([record(0, hr), record(5, hr), record(10, 130), record(15, 130)]);
-    expect(result).toEqual({ runningSeconds: 15, avgHr: 130, aboveCeilingPct: 0, atOrAboveLt1Pct: 0 });
+    expect(result).toMatchObject({ runningSeconds: 15, avgHr: 130, aboveCeilingPct: 0, atOrAboveLt1Pct: 0 });
   });
 
   it('excludes walking and stops, including their low HR at the transition to running', () => {
@@ -66,7 +66,8 @@ describe('Recovery running HR exposure', () => {
       record(10, 100, { cadence: 110, speedMps: 1.2 }),
       record(15, 160), record(20, 160)
     ]);
-    expect(result).toEqual({ runningSeconds: 10, avgHr: 160, aboveCeilingPct: 100, atOrAboveLt1Pct: 100 });
+    // A movement transition has unknown duration; only paired running endpoints count.
+    expect(result).toMatchObject({ runningSeconds: 5, avgHr: 160, aboveCeilingPct: 100, atOrAboveLt1Pct: 100 });
   });
 
   it('uses cadence to recognize slow running', () => {
@@ -79,10 +80,10 @@ describe('Recovery running HR exposure', () => {
       record(5, 100, { cadence: null, speedMps: 1.2 }),
       record(10, 130, { cadence: null }), record(15, 130, { cadence: null })
     ];
-    expect(exposure(records)).toEqual({ runningSeconds: 10, avgHr: 130, aboveCeilingPct: 0, atOrAboveLt1Pct: 0 });
+    expect(exposure(records)).toMatchObject({ runningSeconds: 5, avgHr: 130, aboveCeilingPct: 0, atOrAboveLt1Pct: 0 });
   });
 
   it.each([{ records: [] }, { records: [record(0, 130)] }])('requires an observed interval', ({ records }) => {
-    expect(exposure(records)).toEqual({ runningSeconds: 0, avgHr: null, aboveCeilingPct: null, atOrAboveLt1Pct: null });
+    expect(exposure(records)).toMatchObject({ runningSeconds: 0, avgHr: null, aboveCeilingPct: null, atOrAboveLt1Pct: null });
   });
 });

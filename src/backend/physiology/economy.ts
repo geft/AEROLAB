@@ -48,7 +48,7 @@ export interface SplitLap {
   avgVertRatioPct: number | null;  // Vertical Ratio = (VO_cm / stride_length_cm) * 100
 }
 
-type Movement = 'stop' | 'walk' | 'run';
+type Movement = 'stop' | 'walk' | 'run' | 'unknown';
 type SensorRecord = Pick<ActivityRecord, 'elapsedSeconds' | 'distanceMeters' | 'speedMps' | 'cadence' | 'heartRate' | 'stanceTime' | 'verticalOscillation' | 'timerActive' | 'timerSegment' | 'timerPauseSeconds'>;
 
 // Accept ingestion and stored-record field names at this existing API boundary.
@@ -68,11 +68,16 @@ function normalize(records: any[]): SensorRecord[] {
 }
 const finite = (v: number | null | undefined, floor = 0): v is number => v != null && Number.isFinite(v) && v > floor;
 
+/** Missing cadence is unknown unless observed speed supplies movement evidence. */
+export function runningMovement(r: Pick<ActivityRecord, 'cadence' | 'speedMps'>): Movement {
+  if (r.cadence != null && Number.isFinite(r.cadence))
+    return !finite(r.cadence, 49) ? 'stop' : r.cadence < 126 ? 'walk' : 'run';
+  if (r.speedMps == null || !Number.isFinite(r.speedMps)) return 'unknown';
+  return !finite(r.speedMps, 0.6) ? 'stop' : r.speedMps < 1.6 ? 'walk' : 'run';
+}
+
 function runningEvidence(records: SensorRecord[]) {
-  const hasCadence = records.some(r => finite(r.cadence, 50));
-  const movement = (r: SensorRecord): Movement => hasCadence
-    ? (!finite(r.cadence, 49) ? 'stop' : r.cadence! < 126 ? 'walk' : 'run')
-    : (!finite(r.speedMps, 0.6) ? 'stop' : r.speedMps! < 1.6 ? 'walk' : 'run');
+  const movement = runningMovement;
   return observedIntervals(records, r => r.elapsedSeconds).map(interval => {
     const { a, b, seconds } = interval;
     const type = movement(b);
@@ -99,38 +104,65 @@ function runningEvidence(records: SensorRecord[]) {
 }
 
 /** Running-only HR evidence; walking, stops and recording gaps cannot dilute intensity. */
-export function calculateRunningHrExposure(records: ActivityRecord[], ceilingHr: number, lt1Hr: number) {
-  let runningSeconds = 0, validHrSeconds = 0, hrSum = 0;
-  let aboveCeilingSeconds = 0, atOrAboveLt1Seconds = 0;
-  for (const item of runningEvidence(normalize(records))) {
-    if (item.type !== 'run') continue;
-    runningSeconds += item.seconds;
-    const { hrA, hrB } = item;
-    if (hrA == null || hrB == null || !Number.isFinite(hrA) || !Number.isFinite(hrB) ||
-        hrA <= 40 || hrB <= 40 || hrA > 240 || hrB > 240) continue;
-    validHrSeconds += item.seconds;
-    hrSum += (hrA + hrB) / 2 * item.seconds;
-    // Integrate boundary crossings rather than rounding HR or percentages.
-    const fractionAbove = (boundary: number, inclusive: boolean) => {
-      if (hrA === hrB) return (inclusive ? hrA >= boundary : hrA > boundary) ? 1 : 0;
-      const low = Math.min(hrA, hrB), high = Math.max(hrA, hrB);
-      return Math.max(0, Math.min(1, (high - boundary) / (high - low)));
+export function createRunningHrExposureCalculator(records: ActivityRecord[]) {
+  const intervals = observedIntervals(records, r => r.elapsedSeconds);
+  return (ceilingHr: number, lt1Hr: number, from = -Infinity, to = Infinity) => {
+    let runningSeconds = 0, validHrSeconds = 0, hrSum = 0, observedSeconds = 0, movementSeconds = 0, speedFallbackSeconds = 0;
+    let aboveCeilingSeconds = 0, atOrAboveLt1Seconds = 0, longestAboveCeilingSeconds = 0, streak = 0, lastHighEnd = -Infinity;
+    let lastHighSegment: number | undefined;
+    for (const item of intervals) {
+      const start = Math.max(from, item.from), end = Math.min(to, item.to);
+      const seconds = end - start;
+      if (seconds <= 0) continue;
+      observedSeconds += seconds;
+      const movementA = runningMovement(item.a), movementB = runningMovement(item.b);
+      if (movementA !== 'unknown' && movementB !== 'unknown') movementSeconds += seconds;
+      if (movementA !== 'run' || movementB !== 'run') continue;
+      runningSeconds += seconds;
+      if (item.a.cadence == null || item.b.cadence == null || !Number.isFinite(item.a.cadence) || !Number.isFinite(item.b.cadence)) speedFallbackSeconds += seconds;
+      const rawA = item.a.heartRate, rawB = item.b.heartRate;
+      if (rawA == null || rawB == null || !Number.isFinite(rawA) || !Number.isFinite(rawB) || rawA <= 40 || rawB <= 40 || rawA > 240 || rawB > 240) continue;
+      const interpolate = (at: number) => rawA + (rawB - rawA) * (at - item.from) / item.seconds;
+      const hrA = interpolate(start), hrB = interpolate(end);
+      validHrSeconds += seconds;
+      hrSum += (hrA + hrB) / 2 * seconds;
+      // Integrate boundary crossings rather than rounding HR or percentages.
+      const fractionAbove = (boundary: number, inclusive: boolean) => {
+        if (hrA === hrB) return (inclusive ? hrA >= boundary : hrA > boundary) ? 1 : 0;
+        const low = Math.min(hrA, hrB), high = Math.max(hrA, hrB);
+        return Math.max(0, Math.min(1, (high - boundary) / (high - low)));
+      };
+      const highSeconds = fractionAbove(ceilingHr, false) * seconds;
+      aboveCeilingSeconds += highSeconds;
+      atOrAboveLt1Seconds += fractionAbove(lt1Hr, true) * seconds;
+      const highStart = hrA > ceilingHr ? start : end - highSeconds;
+      const highEnd = hrB > ceilingHr ? end : start + highSeconds;
+      if (highSeconds > 0) {
+        streak = item.a.timerSegment === lastHighSegment && Math.abs(highStart - lastHighEnd) < 0.001 ? streak + highSeconds : highSeconds;
+        longestAboveCeilingSeconds = Math.max(longestAboveCeilingSeconds, streak);
+        lastHighEnd = highEnd;
+        lastHighSegment = item.a.timerSegment;
+      }
+    }
+    return {
+      runningSeconds,
+      validHrSeconds, observedSeconds, movementSeconds, speedFallbackSeconds,
+      aboveCeilingSeconds, atOrAboveLt1Seconds, longestAboveCeilingSeconds,
+      avgHr: validHrSeconds > 0 ? hrSum / validHrSeconds : null,
+      aboveCeilingPct: validHrSeconds > 0 ? aboveCeilingSeconds / validHrSeconds * 100 : null,
+      atOrAboveLt1Pct: validHrSeconds > 0 ? atOrAboveLt1Seconds / validHrSeconds * 100 : null
     };
-    aboveCeilingSeconds += fractionAbove(ceilingHr, false) * item.seconds;
-    atOrAboveLt1Seconds += fractionAbove(lt1Hr, true) * item.seconds;
-  }
-  return {
-    runningSeconds,
-    avgHr: validHrSeconds > 0 ? hrSum / validHrSeconds : null,
-    aboveCeilingPct: validHrSeconds > 0 ? aboveCeilingSeconds / validHrSeconds * 100 : null,
-    atOrAboveLt1Pct: validHrSeconds > 0 ? atOrAboveLt1Seconds / validHrSeconds * 100 : null
   };
+}
+
+export function calculateRunningHrExposure(records: ActivityRecord[], ceilingHr: number, lt1Hr: number, from = -Infinity, to = Infinity) {
+  return createRunningHrExposureCalculator(records)(ceilingHr, lt1Hr, from, to);
 }
 
 /** Pauses and walking are classified before integration, using original adjacent records. */
 export function extractSteadyStateMetrics(records: any[]): PauseBreakdown {
   const evidence = runningEvidence(normalize(records));
-  const totals = { stop: 0, walk: 0, run: 0 };
+  const totals = { stop: 0, walk: 0, run: 0, unknown: 0 };
   let runDistance = 0, walkDistance = 0, stopCount = 0, walkCount = 0;
   const weights = { heartRate: { sum: 0, seconds: 0 }, cadence: { sum: 0, seconds: 0 },
     speedMps: { sum: 0, seconds: 0 }, stanceTime: { sum: 0, seconds: 0 }, verticalOscillation: { sum: 0, seconds: 0 } };

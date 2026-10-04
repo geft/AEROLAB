@@ -30,6 +30,7 @@
     "db:location": "tsx scripts/configure-database.ts",
     "ingest": "tsx scripts/ingest.ts",
     "realign": "tsx scripts/realign.ts",
+    "classification:report": "tsx scripts/classification-report.ts",
     "app": "node scripts/launch-chrome-app.js",
     "start:chrome": "node scripts/launch-chrome-app.js",
     "package:chromium-free": "node scripts/package-chromium-free.js",
