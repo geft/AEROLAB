@@ -513,7 +513,7 @@ describe('Weighted Execution Rubric', () => {
     expect(walkSharePct(null)).toBeNull();
     expect(walkSharePct(breakDown(0, 0))).toBe(0);
     // Traffic stops are excluded: only the 300s of walking counts
-    expect(walkSharePct(breakDown(300, 300))).toBeCloseTo(8.3, 0);
+    expect(walkSharePct(breakDown(300, 300))).toBeCloseTo(9.1, 0);
     expect(walkSharePct(breakDown(0, 300))).toBeCloseTo(9.1, 0);
   });
 

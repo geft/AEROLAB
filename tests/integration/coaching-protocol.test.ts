@@ -3,6 +3,7 @@ import { openDatabase } from '../../src/backend/db/client.js';
 import { importParsedRun } from '../../src/backend/ingestion/importer.js';
 import { getActivityCoachSummaryService } from '../../src/backend/services/activity-service.js';
 import { workoutTrace } from '../fixtures/workout-trace.js';
+import { syncActivityCoachSummary } from '../../src/backend/physiology/coach-summary.js';
 
 describe('Persisted coaching protocol', () => {
   it('round-trips IDs and parameters through stored JSON and the coach API', () => {
@@ -23,6 +24,14 @@ describe('Persisted coaching protocol', () => {
       expect(summary.insightMessages?.map(message => message.text)).toEqual(summary.keyInsights);
       expect(summary.scoreBreakdown?.every(factor => factor.descriptionMessage?.text === factor.description)).toBe(true);
       expect(analysis.focusAdviceMessage).toEqual(summary.focusAdviceMessage);
+      expect(summary.walkAudit).toEqual(expect.objectContaining({ walkSec: 0 }));
+      expect(analysis.walkAudit).toEqual(summary.walkAudit);
+      const refreshed = syncActivityCoachSummary(db, 'protocol')!;
+      const loaded = getActivityCoachSummaryService(db, 'protocol')!.coachSummary;
+      expect(refreshed.walkAudit).toEqual(loaded.walkAudit);
+      expect(refreshed.scoreBreakdown).toEqual(loaded.scoreBreakdown);
+      expect(refreshed.insightMessages).toEqual(loaded.insightMessages);
+      expect(refreshed.updatedAt).toBe(loaded.updatedAt);
 
       // Old databases and exported snapshots contain presentation text only.
       db.prepare('UPDATE activity_coach_summaries SET analysis_json=? WHERE activity_id=?').run('{}', 'protocol');

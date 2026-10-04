@@ -35,6 +35,11 @@ export function gradeRun(input: RubricInput): RubricResult {
   const driftTarget = driftTargetFor(input.ambientTempC, input.durationMin);
   const pacing = pacingConsistency(input.records, input.splits, input.runType);
   const intensity = intensityAudit(input.records, { lt1Hr: input.lt1Hr });
+  // Drift measures a change in efficiency, not time above the aerobic ceiling.
+  // Recorded running HR takes precedence over the coarse average-HR signal.
+  const isAccidentalTempo = input.runType === 'accidental_tempo' ||
+    (['easy_base', 'recovery'].includes(input.runType) &&
+      (intensity ? intensity.aboveCeilingPct > 20 : input.isAccidentalTempo));
   const factors = family === 'race'
     ? gradeRace(input, walkAudit)
     : family === 'quality'
@@ -55,7 +60,7 @@ export function gradeRun(input: RubricInput): RubricResult {
     score = gradedMax >= 50 ? observed : Math.min(observed, 85);
   }
 
-  if (input.isAccidentalTempo) score = Math.min(score, 69);
+  if (isAccidentalTempo) score = Math.min(score, 69);
   if (input.isFailedWorkout) score = Math.min(score, 60);
 
   // A threshold session cannot earn Gold without observed time in the target
@@ -68,10 +73,11 @@ export function gradeRun(input: RubricInput): RubricResult {
   const focus = pickFocus(factors);
   const focusAdviceMessage = focus ? buildFocusAdvice(focus, input, walkAudit) : null;
   return {
+    isAccidentalTempo,
     family,
     verdict: input.runType === 'threshold_lt2' && !thresholdZone
       ? 'insufficient_evidence'
-      : sessionVerdict({ family, factors, hasIntensityTelemetry: intensity != null, isFailedWorkout: input.isFailedWorkout, isAccidentalTempo: input.isAccidentalTempo, runType: input.runType }),
+      : sessionVerdict({ family, factors, hasIntensityTelemetry: intensity != null, isFailedWorkout: input.isFailedWorkout, isAccidentalTempo, runType: input.runType }),
     score: Math.max(40, Math.min(98, Math.round(score))),
     factors,
     coveragePct,

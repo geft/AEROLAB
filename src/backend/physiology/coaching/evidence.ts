@@ -56,6 +56,8 @@ export interface RubricInput {
 }
 
 export interface RubricResult {
+  /** Easy-session intensity drift, verified against running HR when available. */
+  isAccidentalTempo: boolean;
   verdict: SessionVerdict;
   family: RunFamily;
   score: number;
@@ -670,7 +672,7 @@ const cvOf = (values: number[]) => {
  */
 export function walkSharePct(pb?: PauseBreakdown | null): number | null {
   if (!pb) return null;
-  const moving = (pb.steadyRunningDurationSeconds || 0) + (pb.walkDurationSeconds || 0) + (pb.stopDurationSeconds || 0);
+  const moving = pb.steadyRunningDurationSeconds + pb.walkDurationSeconds;
   if (moving <= 0) return null;
   return (pb.walkDurationSeconds / moving) * 100;
 }
@@ -711,7 +713,6 @@ export function auditWalkBreaks(
   const blocks: Block[] = [];
   let cur: { startSec: number; walkSec: number; hrBefore: number | null; altStart: number | null; altEnd: number | null; distStart: number | null; distEnd: number | null } | null = null;
   let runSec = 0;
-  let stopSec = 0;
 
   for (let i = 0; i < records.length; i++) {
     const r = records[i];
@@ -748,13 +749,12 @@ export function auditWalkBreaks(
       cur = null;
     }
 
-    if (isStop) stopSec += dt;
-    else if (!isWalk) runSec += dt;
+    if (!isStop && !isWalk) runSec += dt;
   }
   if (cur && cur.walkSec >= MIN_BLOCK_SEC) blocks.push(toWalkBlock(cur, firstSec, spanSec));
 
   const walkSec = blocks.reduce((a, b) => a + b.walkSec, 0);
-  const movingSec = Math.round(runSec + walkSec + stopSec);
+  const movingSec = Math.round(runSec + walkSec);
   if (movingSec <= 0) return null;
 
   const preventiveHrs: number[] = [];

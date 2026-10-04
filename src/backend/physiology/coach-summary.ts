@@ -4,7 +4,7 @@ import type { CoachMessage } from '../../shared/coaching.js';
 import { ANALYSIS_REVISION, type AnalysisProvenance } from '../../shared/analysis-revision.js';
 import { parseClassificationEvidence, type ClassificationEvidence } from '../../shared/contracts/classification.js';
 import { assertDatabaseWritable } from '../application/database-operations.js';
-import { parseCoachMessages, parseCoachMessage, parseCoachMessageArray, type CoachMessages } from '../../shared/coaching.js';
+import type { CoachMessages } from '../../shared/coaching.js';
 import type { SessionVerdict } from '../../shared/session-verdict.js';
 import { getHeartRateProfileAtDate } from './threshold-tracker.js';
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
@@ -15,9 +15,8 @@ import { CoachContext, buildContextInsights, loadCoachHistoryContext } from './c
 import { createInsightLog, type CoachInsightTone } from './coach-insight.js';
 import { verifiedAmbientTemperature } from './weather.js';
 import Database from 'better-sqlite3';
-import { activityFromRow, activityIntervalFromRow, activitySplitFromRow, coachSummaryFromRow, objectRow } from '../db/rows.js';
-import { loadAnalysisRecords, analysisRecordToRow } from '../db/analysis-records.js';
-import { parseSessionVerdict } from '../../shared/session-verdict.js';
+import { activityFromRow, activityIntervalFromRow, activitySplitFromRow, objectRow } from '../db/rows.js';
+import { loadAnalysisRecords } from '../db/analysis-records.js';
 import { qualityWorkoutFailed } from '../ingestion/classifier.js';
 
 /** One graded line of the weighted execution rubric. */
@@ -158,9 +157,7 @@ export function generateCoachSummary(params: {
       parts.push(coachMessage("fragment.walk_break_m", { p0: pauseBreakdown.walkCount, p1: pauseBreakdown.walkCount === 1 ? '' : coachMessage("fragment.s_2"), p2: walkTimeStr, p3: Math.round(pauseBreakdown.walkDistanceMeters) }));
     }
 
-    const paceMin = Math.floor(effectivePaceSecKm / 60);
-    const paceSec = Math.round(effectivePaceSecKm % 60);
-    const cleanPaceStr = `${paceMin}:${String(paceSec).padStart(2, '0')}/km`;
+    const cleanPaceStr = formatPaceText(effectivePaceSecKm);
 
     insights.add(
       'neutral',
@@ -187,6 +184,7 @@ export function generateCoachSummary(params: {
   if ((runType === 'intervals_vo2' || runType === 'threshold_lt2') && intervals && intervals.length > 0) {
     const workReps = intervals.filter((i) => i.type === 'work');
     if (workReps.length >= 2) {
+      const shape = describeSet(intervals);
       const durations = workReps
         .map((r) => r.durationSeconds)
         .filter((d: number) => d > 0);
@@ -229,7 +227,6 @@ export function generateCoachSummary(params: {
 
       // Work intensity: name the session's anchor and flag drift into another zone.
       {
-        const shape = describeSet(intervals);
         const hrs = workReps.map(intervalHr).filter((h: number) => h > 0);
         const peakHr = Math.max(0, ...workReps.map(intervalMaxHr));
         const anchorHr = shape?.shortReps && peakHr > 0
@@ -251,7 +248,6 @@ export function generateCoachSummary(params: {
 
       // Set profile: state the structure being judged, so the grade is readable
       // whether it was 3 x 15 min or 12 x 1 min.
-      const shape = describeSet(intervals);
       if (shape) {
         const fmtDuration = (sec: number) => (sec >= 60 ? coachMessage("fragment.m_s", { p0: Math.floor(sec / 60), p1: String(sec % 60).padStart(2, '0') }) : coachMessage("fragment.s", { p0: sec }));
         const recoveryNote = shape.recoverySec != null ? coachMessage("fragment.with_recoveries", { p0: fmtDuration(shape.recoverySec) }) : '';
@@ -376,15 +372,11 @@ export function generateCoachSummary(params: {
     insights.add('neutral', coachMessage("insight.elevation_ramps_gained_m_ascent_uphill_grade_segments", { p0: Math.round(params.elevationGainM) }));
   }
 
-  // Pacing discipline check for easy runs (detect accidental tempo using steady running HR & personalized LT1)
+  // Average HR is only a fallback; the rubric verifies recorded running intensity.
   const hrFloor = params.restingHr ? params.restingHr + 15 : 120;
-  const isAccidentalTempo = (runType === 'easy_base' || runType === 'accidental_tempo' || runType === 'recovery')
+  const averageSuggestsTempo = (runType === 'easy_base' || runType === 'accidental_tempo' || runType === 'recovery')
     && effectiveHr > hrFloor
-    && (effectiveHr >= lt1 || (decouplingPct !== null && decouplingPct >= 6.5));
-
-  if (isAccidentalTempo) {
-    insights.add('negative', coachMessage("insight.pacing_alert_heart_rate_drifted_notably_higher_than", { p0: effectiveHr }));
-  }
+    && effectiveHr > lt1;
 
   // ---------------------------------------------------------------------------
   // Weighted execution rubric (replaces the old flat 85-point baseline)
@@ -397,7 +389,7 @@ export function generateCoachSummary(params: {
     steadyCadence: effectiveCadence || null,
     steadyStanceTime: effectiveGct || null,
     decouplingPct,
-    isAccidentalTempo,
+    isAccidentalTempo: averageSuggestsTempo,
     lt1Hr: lt1,
     lt2Hr: hrProfile.lt2Hr,
     maxHeartRate: hrProfile.maxHr,
@@ -410,6 +402,11 @@ export function generateCoachSummary(params: {
     intervals: intervals,
     splits: splits
   });
+
+  const isAccidentalTempo = rubric.isAccidentalTempo;
+  if (isAccidentalTempo && !rubric.intensity) {
+    insights.add('negative', coachMessage("insight.pacing_alert_heart_rate_drifted_notably_higher_than", { p0: effectiveHr }));
+  }
 
   const finalScore = rubric.score;
   if (runType === 'threshold_lt2') {
@@ -427,7 +424,7 @@ export function generateCoachSummary(params: {
   // Walk breaks are coaching information, not a moral judgement: explain what
   // they were for, and only flag the ones that actually cost the session.
   const walkAudit = rubric.walkAudit;
-  if (walkAudit && walkAudit.blockCount > 0) {
+  if (walkAudit && walkAudit.rawBlockCount > 0) {
     const walkPct = ((walkAudit.walkSec / walkAudit.movingSec) * 100).toFixed(1);
     const deliberateSec = walkAudit.deliberateWalkSec + walkAudit.preventiveWalkSec;
     if (walkAudit.recoveryWalkSec >= 20) {
@@ -576,6 +573,7 @@ export function generateCoachSummary(params: {
     focusAdviceMessage: rubric.focusAdviceMessage,
     rubricCoveragePct: rubric.coveragePct,
     rubricFamily: rubric.family,
+    walkAudit: rubric.walkAudit,
     context: params.history ? {
       ...params.history,
       currentAboveCeilingPct: rubric.intensity?.aboveCeilingPct ?? null
@@ -599,7 +597,7 @@ export function syncActivityCoachSummary(
   const activity = activityFromRow(activityValue);
   const confirmedFailure = objectRow(activityValue, 'activities').manual_failed_workout;
 
-  const records = loadAnalysisRecords(db, activityId).map(analysisRecordToRow);
+  const records = loadAnalysisRecords(db, activityId);
   const pauseBreakdown = extractSteadyStateMetrics(records);
   const intervals = db.prepare('SELECT * FROM activity_intervals WHERE activity_id = ? ORDER BY interval_index ASC').all(activityId).map(activityIntervalFromRow);
   const splits = db.prepare('SELECT * FROM activity_splits WHERE activity_id = ? ORDER BY split_index ASC').all(activityId).map(activitySplitFromRow);
@@ -615,7 +613,7 @@ export function syncActivityCoachSummary(
     steady_heart_rate: pauseBreakdown.steadyHeartRate ?? activity.steady_heart_rate ?? null
   });
   if (history?.lastSimilarRun) {
-    const priorRecords = loadAnalysisRecords(db, history.lastSimilarRun.id).map(analysisRecordToRow);
+    const priorRecords = loadAnalysisRecords(db, history.lastSimilarRun.id);
     const threshold = getHeartRateProfileAtDate(db, history.lastSimilarRun.startTime, history.lastSimilarRun.id).lt1Hr;
     history.lastSimilarRun.aboveCeilingPct = intensityAudit(priorRecords, { lt1Hr: threshold })?.aboveCeilingPct ?? null;
   }
@@ -737,78 +735,19 @@ export function syncActivityCoachSummary(
     JSON.stringify(analysis)
   );
 
-  const rowValue: unknown = db.prepare('SELECT * FROM activity_coach_summaries WHERE activity_id = ?').get(activityId);
-  if (rowValue) {
-    const row = coachSummaryFromRow(rowValue);
-    const scoreVal = row.effectiveness_score;
-    const starsVal = scoreVal >= 85 ? 3 : scoreVal >= 70 ? 2 : 1;
-    let parsedAnalysis: Record<string, unknown> | null = null;
-    try {
-      const parsed: unknown = row.analysis_json ? JSON.parse(row.analysis_json) : null;
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) parsedAnalysis = parsed as Record<string, unknown>;
-    } catch {
-      parsedAnalysis = null;
-    }
-    const parseJsonArray = (json: string | null, fallback: unknown[] = []): unknown[] => {
-      if (!json) return fallback;
-      try { const parsed: unknown = JSON.parse(json); return Array.isArray(parsed) ? parsed : fallback; }
-      catch { return fallback; }
-    };
-    const stringArray = (json: string, fallback: string[]): string[] => {
-      const parsed = parseJsonArray(json);
-      return parsed.every(item => typeof item === 'string') ? parsed as string[] : fallback;
-    };
-    const toneArray = (json: string | null, fallback: CoachInsightTone[]): CoachInsightTone[] => {
-      const parsed = parseJsonArray(json);
-      return parsed.every(item => item === 'positive' || item === 'neutral' || item === 'caution' || item === 'negative')
-        ? parsed as CoachInsightTone[] : fallback;
-    };
-    const scoreArray = (json: string | null): RubricFactor[] => {
-      const parsed = parseJsonArray(json);
-      if (!parsed.every(item => {
-        if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
-        const factor = item as Record<string, unknown>;
-        return typeof factor.category === 'string' && typeof factor.label === 'string'
-          && typeof factor.points === 'number' && Number.isFinite(factor.points)
-          && typeof factor.maxPoints === 'number' && Number.isFinite(factor.maxPoints);
-      })) return coachSummary.scoreBreakdown;
-      return parsed as RubricFactor[];
-    };
-    const parsedFocusAdvice = parsedAnalysis?.focusAdvice;
-    const parsedCoverage = parsedAnalysis?.rubricCoveragePct;
-    const parsedFamily = parsedAnalysis?.rubricFamily;
-    return {
-      classificationEvidence: coachSummary.classificationEvidence,
-      analysisProvenance: coachSummary.analysisProvenance,
-      insightMessages: parseCoachMessageArray(parsedAnalysis?.insightMessages) ?? coachSummary.insightMessages,
-      focusAdviceMessage: parseCoachMessage(parsedAnalysis?.focusAdviceMessage) ?? coachSummary.focusAdviceMessage,
-      messages: parseCoachMessages(parsedAnalysis?.messages) ?? coachSummary.messages,
-      headline: row.headline,
-      verdict: parsedAnalysis ? parseSessionVerdict(parsedAnalysis.verdict) : coachSummary.verdict,
-      effectivenessScore: scoreVal,
-      rating5: Number((scoreVal / 20).toFixed(1)),
-      stars: starsVal,
-      keyInsights: stringArray(row.key_insights_json, coachSummary.keyInsights),
-      // Rows written before tones existed have no column value yet; the UI
-      // falls back to an uncoloured list until the row is re-synced.
-      insightTones: toneArray(row.insight_tones_json, coachSummary.insightTones),
-      recommendation: row.recommendation,
-      scoreBreakdown: scoreArray(row.score_breakdown_json),
-      focusAdvice: typeof parsedFocusAdvice === 'string' ? parsedFocusAdvice : coachSummary.focusAdvice ?? null,
-      rubricCoveragePct: typeof parsedCoverage === 'number' && Number.isFinite(parsedCoverage) ? parsedCoverage : coachSummary.rubricCoveragePct,
-      rubricFamily: parsedFamily === 'aerobic' || parsedFamily === 'quality' || parsedFamily === 'race' ? parsedFamily : coachSummary.rubricFamily,
-      context: coachSummary.context ?? null,
-      ...(row.updated_at ? { updatedAt: row.updated_at } : {}),
-      steadyPaceSecKm: row.steady_pace_sec_km,
-      steadyHeartRate: row.steady_heart_rate,
-      steadyCadence: row.steady_cadence,
-      steadyStanceTime: row.steady_stance_time,
-      pauseBreakdown
-    };
-  }
-
-
-  return coachSummary;
+  // The values just generated and persisted are already validated domain data.
+  // Read only the database-generated timestamp, rather than reparsing our JSON.
+  const stored = db.prepare('SELECT updated_at FROM activity_coach_summaries WHERE activity_id = ?')
+    .get(activityId) as { updated_at: string } | undefined;
+  return {
+    ...coachSummary,
+    steadyPaceSecKm: pauseBreakdown.steadyPaceSecKm,
+    steadyHeartRate: pauseBreakdown.steadyHeartRate,
+    steadyCadence: pauseBreakdown.steadyCadence,
+    steadyStanceTime: pauseBreakdown.steadyStanceTimeMs,
+    pauseBreakdown,
+    ...(stored?.updated_at ? { updatedAt: stored.updated_at } : {})
+  };
 }
 
 /**
