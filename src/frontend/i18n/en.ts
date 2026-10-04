@@ -142,6 +142,7 @@ export const en: Translations = {
     recovery: 'Recovery',
     race: 'Race',
     strides: 'Strides',
+    hills: 'Hills',
     tempo: 'Tempo',
     marathonPace: 'Marathon Pace'
   },

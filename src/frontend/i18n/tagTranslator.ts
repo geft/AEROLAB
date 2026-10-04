@@ -32,6 +32,8 @@ export function translateTag(tag: string, t: Translations): string {
       return t.tags.race;
     case 'strides':
       return t.tags.strides;
+    case 'hills':
+      return t.tags.hills;
     case 'tempo':
       return t.tags.tempo;
     case 'marathon pace':

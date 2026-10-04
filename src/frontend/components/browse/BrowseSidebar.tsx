@@ -273,7 +273,7 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
                 (a.tags && (a.tags.includes('Race') || a.tags.includes('race'))) ||
                 /time trial|race/i.test(a.name || '');
 
-              const parsedTags = getActivityTags(a).filter(tag => tag === 'Strides');
+              const parsedTags = getActivityTags(a).filter(tag => tag === 'Strides' || tag === 'Hills');
 
               return (
                 <div

@@ -142,6 +142,7 @@ export const zh: Translations = {
     recovery: '恢复跑',
     race: '比赛',
     strides: '跨步冲刺',
+    hills: '坡地',
     tempo: '节奏跑',
     marathonPace: '马拉松配速'
   },

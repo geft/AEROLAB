@@ -170,6 +170,7 @@ export interface Translations {
     recovery: string;
     race: string;
     strides: string;
+    hills: string;
     tempo: string;
     marathonPace: string;
   };

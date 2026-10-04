@@ -80,5 +80,9 @@ export function analyzeWorkout(
   // Race segmentation follows effective intent, after the independent prediction.
   if (runType === 'race') intervals = detectIntervals(records, { ...intervalOptions, isRace: true });
   return { context, economy, splits, classification, runType, intervals,
-    tags: buildSessionTags(runType, records, intervals, profile) };
+    tags: buildSessionTags(runType, records, intervals, profile, {
+      distance_meters: metadata.totalDistanceMeters,
+      elevation_gain_m: metadata.totalAscentMeters,
+      elevation_loss_m: metadata.totalDescentMeters
+    }) };
 }

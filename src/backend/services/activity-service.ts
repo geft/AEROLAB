@@ -363,12 +363,13 @@ export function getProgressHistoryService(db: Database.Database, runTypeFilter: 
 function activityWithDerivedTags(db: Database.Database, row: unknown) {
   const activity = activityFromRow(row);
   const strides = db.prepare("SELECT 1 FROM activity_intervals WHERE activity_id = ? AND type = 'stride' LIMIT 1").get(activity.id);
-  return { ...activity, tags: JSON.stringify(sessionTags(activity.run_type, strides ? ['Strides'] : [])) };
+  return { ...activity, tags: JSON.stringify(sessionTags(activity.run_type, strides ? ['Strides'] : [], activity)) };
 }
 
 /** GET /api/activities - list all runs */
 export function listActivitiesService(db: Database.Database, typeFilter?: string): ActivityListResponse {
   const activityColumns = new Set((db.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>).map(column => column.name));
+  const elevationLossColumn = activityColumns.has('elevation_loss_m') ? 'a.elevation_loss_m' : 'NULL AS elevation_loss_m';
   const pm25ValueColumn = activityColumns.has('weather_pm25_ug_m3') ? 'a.weather_pm25_ug_m3' : 'NULL AS weather_pm25_ug_m3';
   const pm25SourceColumn = activityColumns.has('weather_pm25_source') ? 'a.weather_pm25_source' : 'NULL AS weather_pm25_source';
   let query = `
@@ -376,7 +377,7 @@ export function listActivitiesService(db: Database.Database, typeFilter?: string
       a.id, a.start_time, a.name, a.run_type, a.auto_run_type,
       a.distance_meters, a.duration_seconds, a.avg_pace_sec_km,
       a.avg_heart_rate, a.max_heart_rate, a.avg_cadence, a.calories,
-      a.elevation_gain_m, a.avg_temperature, a.avg_vertical_oscillation,
+      a.elevation_gain_m, ${elevationLossColumn}, a.avg_temperature, a.avg_vertical_oscillation,
       a.avg_stance_time, a.efficiency_factor, a.aerobic_decoupling_pct,
       a.meters_per_beat, a.tags,
       EXISTS (SELECT 1 FROM activity_intervals i WHERE i.activity_id = a.id AND i.type = 'stride') AS has_strides,
@@ -411,7 +412,7 @@ export function listActivitiesService(db: Database.Database, typeFilter?: string
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) analysis = parsed as Record<string, unknown>;
       } catch { /* Legacy analysis may be absent. */ }
       const parsedActivity = activityFromRow(activity);
-      return { ...parsedActivity, tags: JSON.stringify(sessionTags(parsedActivity.run_type, has_strides ? ['Strides'] : [])), verdict: parseSessionVerdict(analysis?.verdict) };
+      return { ...parsedActivity, tags: JSON.stringify(sessionTags(parsedActivity.run_type, has_strides ? ['Strides'] : [], parsedActivity)), verdict: parseSessionVerdict(analysis?.verdict) };
     })
   };
 }
@@ -425,7 +426,7 @@ export function getActivityDetailService(db: Database.Database, id: string, opti
 
   const splits = db.prepare('SELECT * FROM activity_splits WHERE activity_id = ? ORDER BY split_index ASC').all(id).map(activitySplitFromRow);
   const intervals = db.prepare('SELECT * FROM activity_intervals WHERE activity_id = ? ORDER BY interval_index ASC').all(id).map(activityIntervalFromRow);
-  activity.tags = JSON.stringify(sessionTags(activity.run_type, intervals.some(interval => interval.type === 'stride') ? ['Strides'] : []));
+  activity.tags = JSON.stringify(sessionTags(activity.run_type, intervals.some(interval => interval.type === 'stride') ? ['Strides'] : [], activity));
   const exportFields = loadExportFields(db, id);
   const records = loadAnalysisRecords(db, id).map((record, index) => ({ ...analysisRecordToRow(record), fit_fields_json: exportFields[index] }));
 

@@ -96,6 +96,26 @@ describe('API Server Integration Tests', () => {
     }
   });
 
+  it('returns the same derived Hills tag in list, detail and title-edit responses', async () => {
+    const db = getDatabase();
+    const previous = db.prepare('SELECT elevation_gain_m,elevation_loss_m,name FROM activities WHERE id=?').get('bench-easy-60') as { elevation_gain_m: number; elevation_loss_m: number; name: string };
+    try {
+      db.prepare('UPDATE activities SET elevation_gain_m=300,elevation_loss_m=300 WHERE id=?').run('bench-easy-60');
+      const list = await request(app).get('/api/activities');
+      const detail = await request(app).get('/api/activities/bench-easy-60');
+      const patch = await request(app).patch('/api/activities/bench-easy-60').send({ name: 'Hilly route' });
+      expect(list.status).toBe(200);
+      expect(detail.status).toBe(200);
+      expect(patch.status).toBe(200);
+      for (const activity of [list.body.activities[0], detail.body.activity, patch.body.activity]) {
+        expect(JSON.parse(activity.tags)).toEqual(['Easy Base', 'Hills']);
+      }
+    } finally {
+      db.prepare('UPDATE activities SET elevation_gain_m=?,elevation_loss_m=?,name=? WHERE id=?')
+        .run(previous.elevation_gain_m, previous.elevation_loss_m, previous.name, 'bench-easy-60');
+    }
+  });
+
   it('GET /api/activities?type=easy_base filters correctly', async () => {
     const res = await request(app).get('/api/activities?type=easy_base');
     expect(res.status).toBe(200);

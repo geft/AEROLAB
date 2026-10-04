@@ -34,6 +34,18 @@ describe('Browse classification filters', () => {
     expect(getActivityTags(activity('long', 'long_run', ['Marathon Pace', 'Recovery']))).toEqual(['Long Run']);
   });
 
+  it('filters and counts Hills from elevation while keeping the primary run type', () => {
+    const hilly = { ...activity('hilly', 'easy_base', []), elevation_gain_m: 100, elevation_loss_m: 100 };
+    const flat = activity('flat', 'easy_base', ['Hills']);
+    const { result } = renderHook(() => useBrowseSelection([hilly, flat], 'hilly', vi.fn()));
+    expect(result.current.tagCounts.Hills).toBe(1);
+    expect(result.current.tagCounts['Easy Base']).toBe(2);
+    act(() => result.current.setSelectedTagFilter('Hills'));
+    expect(result.current.filteredActivities.map(a => a.id)).toEqual(['hilly']);
+    expect(getActivityTags(hilly)).toEqual(['Easy Base', 'Hills']);
+    expect(doesActivityMatchTag(flat, 'Hills')).toBe(false);
+  });
+
   it('keeps tempo filtering active when a calendar date is selected', () => {
     const activities = [activity('easy', 'easy_base', ['Easy Base', 'Tempo']),
       activity('tempo', 'tempo', ['Tempo']), activity('other-day', 'tempo', ['Tempo'], '2026-09-13')];

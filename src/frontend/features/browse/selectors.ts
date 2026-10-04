@@ -1,10 +1,10 @@
-import { sessionTags } from '../../../shared/session-tags.js';
+import { sessionTags, type ElevationEvidence } from '../../../shared/session-tags.js';
 import { en } from '../../i18n/en.js';
 import type { Activity, ActivityUpdate } from '../../types/api.js';
 import type { Translations } from '../../i18n/types.js';
 /** Shared list keeps visible filters and their counts in sync. */
 export const SIDEBAR_FILTER_TAGS = [
-  'All', 'Threshold', 'Tempo', 'VO2 Max', 'Easy Base', 'Long Run', 'Race', 'Strides', 'Recovery'
+  'All', 'Threshold', 'Tempo', 'VO2 Max', 'Easy Base', 'Long Run', 'Race', 'Strides', 'Hills', 'Recovery'
 ];
 
 /** A workout row as used by the browse list. Same shape as the API contract. */
@@ -52,15 +52,15 @@ const PRIMARY_FILTER_TYPES: Record<string, string> = {
 };
 
 /** Hide stale or manually added primary tags that contradict the classification. */
-export function getActivityTags(a: Pick<Activity, 'tags' | 'run_type'>): string[] {
+export function getActivityTags(a: Pick<Activity, 'tags' | 'run_type'> & ElevationEvidence): string[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(a.tags || '[]');
   } catch {
-    return sessionTags(a.run_type, []);
+    return sessionTags(a.run_type, [], a);
   }
-  if (!Array.isArray(parsed)) return sessionTags(a.run_type, []);
-  return sessionTags(a.run_type, parsed.filter((tag): tag is string => typeof tag === 'string'));
+  if (!Array.isArray(parsed)) return sessionTags(a.run_type, [], a);
+  return sessionTags(a.run_type, parsed.filter((tag): tag is string => typeof tag === 'string'), a);
 }
 
 export function doesActivityMatchTag(a: ActivitySummary, tag: string): boolean {
