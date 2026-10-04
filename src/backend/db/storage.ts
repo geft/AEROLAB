@@ -1,3 +1,4 @@
+import { pruneBackupFiles } from './backup-retention.js';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
@@ -101,6 +102,7 @@ function restoreWithLock(candidatePath: string): { success: boolean; activityCou
     fs.mkdirSync(backupDir, { recursive: true });
     safetyBackupPath = path.join(backupDir, `pre-restore-safety-${randomUUID()}.db`);
     createSnapshot(activeDb, safetyBackupPath);
+    pruneBackupFiles(backupDir, safetyBackupPath);
     const checkpoint = activeDb.pragma('wal_checkpoint(TRUNCATE)') as Array<{ busy: number }>;
     if (checkpoint.some(row => row.busy !== 0)) throw new Error('Database is busy; close other connections before restoring');
     closeDatabase();

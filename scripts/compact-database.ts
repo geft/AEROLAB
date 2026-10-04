@@ -1,3 +1,4 @@
+import { pruneBackupFiles } from '../src/backend/db/backup-retention.js';
 import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -61,6 +62,7 @@ try {
   fs.mkdirSync(backupDir, { recursive: true });
   const backupPath = path.join(backupDir, `pre-gzip-${randomUUID()}.db`);
   await source.backup(backupPath);
+  pruneBackupFiles(backupDir, backupPath);
   const candidatePath = path.join(temporaryDir, 'candidate.db');
   fs.copyFileSync(backupPath, candidatePath);
   const candidate = new Database(candidatePath);

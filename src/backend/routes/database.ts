@@ -8,6 +8,7 @@ import Database from 'better-sqlite3';
 import { getDatabase } from '../db/client.js';
 import { getDatabasePath, saveDatabasePath } from '../db/path.js';
 import { copyCurrentDatabaseTo, createSnapshot, restoreDatabaseFromFile, validateDatabaseSnapshot } from '../db/storage.js';
+import { listBackupFiles, pruneBackupFiles } from '../db/backup-retention.js';
 import { startMaintenance } from '../jobs/maintenance.js';
 
 export { restoreDatabaseFromFile, validateDatabaseSnapshot } from '../db/storage.js';
@@ -140,47 +141,13 @@ export function saveBackupSettings(db: Database.Database, newSettings: Partial<B
   return updated;
 }
 
-export function listBackups(directory: string): Array<{ filename: string; filePath: string; sizeBytes: number; createdAt: string }> {
-  try {
-    if (!fs.existsSync(directory)) return [];
-    const files = fs.readdirSync(directory);
-    return files
-      .filter(f => f.startsWith('runs-') && f.endsWith('.db'))
-      .flatMap(f => {
-        const filePath = path.join(directory, f);
-        try {
-          const stats = fs.lstatSync(filePath);
-          if (!stats.isFile()) return [];
-          return [{
-            filename: f,
-            filePath,
-            sizeBytes: stats.size,
-            createdAt: stats.mtime.toISOString()
-          }];
-        } catch {
-          return [];
-        }
-      })
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  } catch {
-    return [];
-  }
+export function listBackups(directory: string) {
+  return listBackupFiles(directory, 'rolling');
 }
 
-/** Remove older rolling snapshots so retention also applies to files created under an older policy. */
-export function pruneBackups(directory: string): Array<{ filename: string; filePath: string; sizeBytes: number; createdAt: string }> {
-  const backups = listBackups(directory);
-  const maxBackups = 3;
-  if (backups.length <= maxBackups) return backups;
-
-  for (const old of backups.slice(maxBackups)) {
-    try {
-      fs.unlinkSync(old.filePath);
-    } catch {
-      // Best effort: a locked or concurrently removed file should not break status reporting.
-    }
-  }
-
+/** Apply retention to both rolling and safety snapshots. */
+export function pruneBackups(directory: string) {
+  pruneBackupFiles(directory);
   return listBackups(directory);
 }
 
@@ -338,7 +305,7 @@ export function createDatabaseBackup(db: Database.Database, targetDirectory?: st
   const createdAt = now.toISOString();
 
   // Rotate old backups in this directory (keep newest N).
-  pruneBackups(backupDir);
+  pruneBackupFiles(backupDir, filePath);
 
   return {
     filePath,
@@ -354,6 +321,11 @@ export function createAutomaticBackupIfDue(
   now = new Date()
 ): ReturnType<typeof createDatabaseBackup> | null {
   const { backupDirectory } = getBackupSettings(db);
+  // Cleanup must run even when the weekly snapshot is not due. Migration
+  // safety files live beside the database, which may differ from preferences.
+  for (const directory of new Set([backupDirectory, getDefaultBackupDir(db)])) {
+    pruneBackupFiles(directory);
+  }
   const latest = listBackups(backupDirectory)[0];
   if (latest) {
     const latestTime = Date.parse(latest.createdAt);

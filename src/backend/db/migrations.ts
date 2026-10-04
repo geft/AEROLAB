@@ -1,3 +1,4 @@
+import { pruneBackupFiles } from './backup-retention.js';
 import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
@@ -41,6 +42,7 @@ export function createMigrationRunner(db: Database.Database) {
     snapshotPath = path.join(backupDir, `pre-migration-${Date.now()}.db`);
     db.exec(`VACUUM INTO '${snapshotPath.replace(/'/g, "''")}'`);
     logger.info('DB', `Migration safety snapshot: ${snapshotPath}`);
+    pruneBackupFiles(backupDir, snapshotPath);
   }
 
   return {

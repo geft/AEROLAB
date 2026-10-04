@@ -1,3 +1,4 @@
+import { pruneBackupFiles } from '../src/backend/db/backup-retention.js';
 /**
  * Repair Flat Speed Telemetry in runs.db
  *
@@ -36,6 +37,7 @@ const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const backupPath = path.join(backupDir, `runs-pre-speed-repair-${stamp}.db`);
 db.prepare(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`).run();
 console.log(`[backup] Safe backup written to: ${backupPath}`);
+pruneBackupFiles(backupDir, backupPath);
 
 // 2. Identify all activities with flat speed
 const activitiesWithFlatSpeed = db.prepare(`

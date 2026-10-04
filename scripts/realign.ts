@@ -1,3 +1,4 @@
+import { pruneBackupFiles } from '../src/backend/db/backup-retention.js';
 /**
  * Force-realign stored analysis with the current detection/classification code.
  *
@@ -35,6 +36,7 @@ if (onlyIds.length === 0) {
   const backupPath = path.join(backupDir, `runs-${stamp}.db`);
   db.prepare(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`).run();
   console.log(`Backup written to ${backupPath}`);
+  pruneBackupFiles(backupDir, backupPath);
 }
 
 // Upgrade schema only after the backup exists, just as application startup does.

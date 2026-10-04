@@ -172,6 +172,30 @@ describe('Database Backup & Cloud Sync Integration Tests', () => {
     }
   });
 
+  it('cleans excess rolling and migration snapshots at startup even when no backup is due', () => {
+    const db = getDatabase();
+    const directory = path.join(testDir, 'startup-retention');
+    fs.mkdirSync(directory);
+    const originalSettings = getBackupSettings(db);
+    try {
+      saveBackupSettings(db, { backupDirectory: directory });
+      const now = new Date();
+      for (let i = 0; i < 6; i++) {
+        for (const name of [`runs-legacy-${i}.db`, `pre-migration-${i}.db`]) {
+          const file = path.join(directory, name);
+          fs.writeFileSync(file, 'snapshot');
+          const time = new Date(now.getTime() - i * 1000);
+          fs.utimesSync(file, time, time);
+        }
+      }
+      expect(createAutomaticBackupIfDue(db, now)).toBeNull();
+      expect(listBackups(directory)).toHaveLength(3);
+      expect(fs.readdirSync(directory).filter(name => name.startsWith('pre-migration-'))).toHaveLength(3);
+    } finally {
+      saveBackupSettings(db, originalSettings);
+    }
+  });
+
   it('handles folder selection for valid, cancelled, and invalid choices', async () => {
     const json = vi.fn();
     const status = vi.fn(() => ({ json }));
