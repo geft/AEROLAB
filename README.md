@@ -194,6 +194,7 @@ platform-specific; these committed images use Chromium on Windows.
 npm run dev
 ```
 Starts both the Express REST API (`http://localhost:3001`) and the Vite React UI (`http://localhost:5173`) concurrently in a single terminal on Windows, macOS, or Linux.
+If the desktop app already occupies port 3001, the launcher selects the next free API port and points Vite to that development backend. The UI stays on port 5173. When starting the services separately, set `PORT` for the backend and the same `AEROLAB_API_PORT` for Vite.
 - Backend API: `http://localhost:3001`
 - Frontend Dashboard: `http://localhost:5173`
 

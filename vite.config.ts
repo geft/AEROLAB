@@ -27,9 +27,10 @@ export default defineConfig(({ mode }) => ({
       : undefined,
   server: {
     port: 5173,
+    strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:3001',
+        target: `http://127.0.0.1:${process.env.AEROLAB_API_PORT || 3001}`,
         changeOrigin: true
       }
     }

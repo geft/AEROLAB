@@ -7,6 +7,7 @@
 
 import { spawn } from 'child_process';
 import process from 'process';
+import { findAvailableApiPort } from './dev-port.js';
 
 const isWindows = process.platform === 'win32';
 const npmCmd = isWindows ? 'npm.cmd' : 'npm';
@@ -15,16 +16,21 @@ console.log('\x1b[36m%s\x1b[0m', '==============================================
 console.log('\x1b[36m%s\x1b[0m', '🏃 AEROLAB — Starting Local Backend & Frontend');
 console.log('\x1b[36m%s\x1b[0m', '====================================================');
 
+const apiPort = await findAvailableApiPort(Number(process.env.PORT || 3001));
+const devEnv = { ...process.env, NODE_ENV: 'development', PORT: String(apiPort), AEROLAB_API_PORT: String(apiPort) };
+delete devEnv.AEROLAB_SESSION_TOKEN;
+console.log(`Development API: http://127.0.0.1:${apiPort}`);
+
 const backend = spawn(npmCmd, ['run', 'dev:backend'], {
   stdio: 'pipe',
   shell: true,
-  env: process.env
+  env: devEnv
 });
 
 const frontend = spawn(npmCmd, ['run', 'dev:frontend'], {
   stdio: 'pipe',
   shell: true,
-  env: process.env
+  env: devEnv
 });
 
 function pipeOutput(stream, prefix, colorCode) {
