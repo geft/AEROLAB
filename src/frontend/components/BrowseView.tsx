@@ -38,7 +38,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
   const { t, language, format } = useTranslation();
   const { safeActivities, selectedMonth, setSelectedMonth, selectedDate, setSelectedDate, showCalendar, setShowCalendar,
     calendarViewYm, setCalendarViewYm, selectedTagFilter, setSelectedTagFilter, mobileSubTab, setMobileSubTab,
-    showTagMenu, setShowTagMenu, tagMenuRef, tagCounts, availableYears, activeDatesMap, filteredActivities, groupedActivities } =
+    tagCounts, availableYears, activeDatesMap, filteredActivities, groupedActivities } =
     useBrowseSelection(activities, selectedActivityId, onSelectActivity);
   const { detailData, setDetailData, loadingDetail, detailError, setRetryCounter, isRefreshingWeather, handleRefreshWeather, activeSubTab, setActiveSubTab } =
     useActivityDetail(selectedActivityId, dataRefreshKey, onActivityUpdated);
@@ -112,7 +112,6 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
         availableYears={availableYears}
         activeDatesMap={activeDatesMap}
         setMobileSubTab={setMobileSubTab}
-        setShowTagMenu={setShowTagMenu}
         onOpenUpload={onOpenUpload}
         readOnly={readOnly}
         getDisplayTitle={getDisplayTitle}
@@ -286,9 +285,6 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
               }}
               onRefreshWeather={handleRefreshWeather}
               isRefreshingWeather={isRefreshingWeather}
-              showTagMenu={showTagMenu}
-              setShowTagMenu={setShowTagMenu}
-              tagMenuRef={tagMenuRef}
               t={t}
               readOnly={readOnly}
             />

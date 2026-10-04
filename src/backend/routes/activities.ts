@@ -14,7 +14,6 @@ import {
   updateActivityService,
 } from '../services/activity-service.js';
 
-export { ALLOWED_TAGS } from '../services/activity-service.js';
 
 export const activitiesRouter = Router();
 

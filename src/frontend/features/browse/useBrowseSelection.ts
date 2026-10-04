@@ -14,32 +14,6 @@ export function useBrowseSelection(activities: ActivitySummary[], selectedActivi
   });
   const [selectedTagFilter, setSelectedTagFilter] = useState<string>('all');
   const [mobileSubTab, setMobileSubTab] = useState<'list' | 'detail'>('list');
-  const [showTagMenu, setShowTagMenu] = useState<boolean>(false);
-  const tagMenuRef = useRef<HTMLDivElement>(null);
-
-  // Auto-dismiss tag menu when clicking outside or pressing Escape
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (tagMenuRef.current && !tagMenuRef.current.contains(e.target as Node)) {
-        setShowTagMenu(false);
-      }
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setShowTagMenu(false);
-      }
-    };
-    if (showTagMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleKeyDown);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [showTagMenu]);
-
-
   // Pre-calculate count of activities matching each sidebar tag
   const tagCounts = useMemo(() => {
     const counts: Record<string, number> = { All: safeActivities.length };
@@ -81,10 +55,8 @@ export function useBrowseSelection(activities: ActivitySummary[], selectedActivi
 
   const filteredActivities = useMemo(() => {
     return safeActivities.filter(a => {
-      if (selectedDate) {
-        return a.start_time?.startsWith(selectedDate);
-      }
-      if (selectedMonth !== 'all' && !a.start_time?.startsWith(selectedMonth)) {
+      if (selectedDate && !a.start_time?.startsWith(selectedDate)) return false;
+      if (!selectedDate && selectedMonth !== 'all' && !a.start_time?.startsWith(selectedMonth)) {
         return false;
       }
       return doesActivityMatchTag(a, selectedTagFilter);
@@ -128,7 +100,6 @@ export function useBrowseSelection(activities: ActivitySummary[], selectedActivi
   const [previousSelection, setPreviousSelection] = useState(selectedActivityId);
   if (previousSelection !== selectedActivityId) {
     setPreviousSelection(selectedActivityId);
-    setShowTagMenu(false);
     const target = safeActivities.find(a => a.id === selectedActivityId);
     if (previousSelection && target) {
       if (selectedMonth !== 'all' && !target.start_time?.startsWith(selectedMonth)) setSelectedMonth('all');
@@ -139,5 +110,5 @@ export function useBrowseSelection(activities: ActivitySummary[], selectedActivi
 
   return { safeActivities, selectedMonth, setSelectedMonth, selectedDate, setSelectedDate, showCalendar, setShowCalendar,
     calendarViewYm, setCalendarViewYm, selectedTagFilter, setSelectedTagFilter, mobileSubTab, setMobileSubTab,
-    showTagMenu, setShowTagMenu, tagMenuRef, tagCounts, availableYears, activeDatesMap, filteredActivities, groupedActivities };
+    tagCounts, availableYears, activeDatesMap, filteredActivities, groupedActivities };
 }

@@ -66,6 +66,7 @@ function createAggregationDatabase() {
       max_heart_rate REAL
     );
     CREATE TABLE activity_records (activity_id TEXT, elapsed_seconds REAL, heart_rate REAL);
+    CREATE TABLE activity_intervals (activity_id TEXT, type TEXT);
     CREATE TABLE physiological_thresholds (
       id INTEGER, effective_date TEXT, source_activity_id TEXT, lt1_hr REAL, lt1_pace_sec_km REAL,
       lt2_hr REAL, lt2_pace_sec_km REAL, baseline_economy_ef REAL, confidence REAL,

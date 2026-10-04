@@ -54,32 +54,46 @@ describe('API Server Integration Tests', () => {
     }
   });
 
-  it('PATCH /api/activities/:id updates custom title and tags', async () => {
+  it('PATCH /api/activities/:id updates custom title while retaining derived tags', async () => {
     const patchRes = await request(app)
       .patch('/api/activities/bench-easy-60')
       .send({
         name: 'Morning Aerobic Base + PCN Strides',
-        tags: ['Easy Base', 'Strides', 'Recovery']
       });
 
     expect(patchRes.status).toBe(200);
     expect(patchRes.body.activity.name).toBe('Morning Aerobic Base + PCN Strides');
-    expect(JSON.parse(patchRes.body.activity.tags)).toEqual(['Easy Base', 'Strides', 'Recovery']);
+    expect(JSON.parse(patchRes.body.activity.tags)).toEqual(['Easy Base']);
 
     // Confirm persisted via GET
     const getRes = await request(app).get('/api/activities/bench-easy-60');
     expect(getRes.body.activity.name).toBe('Morning Aerobic Base + PCN Strides');
   });
 
-  it('PATCH /api/activities/:id rejects unknown/new custom tags with 400', async () => {
-    const patchRes = await request(app)
-      .patch('/api/activities/bench-easy-60')
-      .send({
-        tags: ['Easy Base', 'Brand New Tag', 'Custom Random']
-      });
-
+  it.each([['Strides'], ['Easy Base', 'Tempo'], ['Brand New Tag']])('rejects manual tag edits: %j', async (...tags) => {
+    const patchRes = await request(app).patch('/api/activities/bench-easy-60').send({ tags });
     expect(patchRes.status).toBe(400);
-    expect(patchRes.body.error).toContain('Only existing tags are allowed');
+    expect(patchRes.body.error).toContain('cannot be edited');
+  });
+
+  it('derives list and detail tags from classification and recorded strides rather than saved tags', async () => {
+    const db = getDatabase();
+    const previous = db.prepare('SELECT tags FROM activities WHERE id=?').get('bench-easy-60') as { tags: string };
+    try {
+      db.prepare('UPDATE activities SET tags=? WHERE id=?').run('["Tempo","Recovery","Marathon Pace","Strides"]', 'bench-easy-60');
+      const list = await request(app).get('/api/activities');
+      const detail = await request(app).get('/api/activities/bench-easy-60');
+      expect(JSON.parse(list.body.activities[0].tags)).toEqual(['Easy Base']);
+      expect(JSON.parse(detail.body.activity.tags)).toEqual(['Easy Base']);
+      db.prepare("INSERT INTO activity_intervals (activity_id,interval_index,type,start_seconds,duration_seconds,distance_meters) VALUES (?,99,'stride',0,20,100)").run('bench-easy-60');
+      const withStrides = await request(app).get('/api/activities');
+      expect(JSON.parse(withStrides.body.activities[0].tags)).toEqual(['Easy Base', 'Strides']);
+      const detailWithStrides = await request(app).get('/api/activities/bench-easy-60');
+      expect(JSON.parse(detailWithStrides.body.activity.tags)).toEqual(['Easy Base', 'Strides']);
+    } finally {
+      db.prepare("DELETE FROM activity_intervals WHERE activity_id=? AND interval_index=99").run('bench-easy-60');
+      db.prepare('UPDATE activities SET tags=? WHERE id=?').run(previous.tags, 'bench-easy-60');
+    }
   });
 
   it('GET /api/activities?type=easy_base filters correctly', async () => {

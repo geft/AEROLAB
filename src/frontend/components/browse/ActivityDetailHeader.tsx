@@ -1,20 +1,16 @@
 import React, { useState } from 'react';
 import type { Activity, ActivityRecord, ActivityUpdate } from '../../types/api.js';
 
+import { getActivityTags } from '../../features/browse/selectors.js';
 import type { DisplayTitleFn } from '../../features/browse/selectors.js';
 import type { Translations } from '../../i18n/types.js';
-import { Edit2, Tag, Plus, X, Check, Download } from 'lucide-react';
+import { Edit2, Tag, Download } from 'lucide-react';
 import { ActivityWeatherCard } from './ActivityWeatherCard';
 import { translateTag } from '../../i18n/tagTranslator';
 import { translateActivityName } from '../../i18n/coachTranslator.js';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { patchActivity } from '../../api/client.js';
 import { downloadSessionCsv } from '../../utils/sessionCsv.js';
-
-const COMMON_TAG_PRESETS = [
-  'Easy Base', 'Long Run', 'Recovery', 'Threshold', 'VO2 Max',
-  'Tempo', 'Marathon Pace', 'Strides', 'Race'
-];
 
 interface ActivityDetailHeaderProps {
   act: Activity;
@@ -27,9 +23,6 @@ interface ActivityDetailHeaderProps {
   onActivityUpdated?: (activity: ActivityUpdate) => void;
   onRefreshWeather: () => void;
   isRefreshingWeather: boolean;
-  showTagMenu: boolean;
-  setShowTagMenu: React.Dispatch<React.SetStateAction<boolean>>;
-  tagMenuRef: React.RefObject<HTMLDivElement | null>;
   t: Translations;
   readOnly?: boolean;
 }
@@ -45,9 +38,6 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
   onActivityUpdated,
   onRefreshWeather,
   isRefreshingWeather,
-  showTagMenu,
-  setShowTagMenu,
-  tagMenuRef,
   t,
   readOnly = false
 }) => {
@@ -56,37 +46,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
   const { formatDate, language } = useTranslation();
   const displayCadence = act.steady_cadence || act.avg_cadence;
 
-  // Parse current tags safely
-  let currentTags: string[] = [];
-  try {
-    currentTags = act.tags ? JSON.parse(act.tags) : [];
-  } catch {
-    currentTags = [];
-  }
-
-
-  const handleUpdateTags = async (tags: string[]) => {
-    try {
-      await patchActivity(act.id, { tags });
-      onActivityUpdated?.({ id: act.id, tags: JSON.stringify(tags) });
-    } catch (err) {
-      console.error('Failed to update tags:', err);
-    }
-  };
-
-  const handleAddTag = (tagToAdd: string) => {
-    const trimmed = tagToAdd.trim();
-    if (!trimmed || currentTags.includes(trimmed)) return;
-    if (!COMMON_TAG_PRESETS.includes(trimmed)) return;
-    const updated = [...currentTags, trimmed];
-    handleUpdateTags(updated);
-    setShowTagMenu(false);
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    const updated = currentTags.filter(t => t !== tagToRemove);
-    handleUpdateTags(updated);
-  };
+  const currentTags = getActivityTags(act);
 
   return (
     <section className="overview-card">
@@ -179,96 +139,9 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
                 }}
               >
                 {translateTag(tag, t)}
-                {!readOnly && <X
-                  size={11}
-                  style={{ cursor: 'pointer', opacity: 0.7 }}
-                  onClick={() => handleRemoveTag(tag)}
-                />}
               </span>
             ))}
 
-            {!readOnly && <div style={{ position: 'relative' }}>
-              <button
-                onClick={() => setShowTagMenu(!showTagMenu)}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px dashed rgba(255, 255, 255, 0.2)',
-                  color: '#94a3b8',
-                  padding: '0.15rem 0.5rem',
-                  borderRadius: 999,
-                  fontSize: '0.72rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.2rem'
-                }}
-              >
-                <Plus size={12} />
-                <span>{t.browse.tagLabel}</span>
-              </button>
-
-              {showTagMenu && (
-                <div
-                  ref={tagMenuRef}
-                  style={{
-                    position: 'absolute',
-                    top: '120%',
-                    left: 0,
-                    zIndex: 30,
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: 8,
-                    padding: '0.6rem',
-                    boxShadow: 'var(--card-shadow)',
-                    width: '210px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.4rem'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.3rem', borderBottom: '1px solid var(--border-subtle)' }}>
-                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>{t.browse.existingTags}</span>
-                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{currentTags.length} {t.browse.activeCount}</span>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', maxHeight: '230px', overflowY: 'auto' }}>
-                    {COMMON_TAG_PRESETS.map(preset => {
-                      const isApplied = currentTags.includes(preset);
-                      return (
-                        <button
-                          key={preset}
-                          type="button"
-                          onClick={() => {
-                            if (isApplied) {
-                              handleRemoveTag(preset);
-                            } else {
-                              handleAddTag(preset);
-                            }
-                          }}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '0.35rem 0.55rem',
-                            borderRadius: 6,
-                            fontSize: '0.74rem',
-                            fontWeight: isApplied ? 600 : 400,
-                            background: isApplied ? 'rgba(6, 182, 212, 0.15)' : 'transparent',
-                            color: isApplied ? '#38bdf8' : 'var(--text-secondary)',
-                            border: isApplied ? '1px solid rgba(6, 182, 212, 0.4)' : '1px solid transparent',
-                            cursor: 'pointer',
-                            textAlign: 'left',
-                            transition: 'all 0.15s ease'
-                          }}
-                        >
-                          <span>{translateTag(preset, t)}</span>
-                          {isApplied ? <Check size={13} color="#38bdf8" /> : <Plus size={12} color="var(--text-muted)" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>}
           </div>
         </div>
 

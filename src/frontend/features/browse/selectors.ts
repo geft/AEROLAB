@@ -1,9 +1,10 @@
+import { sessionTags } from '../../../shared/session-tags.js';
 import { en } from '../../i18n/en.js';
 import type { Activity, ActivityUpdate } from '../../types/api.js';
 import type { Translations } from '../../i18n/types.js';
 /** Shared list keeps visible filters and their counts in sync. */
 export const SIDEBAR_FILTER_TAGS = [
-  'All', 'Threshold', 'Tempo', 'VO2 Max', 'Easy Base', 'Long Run', 'Race', 'Strides', 'Marathon Pace', 'Recovery'
+  'All', 'Threshold', 'Tempo', 'VO2 Max', 'Easy Base', 'Long Run', 'Race', 'Strides', 'Recovery'
 ];
 
 /** A workout row as used by the browse list. Same shape as the API contract. */
@@ -45,24 +46,30 @@ export function getDisplayTitle(activity: DisplayTitleInput, t?: Translations): 
   return titles[activity.run_type as keyof typeof titles] || titles.generic;
 }
 
+const PRIMARY_FILTER_TYPES: Record<string, string> = {
+  threshold: 'threshold_lt2', 'vo2 max': 'intervals_vo2', 'easy base': 'easy_base',
+  'long run': 'long_run', race: 'race', recovery: 'recovery', tempo: 'tempo'
+};
+
+/** Hide stale or manually added primary tags that contradict the classification. */
+export function getActivityTags(a: Pick<Activity, 'tags' | 'run_type'>): string[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(a.tags || '[]');
+  } catch {
+    return sessionTags(a.run_type, []);
+  }
+  if (!Array.isArray(parsed)) return sessionTags(a.run_type, []);
+  return sessionTags(a.run_type, parsed.filter((tag): tag is string => typeof tag === 'string'));
+}
+
 export function doesActivityMatchTag(a: ActivitySummary, tag: string): boolean {
   if (!tag || tag.toLowerCase() === 'all') return true;
   const lower = tag.toLowerCase();
-  let tagsArr: string[] = [];
-  try {
-    tagsArr = a.tags ? JSON.parse(a.tags) : [];
-  } catch {
-    tagsArr = [];
-  }
+  const primaryType = PRIMARY_FILTER_TYPES[lower];
+  if (primaryType && a.run_type) return a.run_type === primaryType;
+  const tagsArr = getActivityTags(a);
   if (tagsArr.some(t => t.toLowerCase() === lower)) return true;
-  if (lower === 'threshold' && a.run_type === 'threshold_lt2') return true;
-  if (lower === 'vo2 max' && a.run_type === 'intervals_vo2') return true;
-  if (lower === 'easy base' && a.run_type === 'easy_base') return true;
-  if (lower === 'long run' && a.run_type === 'long_run') return true;
-  if (lower === 'race' && a.run_type === 'race') return true;
-  if (lower === 'recovery' && a.run_type === 'recovery') return true;
-  if (lower === 'tempo' && a.run_type === 'tempo') return true;
-  if (lower === 'marathon pace' && tagsArr.some(t => t.toLowerCase().includes('marathon'))) return true;
   if (lower === 'strides' && (a.run_type === 'strides' || tagsArr.some(t => t.toLowerCase().includes('stride')))) return true;
   return false;
 }

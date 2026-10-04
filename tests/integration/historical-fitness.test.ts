@@ -68,8 +68,9 @@ describe('Historical fitness with stable athlete max HR', () => {
     importSteady('summer', '2026-07-02', 143);
     realignDatabase(db);
     for (const [id, lt1] of [['winter', test.early], ['summer', test.late]] as const) {
-      const row = db.prepare('SELECT tags FROM activities WHERE id=?').get(id) as { tags: string };
-      expect(JSON.parse(row.tags).includes('Tempo')).toBe(lt1 < 143);
+      const row = db.prepare('SELECT tags,z3_seconds FROM activities WHERE id=?').get(id) as { tags: string; z3_seconds: number };
+      expect(row.z3_seconds > 0).toBe(lt1 < 143);
+      expect(JSON.parse(row.tags)).not.toContain('Tempo');
     }
   });
 

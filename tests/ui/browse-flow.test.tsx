@@ -292,41 +292,12 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     });
   });
 
-  it('supports tag removal and adding preset tags', async () => {
-    render(
-      <BrowseView
-        activities={mockActivities}
-        selectedActivityId="act-101"
-        onSelectActivity={vi.fn()}
-        onOpenUpload={vi.fn()}
-        theme="dark"
-      />
-    );
-
-    await waitFor(() => {
-      expect(screen.getAllByText('Recovery').length).toBeGreaterThan(0);
-    });
-
-    // Open tag menu
-    const addTagBtn = screen.getByRole('button', { name: /tag/i });
-    fireEvent.click(addTagBtn);
-
-    // Ensure no free-form text input exists for typing arbitrary new tags
-    expect(screen.queryByPlaceholderText(/type tag/i)).toBeNull();
-
-    // Click 'Strides' preset
-    const presetBtn = screen.getByText('Strides', { selector: 'span' });
-    fireEvent.click(presetBtn);
-
-    await waitFor(() => {
-      expect(globalThis.fetch).toHaveBeenCalledWith(
-        '/api/activities/act-101',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: JSON.stringify({ tags: ['Easy Base', 'Recovery', 'Strides'] })
-        })
-      );
-    });
+  it('shows derived tags without a tag editor', async () => {
+    render(<BrowseView activities={mockActivities} selectedActivityId="act-101"
+      onSelectActivity={vi.fn()} onOpenUpload={vi.fn()} theme="dark" />);
+    await waitFor(() => expect(document.querySelector('.overview-card .run-title-group')).not.toBeNull());
+    expect(screen.queryByRole('button', { name: /^tag$/i })).toBeNull();
+    expect(document.querySelector('.overview-card')?.textContent).not.toContain('Recovery');
   });
 
   it('renders steady-state running metrics and isolates traffic stops/walk breaks', async () => {

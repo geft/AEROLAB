@@ -1,3 +1,4 @@
+import { sessionTags } from '../../shared/session-tags.js';
 import { decodeStoredJson, loadExportFields } from '../db/compression.js';
 import { parseScoreFactors, parseInsightTones, parseCoachContext, parseWalkAudit, parsePauseBreakdown } from '../../shared/contracts/coach-analysis.js';
 import { assertDatabaseWritable, reserveDatabaseOperation, canWriteDatabase, withDatabaseOperation, currentDatabaseOperation } from '../application/database-operations.js';
@@ -28,19 +29,6 @@ import { syncActivityWeather } from '../physiology/weather.js';
 import { getHeartRateProfileAtDate } from '../physiology/threshold-tracker.js';
 import { calculateActivityTrainingLoad, calculateTrainingStatus } from '../physiology/training-load.js';
 import { getAthleteBestEfforts } from '../physiology/best-efforts.js';
-
-/** Tags the client is allowed to apply to an activity. */
-export const ALLOWED_TAGS = [
-  'Easy Base',
-  'Long Run',
-  'Recovery',
-  'Threshold',
-  'VO2 Max',
-  'Tempo',
-  'Marathon Pace',
-  'Strides',
-  'Race'
-];
 
 /** GET /api/activities/best-efforts */
 export function getBestEffortsService(db: Database.Database): BestEffortsReport {
@@ -372,6 +360,12 @@ export function getProgressHistoryService(db: Database.Database, runTypeFilter: 
 }
 
 
+function activityWithDerivedTags(db: Database.Database, row: unknown) {
+  const activity = activityFromRow(row);
+  const strides = db.prepare("SELECT 1 FROM activity_intervals WHERE activity_id = ? AND type = 'stride' LIMIT 1").get(activity.id);
+  return { ...activity, tags: JSON.stringify(sessionTags(activity.run_type, strides ? ['Strides'] : [])) };
+}
+
 /** GET /api/activities - list all runs */
 export function listActivitiesService(db: Database.Database, typeFilter?: string): ActivityListResponse {
   const activityColumns = new Set((db.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>).map(column => column.name));
@@ -385,6 +379,7 @@ export function listActivitiesService(db: Database.Database, typeFilter?: string
       a.elevation_gain_m, a.avg_temperature, a.avg_vertical_oscillation,
       a.avg_stance_time, a.efficiency_factor, a.aerobic_decoupling_pct,
       a.meters_per_beat, a.tags,
+      EXISTS (SELECT 1 FROM activity_intervals i WHERE i.activity_id = a.id AND i.type = 'stride') AS has_strides,
       a.steady_pace_sec_km, a.steady_heart_rate, a.steady_cadence,
       a.steady_stance_time, a.pause_duration_seconds, a.walk_duration_seconds,
       a.walk_distance_meters,
@@ -409,13 +404,14 @@ export function listActivitiesService(db: Database.Database, typeFilter?: string
   return {
     activities: activities.map(value => {
       const row = value as Record<string, unknown>;
-      const { analysis_json, ...activity } = row;
+      const { analysis_json, has_strides, ...activity } = row;
       let analysis: Record<string, unknown> | null = null;
       try {
         const parsed: unknown = JSON.parse(typeof analysis_json === 'string' ? analysis_json : 'null');
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) analysis = parsed as Record<string, unknown>;
       } catch { /* Legacy analysis may be absent. */ }
-      return { ...activityFromRow(activity), verdict: parseSessionVerdict(analysis?.verdict) };
+      const parsedActivity = activityFromRow(activity);
+      return { ...parsedActivity, tags: JSON.stringify(sessionTags(parsedActivity.run_type, has_strides ? ['Strides'] : [])), verdict: parseSessionVerdict(analysis?.verdict) };
     })
   };
 }
@@ -429,6 +425,7 @@ export function getActivityDetailService(db: Database.Database, id: string, opti
 
   const splits = db.prepare('SELECT * FROM activity_splits WHERE activity_id = ? ORDER BY split_index ASC').all(id).map(activitySplitFromRow);
   const intervals = db.prepare('SELECT * FROM activity_intervals WHERE activity_id = ? ORDER BY interval_index ASC').all(id).map(activityIntervalFromRow);
+  activity.tags = JSON.stringify(sessionTags(activity.run_type, intervals.some(interval => interval.type === 'stride') ? ['Strides'] : []));
   const exportFields = loadExportFields(db, id);
   const records = loadAnalysisRecords(db, id).map((record, index) => ({ ...analysisRecordToRow(record), fit_fields_json: exportFields[index] }));
 
@@ -554,7 +551,7 @@ export async function refreshActivityWeatherService(db: Database.Database, id: s
       const updated = db.prepare('SELECT * FROM activities WHERE id = ?').get(id);
       if (!updated) return null;
       const coachSummary = syncActivityCoachSummary(db, id, undefined, { persist: false });
-      return { activity: activityFromRow(updated), weather, coachSummary };
+      return { activity: activityWithDerivedTags(db, updated), weather, coachSummary };
     });
   } finally { lease.release(); }
 }
@@ -591,30 +588,7 @@ export function updateActivityService(db: Database.Database, id: string, input: 
     params.push(name);
   }
   if (tags !== undefined) {
-    let tagList: string[] = [];
-    if (Array.isArray(tags)) {
-      tagList = tags;
-    } else if (typeof tags === 'string') {
-      try {
-        const parsed = JSON.parse(tags);
-        tagList = Array.isArray(parsed) ? parsed : [tags];
-      } catch {
-        tagList = [tags];
-      }
-    }
-
-    const invalidTags = tagList.filter(t => typeof t !== 'string' || !ALLOWED_TAGS.includes(t));
-    if (invalidTags.length > 0) {
-      return {
-        ok: false,
-        status: 400,
-        code: 'ERR_INVALID_TAGS',
-        error: `Invalid tags: ${invalidTags.join(', ')}. Only existing tags are allowed (${ALLOWED_TAGS.join(', ')}).`
-      };
-    }
-
-    updates.push('tags = ?');
-    params.push(JSON.stringify(tagList));
+    return { ok: false, status: 400, code: 'ERR_INVALID_TAGS', error: 'Tags are derived from the recorded run and cannot be edited.' };
   }
 
   if (updates.length === 0) {
@@ -631,13 +605,10 @@ export function updateActivityService(db: Database.Database, id: string, input: 
     db.prepare(`UPDATE activities SET ${updates.join(', ')} WHERE id = ?`).run(...params);
     if (run_type || is_failed_workout !== undefined) {
       rebuildAffectedHistory(db, { fromTime: thresholdTime(previous.start_time) });
-      // An explicitly supplied tag edit remains authoritative for this request.
-      const tagIndex = updates.indexOf('tags = ?');
-      if (tagIndex >= 0) db.prepare('UPDATE activities SET tags = ? WHERE id = ?').run(params[tagIndex], id);
     }
     const coachSummary = syncActivityCoachSummary(db, id);
     const updated = db.prepare('SELECT * FROM activities WHERE id = ?').get(id);
-    return { ok: true as const, response: { activity: activityFromRow(updated), coachSummary } };
+    return { ok: true as const, response: { activity: activityWithDerivedTags(db, updated), coachSummary } };
   })();
 }
 

@@ -7,7 +7,7 @@ import { Calendar, X } from 'lucide-react';
 import { BrowseCalendarPicker } from './BrowseCalendarPicker';
 import { translateTag } from '../../i18n/tagTranslator';
 import { useTranslation } from '../../i18n/LanguageContext';
-import { ActivitySummary, SIDEBAR_FILTER_TAGS } from '../../features/browse/selectors.js';
+import { ActivitySummary, SIDEBAR_FILTER_TAGS, getActivityTags } from '../../features/browse/selectors.js';
 
 
 
@@ -30,7 +30,6 @@ interface BrowseSidebarProps {
   availableYears: string[];
   activeDatesMap: Map<string, { count: number; runTypes: string[]; ids: string[] }>;
   setMobileSubTab: (tab: 'list' | 'detail') => void;
-  setShowTagMenu: (show: boolean) => void;
   onOpenUpload: () => void;
   readOnly?: boolean;
   getDisplayTitle: DisplayTitleFn;
@@ -59,7 +58,6 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
   availableYears,
   activeDatesMap,
   setMobileSubTab,
-  setShowTagMenu,
   onOpenUpload,
   readOnly = false,
   getDisplayTitle,
@@ -275,12 +273,7 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
                 (a.tags && (a.tags.includes('Race') || a.tags.includes('race'))) ||
                 /time trial|race/i.test(a.name || '');
 
-              let parsedTags: string[] = [];
-              try {
-                parsedTags = a.tags ? JSON.parse(a.tags) : [];
-              } catch {
-                parsedTags = [];
-              }
+              const parsedTags = getActivityTags(a).filter(tag => tag === 'Strides');
 
               return (
                 <div
@@ -290,14 +283,12 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
                   tabIndex={0}
                   aria-pressed={isSelected}
                   onClick={() => {
-                    setShowTagMenu(false);
                     onSelectActivity(a.id);
                     setMobileSubTab('detail');
                   }}
                   onKeyDown={event => {
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
-                      setShowTagMenu(false);
                       onSelectActivity(a.id);
                       setMobileSubTab('detail');
                     }

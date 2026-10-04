@@ -198,7 +198,6 @@ export interface Translations {
     averageHr: string;
     noIntervals: string;
     hrSummaryTooltip: string;
-    tagLabel: string;
     allInMonth: string;
     title: string;
     totalRuns: string;
@@ -243,8 +242,6 @@ export interface Translations {
     readyFirstRunTitle: string;
     readyFirstRunDesc: string;
     importFirstWorkoutBtn: string;
-    existingTags: string;
-    activeCount: string;
     showAll: string;
     cadenceLabel: string;
     raw: string;
