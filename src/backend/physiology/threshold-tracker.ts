@@ -2,7 +2,9 @@ import { MAX_OBSERVED_GAP_SECONDS, sameTimerSegment, observedDuration, timeWeigh
 import { loadAnalysisRecords } from '../db/analysis-records.js';
 import { getAthleteHeartRateProfile } from './athlete-profile.js';
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
-import { rollingThreshold, thresholdTime, type ThresholdObservation } from '../../shared/threshold-trend.js';
+import { thresholdTime } from '../../shared/threshold-trend.js';
+import { supportedThreshold, type ThresholdEvidence } from '../../shared/threshold-evidence.js';
+import { aerobicEvidenceAnchor, thresholdEvidenceObservations } from './threshold-evidence.js';
 import Database from 'better-sqlite3';
 import { ActivityMetadata, ActivityRecord } from '../ingestion/csv-parser';
 import { EconomyMetrics } from './economy';
@@ -93,21 +95,6 @@ function dbNumber(row: Record<string, unknown>, key: string, table: string, null
   if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error(`Invalid ${table}.${key}`);
   return value;
 }
-function dbText(row: Record<string, unknown>, key: string, table: string): string {
-  const value = row[key];
-  if (typeof value !== 'string' || value.length === 0) throw new Error(`Invalid ${table}.${key}`);
-  return value;
-}
-function thresholdObservations(values: unknown[], table: string): ThresholdObservation[] {
-  return values.flatMap(value => {
-    try {
-      const row = dbRow(value, table);
-      return [{ hr: dbNumber(row, 'hr', table)!, pace: dbNumber(row, 'pace', table, true),
-        confidence: dbNumber(row, 'confidence', table)!, effective_date: dbText(row, 'effective_date', table) }];
-    } catch { return []; /* One corrupt observation must not discard usable history. */ }
-  });
-}
-
 function profileRange(value: unknown): { lt1_min_hr: number | null; lt1_max_hr: number | null } | null {
   if (value == null) return null;
   const row = dbRow(value, 'athlete_profile');
@@ -183,6 +170,7 @@ export function findAerobicCruisingBlock(
       for (let start = 0; start <= seg.length - len; start++) {
         const window = seg.slice(start, start + len);
         if ((elapsedAtEnd.get(window[window.length - 1]) ?? Infinity) > 3600) continue;
+        if ((elapsedAtEnd.get(window[0]) ?? 0) - window[0].duration_seconds < 600) continue;
 
         const totalDur = window.reduce((acc, s) => acc + s.duration_seconds, 0);
         const totalDist = window.reduce((acc, s) => acc + s.distance_meters, 0);
@@ -298,12 +286,9 @@ export function evaluateThresholdUpdate(
   const { maxHr: effMax, restingHr: effRhr, lt2Hr: profileLt2Hr } = profile;
   const reserve = effMax - effRhr;
   const priorRolling = computeRollingThresholds(db, runDate, { strictlyBefore: true, excludeActivityId: activityId });
-  const hasRecentLt1 = priorRolling.lastLt1Date != null &&
-    thresholdTime(runDate) - thresholdTime(priorRolling.lastLt1Date) <= 45 * 86400000;
-  const recentBaselineLt1Pace = hasRecentLt1 ? priorRolling.lt1PaceSecKm : null;
-  const baselineLt1Hr = hasRecentLt1 ? priorRolling.lt1Hr ?? profile.lt1Hr : profile.lt1Hr;
-  // Low-drift easy running only measures LT1 if it actually approaches this
-  // athlete's established ceiling. A recovery effort is not a new threshold.
+  const baselineLt1Hr = priorRolling.lt1Hr ?? aerobicEvidenceAnchor(db);
+  // Record low-drift aerobic observations near the supported ceiling. The
+  // evidence policy separately decides whether they can update accepted pace.
   const stimulusFloorHr = baselineLt1Hr - Math.max(2, Math.round(reserve * 0.025));
   const minLt1Hr = Math.max(effRhr + 1, stimulusFloorHr);
   const maxLt1Hr = Math.min(profileLt2Hr - 2, baselineLt1Hr + Math.max(3, Math.round(reserve * 0.04)));
@@ -332,7 +317,7 @@ export function evaluateThresholdUpdate(
 
     lt1Confidence = 0.88;
     if (splits.length >= 3) {
-      const block = findAerobicCruisingBlock(splits, maxLt1Hr, stimulusFloorHr, recentBaselineLt1Pace);
+      const block = findAerobicCruisingBlock(splits, maxLt1Hr, stimulusFloorHr);
       if (block) {
         estimatedLt1Hr = Math.min(maxLt1Hr, Math.max(minLt1Hr, Math.round(block.avgHr)));
         estimatedLt1Pace = Math.round(block.avgPaceSecKm);
@@ -360,7 +345,7 @@ export function evaluateThresholdUpdate(
         dec >= -8.0 &&
         isAerobicZone;
 
-      if (isLt1Candidate && avgHr && avgPace && (!recentBaselineLt1Pace || avgPace <= recentBaselineLt1Pace * 1.10)) {
+      if (isLt1Candidate && avgHr && avgPace) {
         estimatedLt1Hr = Math.min(maxLt1Hr, Math.max(minLt1Hr, Math.round(avgHr)));
         estimatedLt1Pace = Math.round(avgPace);
         cruisingNote = `Steady aerobic run (${(totalDuration / 60).toFixed(0)}m, Decoupling: ${dec.toFixed(1)}%)`;
@@ -727,27 +712,15 @@ export function computeRollingThresholds(
   lt2Confidence: number;
   lastLt1Date: string | null;
   lastLt2Date: string | null;
+  lt1Evidence: ThresholdEvidence;
+  lt2Evidence: ThresholdEvidence;
 } {
   const refDateStr = asOfDate || new Date().toISOString();
-  // Filter dates and rejected evidence before selecting recent-five/historical-three.
-  // SQL LIMITs before validation can let rejected rows displace good evidence.
-  let failedSources = new Set<string>();
-  try {
-    failedSources = new Set((db.prepare('SELECT id FROM activities WHERE manual_failed_workout = 1').all() as Array<{ id: string }>).map(row => row.id));
-  } catch { /* Older read-only snapshots may not have confirmation columns. */ }
-  const observations = (hr: 'lt1_hr' | 'lt2_hr', pace: 'lt1_pace_sec_km' | 'lt2_pace_sec_km'): ThresholdObservation[] => {
-    try {
-      const rows = db.prepare(`SELECT ${hr} as hr, ${pace} as pace, confidence, effective_date, source_activity_id, source_kind
-        FROM physiological_thresholds WHERE ${hr} IS NOT NULL ORDER BY id DESC`).all();
-      return thresholdObservations(rows.filter(value => {
-        const row = dbRow(value, 'physiological_thresholds');
-        return row.source_activity_id !== options.excludeActivityId &&
-          (row.source_kind === 'external' || typeof row.source_activity_id !== 'string' || !failedSources.has(row.source_activity_id));
-      }), 'physiological_thresholds');
-    } catch { return []; /* optional query: schema may predate this table */ }
-  };
-  const rolledLt1 = rollingThreshold(observations('lt1_hr', 'lt1_pace_sec_km'), refDateStr, options);
-  const rolledLt2 = rollingThreshold(observations('lt2_hr', 'lt2_pace_sec_km'), refDateStr, options);
+  const evidence = thresholdEvidenceObservations(db);
+  const eligible = (rows: typeof evidence.lt1) => rows.filter(row => row.sourceId !== options.excludeActivityId);
+  const rolledLt1 = supportedThreshold(eligible(evidence.lt1), refDateStr,
+    { ...options, aerobicAnchorHr: aerobicEvidenceAnchor(db) });
+  const rolledLt2 = supportedThreshold(eligible(evidence.lt2), refDateStr, options);
 
   return {
     lt1Hr: rolledLt1?.hr ?? null,
@@ -757,7 +730,8 @@ export function computeRollingThresholds(
     lt2PaceSecKm: rolledLt2?.pace ?? null,
     lt2Confidence: rolledLt2?.confidence ?? 0.85,
     lastLt1Date: rolledLt1?.latestDate ?? null,
-    lastLt2Date: rolledLt2?.latestDate ?? null
+    lastLt2Date: rolledLt2.latestDate,
+    lt1Evidence: rolledLt1.evidence, lt2Evidence: rolledLt2.evidence
   };
 }
 
@@ -771,7 +745,7 @@ export function getHeartRateProfileAtDate(db: Database.Database, runDate: string
   return {
     ...baseline,
     ...resolveHeartRateProfile({ ...baseline,
-      lt1Hr: rolling.lt1Hr ?? baseline.lt1Hr, lt2Hr: rolling.lt2Hr ?? baseline.lt2Hr }),
+      lt1Hr: rolling.lt1Hr ?? aerobicEvidenceAnchor(db), lt2Hr: rolling.lt2Hr ?? baseline.lt2Hr }),
     lt1Source: rolling.lt1Hr == null ? 'baseline' as const : 'calibrated' as const,
     lt2Source: rolling.lt2Hr == null ? 'baseline' as const : 'calibrated' as const,
     lastLt1Date: rolling.lastLt1Date, lastLt2Date: rolling.lastLt2Date
@@ -823,13 +797,15 @@ export function getCurrentThresholds(db: Database.Database): {
   confidence: number;
   source: 'calibrated' | 'baseline';
   lastCalibratedDate: string | null;
+  lt1Evidence?: ThresholdEvidence;
+  lt2Evidence?: ThresholdEvidence;
 } {
   try {
-    const profile = getAthleteHeartRateProfile(db);
     const profileRangeRow = profileRange(db.prepare("SELECT lt1_min_hr, lt1_max_hr FROM athlete_profile WHERE id = 'primary'").get());
     const rolling = computeRollingThresholds(db);
-    const { lt1Hr, lt2Hr } = resolveHeartRateProfile({ ...profile,
-      lt1Hr: rolling.lt1Hr ?? profile.lt1Hr, lt2Hr: rolling.lt2Hr ?? profile.lt2Hr });
+    const independent = getAthleteHeartRateProfile(db, false);
+    const { lt1Hr, lt2Hr } = resolveHeartRateProfile({ ...independent,
+      lt1Hr: rolling.lt1Hr ?? aerobicEvidenceAnchor(db), lt2Hr: rolling.lt2Hr ?? independent.lt2Hr });
 
     const hasCalibration = rolling.lt1Hr !== null || rolling.lt2Hr !== null;
     const conf = hasCalibration
@@ -851,7 +827,8 @@ export function getCurrentThresholds(db: Database.Database): {
       baselineEconomyEf: getLatestBaselineEconomyEf(db),
       confidence: conf,
       source: hasCalibration ? 'calibrated' : 'baseline',
-      lastCalibratedDate: latestDate
+      lastCalibratedDate: latestDate,
+      lt1Evidence: rolling.lt1Evidence, lt2Evidence: rolling.lt2Evidence
     };
   } catch {
     const fallback = getAthleteHeartRateProfile(db);

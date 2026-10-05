@@ -5,6 +5,7 @@ import { formatPace } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { translateActivityName, translateCalibrationNote } from '../i18n/coachTranslator.js';
 import { rollingThreshold } from '../../shared/threshold-trend.js';
+import { supportedThreshold } from '../../shared/threshold-evidence.js';
 
 // Calibration point shape comes from the API contract so this component and
 // ProgressView cannot drift apart.
@@ -61,17 +62,21 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
     const observations = (type: 'lt1' | 'lt2') => sortedHistory
       .filter(h => h[`${type}_hr`] != null)
       .map(h => ({ hr: h[`${type}_hr`]!, pace: h[`${type}_pace_sec_km`] ?? 0,
-        confidence: h.confidence ?? 0, effective_date: h.effective_date }));
+        confidence: h.confidence ?? 0, effective_date: h.effective_date,
+        sourceId: h.source_kind === 'external' ? `external:${h.id}` : h.source_activity_id ?? `orphan:${h.id}`, external: h.source_kind === 'external',
+        temperatureC: h.threshold_evidence_temperature_c, usable: h[`${type}_evidence_usable`] ?? false }));
     const lt1 = observations('lt1'), lt2 = observations('lt2');
+    const hasEvidence = sortedHistory.some(h => h.lt1_evidence_usable !== undefined);
+    const anchor = currentThresholds?.lt1Range ? Math.round((currentThresholds.lt1Range[0] + currentThresholds.lt1Range[1]) / 2) : currentThresholds?.lt1Hr ?? undefined;
     return sortedHistory.map(h => {
-      const a = h.lt1_hr != null ? rollingThreshold(lt1, h.effective_date) : null;
-      const b = h.lt2_hr != null ? rollingThreshold(lt2, h.effective_date) : null;
-      return { ...h, lt1_hr: a?.hr ?? h.lt1_hr, lt1_pace_sec_km: a?.pace ?? h.lt1_pace_sec_km,
-        lt2_hr: b?.hr ?? h.lt2_hr, lt2_pace_sec_km: b?.pace ?? h.lt2_pace_sec_km,
+      const a = h.lt1_hr != null ? (hasEvidence ? supportedThreshold(lt1, h.effective_date, { aerobicAnchorHr: anchor }) : rollingThreshold(lt1, h.effective_date)) : null;
+      const b = h.lt2_hr != null ? (hasEvidence ? supportedThreshold(lt2, h.effective_date) : rollingThreshold(lt2, h.effective_date)) : null;
+      return { ...h, lt1_hr: (hasEvidence ? a?.hr ?? null : a?.hr ?? h.lt1_hr), lt1_pace_sec_km: (hasEvidence ? a?.pace ?? null : a?.pace ?? h.lt1_pace_sec_km),
+        lt2_hr: (hasEvidence ? b?.hr ?? null : b?.hr ?? h.lt2_hr), lt2_pace_sec_km: (hasEvidence ? b?.pace ?? null : b?.pace ?? h.lt2_pace_sec_km),
         confidence: a?.confidence ?? b?.confidence ?? h.confidence,
         activity_name: undefined, notes: undefined };
     });
-  }, [sortedHistory, showIndividualRuns]);
+  }, [sortedHistory, showIndividualRuns, currentThresholds]);
 
   // 2. Filter by time range
   const filteredHistory = useMemo(() => {

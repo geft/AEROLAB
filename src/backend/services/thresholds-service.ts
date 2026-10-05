@@ -5,6 +5,7 @@ import type {
 import { getAthleteHeartRateProfile } from '../physiology/athlete-profile.js';
 import { BENCHMARK_FRESHNESS_DAYS, calculateRacePredictions, isFreshPredictionEvidence, type RaceBenchmark } from '../physiology/predictions.js';
 import { getCurrentThresholds } from '../physiology/threshold-tracker.js';
+import { thresholdEvidenceObservations } from '../physiology/threshold-evidence.js';
 import { getDefaultZones } from '../physiology/zones.js';
 import { objectRow } from '../db/rows.js';
 
@@ -59,6 +60,7 @@ function activityText(value: unknown, field: string): string | null {
 
 /** GET /api/thresholds - LT1/LT2 timeline, pace-dependent economy curves, and race predictions */
 export function getThresholdsService(db: Database.Database, runTypeFilter?: string): ThresholdsResponse {
+  const evidence = thresholdEvidenceObservations(db);
   const history = db.prepare(`
     SELECT
       p.*,
@@ -69,46 +71,31 @@ export function getThresholdsService(db: Database.Database, runTypeFilter?: stri
     FROM physiological_thresholds p
     LEFT JOIN activities a ON p.source_activity_id = a.id
     ORDER BY p.effective_date DESC
-  `).all().map(historyRow);
+  `).all().map(value => {
+    const item = historyRow(value);
+    const kind = objectRow(value, 'physiological_thresholds').source_kind as string;
+    const key = kind === 'external' ? `external:${item.id}` : item.source_activity_id ?? `orphan:${item.id}`;
+    return { ...item, source_kind: objectRow(value, 'physiological_thresholds').source_kind as string,
+      threshold_evidence_temperature_c: evidence.lt1.find(row => row.sourceId === key)?.temperatureC ?? evidence.lt2.find(row => row.sourceId === key)?.temperatureC ?? null,
+      lt1_evidence_usable: evidence.lt1.find(row => row.sourceId === key)?.usable ?? false,
+      lt2_evidence_usable: evidence.lt2.find(row => row.sourceId === key)?.usable ?? false };
+  });
 
   const currentThresholds = getCurrentThresholds(db);
   const hrProfile = getAthleteHeartRateProfile(db);
   const zones = getDefaultZones(hrProfile.maxHr, currentThresholds.lt1Hr, currentThresholds.lt2Hr, hrProfile.restingHr);
 
-  // Latest LT1 & LT2
-  const latestLt1Value: unknown = db.prepare(`
-    SELECT lt1_hr, lt1_pace_sec_km, effective_date, baseline_economy_ef
-    FROM physiological_thresholds
-    WHERE lt1_hr IS NOT NULL
-    ORDER BY effective_date DESC, id DESC
-    LIMIT 1
-  `).get() as unknown;
-
-  const latestLt2Value: unknown = db.prepare(`
-    SELECT lt2_hr, lt2_pace_sec_km, effective_date
-    FROM physiological_thresholds
-    WHERE lt2_hr IS NOT NULL
-    ORDER BY effective_date DESC, id DESC
-    LIMIT 1
-  `).get() as unknown;
-
-  const latestLt1Row = latestLt1Value == null ? undefined : historyRow(latestLt1Value);
-  const latestLt2Row = latestLt2Value == null ? undefined : historyRow(latestLt2Value);
-
-  const latestLt1Pace = latestLt1Row?.lt1_pace_sec_km ?? currentThresholds.lt1PaceSecKm;
-  const latestLt2Pace = latestLt2Row?.lt2_pace_sec_km ?? currentThresholds.lt2PaceSecKm;
-
-  const latestLt1: CalibrationHistoryItem = latestLt1Row ? {
+  // Display only accepted evidence; a newer observation must not refresh its date.
+  const latestLt1Row = history.find(row => row.effective_date === currentThresholds.lt1Evidence?.acceptedDate && row.lt1_hr != null);
+  const latestLt2Row = history.find(row => row.effective_date === currentThresholds.lt2Evidence?.acceptedDate && row.lt2_hr != null);
+  const latestLt1Pace = currentThresholds.lt1PaceSecKm;
+  const latestLt2Pace = currentThresholds.lt2PaceSecKm;
+  const latestLt1: CalibrationHistoryItem = {
     ...latestLt1Row,
     lt1_hr: currentThresholds.lt1Hr,
-    lt1_pace_sec_km: currentThresholds.lt1PaceSecKm || latestLt1Row.lt1_pace_sec_km,
-    is_estimated: false
-  } : {
-    lt1_hr: currentThresholds.lt1Hr,
-    lt1_pace_sec_km: currentThresholds.lt1PaceSecKm,
-    effective_date: currentThresholds.lastCalibratedDate || 'Baseline',
-    baseline_economy_ef: null,
-    is_estimated: !currentThresholds.lt1PaceSecKm
+    lt1_pace_sec_km: latestLt1Pace,
+    effective_date: currentThresholds.lt1Evidence?.acceptedDate ?? null,
+    is_estimated: latestLt1Row?.source_kind !== 'external'
   };
 
   // Average overall pace from recent runs for prediction baseline
@@ -146,16 +133,12 @@ export function getThresholdsService(db: Database.Database, runTypeFilter?: stri
     }
   }
 
-  const latestLt2: CalibrationHistoryItem = latestLt2Row ? {
+  const latestLt2: CalibrationHistoryItem = {
     ...latestLt2Row,
     lt2_hr: currentThresholds.lt2Hr,
-    lt2_pace_sec_km: currentThresholds.lt2PaceSecKm || effectiveLt2Pace,
-    is_estimated: false
-  } : {
-    lt2_hr: currentThresholds.lt2Hr,
-    lt2_pace_sec_km: effectiveLt2Pace,
-    effective_date: isLt2Estimated ? (latestLt1Pace ? 'Estimated from LT1' : 'Estimated from Recent Runs') : (currentThresholds.lastCalibratedDate || 'Baseline'),
-    is_estimated: isLt2Estimated
+    lt2_pace_sec_km: currentThresholds.lt2PaceSecKm,
+    effective_date: currentThresholds.lt2Evidence?.acceptedDate ?? null,
+    is_estimated: latestLt2Row?.source_kind !== 'external'
   };
 
   // Check for proven 5K benchmark (from actual 5k time trial / race or profile PB)
@@ -219,7 +202,7 @@ export function getThresholdsService(db: Database.Database, runTypeFilter?: stri
 
   // Race predictions
   const predictionsResult = calculateRacePredictions(
-    latestLt2?.lt2_pace_sec_km ?? null,
+    effectiveLt2Pace,
     latestLt1?.lt1_pace_sec_km ?? null,
     avgRecent,
     benchmark5k,

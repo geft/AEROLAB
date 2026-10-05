@@ -74,6 +74,7 @@ describe('Threshold Tracker Unit Tests', () => {
     { max: 210, rest: 65, lt1: 170, lt2: 190, pace: 280 }
   ])('calibrates independently for athlete LT1 $lt1', ({ max, rest, lt1, lt2, pace }) => {
     db.prepare("UPDATE athlete_profile SET max_hr = ?, resting_hr = ?, lt1_hr = ?, lt2_hr = ?, is_max_hr_estimated = 0 WHERE id = 'primary'").run(max, rest, lt1, lt2);
+    db.prepare("INSERT INTO physiological_thresholds(effective_date,source_kind,lt1_hr,lt2_hr,confidence) VALUES('2026-09-01','external',?,?,1)").run(lt1, lt2);
     insertParentActivity('individual');
     const estimate = evaluateThresholdUpdate(db, 'individual', dummyMetadata.date, 'easy_base', dummyMetadata, [], {
       movingDurationSeconds: 3000, movingDistanceMeters: 3000000 / pace,
@@ -271,7 +272,7 @@ describe('Threshold Tracker Unit Tests', () => {
     expect(stored).toBeUndefined();
   });
 
-  it('rejects candidate if pace drops > 10% below recent baseline', () => {
+  it('rejects a slower block with missing opening splits', () => {
     // Seed recent baseline at 355 s/km (5:55/km) on Sep 5
     insertParentActivity('act-sep5', '2026-09-05 17:00:00');
     db.prepare(`
@@ -315,14 +316,14 @@ describe('Threshold Tracker Unit Tests', () => {
       wholeRunEconomy
     );
 
-    // Rejected because 426 s/km > 355 * 1.10
+    // Missing opening splits make elapsed calibration time unverifiable.
     expect(estimate.lt1Hr).toBeNull();
     expect(estimate.lt1PaceSecKm).toBeNull();
   });
 
   it('does not replace established LT1 with a slower sub-threshold long run', () => {
     insertParentActivity('prior-lt1', '2026-09-05T17:00:00');
-    db.prepare("INSERT INTO physiological_thresholds (effective_date, source_activity_id, lt1_hr, lt1_pace_sec_km, confidence) VALUES ('2026-09-05T17:00:00', 'prior-lt1', 152, 355, 0.92)").run();
+    db.prepare("INSERT INTO physiological_thresholds (effective_date, source_activity_id, source_kind, lt1_hr, lt1_pace_sec_km, confidence) VALUES ('2026-09-05T17:00:00', 'prior-lt1', 'external', 152, 355, 0.92)").run();
     insertParentActivity('test-act-z2-long', '2026-09-19 17:40:00');
 
     const insertSplit = db.prepare(`
@@ -751,8 +752,8 @@ describe('Threshold Tracker Unit Tests', () => {
     });
   });
 
-  describe('Rolling Weighted Threshold Aggregation Engine', () => {
-    it('smooths LT2 across multiple sessions with differing rest protocols (e.g. Sept 10 vs Sept 17)', () => {
+  describe('Supported threshold history and observations', () => {
+    it('retains differing interval summaries as observations without accepting unsupported LT2', () => {
       insertParentActivity('act-sep10', '2026-09-10 19:30:00');
       insertParentActivity('act-sep17', '2026-09-17 19:30:00');
 
@@ -772,15 +773,11 @@ describe('Threshold Tracker Unit Tests', () => {
 
       const rolling = computeRollingThresholds(db, '2026-09-18 10:00:00');
 
-      // Rather than abruptly jumping between 172 bpm or 179 bpm, the rolling weighted baseline
-      // smoothly resolves to ~176 bpm and 277 s/km (4:37/km)
-      expect(rolling.lt2Hr).toBe(176);
-      expect(rolling.lt2PaceSecKm).toBe(277);
-      expect(rolling.lt2Confidence).toBeGreaterThanOrEqual(0.87);
-
-      const current = getCurrentThresholds(db);
-      expect(current.lt2Hr).toBe(176);
-      expect(current.lt2PaceSecKm).toBe(277);
+      expect(rolling.lt2Hr).toBeNull();
+      expect(rolling.lt2PaceSecKm).toBeNull();
+      expect(rolling.lt2Evidence.status).toBe('insufficient');
+      expect(getCurrentThresholds(db).lt2PaceSecKm).toBeNull();
+      expect(db.prepare('SELECT COUNT(*) n FROM physiological_thresholds').get()).toEqual({ n: 2 });
     });
 
     it('exposes the latest LT1-calibrated baseline EF so the Profile EF tile is never blank', () => {
@@ -808,32 +805,32 @@ describe('Threshold Tracker Unit Tests', () => {
       expect(getCurrentThresholds(db).baselineEconomyEf).toBeNull();
     });
 
-    it('applies recency decay factor prioritizing newer sessions over older sessions', () => {
+    it('uses the latest dated external test without averaging different training periods', () => {
       insertParentActivity('act-old', '2026-08-05 07:00:00');
       insertParentActivity('act-recent', '2026-09-12 07:00:00');
 
       // Session 1: 40 days ago (high recency decay -> low weight)
       db.prepare(`
         INSERT INTO physiological_thresholds (
-          effective_date, source_activity_id, lt2_hr, lt2_pace_sec_km, confidence
-        ) VALUES ('2026-08-05 07:00:00', 'act-old', 170, 290, 0.90)
+          effective_date, source_activity_id, source_kind, lt2_hr, lt2_pace_sec_km, confidence
+        ) VALUES ('2026-08-05 07:00:00', 'act-old', 'external', 170, 290, 0.90)
       `).run();
 
       // Session 2: 2 days ago (fresh -> full weight)
       db.prepare(`
         INSERT INTO physiological_thresholds (
-          effective_date, source_activity_id, lt2_hr, lt2_pace_sec_km, confidence
-        ) VALUES ('2026-09-12 07:00:00', 'act-recent', 180, 270, 0.90)
+          effective_date, source_activity_id, source_kind, lt2_hr, lt2_pace_sec_km, confidence
+        ) VALUES ('2026-09-12 07:00:00', 'act-recent', 'external', 180, 270, 0.90)
       `).run();
 
       const rolling = computeRollingThresholds(db, '2026-09-14 07:00:00');
 
-      // The recent session at 180 bpm should dominate over the 40-day-old session at 170 bpm
-      expect(rolling.lt2Hr).toBeGreaterThanOrEqual(177);
-      expect(rolling.lt2PaceSecKm).toBeLessThanOrEqual(275);
+      // Dated external tests are authoritative rather than workout proxies.
+      expect(rolling.lt2Hr).toBe(180);
+      expect(rolling.lt2PaceSecKm).toBe(270);
     });
 
-    it('smooths LT1 aerobic base across multiple cruising blocks', () => {
+    it('does not establish LT1 from cruising summaries without continuous telemetry', () => {
       insertParentActivity('act-lr1', '2026-08-25 07:00:00');
       insertParentActivity('act-lr2', '2026-09-05 07:00:00');
 
@@ -852,9 +849,9 @@ describe('Threshold Tracker Unit Tests', () => {
       `).run();
 
       const rolling = computeRollingThresholds(db, '2026-09-06 07:00:00');
-      expect(rolling.lt1Hr).toBe(152);
-      expect(rolling.lt1PaceSecKm).toBeCloseTo(362, -1);
-      expect(rolling.lt1Confidence).toBeGreaterThanOrEqual(0.90);
+      expect(rolling.lt1Hr).toBeNull();
+      expect(rolling.lt1PaceSecKm).toBeNull();
+      expect(rolling.lt1Evidence.status).toBe('insufficient');
     });
   });
 });

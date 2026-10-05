@@ -4,13 +4,12 @@ import type { ThresholdsResponse } from '../types/api.js';
 import { Target, Zap, Calendar, HelpCircle, X, RefreshCw } from 'lucide-react';
 import { formatDuration, formatPace } from '../utils/formatters.js';
 import { raceBenchmarkFor, RACE_BENCHMARK_LEVELS } from '../utils/raceBenchmarks.js';
-import { classifyTurnpointMargin, estimateTurnpointGapSeconds } from '../utils/turnpointMargin.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { TrainingLoadCard } from './TrainingLoadCard.js';
 import { BestEffortsCard } from './BestEffortsCard.js';
 
 export const StatsView: React.FC = () => {
-  const { t, format, formatDate } = useTranslation();
+  const { t, format, formatDate, plural } = useTranslation();
 
   const formatDistanceName = (name: string) => {
     if (name === '5K') return t.stats.fiveK;
@@ -65,14 +64,17 @@ export const StatsView: React.FC = () => {
   const lt2 = data.latest?.lt2;
   const lt1PaceSecKm = lt1?.lt1_pace_sec_km;
   const lt2PaceSecKm = lt2?.lt2_pace_sec_km;
-  const lt1Hr = data.currentThresholds?.lt1Hr ?? lt1?.lt1_hr ?? '—';
-  const estimatedGapSeconds = estimateTurnpointGapSeconds(lt1PaceSecKm);
-  const turnpointGapSeconds = lt1PaceSecKm != null && lt2PaceSecKm != null
-    ? Math.round(lt1PaceSecKm - lt2PaceSecKm)
-    : estimatedGapSeconds;
-  const turnpointIsMeasured = lt1PaceSecKm != null && lt2PaceSecKm != null && !lt2?.is_estimated;
-  const turnpointCategory = turnpointGapSeconds !== null ? classifyTurnpointMargin(turnpointGapSeconds) : null;
-  const turnpointTier = turnpointIsMeasured ? turnpointCategory : null;
+  const turnpointGapSeconds = data.currentThresholds?.lt1PaceSecKm != null && data.currentThresholds.lt2PaceSecKm != null
+    ? Math.round(data.currentThresholds.lt1PaceSecKm - data.currentThresholds.lt2PaceSecKm) : null;
+  const thresholdEvidenceText = (type: 'lt1' | 'lt2') => {
+    const evidence = data.currentThresholds?.[`${type}Evidence`];
+    return format(t.stats.thresholdEvidence, {
+      threshold: type.toUpperCase(),
+      status: evidence ? t.stats.thresholdEvidenceStatus[evidence.status] : t.stats.thresholdEvidenceStatus.insufficient,
+      date: evidence?.acceptedDate ? formatDate(evidence.acceptedDate.replace(' ', 'T'), { year: 'numeric', month: 'short', day: 'numeric' }) : t.stats.notCalibrated,
+      support: plural(evidence?.supportCount ?? 0, t.stats.thresholdSupportCount)
+    });
+  };
 
   const getLocalizedPeriodLabel = (label: string | undefined): string => {
     if (!label) return t.stats.volumeTitle;
@@ -390,42 +392,20 @@ export const StatsView: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem', flexWrap: 'wrap', margin: '0.4rem 0' }}>
             <div className="goal-stat-highlight" style={{ color: '#06b6d4', fontSize: '1.4rem' }}>
               {turnpointGapSeconds !== null
-                ? format(turnpointIsMeasured ? t.stats.gapSeconds : t.stats.estGapSeconds, { seconds: turnpointGapSeconds })
+                ? format(t.stats.estGapSeconds, { seconds: turnpointGapSeconds })
                 : '--'}
             </div>
-            {lt1?.lt1_pace_sec_km && lt2?.lt2_pace_sec_km && (
-              <span
-                style={{
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  padding: '0.2rem 0.55rem',
-                  borderRadius: 6,
-                  color: turnpointCategory === 'optimal' ? '#10b981' : turnpointCategory === 'well' ? '#06b6d4' : '#f59e0b',
-                  background: turnpointCategory === 'optimal' ? 'rgba(16, 185, 129, 0.15)' : turnpointCategory === 'well' ? 'rgba(6, 182, 212, 0.15)' : 'rgba(245, 158, 11, 0.15)'
-                }}
-              >
-                {lt2.is_estimated
-                  ? t.stats.turnpointEstimatedFromLt1
-                  : turnpointCategory === 'optimal'
-                    ? t.stats.turnpointOptimalAnchor
-                    : turnpointCategory === 'well'
-                      ? t.stats.turnpointWellConditioned
-                      : t.stats.turnpointBaseOpportunity}
-              </span>
-            )}
+
           </div>
 
           <p className="goal-stat-desc">
-            {lt1?.lt1_pace_sec_km && lt2?.lt2_pace_sec_km
-              ? format(t.stats.paceGapCalc, {
-                  easy: formatPace(lt1.lt1_pace_sec_km),
-                  threshold: formatPace(lt2.lt2_pace_sec_km),
-                  estimated: lt2.is_estimated ? t.stats.estimatedSuffix : ''
-                })
-              : lt1?.lt1_pace_sec_km
-                ? format(t.stats.calibratedAt, { pace: formatPace(lt1.lt1_pace_sec_km) })
-                : t.stats.notCalibrated}
+            {turnpointGapSeconds != null && lt1PaceSecKm != null && lt2PaceSecKm != null
+              ? format(t.stats.paceGapCalc, { easy: formatPace(lt1PaceSecKm), threshold: formatPace(lt2PaceSecKm) })
+              : t.stats.thresholdGapUnavailable}
           </p>
+          <p className="goal-stat-desc">{thresholdEvidenceText('lt1')}</p>
+          <p className="goal-stat-desc">{thresholdEvidenceText('lt2')}</p>
+
         </div>
       </section>
 
@@ -461,87 +441,12 @@ export const StatsView: React.FC = () => {
                 </p>
               </div>
 
-              {/* Target Benchmark Tiers */}
-              <div>
-                <h4 style={{ color: 'var(--text-primary)', margin: '0 0 0.6rem 0', fontSize: '0.88rem' }}>
-                  {t.stats.turnpointStandardsTitle}
-                </h4>
-                <div className="turnpoint-tier-list">
-                  <div className={`turnpoint-tier-card elite ${turnpointTier === 'optimal' ? 'tier-current' : ''} ${turnpointTier === 'well' ? 'tier-target' : ''}`}>
-                    <div className="turnpoint-tier-header">
-                      <span className="turnpoint-tier-title">{t.stats.turnpointTierEliteTitle}</span>
-                      <span className="turnpoint-tier-badge">{turnpointTier === 'well' ? t.economyGuide.nextTarget : t.stats.turnpointTierEliteBadge}</span>
-                    </div>
-                    <p className="turnpoint-tier-desc">
-                      {t.stats.turnpointTierEliteDesc}
-                    </p>
-                  </div>
-
-                  <div className={`turnpoint-tier-card well ${turnpointTier === 'well' ? 'tier-current' : ''} ${turnpointTier === 'base' ? 'tier-target' : ''}`}>
-                    <div className="turnpoint-tier-header">
-                      <span className="turnpoint-tier-title">{t.stats.turnpointTierWellTitle}</span>
-                      <span className="turnpoint-tier-badge">{turnpointTier === 'base' ? t.economyGuide.nextTarget : t.stats.turnpointTierWellBadge}</span>
-                    </div>
-                    <p className="turnpoint-tier-desc">
-                      {t.stats.turnpointTierWellDesc}
-                    </p>
-                  </div>
-
-                  <div className={`turnpoint-tier-card developing ${turnpointTier === 'base' ? 'tier-current' : ''}`}>
-                    <div className="turnpoint-tier-header">
-                      <span className="turnpoint-tier-title">{t.stats.turnpointTierDevTitle}</span>
-                      <span className="turnpoint-tier-badge">{t.stats.turnpointTierDevBadge}</span>
-                    </div>
-                    <p className="turnpoint-tier-desc">
-                      {t.stats.turnpointTierDevDesc}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
+              <p className="goal-stat-desc">{t.stats.thresholdGapGuide}</p>
               <div className="turnpoint-current-card">
-                <div className="turnpoint-current-header">
-                  <h4>{t.stats.turnpointCurrentTitle}</h4>
-                  {turnpointGapSeconds !== null && (
-                    <span className={`turnpoint-current-badge ${turnpointTier ?? 'estimated'}`}>
-                      {turnpointTier === 'optimal' ? t.stats.turnpointOptimalAnchor
-                        : turnpointTier === 'well' ? t.stats.turnpointWellConditioned
-                          : turnpointTier === 'base' ? t.stats.turnpointBaseOpportunity
-                            : t.stats.turnpointEstimatedFromLt1}
-                    </span>
-                  )}
-                </div>
-                <div className="turnpoint-current-value">
-                  {turnpointGapSeconds !== null
-                    ? format(turnpointIsMeasured ? t.stats.gapSeconds : t.stats.estGapSeconds, { seconds: turnpointGapSeconds })
-                    : t.stats.notCalibrated}
-                </div>
-                {lt1PaceSecKm != null && lt2PaceSecKm != null && (
-                  <p className="turnpoint-current-desc">
-                    {format(t.stats.paceGapCalc, {
-                      easy: formatPace(lt1PaceSecKm),
-                      threshold: formatPace(lt2PaceSecKm),
-                      estimated: lt2?.is_estimated ? t.stats.estimatedSuffix : ''
-                    })}
-                  </p>
-                )}
-              </div>
-
-              {/* Your Current Status & Training Direction */}
-              <div style={{ padding: '0.85rem', borderRadius: 8, background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
-                <h4 style={{ color: 'var(--text-primary)', margin: '0 0 0.4rem 0', fontSize: '0.85rem' }}>
-                  {t.stats.turnpointOptimizeTitle}
-                </h4>
-                <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                  <li>
-                    <b>{t.stats.optimizeGapWideBold}</b>
-                    {format(t.stats.optimizeGapWideBody, { hr: lt1Hr ?? '' })}
-                  </li>
-                  <li>
-                    <b>{t.stats.optimizeGapNarrowBold}</b>
-                    {t.stats.optimizeGapNarrowBody}
-                  </li>
-                </ul>
+                <h4>{t.stats.turnpointCurrentTitle}</h4>
+                <p>{turnpointGapSeconds != null ? format(t.stats.estGapSeconds, { seconds: turnpointGapSeconds }) : t.stats.thresholdGapUnavailable}</p>
+                <p>{thresholdEvidenceText('lt1')}</p>
+                <p>{thresholdEvidenceText('lt2')}</p>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>

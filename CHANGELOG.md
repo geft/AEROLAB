@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.0 — 2026-10-05
+
+### Threshold evidence and aerobic pace gap
+
+- Separate individual aerobic and threshold observations from accepted LT1/LT2 pace estimates. Inconclusive runs retain the last supported value instead of pulling it toward slower easy-run paces.
+- Require two comparable independent efforts to establish or improve an estimate, and three to accept a slower pace. Check heart-rate comparability and available sensor temperature; do not invent weather corrections when information is missing.
+- Keep the LT1 heart-rate ceiling independent of ordinary workout averages so easier runs cannot repeatedly lower it. Dated external tests remain authoritative, and HR-only tests preserve previously supported pace evidence and its date.
+- Screen historical evidence using continuous telemetry, warmup exclusion, pace stability, terrain, and cardiac drift. LT2 interval summaries alone, interrupted reps, and long recoveries cannot establish an accepted threshold.
+- Show supported, held, stale, and insufficient-evidence states with evidence dates and supporting effort counts. Historical trend estimates use only observations available at that date; original observations and telemetry remain intact.
+- Replace fixed aerobic-gap fitness grades with an explicitly estimated LT1–LT2 pace difference. Keep synthetic LT2 prediction fallbacks out of accepted threshold cards and pace-gap calculations.
+- Refresh stale coaching summaries against the revised threshold policy when viewed. Add regression coverage for corroboration, declines, recovery runs, telemetry interruptions, external tests, and database rollback safety.
+
 ## 1.3.0 — 2026-10-04
 
 ### Phone snapshots

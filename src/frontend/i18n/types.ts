@@ -482,35 +482,22 @@ export interface Translations {
     zone5Vo2Max: string;
     polarizedBalanceTitle: string;
     polarizedBalanceDesc: string;
+    thresholdGapUnavailable: string;
+    thresholdGapGuide: string;
+    thresholdEvidence: string;
+    thresholdSupportCount: PluralForms;
+    thresholdEvidenceStatus: { supported: string; held: string; stale: string; insufficient: string; external: string };
     turnpointMarginTitle: string;
     turnpointCurrentTitle: string;
-    turnpointOptimalAnchor: string;
-    turnpointWellConditioned: string;
-    turnpointBaseOpportunity: string;
-    turnpointEstimatedFromLt1: string;
     turnpointGuideTitle: string;
     turnpointWhatIsTitle: string;
-    turnpointStandardsTitle: string;
-    turnpointTierEliteTitle: string;
-    turnpointTierEliteBadge: string;
-    turnpointTierEliteDesc: string;
-    turnpointTierWellTitle: string;
-    turnpointTierWellBadge: string;
-    turnpointTierWellDesc: string;
-    turnpointTierDevTitle: string;
-    turnpointTierDevBadge: string;
-    turnpointTierDevDesc: string;
-    turnpointOptimizeTitle: string;
     turnpointGotIt: string;
     polarizedBalanceValue: string;
     /** Templates with a `{seconds}` token. */
-    gapSeconds: string;
     estGapSeconds: string;
     /** Template with `{easy}`, `{threshold}` and `{estimated}` tokens. */
     paceGapCalc: string;
-    estimatedSuffix: string;
     /** Template with a `{pace}` token. */
-    calibratedAt: string;
     notCalibrated: string;
     /**
      * Overrides for server-provided period labels, keyed by the API string.
@@ -528,11 +515,7 @@ export interface Translations {
     whatIsP3: string;
     whatIsBoldLt2: string;
     whatIsP4: string;
-    optimizeGapWideBold: string;
     /** Template with an `{hr}` token. */
-    optimizeGapWideBody: string;
-    optimizeGapNarrowBold: string;
-    optimizeGapNarrowBody: string;
     zoneDesc: {
       z1: string;
       z2: string;

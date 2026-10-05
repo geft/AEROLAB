@@ -67,8 +67,8 @@ describe('Prediction evidence freshness and provenance', () => {
       expect(actual.predictionEvidence).toMatchObject({ source: 'benchmark_5k', benchmarkUsed: true,
         benchmark: { activityId: 'recent', date: '2026-09-20', source: 'race_segment', paceSecKm: 240 } });
       expect(actual.predictions[0].paceSecKm).toBe(240);
-      db.prepare(`INSERT INTO physiological_thresholds (effective_date, lt2_hr, lt2_pace_sec_km, confidence)
-        VALUES ('2026-09-25', 167, 300, 0.9)`).run();
+      db.prepare(`INSERT INTO physiological_thresholds (effective_date, source_kind, lt2_hr, lt2_pace_sec_km, confidence)
+        VALUES ('2026-09-25', 'external', 167, 300, 0.9)`).run();
       const newerLt2 = getThresholdsService(db);
       expect(newerLt2.predictionEvidence?.source).toBe('lt2');
       expect(newerLt2.predictions[0].paceSecKm).toBe(284);
@@ -84,8 +84,8 @@ describe('Prediction evidence freshness and provenance', () => {
       db.prepare(`INSERT INTO activity_intervals
         (activity_id, interval_index, type, start_seconds, duration_seconds, distance_meters, avg_pace_sec_km)
         VALUES ('trial', 8, 'work', 2290, 1283, 4989.2, 258)`).run();
-      db.prepare(`INSERT INTO physiological_thresholds (effective_date, lt2_hr, lt2_pace_sec_km, confidence)
-        VALUES ('2026-09-24', 181, 274, 0.9)`).run();
+      db.prepare(`INSERT INTO physiological_thresholds (effective_date, source_kind, lt2_hr, lt2_pace_sec_km, confidence)
+        VALUES ('2026-09-24', 'external', 181, 274, 0.9)`).run();
       const result = getThresholdsService(db);
       expect(result.predictionEvidence?.benchmark?.paceSecKm).toBe(256.6);
       expect(result.predictions[0]).toMatchObject({ timeSeconds: 1283, timeFormatted: '21:23', paceFormatted: '4:17/km' });

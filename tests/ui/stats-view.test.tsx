@@ -14,7 +14,11 @@ describe('StatsView UI Tests', () => {
     currentThresholds: {
       lt1Hr: 148,
       lt2Hr: 171,
-      lt1Range: [147, 149]
+      lt1Range: [147, 149],
+      lt1PaceSecKm: 352,
+      lt2PaceSecKm: 280,
+      lt1Evidence: { status: 'held', acceptedDate: '2026-09-05', heartRateDate: '2026-09-05', observationDate: '2026-09-10', supportCount: 2 },
+      lt2Evidence: { status: 'supported', acceptedDate: '2026-09-10', heartRateDate: '2026-09-10', observationDate: '2026-09-10', supportCount: 3 }
     },
     zones: {
       z1: [0, 134],
@@ -181,7 +185,7 @@ describe('StatsView UI Tests', () => {
     render(<StatsView />);
 
     await waitFor(() => {
-      expect(screen.getByText('Aerobic Turnpoint Margin')).toBeDefined();
+      expect(screen.getByText('Estimated LT1–LT2 Pace Gap')).toBeDefined();
     });
 
     const infoBtn = screen.getByLabelText('Aerobic Turnpoint Margin Guide');
@@ -192,9 +196,9 @@ describe('StatsView UI Tests', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Aerobic Turnpoint Margin Guide' })).toBeDefined();
       expect(screen.getByText(/What is the Aerobic Turnpoint Margin\?/i)).toBeDefined();
-      expect(screen.getByText(/Target Benchmarks & Standards/i)).toBeDefined();
-      expect(screen.getByText(/35–50s\/km Gap/i)).toBeDefined();
-      expect(screen.getByText(/50–70s\/km Gap/i)).toBeDefined();
+      expect(screen.getByText(/Inconclusive runs preserve the previous estimate/i)).toBeDefined();
+      expect(screen.queryByText(/35–50s\/km Gap/i)).toBeNull();
+      expect(screen.queryByText(/50–70s\/km Gap/i)).toBeNull();
     });
 
     // Close modal via Got It button
@@ -204,6 +208,23 @@ describe('StatsView UI Tests', () => {
     await waitFor(() => {
       expect(screen.queryByText('Aerobic Turnpoint Margin Guide')).toBeNull();
     });
+  });
+
+  it('shows an estimated gap with held evidence and accepted dates instead of a fitness grade', async () => {
+    render(<StatsView />);
+    expect(await screen.findByText('72s est. gap')).toBeDefined();
+    expect(screen.getByText(/LT1: Previous estimate held.*2026.*2 supporting efforts/)).toBeDefined();
+    expect(screen.getByText(/LT2: Corroborated estimate.*2026.*3 supporting efforts/)).toBeDefined();
+    expect(screen.queryByText(/Base Opportunity|Well-Conditioned|Optimal Anchor/)).toBeNull();
+  });
+
+  it('does not calculate a gap from a synthetic or unaccepted latest LT2 pace', async () => {
+    vi.mocked(global.fetch).mockImplementationOnce(() => Promise.resolve({ ok: true,
+      json: () => Promise.resolve({ ...mockThresholdData,
+        currentThresholds: { ...mockThresholdData.currentThresholds, lt2PaceSecKm: null } }) } as Response));
+    render(<StatsView />);
+    expect(await screen.findByText('Insufficient accepted evidence for an LT1–LT2 pace gap.')).toBeDefined();
+    expect(screen.queryByText('72s est. gap')).toBeNull();
   });
 
   it('opens a compact demographic benchmark popup on hover', async () => {

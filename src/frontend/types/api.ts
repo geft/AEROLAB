@@ -1,4 +1,5 @@
 import type { CoachSummary } from '../../shared/contracts/activity-detail.js';
+import type { ThresholdEvidence } from '../../shared/threshold-evidence.js';
 /**
  * API response contracts.
  *
@@ -40,6 +41,10 @@ export interface CalibrationHistoryItem {
   notes?: string | null;
   distance_meters?: number | null;
   duration_seconds?: number | null;
+  threshold_evidence_temperature_c?: number | null;
+  lt1_evidence_usable?: boolean;
+  lt2_evidence_usable?: boolean;
+  source_kind?: string;
 }
 
 /** GET /api/thresholds */
@@ -53,6 +58,8 @@ export interface ThresholdsResponse {
     confidence?: number | null;
     source?: string | null;
     baselineEconomyEf?: number | null;
+    lt1Evidence?: ThresholdEvidence;
+    lt2Evidence?: ThresholdEvidence;
   } | null;
   zones?: Record<string, [number, number]> | null;
   predictions: Array<{

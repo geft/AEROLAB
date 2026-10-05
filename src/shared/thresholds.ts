@@ -1,3 +1,4 @@
+import type { ThresholdEvidence } from './threshold-evidence.js';
 /**
  * Wire contracts for GET /api/thresholds (and the shared heart-rate profile
  * shapes reused by the profile endpoint).
@@ -23,6 +24,8 @@ export interface CurrentThresholds {
   confidence: number;
   source: 'calibrated' | 'baseline';
   lastCalibratedDate: string | null;
+  lt1Evidence?: ThresholdEvidence;
+  lt2Evidence?: ThresholdEvidence;
 }
 
 /** A row from the calibration history (physiological_thresholds). */
@@ -42,6 +45,10 @@ export interface CalibrationHistoryItem {
   notes?: string | null;
   distance_meters?: number | null;
   duration_seconds?: number | null;
+  threshold_evidence_temperature_c?: number | null;
+  lt1_evidence_usable?: boolean;
+  lt2_evidence_usable?: boolean;
+  source_kind?: string;
   [key: string]: unknown;
 }
 

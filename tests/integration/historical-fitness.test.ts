@@ -102,6 +102,7 @@ describe('Historical fitness with stable athlete max HR', () => {
     measurement('2026-01-01', 130, 155);
     importSteady('a', '2026-01-02', 158);
     importSteady('b', '2026-01-03', 159);
+    importSteady('corroborating', '2026-01-02T12:00:00', 158);
     expect(realignDatabase(db).activitiesFailed).toEqual([]);
     expect(getHeartRateProfileAtDate(db, '2026-01-03').lt2Hr).toBeGreaterThan(155);
     const before = read();
@@ -143,6 +144,7 @@ describe('Historical fitness with stable athlete max HR', () => {
     // SQL ordering by naive date strings cannot define evidence availability.
     importSteady('later', '2026-02-02T06:00:00Z', 159);
     importSteady('earlier', '2026-02-02T13:00:00+08:00', 158);
+    importSteady('corroborating', '2026-02-02T04:30:00Z', 158);
     expect(realignDatabase(db).activitiesFailed).toEqual([]);
     const full = read();
     expect(getHeartRateProfileAtDate(db, '2026-02-02T06:00:00Z').lt2Hr).toBeGreaterThan(155);
@@ -161,7 +163,11 @@ describe('Historical fitness with stable athlete max HR', () => {
     expect(realignDatabase(db).activitiesFailed).toEqual([]);
     expect(db.prepare("SELECT lt2_hr FROM physiological_thresholds WHERE source_activity_id='lower'").get())
       .toEqual({ lt2_hr: 168 });
-    expect(getHeartRateProfileAtDate(db, '2026-01-03').lt2Hr).toBeLessThan(178);
+    expect(getHeartRateProfileAtDate(db, '2026-01-03').lt2Hr).toBe(178);
+    importSteady('lower-repeat', '2026-01-03', 168);
+    db.prepare("UPDATE activities SET run_type='threshold_lt2',manual_run_type='threshold_lt2' WHERE id='lower-repeat'").run();
+    expect(realignDatabase(db).activitiesFailed).toEqual([]);
+    expect(getHeartRateProfileAtDate(db, '2026-01-04').lt2Hr).toBeLessThan(178);
   });
 
   it('excludes confirmed failed workout evidence while preserving independent dated measurements', () => {
@@ -187,6 +193,7 @@ describe('Historical fitness with stable athlete max HR', () => {
   it('rebuilds later runs immediately when an earlier workout is imported or corrected', () => {
     measurement('2026-01-01', 130, 155);
     expect(importSteady('later', '2026-01-03', 153).runType).toBe('threshold_lt2');
+    importSteady('corroborating', '2026-01-01T12:00:00', 170);
     importSteady('backfill', '2026-01-02', 170);
     const full = read();
     expect(full.runs).toContainEqual(expect.objectContaining({ id: 'later', run_type: 'easy_base' }));
@@ -287,6 +294,7 @@ describe('Historical fitness with stable athlete max HR', () => {
 
   it('rebuilds intervening workouts when a correction moves an older source to a later date', () => {
     measurement('2026-01-01', 130, 155);
+    importSteady('corroborating', '2026-01-01T12:00:00', 170);
     importSteady('moved', '2026-01-02', 170);
     expect(importSteady('between', '2026-01-03', 153).runType).toBe('easy_base');
     const corrected = workoutTrace([{ seconds: 2400, hr: 165 }], { id: 'moved', date: '2026-01-04' });

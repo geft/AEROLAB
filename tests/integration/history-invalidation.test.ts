@@ -33,9 +33,9 @@ describe('Centralized history invalidation', () => {
     expect(snapshot()).toEqual(before);
   });
 
-  it.each([{ is_failed_workout: true }, { run_type: 'recovery' }])('removes ineligible source evidence and rebuilds later labels for %j', patch => {
+  it.each([{ is_failed_workout: true }, { run_type: 'recovery' }])('removes ineligible observations without allowing a single source to change later labels for %j', patch => {
     seed('source', '2026-01-02'); observation(); seed('later', '2026-01-03');
-    expect(db.prepare("SELECT run_type FROM activities WHERE id='later'").get()).toEqual({ run_type: 'threshold_lt2' });
+    expect(db.prepare("SELECT run_type FROM activities WHERE id='later'").get()).toEqual({ run_type: 'easy_base' });
     expect(updateActivityService(db, 'source', patch).ok).toBe(true);
     expect(db.prepare("SELECT COUNT(*) n FROM physiological_thresholds WHERE source_activity_id='source' AND source_kind='workout'").get()).toEqual({ n: 0 });
     expect(db.prepare("SELECT run_type FROM activities WHERE id='later'").get()).toEqual({ run_type: 'easy_base' });
