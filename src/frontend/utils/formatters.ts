@@ -1,3 +1,5 @@
+import { formatDateValue } from '../i18n/date-format.js';
+import { LOCALES } from '../i18n/types.js';
 /**
  * Shared formatting utilities for running metrics, pace, dates, and durations.
  */
@@ -15,7 +17,7 @@ export function formatPace(secKm: number | null | undefined, includeUnit: boolea
 }
 
 /**
- * Formats a date string into a localized human-readable date.
+ * Formats full dates as YYYYMMDD; explicit partial-date options remain localized.
  */
 export function formatDate(
   dateStr: string,
@@ -25,7 +27,7 @@ export function formatDate(
   try {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
-    return d.toLocaleDateString('en-US', options);
+    return formatDateValue(d, LOCALES.en, options);
   } catch {
     return dateStr;
   }

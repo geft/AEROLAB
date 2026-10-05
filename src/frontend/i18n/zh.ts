@@ -1477,6 +1477,7 @@ export const zh: Translations = {
     }
   },
   thresholdTrends: {
+    runWalkMarkers: '空心点：跑走交替观察记录',
     rollingDesc: '已采纳估算仅使用该日期之前的重复支持证据。证据不足时保留原估算；可切换查看单次观察记录。',
     showRolling: '显示已采纳趋势',
     showIndividual: '显示单次跑步',

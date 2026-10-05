@@ -857,6 +857,7 @@ export const en: Translations = {
     distanceLabels: {}
   },
   thresholdTrends: {
+    runWalkMarkers: 'Hollow points: run–walk observations',
     rollingDesc: 'Accepted estimates use corroborated evidence available at each date. Inconclusive runs preserve earlier estimates; individual observations can be viewed separately.',
     showRolling: 'Show accepted trend',
     showIndividual: 'Show individual runs',

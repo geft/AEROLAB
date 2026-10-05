@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Show usable run–walk observations as hollow supporting markers alongside accepted threshold trends, including evidence that has not yet established an estimate. Default the trend to all history, show running-only metrics and lower confidence on selection, and format full dates as YYYYMMDD in both languages.
+
 - Retain usable run–walk LT1 evidence at lower confidence. Measure settled running sections independently of walking recoveries, compare recovery patterns across sessions, and require three sessions to establish an estimate or four to update one. Recovery-assisted estimates cannot replace continuous-running or external-test evidence. Preserve original observations and label accepted run–walk estimates in English and Chinese.
 
 ## 1.4.0 — 2026-10-05

@@ -28,8 +28,7 @@ describe('Formatters Unit Tests', () => {
   describe('formatDate', () => {
     it('formats valid date string', () => {
       const formatted = formatDate('2026-09-12 17:32:55');
-      expect(formatted).toContain('Sep');
-      expect(formatted).toContain('2026');
+      expect(formatted).toBe('20260912');
     });
 
     it('returns fallback dash for empty or null date', () => {

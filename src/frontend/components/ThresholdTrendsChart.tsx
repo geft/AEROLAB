@@ -9,7 +9,7 @@ import { supportedThreshold } from '../../shared/threshold-evidence.js';
 
 // Calibration point shape comes from the API contract so this component and
 // ProgressView cannot drift apart.
-export type CalibrationHistoryItem = ContractCalibrationHistoryItem;
+export type CalibrationHistoryItem = ContractCalibrationHistoryItem & { isEvidence?: boolean };
 interface ThresholdTrendsChartProps {
   history: CalibrationHistoryItem[];
   currentThresholds?: ThresholdsResponse['currentThresholds'];
@@ -25,7 +25,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
   // stable "now" once per mount for the time-range fallback.
   const [mountedAt] = useState(() => Date.now());
   const [metric, setMetric] = useState<'pace' | 'hr'>('pace');
-  const [timeRange, setTimeRange] = useState<'3m' | '6m' | '12m' | 'all'>('6m');
+  const [timeRange, setTimeRange] = useState<'3m' | '6m' | '12m' | 'all'>('all');
   const [showIndividualRuns, setShowIndividualRuns] = useState(false);
   const [selectedPoint, setSelectedPoint] = useState<{
     type: 'lt1' | 'lt2';
@@ -109,6 +109,14 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
     );
   }, [filteredHistory, metric]);
 
+  // Supporting observations remain visible even before a threshold is accepted.
+  const runWalkPoints = useMemo(() => showIndividualRuns ? [] : filteredHistory
+    .filter(h => h.lt1_evidence_usable && h.lt1_evidence_kind === 'run_walk')
+    .map(h => ({ ...sortedHistory.find(original => original.source_activity_id === h.source_activity_id && original.id === h.id),
+      ...h, isEvidence: true, lt1_hr: h.lt1_evidence_hr ?? null, lt1_pace_sec_km: h.lt1_evidence_pace ?? null,
+      confidence: h.lt1_evidence_confidence, activity_name: sortedHistory.find(original => original.id === h.id)?.activity_name,
+      notes: undefined })), [filteredHistory, sortedHistory, showIndividualRuns]);
+
   // Chart Dimensions
   const width = 860;
   const height = 280;
@@ -143,6 +151,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
 
       const paces = [
         ...lt1Points.map(p => p.lt1_pace_sec_km!),
+        ...runWalkPoints.map(p => p.lt1_pace_sec_km!).filter(v => v != null),
         ...lt2Points.map(p => p.lt2_pace_sec_km!),
         ...(currentThresholds?.lt2PaceSecKm ? [currentThresholds.lt2PaceSecKm] : []),
         ...(currentThresholds?.lt1PaceSecKm ? [currentThresholds.lt1PaceSecKm] : [])
@@ -168,6 +177,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
 
       const hrs = [
         ...lt1Points.map(p => p.lt1_hr!),
+        ...runWalkPoints.map(p => p.lt1_hr!).filter(v => v != null),
         ...lt2Points.map(p => p.lt2_hr!),
         ...(currentThresholds?.lt2Hr ? [currentThresholds.lt2Hr] : []),
         ...(currentThresholds?.lt1Hr ? [currentThresholds.lt1Hr] : [])
@@ -187,7 +197,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
       }
       return { minYVal: minH, maxYVal: maxH, yTicks: ticks };
     }
-  }, [metric, lt1Points, lt2Points, currentThresholds]);
+  }, [metric, lt1Points, lt2Points, runWalkPoints, currentThresholds]);
 
   const getY = useCallback((val: number) => {
     if (metric === 'pace') {
@@ -229,13 +239,14 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
     return val ? getY(val) : null;
   }, [currentThresholds, metric, getY]);
 
-  const hasData = lt1Points.length > 0 || lt2Points.length > 0;
+  const hasData = lt1Points.length > 0 || lt2Points.length > 0 || runWalkPoints.length > 0;
   const selectablePoints = [
     ...lt1Points.map(item => ({ type: 'lt1' as const, item })),
+    ...runWalkPoints.map(item => ({ type: 'lt1' as const, item })),
     ...lt2Points.map(item => ({ type: 'lt2' as const, item }))
   ].sort((a, b) => a.item.effective_date.localeCompare(b.item.effective_date));
   const selectedPointIndex = selectedPoint
-    ? selectablePoints.findIndex(point => point.type === selectedPoint.type && point.item.effective_date === selectedPoint.item.effective_date)
+    ? selectablePoints.findIndex(point => point.type === selectedPoint.type && point.item.effective_date === selectedPoint.item.effective_date && point.item.isEvidence === selectedPoint.item.isEvidence)
     : 0;
   const selectPointByIndex = (index: number) => {
     const point = selectablePoints[index];
@@ -355,6 +366,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
           </span>
         </div>
 
+        {!showIndividualRuns && <span style={{ color: 'var(--chart-series-green)' }}>{t.thresholdTrends.runWalkMarkers}</span>}
         <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
           {t.progress.hoverHint}
         </span>
@@ -383,11 +395,13 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
               }
               const rect = event.currentTarget.getBoundingClientRect();
               const x = ((event.clientX - rect.left) / rect.width) * width;
+              const y = ((event.clientY - rect.top) / rect.height) * height;
+              const distance = (point: typeof selectablePoints[number]) => {
+                const value = point.item[`${point.type}_${metric === 'pace' ? 'pace_sec_km' : 'hr'}`];
+                return Math.hypot(getX(point.item.effective_date) - x, getY(value ?? 0) - y);
+              };
               const nearestIndex = selectablePoints.reduce((bestIndex, point, index) =>
-                Math.abs(getX(point.item.effective_date) - x)
-                  < Math.abs(getX(selectablePoints[bestIndex].item.effective_date) - x)
-                  ? index
-                  : bestIndex, 0);
+                distance(point) < distance(selectablePoints[bestIndex]) ? index : bestIndex, 0);
               selectPointByIndex(nearestIndex);
             }}
             onPointerLeave={() => {
@@ -497,6 +511,17 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
               />
             )}
 
+            {/* Hollow markers are supporting run-walk observations, not accepted thresholds. */}
+            {runWalkPoints.map(p => {
+              const value = metric === 'pace' ? p.lt1_pace_sec_km : p.lt1_hr;
+              if (value == null) return null;
+              return <circle key={`evidence-${p.id}-${p.effective_date}`} data-testid="run-walk-point"
+                aria-label={format(t.thresholdTrends.chartPointAriaLabel, { type: t.stats.runWalkEvidence,
+                  date: formatDate(p.effective_date), value: metric === 'pace' ? formatPace(value) : `${value} bpm` })}
+                cx={getX(p.effective_date)} cy={getY(value)} r={5}
+                fill="var(--bg-card)" stroke="var(--chart-series-green)" strokeWidth={2} />;
+            })}
+
             {/* LT1 Interactive Points */}
             {lt1Points.map(p => {
               const x = getX(p.effective_date);
@@ -515,7 +540,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
                   })}
                 >
                   <circle
-                    aria-label={`LT1 ${p.effective_date}: ${val}`}
+                    aria-label={`LT1 ${formatDate(p.effective_date)}: ${val}`}
                     cx={x}
                     cy={y}
                     r={isHovered ? 6 : 4}
@@ -547,7 +572,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
                   })}
                 >
                   <circle
-                    aria-label={`LT2 ${p.effective_date}: ${val}`}
+                    aria-label={`LT2 ${formatDate(p.effective_date)}: ${val}`}
                     cx={x}
                     cy={y}
                     r={isHovered ? 6 : 4}
@@ -630,6 +655,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
                 </span>
               </div>
 
+              {activePoint.item.isEvidence && <div>{t.stats.runWalkEvidence}</div>}
               {activePoint.item.activity_name && (
                 <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: '0.35rem', paddingTop: '0.35rem', color: 'var(--text-muted)', fontSize: '0.7rem' }}>
                   {translateActivityName(activePoint.item.activity_name, language, t.browse.coachLegacyTemplates)}

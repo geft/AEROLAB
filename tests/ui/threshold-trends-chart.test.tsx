@@ -18,10 +18,10 @@ describe('Threshold chart date ranges', () => {
     const tooltip = container.querySelector('.threshold-trend-tooltip');
     expect(tooltip).toBeTruthy();
     expect(container.querySelector('.threshold-trends-scroll')?.contains(tooltip)).toBe(false);
-    expect(tooltip?.textContent).toContain('9/1/2026');
+    expect(tooltip?.textContent).toContain('20260901');
 
     fireEvent.change(slider, { target: { value: '0' } });
-    expect(tooltip?.textContent).toContain('8/1/2026');
+    expect(tooltip?.textContent).toContain('20260801');
   });
 
   it('positions a compact tooltip at the hovered point on desktop and hides it on leave', () => {
@@ -41,12 +41,43 @@ describe('Threshold chart date ranges', () => {
 
     fireEvent.pointerMove(svg, { clientX: 750, clientY: 20 });
     const tooltip = container.querySelector<HTMLElement>('.threshold-trend-tooltip');
-    expect(tooltip?.textContent).toContain('9/1/2026');
+    expect(tooltip?.textContent).toContain('20260901');
     expect(tooltip?.style.left).toBe('520px');
     expect(tooltip?.style.top).toBe('34px');
 
     fireEvent.pointerLeave(svg);
     expect(container.querySelector('.threshold-trend-tooltip')).toBeNull();
+  });
+
+  it('shows historical run-walk evidence without a corroborated threshold and exposes its actual metrics', () => {
+    const history: CalibrationHistoryItem[] = [
+      { id: 1, source_activity_id: 'old-run', effective_date: '2025-12-31', lt1_hr: 149, lt1_pace_sec_km: 423,
+        lt1_evidence_usable: true, lt1_evidence_kind: 'run_walk', lt1_evidence_hr: 152,
+        lt1_evidence_pace: 400, lt1_evidence_confidence: 0.65, lt1_recovery_fraction: 0.1,
+        lt1_running_bout_seconds: 300, confidence: 0.9 },
+      { id: 2, source_activity_id: 'new-run', effective_date: '2026-09-01', lt1_hr: 150, lt1_pace_sec_km: 360,
+        lt1_evidence_usable: false, confidence: 0.9 }
+    ];
+    const { container } = render(<ThresholdTrendsChart history={history} currentThresholds={{
+      lt1Hr: 150, lt2Hr: 178, lt1Range: [147, 153], lt1PaceSecKm: null, lt2PaceSecKm: null,
+      baselineEconomyEf: null, confidence: 0, source: 'baseline'
+    }} />);
+    expect(screen.getAllByTestId('run-walk-point')).toHaveLength(1);
+    expect(screen.getByTestId('run-walk-point').getAttribute('aria-label')).toContain('20251231');
+    const svg = container.querySelector('svg.threshold-trends-svg')!;
+    vi.spyOn(svg, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 0, left: 0, top: 0,
+      right: 860, bottom: 280, width: 860, height: 280, toJSON: () => ({}) });
+    fireEvent.pointerMove(svg, { clientX: 100, clientY: 100 });
+    expect(screen.getByRole('status').textContent).toContain('6:40/km');
+    expect(screen.getByRole('status').textContent).toContain('152 bpm');
+    expect(screen.getByRole('status').textContent).toContain('65%');
+    expect(screen.getByRole('status').textContent).toContain('Run–walk support');
+    fireEvent.click(screen.getByText('6 Months'));
+    expect(screen.queryByTestId('run-walk-point')).toBeNull();
+    fireEvent.click(screen.getByText('All Time'));
+    expect(screen.getByTestId('run-walk-point')).toBeTruthy();
+    fireEvent.click(screen.getByText('Show individual runs'));
+    expect(container.querySelector('circle[aria-label="LT1 20251231: 423"]')).toBeTruthy();
   });
 
   it('keeps overlapping estimates identical and preserves access to individual observations', () => {
@@ -55,13 +86,13 @@ describe('Threshold chart date ranges', () => {
     ].map(([date, pace], id) => ({ id, effective_date: String(date), lt1_hr: 150,
       lt1_pace_sec_km: Number(pace), lt2_hr: null, lt2_pace_sec_km: null, confidence: 0.9 }));
     const { container } = render(<ThresholdTrendsChart history={history} />);
-    const july = () => container.querySelector('circle[aria-label^="LT1 2026-07-01:"]')!.getAttribute('aria-label');
+    const july = () => container.querySelector('circle[aria-label^="LT1 20260701:"]')!.getAttribute('aria-label');
     fireEvent.click(screen.getByText('3 Months'));
     const shortRange = july();
-    expect(shortRange).not.toBe('LT1 2026-07-01: 360');
+    expect(shortRange).not.toBe('LT1 20260701: 360');
     fireEvent.click(screen.getByText('12M'));
     expect(july()).toBe(shortRange);
     fireEvent.click(screen.getByText('Show individual runs'));
-    expect(july()).toBe('LT1 2026-07-01: 360');
+    expect(july()).toBe('LT1 20260701: 360');
   });
 });

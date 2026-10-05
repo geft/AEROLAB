@@ -915,6 +915,7 @@ export interface Translations {
     distanceLabels: Record<string, string>;
   };
   thresholdTrends: {
+    runWalkMarkers: string;
     rollingDesc: string;
     showRolling: string;
     showIndividual: string;
