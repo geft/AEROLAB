@@ -4,7 +4,7 @@ import type { ThresholdsResponse } from '../types/api.js';
 import { getProfile, updateProfile } from '../api/client.js';
 import { apiErrorMessage } from '../api/errors.js';
 import React, { useState, useEffect, useMemo } from 'react';
-import { Heart, Zap, Save, CheckCircle, AlertCircle,
+import { Zap, Save, CheckCircle, AlertCircle,
   Activity, Flame, Calendar
 } from 'lucide-react';
 import { formatPace, calculateAgeFromDob } from '../utils/formatters.js';
@@ -160,31 +160,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
 
   return (
     <div className="profile-view-container">
-      {/* Top Banner Header */}
-      <div className="profile-header-banner">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-          <div className="profile-avatar-circle">
-            <Heart size={28} color="#06b6d4" />
-          </div>
-          <div>
-            <h1 className="profile-header-title">{t.profile.title}</h1>
-            <p className="profile-header-subtitle">
-              {t.profile.subtitle}
-            </p>
-          </div>
-        </div>
-
-        {!readOnly && <button
-          type="button"
-          className="save-profile-btn"
-          onClick={handleSave}
-          disabled={saving}
-        >
-          <Save size={16} />
-          {saving ? t.common.loading : t.profile.saveProfile}
-        </button>}
-      </div>
-
       {displayedStatus && (
         <div className={`profile-status-banner ${displayedStatus.type}`}>
           {displayedStatus.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
@@ -420,6 +395,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
               />
               <span>{t.profile.autoCalibrateCheckbox}</span>
             </label>
+          </div>
+          <div className="profile-form-actions">
+            <button type="submit" className="save-profile-btn" disabled={saving}>
+              <Save size={16} />
+              {saving ? t.common.loading : t.profile.saveProfile}
+            </button>
           </div>
         </section>
         </fieldset>

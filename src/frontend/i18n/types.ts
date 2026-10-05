@@ -527,8 +527,6 @@ export interface Translations {
   };
   profile: {
     efficiencyBadge: string;
-    title: string;
-    subtitle: string;
     personalInfo: string;
     name: string;
     gender: string;

@@ -1069,8 +1069,6 @@ export const zh: Translations = {
   },
   profile: {
     efficiencyBadge: "效率",
-    title: '跑者基准档案',
-    subtitle: '维护个人生理基准、静息/最大心率、跑鞋轮换矩阵与周课表',
     personalInfo: '个人基本信息',
     name: '姓名',
     gender: '性别',

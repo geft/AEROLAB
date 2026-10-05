@@ -477,8 +477,6 @@ export const en: Translations = {
   },
   profile: {
     efficiencyBadge: "EFFICIENCY",
-    title: 'Runner Baseline Profile',
-    subtitle: 'Personal physiological baseline, resting/max HR, shoe rotation matrix and weekly schedule',
     personalInfo: 'Personal Information',
     name: 'Full Name',
     gender: 'Gender',
