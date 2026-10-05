@@ -125,10 +125,10 @@ export const PeriodProgressView: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
             <span className="chart-title">{t.progress.title}</span>
             <span className="profile-sync-badge">
-              <Calendar size={13} /> {t.progress.gainInYear}
+              <TrendingUp size={13} aria-hidden="true" /> {t.progress.gainInYear}
             </span>
             <span className="run-badge badge-easy_base" style={{ fontSize: '0.72rem' }}>
-              <TrendingUp size={11} style={{ marginRight: 3 }} /> +{efficiencyImprovementPct}% {t.progress.gainInYear}
+              <TrendingUp size={13} aria-hidden="true" /> +{efficiencyImprovementPct}% {t.progress.gainInYear}
             </span>
           </div>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
@@ -225,7 +225,7 @@ export const PeriodProgressView: React.FC = () => {
               onClick={() => setViewMode('cards')}
               title={t.progress.cardsView}
             >
-              <LayoutGrid size={13} style={{ marginRight: 3, verticalAlign: 'middle' }} />
+              <LayoutGrid size={13} />
               {t.progress.cardsView}
             </button>
             <button
@@ -233,7 +233,7 @@ export const PeriodProgressView: React.FC = () => {
               onClick={() => setViewMode('table')}
               title={t.progress.tableView}
             >
-              <List size={13} style={{ marginRight: 3, verticalAlign: 'middle' }} />
+              <List size={13} />
               {t.progress.tableView}
             </button>
           </div>

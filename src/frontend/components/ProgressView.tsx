@@ -327,7 +327,7 @@ export const ProgressView: React.FC = () => {
                 onClick={() => setHistoryViewMode('cards')}
                 title={t.progress.milestoneCardsTooltip}
               >
-                <LayoutGrid size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                <LayoutGrid size={13} />
                 {t.progress.cardsView}
               </button>
               <button
@@ -335,7 +335,7 @@ export const ProgressView: React.FC = () => {
                 onClick={() => setHistoryViewMode('table')}
                 title={t.progress.tableTooltip}
               >
-                <List size={13} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                <List size={13} />
                 {t.progress.tableView}
               </button>
             </div>

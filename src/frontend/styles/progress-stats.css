@@ -40,6 +40,10 @@
 }
 
 .filter-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
@@ -49,6 +53,10 @@
   border-radius: 999px;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+.filter-pill-btn > svg {
+  flex-shrink: 0;
 }
 
 .filter-pill-btn.active {

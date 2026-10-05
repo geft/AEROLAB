@@ -378,6 +378,10 @@
 }
 
 .view-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
   background: transparent;
   border: none;
   color: var(--text-secondary);
@@ -387,6 +391,10 @@
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.view-mode-btn > svg {
+  flex-shrink: 0;
 }
 
 .view-mode-btn:hover {

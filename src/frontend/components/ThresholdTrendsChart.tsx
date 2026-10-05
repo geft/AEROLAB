@@ -299,7 +299,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
               onClick={() => setMetric('pace')}
               style={{ fontSize: '0.74rem', padding: '0.25rem 0.65rem', borderRadius: 6 }}
             >
-              <Clock size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+              <Clock size={12} />
               {t.progress.paceTrend}
             </button>
             <button
@@ -307,7 +307,7 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
               onClick={() => setMetric('hr')}
               style={{ fontSize: '0.74rem', padding: '0.25rem 0.65rem', borderRadius: 6 }}
             >
-              <Heart size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+              <Heart size={12} />
               {t.progress.hrTrend}
             </button>
           </div>
