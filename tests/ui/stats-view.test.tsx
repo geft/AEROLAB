@@ -213,6 +213,7 @@ describe('StatsView UI Tests', () => {
   it('shows an estimated gap with held evidence and accepted dates instead of a fitness grade', async () => {
     render(<StatsView />);
     expect(await screen.findByText('72s est. gap')).toBeDefined();
+    expect(screen.getByText('Accepted LT1 (5:52/km) minus accepted LT2 (4:40/km). Both remain estimates.')).toBeDefined();
     expect(screen.getByText(/LT1: Previous estimate held.*2026.*2 supporting efforts/)).toBeDefined();
     expect(screen.getByText(/LT2: Corroborated estimate.*2026.*3 supporting efforts/)).toBeDefined();
     expect(screen.queryByText(/Base Opportunity|Well-Conditioned|Optimal Anchor/)).toBeNull();

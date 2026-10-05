@@ -10,6 +10,7 @@
 - Screen historical evidence using continuous telemetry, warmup exclusion, pace stability, terrain, and cardiac drift. LT2 interval summaries alone, interrupted reps, and long recoveries cannot establish an accepted threshold.
 - Show supported, held, stale, and insufficient-evidence states with evidence dates and supporting effort counts. Historical trend estimates use only observations available at that date; original observations and telemetry remain intact.
 - Replace fixed aerobic-gap fitness grades with an explicitly estimated LT1–LT2 pace difference. Keep synthetic LT2 prediction fallbacks out of accepted threshold cards and pace-gap calculations.
+- Display pace units once in the bilingual gap explanation.
 - Refresh stale coaching summaries against the revised threshold policy when viewed. Add regression coverage for corroboration, declines, recovery runs, telemetry interruptions, external tests, and database rollback safety.
 
 ## 1.3.0 — 2026-10-04

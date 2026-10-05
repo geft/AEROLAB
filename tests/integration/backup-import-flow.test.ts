@@ -82,6 +82,7 @@ describe('Comprehensive Backup & Ingestion / Import Integration Tests', () => {
       expect(parsed.backup).toEqual({ backupDirectory: backupDir });
     });
 
+    // Multiple SQLite flushes can exceed five seconds on hosted Windows runners.
     it('creates local snapshots and enforces the 3-backup rotation retention policy', async () => {
       const rotateDir = path.join(testDir, 'rotation-test');
       fs.mkdirSync(rotateDir, { recursive: true });
@@ -105,7 +106,7 @@ describe('Comprehensive Backup & Ingestion / Import Integration Tests', () => {
         expect(fs.existsSync(b.filePath)).toBe(true);
         expect(b.sizeBytes).toBeGreaterThan(0);
       }
-    });
+    }, 15000);
 
     it('downloads database snapshot stream with valid SQLite header', async () => {
       const res = await request(app).get('/api/database/download');
@@ -122,6 +123,7 @@ describe('Comprehensive Backup & Ingestion / Import Integration Tests', () => {
   });
 
   describe('2. Database Restore Safety, Validation & Rollback', () => {
+    // Restore validates separate databases and writes a safety snapshot on disk.
     it('creates an automated pre-restore safety snapshot before restoring', async () => {
       // Prepare a donor database
       const donorPath = path.join(testDir, 'safety-donor.db');
@@ -147,7 +149,7 @@ describe('Comprehensive Backup & Ingestion / Import Integration Tests', () => {
       const backupFiles = fs.readdirSync(backupDir);
       const safetySnapshots = backupFiles.filter((f) => f.startsWith('pre-restore-safety-'));
       expect(safetySnapshots.length).toBeGreaterThanOrEqual(1);
-    });
+    }, 15000);
 
     it('rejects corrupt SQLite files and non-database files without corrupting active database', async () => {
       const dbBefore = getDatabase();

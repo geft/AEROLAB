@@ -400,7 +400,7 @@ export const StatsView: React.FC = () => {
 
           <p className="goal-stat-desc">
             {turnpointGapSeconds != null && lt1PaceSecKm != null && lt2PaceSecKm != null
-              ? format(t.stats.paceGapCalc, { easy: formatPace(lt1PaceSecKm), threshold: formatPace(lt2PaceSecKm) })
+              ? format(t.stats.paceGapCalc, { easy: formatPace(lt1PaceSecKm, false), threshold: formatPace(lt2PaceSecKm, false) })
               : t.stats.thresholdGapUnavailable}
           </p>
           <p className="goal-stat-desc">{thresholdEvidenceText('lt1')}</p>
