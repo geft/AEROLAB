@@ -1030,6 +1030,7 @@ export const zh: Translations = {
     polarizedBalanceDesc: '最佳分布：LT1以下的轻松跑量可保持身体充沛精力，从而保障高质量阈值课的执行效果。',
     thresholdGapUnavailable: '缺少足够的已采纳证据，暂无法计算 LT1–LT2 配速差。',
     thresholdGapGuide: '训练估算是参考值，并非实验室测量。可比的连续跑步证据需重复支持变化。证据不足时保留原估算；较旧证据标记为待确认。配速差本身不能判断有氧能力，不使用固定秒/公里区间评级。',
+    runWalkEvidence: '跑走交替证据 · 较低可信度',
     thresholdEvidence: '{threshold}：{status} · 配速证据日期 {date} · {support}',
     thresholdSupportCount: { one: '{count} 次支持训练', other: '{count} 次支持训练' },
     thresholdEvidenceStatus: { supported: '重复证据支持的估算', held: '保留原估算', stale: '证据较旧，需确认', insufficient: '证据不足', external: '外部测试' },

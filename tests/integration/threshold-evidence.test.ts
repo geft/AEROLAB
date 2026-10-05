@@ -50,6 +50,21 @@ describe('Accepted threshold evidence through SQLite and API', () => {
     expect(computeRollingThresholds(db, '2026-06-02T11:59:59').lt1PaceSecKm).toBeNull();
   });
 
+  it('exposes lower-confidence running-only evidence without rewriting mixed observations', () => {
+    for (const day of [1, 2, 3]) {
+      const run = aerobic(day, 150, 400);
+      db.prepare("UPDATE activity_records SET speed_mps=1.2,heart_rate=135 WHERE activity_id=? AND elapsed_seconds % 600 >= 540").run(run.id);
+      db.prepare('UPDATE physiological_thresholds SET lt1_pace_sec_km=450 WHERE source_activity_id=?').run(run.id);
+    }
+    const result = getThresholdsService(db);
+    expect(result.currentThresholds).toMatchObject({ lt1PaceSecKm: 400,
+      lt1Evidence: { basis: 'run_walk', supportCount: 3 } });
+    expect(result.latest.lt1).toMatchObject({ lt1_pace_sec_km: 400, confidence: 0.65 });
+    expect(result.history[0]).toMatchObject({ lt1_pace_sec_km: 450, lt1_evidence_pace: 400,
+      lt1_evidence_kind: 'run_walk', lt1_evidence_confidence: 0.65 });
+    expect(db.prepare('SELECT DISTINCT lt1_pace_sec_km FROM physiological_thresholds').all()).toEqual([{ lt1_pace_sec_km: 450 }]);
+  });
+
   it('rechecks failed sources and does not cache rolled-back evidence', () => {
     aerobic(1); aerobic(2);
     expect(computeRollingThresholds(db).lt1PaceSecKm).toBe(360);

@@ -78,6 +78,12 @@ export function getThresholdsService(db: Database.Database, runTypeFilter?: stri
     return { ...item, source_kind: objectRow(value, 'physiological_thresholds').source_kind as string,
       threshold_evidence_temperature_c: evidence.lt1.find(row => row.sourceId === key)?.temperatureC ?? evidence.lt2.find(row => row.sourceId === key)?.temperatureC ?? null,
       lt1_evidence_usable: evidence.lt1.find(row => row.sourceId === key)?.usable ?? false,
+      lt1_evidence_hr: evidence.lt1.find(row => row.sourceId === key)?.hr,
+      lt1_evidence_pace: evidence.lt1.find(row => row.sourceId === key)?.pace,
+      lt1_evidence_confidence: evidence.lt1.find(row => row.sourceId === key)?.confidence,
+      lt1_evidence_kind: evidence.lt1.find(row => row.sourceId === key)?.kind,
+      lt1_recovery_fraction: evidence.lt1.find(row => row.sourceId === key)?.recoveryFraction,
+      lt1_running_bout_seconds: evidence.lt1.find(row => row.sourceId === key)?.runningBoutSeconds,
       lt2_evidence_usable: evidence.lt2.find(row => row.sourceId === key)?.usable ?? false };
   });
 
@@ -92,6 +98,7 @@ export function getThresholdsService(db: Database.Database, runTypeFilter?: stri
   const latestLt2Pace = currentThresholds.lt2PaceSecKm;
   const latestLt1: CalibrationHistoryItem = {
     ...latestLt1Row,
+    confidence: currentThresholds.lt1Evidence?.basis === 'run_walk' ? Math.min(latestLt1Row?.lt1_evidence_confidence ?? 0.65, 0.65) : latestLt1Row?.confidence,
     lt1_hr: currentThresholds.lt1Hr,
     lt1_pace_sec_km: latestLt1Pace,
     effective_date: currentThresholds.lt1Evidence?.acceptedDate ?? null,

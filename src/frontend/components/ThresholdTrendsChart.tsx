@@ -61,8 +61,12 @@ export const ThresholdTrendsChart: React.FC<ThresholdTrendsChartProps> = ({
     if (showIndividualRuns) return sortedHistory;
     const observations = (type: 'lt1' | 'lt2') => sortedHistory
       .filter(h => h[`${type}_hr`] != null)
-      .map(h => ({ hr: h[`${type}_hr`]!, pace: h[`${type}_pace_sec_km`] ?? 0,
-        confidence: h.confidence ?? 0, effective_date: h.effective_date,
+      .map(h => ({ hr: type === 'lt1' ? h.lt1_evidence_hr ?? h.lt1_hr! : h.lt2_hr!,
+        pace: type === 'lt1' ? h.lt1_evidence_pace ?? h.lt1_pace_sec_km ?? 0 : h.lt2_pace_sec_km ?? 0,
+        confidence: (type === 'lt1' ? h.lt1_evidence_confidence : undefined) ?? h.confidence ?? 0,
+        kind: type === 'lt1' ? h.lt1_evidence_kind : undefined,
+        recoveryFraction: type === 'lt1' ? h.lt1_recovery_fraction : undefined,
+        runningBoutSeconds: type === 'lt1' ? h.lt1_running_bout_seconds : undefined, effective_date: h.effective_date,
         sourceId: h.source_kind === 'external' ? `external:${h.id}` : h.source_activity_id ?? `orphan:${h.id}`, external: h.source_kind === 'external',
         temperatureC: h.threshold_evidence_temperature_c, usable: h[`${type}_evidence_usable`] ?? false }));
     const lt1 = observations('lt1'), lt2 = observations('lt2');

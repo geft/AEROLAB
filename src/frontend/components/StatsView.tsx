@@ -73,7 +73,7 @@ export const StatsView: React.FC = () => {
       status: evidence ? t.stats.thresholdEvidenceStatus[evidence.status] : t.stats.thresholdEvidenceStatus.insufficient,
       date: evidence?.acceptedDate ? formatDate(evidence.acceptedDate.replace(' ', 'T'), { year: 'numeric', month: 'short', day: 'numeric' }) : t.stats.notCalibrated,
       support: plural(evidence?.supportCount ?? 0, t.stats.thresholdSupportCount)
-    });
+    }) + (evidence?.basis === 'run_walk' ? ` · ${t.stats.runWalkEvidence}` : '');
   };
 
   const getLocalizedPeriodLabel = (label: string | undefined): string => {

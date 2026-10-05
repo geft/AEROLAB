@@ -11,6 +11,9 @@ export interface ThresholdEvidenceObservation extends ThresholdObservation {
   external: boolean;
   usable: boolean;
   temperatureC?: number | null;
+  kind?: 'continuous' | 'run_walk';
+  recoveryFraction?: number;
+  runningBoutSeconds?: number;
 }
 
 export interface ThresholdEvidence {
@@ -19,6 +22,7 @@ export interface ThresholdEvidence {
   heartRateDate: string | null;
   observationDate: string | null;
   supportCount: number;
+  basis?: 'continuous' | 'run_walk' | 'external';
 }
 
 export interface SupportedThreshold {
@@ -37,7 +41,7 @@ export function supportedThreshold(observations: ThresholdEvidenceObservation[],
     (options.strictlyBefore ? thresholdTime(row.effective_date) < ref : thresholdTime(row.effective_date) <= ref) &&
     Number.isFinite(row.hr) && row.hr > 0 && Number.isFinite(row.confidence) && row.confidence > 0 && row.confidence <= 1)
     .sort((a, b) => thresholdTime(a.effective_date) - thresholdTime(b.effective_date) || a.sourceId.localeCompare(b.sourceId));
-  let accepted: { hr: number; pace: number | null; confidence: number; date: string; hrDate: string; count: number; temperatureC?: number | null; observedHr: number } | null = null;
+  let accepted: { hr: number; pace: number | null; confidence: number; date: string; hrDate: string; count: number; temperatureC?: number | null; observedHr: number; basis: 'continuous' | 'run_walk' | 'external' } | null = null;
   let pending: ThresholdEvidenceObservation[] = [];
   let observationDate: string | null = null;
   let lastUsed = false;
@@ -56,7 +60,7 @@ export function supportedThreshold(observations: ThresholdEvidenceObservation[],
         accepted.hrDate = row.effective_date;
       } else {
         accepted = { hr: row.hr, observedHr: row.hr, pace: validPace ? row.pace : null, confidence: row.confidence,
-          date: row.effective_date, hrDate: row.effective_date, count: 1 };
+          date: row.effective_date, hrDate: row.effective_date, count: 1, basis: 'external' };
         lastUsed = true;
       }
       pending = [];
@@ -64,6 +68,9 @@ export function supportedThreshold(observations: ThresholdEvidenceObservation[],
       continue;
     }
     if (!row.usable || !validPace) continue;
+    const kind = row.kind ?? 'continuous';
+    // Recovery-assisted evidence cannot displace an uninterrupted or external estimate.
+    if (kind === 'run_walk' && accepted && accepted.basis !== 'run_walk') continue;
     if (aerobicAnchor != null && Math.abs(row.hr - aerobicAnchor) > COMPARABLE_HR_BPM) continue;
     if (aerobicAnchor != null && accepted?.pace != null && Math.abs(row.hr - accepted.observedHr) > COMPARABLE_HR_BPM) continue;
     // Sensor temperature is only a comparability screen, never a pace correction.
@@ -71,18 +78,23 @@ export function supportedThreshold(observations: ThresholdEvidenceObservation[],
         Math.abs(accepted.temperatureC - row.temperatureC) > 3) continue;
     pending = pending.filter(p => thresholdTime(row.effective_date) - thresholdTime(p.effective_date) <= THRESHOLD_EVIDENCE_WINDOW_DAYS * 86400000);
     pending.push(row);
-    const peers = pending.filter(p => Math.abs(p.hr - row.hr) <= COMPARABLE_HR_BPM &&
+    const peers = pending.filter(p => (p.kind ?? 'continuous') === kind &&
+      (kind !== 'run_walk' || (p.recoveryFraction != null && row.recoveryFraction != null &&
+        p.runningBoutSeconds != null && row.runningBoutSeconds != null &&
+        Math.abs(p.recoveryFraction - row.recoveryFraction) <= 0.05 &&
+        Math.abs(p.runningBoutSeconds / row.runningBoutSeconds - 1) <= 0.25)) && Math.abs(p.hr - row.hr) <= COMPARABLE_HR_BPM &&
       p.pace != null && Math.abs(p.pace / row.pace! - 1) <= PACE_CHANGE_RATIO &&
       (p.temperatureC == null || row.temperatureC == null || Math.abs(p.temperatureC - row.temperatureC) <= 3));
     const improving = accepted?.pace != null && row.pace! < accepted.pace * (1 - PACE_CHANGE_RATIO);
-    const required = accepted?.pace == null || improving ? 2 : 3;
+    const required = kind === 'run_walk' ? (accepted?.pace == null ? 3 : 4) :
+      accepted?.pace == null || improving ? 2 : 3;
     if (peers.length < required) continue;
     const orderedPaces = peers.map(p => p.pace!).sort((a, b) => a - b);
     const pace = Math.round(orderedPaces[Math.floor(orderedPaces.length / 2)]);
     const hr = aerobicAnchor ?? Math.round(peers.reduce((sum, p) => sum + p.hr, 0) / peers.length);
-    accepted = { hr, pace, confidence: Math.min(...peers.map(p => p.confidence)), date: row.effective_date,
+    accepted = { hr, pace, confidence: Math.min(kind === 'run_walk' ? 0.65 : 1, ...peers.map(p => p.confidence)), date: row.effective_date,
       hrDate: aerobicAnchor == null ? row.effective_date : accepted?.hrDate ?? row.effective_date, observedHr: Math.round(peers.reduce((sum, p) => sum + p.hr, 0) / peers.length),
-      count: peers.length, temperatureC: row.temperatureC };
+      count: peers.length, basis: kind, temperatureC: row.temperatureC };
     pending = [];
     lastUsed = true;
   }
@@ -93,6 +105,6 @@ export function supportedThreshold(observations: ThresholdEvidenceObservation[],
     evidence: { status: accepted == null ? 'insufficient' : stale ? 'stale' :
       !lastUsed ? 'held' : accepted.count === 1 ? 'external' : 'supported',
     acceptedDate: accepted?.pace != null ? accepted.date : null, heartRateDate: accepted?.hrDate ?? null,
-    observationDate, supportCount: accepted?.count ?? 0 }
+    observationDate, supportCount: accepted?.count ?? 0, basis: accepted?.basis }
   };
 }

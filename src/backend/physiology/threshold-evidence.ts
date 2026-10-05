@@ -45,6 +45,58 @@ export function usableThresholdSegment(records: ActivityRecord[], from: number, 
     Math.sqrt(Math.max(0, speedSquares / duration - (distance / duration) ** 2)) / (distance / duration) <= 0.10;
 }
 
+/** Run-walk evidence uses only settled running bouts, never mixed average pace.
+ * The time/coverage gates are conservative app policy, not LT1 test cutoffs. */
+export function runWalkThresholdEvidence(records: ActivityRecord[], from: number, to: number) {
+  const segment = records.filter(r => r.elapsedSeconds >= from && r.elapsedSeconds <= to);
+  if (segment.length < 2 || segment[0].elapsedSeconds > from + 15 || segment.at(-1)!.elapsedSeconds < to - 15) return null;
+  const bouts: ActivityRecord[][] = [];
+  let bout: ActivityRecord[] = [];
+  let recoverySeconds = 0, recoveries = 0, recoveryStart: number | null = null;
+  for (let i = 0; i < segment.length; i++) {
+    const r = segment[i], previous = segment[i - 1];
+    if (r.heartRate == null || r.speedMps == null || !Number.isFinite(r.heartRate) || !Number.isFinite(r.speedMps) ||
+        (previous && (r.elapsedSeconds - previous.elapsedSeconds > MAX_OBSERVED_GAP_SECONDS || !sameTimerSegment(previous, r)))) return null;
+    if (r.speedMps <= 1.5) {
+      if (bout.length) { bouts.push(bout); bout = []; }
+      recoveryStart ??= r.elapsedSeconds;
+    } else {
+      if (recoveryStart != null) {
+        const seconds = r.elapsedSeconds - recoveryStart;
+        recoverySeconds += seconds;
+        if (seconds >= 15) recoveries++;
+        recoveryStart = null;
+      }
+      bout.push(r);
+    }
+  }
+  if (bout.length) bouts.push(bout);
+  if (recoveryStart != null) recoverySeconds += to - recoveryStart;
+  const recoveryFraction = recoverySeconds / (to - from);
+  if (recoveries < 2 || recoveryFraction < 0.02 || recoveryFraction > 0.30) return null;
+  const settled = bouts.map(b => b.filter(r => r.elapsedSeconds >= b[0].elapsedSeconds + 60))
+    .filter(b => b.length >= 2 && b.at(-1)!.elapsedSeconds - b[0].elapsedSeconds >= 120 &&
+      usableThresholdSegment(b, b[0].elapsedSeconds, b.at(-1)!.elapsedSeconds));
+  if (settled.length < 3) return null;
+  let duration = 0, distance = 0, beats = 0;
+  const efficiencies: number[] = [];
+  for (const b of settled) {
+    let d = 0, meters = 0, heartbeats = 0;
+    for (let i = 1; i < b.length; i++) {
+      const seconds = b[i].elapsedSeconds - b[i - 1].elapsedSeconds;
+      d += seconds; meters += (b[i].speedMps! + b[i - 1].speedMps!) / 2 * seconds;
+      heartbeats += (b[i].heartRate! + b[i - 1].heartRate!) / 2 * seconds;
+    }
+    duration += d; distance += meters; beats += heartbeats;
+    efficiencies.push(meters / heartbeats);
+  }
+  if (duration < 900) return null;
+  const drift = efficiencies.at(-1)! / efficiencies[0];
+  if (drift < 0.962 || drift > 1.08) return null;
+  return { pace: Math.round(1000 * duration / distance), hr: Math.round(beats / duration),
+    recoveryFraction, runningBoutSeconds: duration / settled.length };
+}
+
 export function aerobicEvidenceAnchor(db: Database.Database): number {
   const independent = getAthleteHeartRateProfile(db, false);
   const hasProfile = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='athlete_profile'").get();
@@ -83,6 +135,7 @@ export function thresholdEvidenceObservations(db: Database.Database) {
       effective_date: row.effective_date, confidence: row.confidence };
     if (row.lt1_hr != null) {
       let usable = false;
+      let runWalk: ReturnType<typeof runWalkThresholdEvidence> = null;
       const block = /Cruising Block Km (\d+)-(\d+)/.exec(row.notes ?? '');
       if (!external && row.source_activity_id && block &&
         (row.run_type === 'easy_base' || row.run_type === 'long_run')) {
@@ -96,9 +149,16 @@ export function thresholdEvidenceObservations(db: Database.Database) {
           if (split.split_index === Number(block[2])) to = elapsed;
           if (split.split_index >= Number(block[1]) && split.split_index <= Number(block[2]) && Math.abs(split.elevation_change_m ?? 0) >= 30) flat = false;
         }
-        usable = flat && from >= 600 && to <= 3600 && to - from >= 1200 && usableThresholdSegment(telemetry(), from, to);
+        if (flat && to <= 3600 && to - Math.max(from, 600) >= 1200) {
+          usable = from >= 600 && usableThresholdSegment(telemetry(), from, to);
+          if (!usable) runWalk = runWalkThresholdEvidence(telemetry(), Math.max(from, 600), to);
+        }
       }
-      lt1.push({ ...base, hr: row.lt1_hr, pace: row.lt1_pace_sec_km, usable, temperatureC: usable ? temperature() : null });
+      lt1.push({ ...base, hr: runWalk?.hr ?? row.lt1_hr, pace: runWalk?.pace ?? row.lt1_pace_sec_km,
+        confidence: runWalk ? Math.min(row.confidence, 0.65) : row.confidence,
+        usable: usable || runWalk != null, kind: runWalk ? 'run_walk' : 'continuous',
+        recoveryFraction: runWalk?.recoveryFraction, runningBoutSeconds: runWalk?.runningBoutSeconds,
+        temperatureC: usable || runWalk ? temperature() : null });
     }
     if (row.lt2_hr != null) {
       let usable = false;

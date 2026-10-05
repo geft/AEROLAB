@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Retain usable run–walk LT1 evidence at lower confidence. Measure settled running sections independently of walking recoveries, compare recovery patterns across sessions, and require three sessions to establish an estimate or four to update one. Recovery-assisted estimates cannot replace continuous-running or external-test evidence. Preserve original observations and label accepted run–walk estimates in English and Chinese.
+
 ## 1.4.0 — 2026-10-05
 
 ### Threshold evidence and aerobic pace gap

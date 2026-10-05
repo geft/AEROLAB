@@ -484,6 +484,7 @@ export interface Translations {
     polarizedBalanceDesc: string;
     thresholdGapUnavailable: string;
     thresholdGapGuide: string;
+    runWalkEvidence: string;
     thresholdEvidence: string;
     thresholdSupportCount: PluralForms;
     thresholdEvidenceStatus: { supported: string; held: string; stale: string; insufficient: string; external: string };

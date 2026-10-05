@@ -140,7 +140,7 @@ export const ProgressView: React.FC = () => {
             </div>
             <span className="benchmark-sub">
               {t.progress.lt1Sub}
-              {data.currentThresholds?.lt1Evidence && <><br />{t.stats.thresholdEvidenceStatus[data.currentThresholds.lt1Evidence.status]}</>}
+              {data.currentThresholds?.lt1Evidence && <><br />{t.stats.thresholdEvidenceStatus[data.currentThresholds.lt1Evidence.status]}{data.currentThresholds.lt1Evidence.basis === 'run_walk' && <><br />{t.stats.runWalkEvidence}</>}</>}
             </span>
           </div>
           <div className="threshold-marker-badge">

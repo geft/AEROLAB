@@ -43,6 +43,12 @@ export interface CalibrationHistoryItem {
   duration_seconds?: number | null;
   threshold_evidence_temperature_c?: number | null;
   lt1_evidence_usable?: boolean;
+  lt1_evidence_hr?: number;
+  lt1_evidence_pace?: number | null;
+  lt1_evidence_confidence?: number;
+  lt1_evidence_kind?: 'continuous' | 'run_walk';
+  lt1_recovery_fraction?: number;
+  lt1_running_bout_seconds?: number;
   lt2_evidence_usable?: boolean;
   source_kind?: string;
 }

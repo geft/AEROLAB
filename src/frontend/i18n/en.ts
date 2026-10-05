@@ -444,6 +444,7 @@ export const en: Translations = {
     polarizedBalanceDesc: 'Optimal distribution: easy volume below LT1 preserves freshness for quality threshold sessions.',
     thresholdGapUnavailable: 'Insufficient accepted evidence for an LT1–LT2 pace gap.',
     thresholdGapGuide: 'Workout estimates are training references, not laboratory measurements. Comparable continuous efforts must corroborate changes. Inconclusive runs preserve the previous estimate; old evidence is marked stale. Pace gaps alone do not diagnose aerobic fitness, and fixed seconds-per-kilometre grades are not used.',
+    runWalkEvidence: 'Run–walk support · lower confidence',
     thresholdEvidence: '{threshold}: {status} · pace evidence {date} · {support}',
     thresholdSupportCount: { one: '{count} supporting effort', other: '{count} supporting efforts' },
     thresholdEvidenceStatus: { supported: 'Corroborated estimate', held: 'Previous estimate held', stale: 'Stale — needs confirmation', insufficient: 'Insufficient evidence', external: 'External test' },

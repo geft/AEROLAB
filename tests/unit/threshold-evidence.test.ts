@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { supportedThreshold, type ThresholdEvidenceObservation } from '../../src/shared/threshold-evidence.js';
-import { usableThresholdSegment } from '../../src/backend/physiology/threshold-evidence.js';
+import { runWalkThresholdEvidence, usableThresholdSegment } from '../../src/backend/physiology/threshold-evidence.js';
 import type { ActivityRecord } from '../../src/backend/ingestion/csv-parser.js';
 
 const observation = (day: number, pace = 360, hr = 150, overrides: Partial<ThresholdEvidenceObservation> = {}): ThresholdEvidenceObservation => ({
@@ -91,5 +91,38 @@ describe('Threshold telemetry screening', () => {
     if (problem === 'hills') rows.forEach(r => { r.altitudeMeters = r.elapsedSeconds / 5; });
     if (problem === 'unstable') rows.forEach(r => { r.speedMps = r.elapsedSeconds % 100 < 50 ? 2 : 4; });
     expect(usableThresholdSegment(rows, 0, 1200)).toBe(false);
+  });
+});
+
+
+describe('Recovery-assisted aerobic evidence', () => {
+  const assisted = (day: number, overrides: Partial<ThresholdEvidenceObservation> = {}) => observation(day, 420, 150,
+    { kind: 'run_walk', confidence: 0.65, recoveryFraction: 0.10, runningBoutSeconds: 360, ...overrides });
+  it('requires three comparable sessions, and four to change the estimate', () => {
+    expect(estimate([assisted(1), assisted(2)]).pace).toBeNull();
+    const initial = [assisted(1), assisted(2), assisted(3)];
+    expect(estimate(initial)).toMatchObject({ pace: 420, confidence: 0.65, evidence: { basis: 'run_walk', supportCount: 3 } });
+    expect(estimate([...initial, ...[4, 5, 6].map(day => assisted(day, { pace: 390 }))]).pace).toBe(420);
+    expect(estimate([...initial, ...[4, 5, 6, 7].map(day => assisted(day, { pace: 390 }))]).pace).toBe(390);
+  });
+  it('does not combine different recovery patterns or replace continuous evidence', () => {
+    expect(estimate([assisted(1), assisted(2), assisted(3, { recoveryFraction: 0.25 })]).pace).toBeNull();
+    expect(estimate([assisted(1), assisted(2), assisted(3, { runningBoutSeconds: 600 })]).pace).toBeNull();
+    expect(estimate([observation(1), observation(2), ...[3, 4, 5, 6].map(day => assisted(day))]).pace).toBe(360);
+    expect(estimate([assisted(1), assisted(2), assisted(3), observation(4), observation(5)]).pace).toBe(360);
+  });
+  const records = () => Array.from({ length: 361 }, (_, i): ActivityRecord => ({
+    timestamp: '', elapsedSeconds: i * 5, speedMps: i * 5 % 600 >= 540 ? 1.2 : 2.5,
+    heartRate: i * 5 % 600 < 60 ? 135 : 150, altitudeMeters: 0
+  } as ActivityRecord));
+  it('extracts settled running pace instead of mixed pace and recovery HR', () => {
+    expect(runWalkThresholdEvidence(records(), 0, 1800)).toMatchObject({ pace: 400, hr: 150 });
+  });
+  it('rejects gaps, insufficient settled running and rising strain between bouts', () => {
+    const gaps = records().filter(r => r.elapsedSeconds < 300 || r.elapsedSeconds > 350);
+    expect(runWalkThresholdEvidence(gaps, 0, 1800)).toBeNull();
+    expect(runWalkThresholdEvidence(records(), 0, 1000)).toBeNull();
+    const drift = records(); drift.forEach(r => { if (r.elapsedSeconds >= 1200) r.heartRate = 170; });
+    expect(runWalkThresholdEvidence(drift, 0, 1800)).toBeNull();
   });
 });
