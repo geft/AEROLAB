@@ -262,9 +262,6 @@ export const TrainingLoadCard: React.FC = () => {
           <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#10b981', marginTop: '0.15rem' }}>
             {data.optimalRange.min} - {data.optimalRange.max}
           </div>
-          <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.1rem' }}>
-            {t.trainingLoad.optimalDesc}
-          </div>
         </div>
 
         {/* Chronic Load */}

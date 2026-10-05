@@ -43,7 +43,7 @@ describe('SettingsView & Header Tab Navigation Tests', () => {
     expect(onTabChange).toHaveBeenCalledWith('settings');
   });
 
-  it('renders SettingsView with Backup & Cloud Sync and Display sections', async () => {
+  it('renders SettingsView with backup and appearance sections', async () => {
     // Mock database and google status endpoints
     vi.spyOn(global, 'fetch').mockImplementation((url: any) => {
       if (typeof url === 'string' && url.includes('/api/database/status')) {
@@ -87,8 +87,8 @@ describe('SettingsView & Header Tab Navigation Tests', () => {
 
     // Verify sections. Developer diagnostics intentionally have no settings
     // entry: they are opened from the floating dev button in development builds.
-    expect(screen.getByText(/Database Backup & Snapshots/i)).toBeTruthy();
-    expect(screen.getByText(/Display & Appearance/i)).toBeTruthy();
+    expect(screen.getByText(/Backups & Snapshots/i)).toBeTruthy();
+    expect(screen.getByText(/^Appearance$/i)).toBeTruthy();
     expect(screen.queryByText(/Developer Diagnostics/i)).toBeNull();
 
     // Verify theme toggle in settings

@@ -196,7 +196,7 @@ describe('AEROLAB App Full Integration Tests', () => {
     await waitFor(() => {
       // Physiological benchmark cards and HR training zones now live in Progress/Profile,
       // so the Stats tab renders the volume analytics card without duplicating them
-      expect(screen.getByText('Training Volume & Effort Analytics')).toBeTruthy();
+      expect(screen.getByText('Training Volume')).toBeTruthy();
       expect(document.querySelector('.benchmarks-grid')).toBeNull();
       expect(document.querySelector('.zones-section')).toBeNull();
     });
@@ -473,7 +473,7 @@ describe('AEROLAB App Full Integration Tests', () => {
     await waitFor(() => {
       // Physiological benchmark cards and HR training zones were de-duplicated away
       // from Stats (they live in Progress & Profile), so Stats leads with volume analytics
-      expect(screen.getByText('Training Volume & Effort Analytics')).toBeTruthy();
+      expect(screen.getByText('Training Volume')).toBeTruthy();
       expect(document.querySelector('.benchmarks-grid')).toBeNull();
       expect(document.querySelector('.zones-section')).toBeNull();
     });
@@ -533,8 +533,8 @@ describe('AEROLAB App Full Integration Tests', () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Cardiovascular.*Baseline/i)).toBeTruthy();
-      expect(screen.getByText(/Complete baseline calibration/i)).toBeTruthy();
+      expect(screen.getByText(/Running baselines/i)).toBeTruthy();
+      expect(screen.getByText(/Set your baselines/i)).toBeTruthy();
     });
   });
 });

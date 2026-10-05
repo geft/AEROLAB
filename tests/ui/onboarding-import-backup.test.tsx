@@ -199,7 +199,7 @@ describe('Onboarding & Profile Backup / Import UI Component Tests', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/Database Backup & Snapshots/i)).toBeTruthy();
+      expect(screen.getByText(/Backups & Snapshots/i)).toBeTruthy();
     });
 
     // Find and click Backup Now to Folder button

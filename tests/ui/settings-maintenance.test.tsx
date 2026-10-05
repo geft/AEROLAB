@@ -77,7 +77,7 @@ describe('backup management states', () => {
     mocks.saveBackupSettings.mockResolvedValueOnce({ status: 'ok' });
     mocks.saveBackupSettings.mockRejectedValue(new Error('disk full'));
     renderWithLanguage(<BackupManagementPanel />);
-    await screen.findByText('No local database snapshots found. Click "Backup Now to Folder" above to create one.');
+    await screen.findByText('No local snapshots yet. Select "Backup Now to Folder" to create one.');
     fireEvent.click(screen.getByRole('button', { name: 'Backup Now to Folder' }));
     await screen.findByText('The request could not be completed. Please try again.');
     fireEvent.click(screen.getByRole('button', { name: 'Save Folder' }));

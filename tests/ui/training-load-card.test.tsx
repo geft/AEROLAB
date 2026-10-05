@@ -62,7 +62,7 @@ describe('TrainingLoadCard UI Tests', () => {
     render(<TrainingLoadCard />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Training Load & Optimal Tunnel/i)).toBeDefined();
+      expect(screen.getByText(/^Training Load$/i)).toBeDefined();
       expect(screen.getAllByText('520').length).toBeGreaterThanOrEqual(1); // Acute / Raw Load
       expect(screen.getByText('480')).toBeDefined(); // Chronic Load
       expect(screen.getByText(/1.08/)).toBeDefined(); // ACWR
@@ -74,7 +74,7 @@ describe('TrainingLoadCard UI Tests', () => {
     const { container } = render(<TrainingLoadCard />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Training Load & Optimal Tunnel/i)).toBeDefined();
+      expect(screen.getByText(/^Training Load$/i)).toBeDefined();
     });
 
     const svg = container.querySelector('svg');
@@ -140,7 +140,7 @@ describe('TrainingLoadCard UI Tests', () => {
     render(<TrainingLoadCard />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Training Load & Optimal Tunnel/i)).toBeDefined();
+      expect(screen.getByText(/^Training Load$/i)).toBeDefined();
     });
 
     const infoBtn = screen.getByTitle('Training Load Guide');
@@ -148,7 +148,7 @@ describe('TrainingLoadCard UI Tests', () => {
     fireEvent.click(infoBtn);
 
     await waitFor(() => {
-      expect(screen.getByText(/Training Load & Optimal Tunnel Guide/i)).toBeDefined();
+      expect(screen.getByText(/About Training Load/i)).toBeDefined();
       expect(screen.getByText(/Heart Rate Reserve/i)).toBeDefined();
       expect(screen.getByText(/Optimal \(0.8 - 1.3 ACWR\)/i)).toBeDefined();
     });
@@ -157,7 +157,7 @@ describe('TrainingLoadCard UI Tests', () => {
     fireEvent.click(closeBtn);
 
     await waitFor(() => {
-      expect(screen.queryByText(/Training Load & Optimal Tunnel Guide/i)).toBeNull();
+      expect(screen.queryByText(/About Training Load/i)).toBeNull();
     });
   });
 });

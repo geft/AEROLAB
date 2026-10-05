@@ -784,7 +784,6 @@ export interface Translations {
   };
   settingsView: {
     appearanceTitle: string;
-    appearanceSubtitle: string;
     themeTitle: string;
     themeSubtitle: string;
     switchToDay: string;
@@ -832,7 +831,6 @@ export interface Translations {
     acuteTitle: string;
     acuteDesc: string;
     optimalTitle: string;
-    optimalDesc: string;
     chronicTitle: string;
     chronicDesc: string;
     weeklyTitle: string;

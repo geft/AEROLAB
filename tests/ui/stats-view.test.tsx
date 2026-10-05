@@ -98,7 +98,7 @@ describe('StatsView UI Tests', () => {
     const { container } = render(<StatsView />);
 
     await waitFor(() => {
-      expect(screen.getByText('Training Volume & Effort Analytics')).toBeDefined();
+      expect(screen.getByText('Training Volume')).toBeDefined();
       expect(screen.getByText('Past 7 Days')).toBeDefined();
       expect(screen.getByText('Monthly')).toBeDefined();
       expect(screen.getByText('This Year')).toBeDefined();
@@ -267,7 +267,7 @@ describe('StatsView UI Tests', () => {
     render(<StatsView />);
     expect(await screen.findByText('Could not load statistics.')).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(await screen.findByText('Training Volume & Effort Analytics')).toBeDefined();
+    expect(await screen.findByText('Training Volume')).toBeDefined();
   });
 
   it('allows the training volume card to retry independently', async () => {

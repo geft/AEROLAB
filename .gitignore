@@ -1,6 +1,6 @@
 # Dependencies
 node_modules/
-/.vercel/
+.vercel/
 
 # Production build
 dist/
@@ -21,19 +21,16 @@ release/
 coverage/
 test-results/
 playwright-report/
+/.playwright-cli/
 
 # Local scratch scripts
 scratch/
-output/classification/
+/output/
 
-# Local databases
-data/*.db
-data/*.db-wal
-data/*.db-shm
-data/**/*.db
-data/**/*.db-wal
-data/**/*.db-shm
-data/backups/
+# Local workout data, backups and database experiments
+/data/
+
+# Databases saved elsewhere in the checkout
 *.db
 *.db-wal
 *.db-shm
@@ -41,8 +38,6 @@ data/backups/
 *.sqlite3
 
 # Temporary / raw drops (raw files should never be committed to git)
-data/raw/*
-!data/raw/.gitkeep
 *.csv
 *.fit
 *.FIT
@@ -50,8 +45,7 @@ data/raw/*
 *.gpx
 
 # Environment & logs
-.env
-.env.local
+.env*
 *.log
 npm-debug.log*
 
@@ -60,6 +54,3 @@ npm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
-
-.vercel
-.env*

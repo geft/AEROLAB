@@ -52,14 +52,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       <section className="overview-card" style={{ padding: '1.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '1.25rem' }}>
           <Sun size={20} style={{ color: '#f59e0b' }} />
-          <div>
-            <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              {t.settingsView.appearanceTitle}
-            </h2>
-            <p style={{ margin: '0.15rem 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              {t.settingsView.appearanceSubtitle}
-            </p>
-          </div>
+          <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+            {t.settingsView.appearanceTitle}
+          </h2>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '1.5rem' }}>
