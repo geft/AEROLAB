@@ -29,8 +29,7 @@ export function getProfileService(db: Database.Database): ProfileResponse | null
 
   const hrProfile = getAthleteHeartRateProfile(db);
   const effectiveMaxHr = hrProfile.maxHr;
-  const maxHrSource = !profile.is_max_hr_estimated && profile.max_hr ? 'manual'
-    : observedPeak ? 'observed_run' : 'tanaka_formula';
+  const maxHrSource = observedPeak ? 'observed_run' : 'tanaka_formula';
 
   const zones = getDefaultZones(
     effectiveMaxHr,
@@ -44,7 +43,8 @@ export function getProfileService(db: Database.Database): ProfileResponse | null
       ...profile,
       age: dynamicAge || null,
       is_configured: isConfigured ? 1 : 0,
-      max_hr: hrProfile.hasBaseline ? effectiveMaxHr : profile.max_hr ?? null,
+      max_hr: hrProfile.hasBaseline ? effectiveMaxHr : null,
+      is_max_hr_estimated: 1,
       schedule: typeof profile.schedule_json === 'string' ? JSON.parse(profile.schedule_json) : null,
       preferences: typeof profile.preferences_json === 'string' ? JSON.parse(profile.preferences_json) : null
     },
@@ -143,26 +143,11 @@ export function updateProfileService(db: Database.Database, rawUpdates: UpdatePr
     updates.resting_hr = Math.round(parsedRhr);
   }
 
-  // Handle Max HR Opt-Out / Estimation:
-  // If opting out of manual entry, prefer observed peak from real hard runs; otherwise fall back to Tanaka formula
-  if (updates.opt_out_max_hr || updates.is_max_hr_estimated) {
-    if (observedPeak) {
-      updates.max_hr = observedPeak.peakHr;
-    } else {
-      if (!tanakaMax) return { ok: false, status: 400, error: 'A valid date of birth or age is required to estimate maximum heart rate.' };
-      updates.max_hr = tanakaMax;
-    }
+  // Legacy clients may still send maximum-HR fields. Always derive the value.
+  const baselineChanged = ['dob', 'age', 'max_hr', 'resting_hr', 'is_max_hr_estimated', 'opt_out_max_hr', 'gender'].some(key => key in updates);
+  if (baselineChanged) {
+    updates.max_hr = observedPeak?.peakHr ?? tanakaMax;
     updates.is_max_hr_estimated = 1;
-  } else if (updates.max_hr !== undefined && !updates.is_max_hr_estimated) {
-    const parsedMax = Number(updates.max_hr);
-    if (isNaN(parsedMax) || parsedMax < 100 || parsedMax > 240) {
-      return {
-        ok: false, status: 400, code: 'ERR_INVALID_MAX_HR',
-        error: 'Max heart rate must be a valid number between 100 and 240 bpm'
-      };
-    }
-    updates.max_hr = Math.round(parsedMax);
-    updates.is_max_hr_estimated = 0;
   }
 
   const sets: string[] = [];
@@ -188,7 +173,6 @@ export function updateProfileService(db: Database.Database, rawUpdates: UpdatePr
     values.push('primary');
     db.prepare(`UPDATE athlete_profile SET ${sets.join(', ')} WHERE id = ?`).run(...values);
 
-    const baselineChanged = ['dob', 'age', 'max_hr', 'resting_hr', 'is_max_hr_estimated', 'gender'].some(key => key in updates);
     if (baselineChanged) {
       // These columns cache inferred thresholds, not manually entered baselines.
       db.prepare("UPDATE athlete_profile SET lt1_hr = NULL, lt2_hr = NULL, lt1_min_hr = NULL, lt1_max_hr = NULL, z3_start_hr = NULL, z4_start_hr = NULL WHERE id = 'primary'").run();
@@ -208,11 +192,14 @@ export function updateProfileService(db: Database.Database, rawUpdates: UpdatePr
   const updatedRow = db.prepare('SELECT * FROM athlete_profile WHERE id = ?').get('primary');
   if (!updatedRow) throw new Error('Profile not found after update');
   const updated = profileFromRow(updatedRow);
+  const updatedHr = getAthleteHeartRateProfile(db);
   return {
     ok: true,
     response: {
       profile: {
         ...updated,
+        max_hr: updatedHr.hasBaseline ? updatedHr.maxHr : null,
+        is_max_hr_estimated: 1,
         schedule: typeof updated.schedule_json === 'string' ? JSON.parse(updated.schedule_json) : null,
         preferences: typeof updated.preferences_json === 'string' ? JSON.parse(updated.preferences_json) : null
       },

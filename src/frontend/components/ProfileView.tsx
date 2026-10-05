@@ -35,8 +35,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
   const [dob, setDob] = useState('');
   const [gender, setGender] = useState('Prefer not to say');
   const [restingHr, setRestingHr] = useState<number | string>('');
-  const [manualMaxHr, setManualMaxHr] = useState<number | string>('');
-  const [isAutoMaxHr, setIsAutoMaxHr] = useState(true);
 
   // Loaded metadata
   const [currentThresholds, setCurrentThresholds] = useState<ThresholdsResponse['currentThresholds']>(null);
@@ -54,10 +52,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
         if (data.profile.resting_hr !== undefined && data.profile.resting_hr !== null) {
           setRestingHr(Number(data.profile.resting_hr));
         }
-        if (data.profile.max_hr !== undefined && data.profile.max_hr !== null) {
-          setManualMaxHr(Number(data.profile.max_hr));
-        }
-        setIsAutoMaxHr(Boolean(data.profile.is_max_hr_estimated));
       }
       if (data.currentThresholds) {
         setCurrentThresholds(data.currentThresholds);
@@ -91,12 +85,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
   }, [computedAge, tanakaMaxHr]);
 
   // Effective Max HR used across UI and zones
-  const effectiveMaxHr = useMemo(() => {
-    if (isAutoMaxHr) {
-      return observedPeakHr?.peakHr || liveTanaka;
-    }
-    return Number(manualMaxHr) || liveTanaka;
-  }, [isAutoMaxHr, observedPeakHr, liveTanaka, manualMaxHr]);
+  const supportingRun = observedPeakHr && (liveTanaka == null || observedPeakHr.peakHr > liveTanaka) ? observedPeakHr : null;
+  const effectiveMaxHr = supportingRun?.peakHr ?? liveTanaka;
 
   // Live Karvonen HRR Zone derivation for visual preview
   const liveZones = useMemo(() => {
@@ -125,10 +115,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
         dob,
         gender,
         age: computedAge,
-        resting_hr: Number(restingHr),
-        max_hr: effectiveMaxHr,
-        is_max_hr_estimated: isAutoMaxHr,
-        opt_out_max_hr: isAutoMaxHr
+        resting_hr: Number(restingHr)
       };
 
       const resData = await updateProfile(payload);
@@ -299,102 +286,38 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
             </div>
           </div>
 
-          {/* Mode Selection Tabs */}
-          {/* Mode Selection Tabs */}
-          <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
-            <button
-              type="button"
-              className={`profile-mode-tab ${isAutoMaxHr ? 'active' : ''}`}
-              onClick={() => setIsAutoMaxHr(true)}
-            >
-              <div className="profile-mode-tab-title">
-                {t.profile.autoMaxHrNote}
-              </div>
-              <div className="profile-mode-tab-subtitle">
-                {observedPeakHr ? `${t.profile.observedPeak}: ${observedPeakHr.peakHr} bpm` : `${t.profile.tanakaFallback}: ${liveTanaka} bpm`}
-              </div>
-            </button>
-
-            <button
-              type="button"
-              className={`profile-mode-tab ${!isAutoMaxHr ? 'active' : ''}`}
-              onClick={() => setIsAutoMaxHr(false)}
-            >
-              <div className="profile-mode-tab-title">
-                {t.profile.manualMaxHrNote}
-              </div>
-              <div className="profile-mode-tab-subtitle">
-                {t.profile.lockCustomMaxHr}
-              </div>
-            </button>
-          </div>
-
-          {/* Auto-Infer Display */}
-          {isAutoMaxHr ? (
-            <div style={{
-              padding: '0.95rem 1.1rem',
-              borderRadius: 8,
-              background: 'rgba(6, 182, 212, 0.08)',
-              border: '1px solid rgba(6, 182, 212, 0.3)'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{
-                    width: 9,
-                    height: 9,
-                    borderRadius: '50%',
-                    background: observedPeakHr ? '#10b981' : '#38bdf8',
-                    boxShadow: observedPeakHr ? '0 0 8px rgba(16, 185, 129, 0.7)' : '0 0 8px rgba(56, 189, 248, 0.7)'
-                  }} />
-                  <span style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    {observedPeakHr ? t.profile.calibratedFromActualRunData : t.profile.estimatedBaselineNoHardEfforts}
-                  </span>
-                </div>
-                <span style={{ fontSize: '1.45rem', fontWeight: 800, color: '#38bdf8' }}>
-                  {effectiveMaxHr} bpm
+          <div style={{
+            padding: '0.95rem 1.1rem',
+            borderRadius: 8,
+            background: 'rgba(6, 182, 212, 0.08)',
+            border: '1px solid rgba(6, 182, 212, 0.3)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{
+                  width: 9,
+                  height: 9,
+                  borderRadius: '50%',
+                  background: supportingRun ? '#10b981' : '#38bdf8',
+                  boxShadow: supportingRun ? '0 0 8px rgba(16, 185, 129, 0.7)' : '0 0 8px rgba(56, 189, 248, 0.7)'
+                }} />
+                <span style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {supportingRun ? t.profile.calibratedFromActualRunData : t.profile.estimatedBaselineNoHardEfforts}
                 </span>
               </div>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                {observedPeakHr
-                  ? format(t.profile.observedPeakNote, {
-                      hr: observedPeakHr.peakHr,
-                      activity: observedPeakHr.activityName,
-                      date: observedPeakHr.activityDate
-                    })
-                  : format(t.profile.tanakaFormulaNote, { age: computedAge ?? '—', hr: liveTanaka ?? '—' })}
-              </p>
-            </div>
-          ) : (
-            <div className="form-group">
-              <label className="form-label" htmlFor="manual-max-hr">{t.profile.manualMaxHrLabel}</label>
-              <input
-                id="manual-max-hr"
-                type="number"
-                className="form-input"
-                value={manualMaxHr}
-                onChange={e => setManualMaxHr(Number(e.target.value))}
-                placeholder={t.profile.maxHrPlaceholder}
-                min="140"
-                max="230"
-              />
-              <span className="form-hint">
-                {t.profile.manualMaxHrHint}
+              <span style={{ fontSize: '1.45rem', fontWeight: 800, color: '#38bdf8' }}>
+                {effectiveMaxHr} bpm
               </span>
             </div>
-          )}
-
-          {/* Estimation Opt-Out Checkbox */}
-          <div style={{ marginTop: '0.85rem' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-              <input
-                type="checkbox"
-                checked={isAutoMaxHr}
-                onChange={e => setIsAutoMaxHr(e.target.checked)}
-                style={{ accentColor: 'var(--accent-cyan)' }}
-                aria-label={t.profile.iDontKnowMaxHr}
-              />
-              <span>{t.profile.autoCalibrateCheckbox}</span>
-            </label>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+              {supportingRun
+                ? format(t.profile.observedPeakNote, {
+                    hr: supportingRun.peakHr,
+                    activity: supportingRun.activityName,
+                    date: supportingRun.activityDate
+                  })
+                : format(t.profile.tanakaFormulaNote, { age: computedAge ?? '—', hr: liveTanaka ?? '—' })}
+            </p>
           </div>
           <div className="profile-form-actions">
             <button type="submit" className="save-profile-btn" disabled={saving}>

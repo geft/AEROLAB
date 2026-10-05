@@ -134,7 +134,7 @@ describe('Onboarding Tabs & Restore Flow UI Tests', () => {
     expect(JSON.parse(patchCall[1].body).gender).toBe('Female');
   });
 
-  it('requires a date of birth even when a manual max HR is entered', async () => {
+  it('requires a date of birth and has no manual max HR entry', async () => {
     render(
       <LanguageProvider>
         <OnboardingPage onCompleted={vi.fn()} />
@@ -147,12 +147,10 @@ describe('Onboarding Tabs & Restore Flow UI Tests', () => {
 
     const submitBtn = screen.getByRole('button', { name: /Save & Launch AEROLAB/i }) as HTMLButtonElement;
 
-    // Manual max HR removes the Tanaka dependency on age, so DOB must still be
-    // enforced explicitly rather than only through the computed max HR.
-    fireEvent.click(screen.getByRole('button', { name: /^Manual$/i }));
+    expect(screen.queryByRole('button', { name: /^Manual$/i })).toBeNull();
     const numberInputs = document.querySelectorAll('input[type="number"]');
-    fireEvent.change(numberInputs[0], { target: { value: '62' } });  // resting HR
-    fireEvent.change(numberInputs[1], { target: { value: '190' } }); // manual max HR
+    expect(numberInputs).toHaveLength(1);
+    fireEvent.change(numberInputs[0], { target: { value: '62' } });
 
     expect(submitBtn.disabled).toBe(true);
 

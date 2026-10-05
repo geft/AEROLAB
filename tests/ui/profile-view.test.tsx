@@ -46,7 +46,7 @@ describe('ProfileView UI Tests', () => {
             observedPeakHr: mockObservedPeak,
             tanakaMaxHr: 182,
             effectiveMaxHr: 203,
-            maxHrSource: 'manual'
+            maxHrSource: 'observed_run'
           })
         } as any);
       }
@@ -66,7 +66,7 @@ describe('ProfileView UI Tests', () => {
       expect(screen.getByText('Workout-Based Threshold Estimates')).toBeTruthy();
       expect(screen.getByDisplayValue('1989-04-15')).toBeTruthy();
       expect(screen.getByDisplayValue('55')).toBeTruthy();
-      expect(screen.getByDisplayValue('203')).toBeTruthy();
+      expect(screen.getByText('203 bpm')).toBeTruthy();
       expect(screen.getByText(/~148 bpm/)).toBeTruthy();
       expect(screen.getByText(/~167 bpm/)).toBeTruthy();
       // Efficiency Factor tile must show the calibrated EF instead of a blank dash
@@ -84,30 +84,11 @@ describe('ProfileView UI Tests', () => {
     expect([...tiles].every(tile => tile.tagName !== 'BUTTON' && !tile.hasAttribute('tabindex'))).toBe(true);
   });
 
-  it('switches between Auto-Infer and Manual Override modes', async () => {
+  it('shows supporting run evidence with no manual max HR controls, even for legacy profiles', async () => {
     render(<ProfileView />);
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('203')).toBeTruthy();
-    });
-
-    // Click Auto-Infer tab
-    const autoInferTab = screen.getByRole('button', { name: /Auto-Infer from Run Data/i });
-    fireEvent.click(autoInferTab);
-
-    // Displays observed peak workout info
-    await waitFor(() => {
-      expect(screen.getByText(/Calibrated from Actual Run Data/i)).toBeTruthy();
-      expect(screen.getByText(/Singapore - 5k Time Trial/i)).toBeTruthy();
-    });
-
-    // Switch back to Manual Override
-    const manualTab = screen.getByRole('button', { name: /Manual Override/i });
-    fireEvent.click(manualTab);
-
-    await waitFor(() => {
-      expect(screen.getByLabelText(/Manual Maximum Heart Rate/i)).toBeTruthy();
-    });
+    expect(await screen.findByText(/Singapore - 5k Time Trial/i)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Manual Override/i })).toBeNull();
+    expect(screen.queryByLabelText(/Manual Maximum Heart Rate/i)).toBeNull();
   });
 
   it('recalculates Tanaka fallback estimate when birth date changes', async () => {
@@ -117,8 +98,6 @@ describe('ProfileView UI Tests', () => {
       expect(screen.getByDisplayValue('1989-04-15')).toBeTruthy();
     });
 
-    // Switch to Auto-Infer
-    fireEvent.click(screen.getByRole('button', { name: /Auto-Infer from Run Data/i }));
 
     // Change DOB to 1986-04-15 -> age 40 in 2026 -> Tanaka formula: 208 - (0.7 * 40) = 180
     const dobInput = screen.getByDisplayValue('1989-04-15');
@@ -166,7 +145,7 @@ describe('ProfileView UI Tests', () => {
             observedPeakHr: mockObservedPeak,
             tanakaMaxHr: 182,
             effectiveMaxHr: 203,
-            maxHrSource: 'manual'
+            maxHrSource: 'observed_run'
           })
         } as any);
       }
@@ -190,6 +169,8 @@ describe('ProfileView UI Tests', () => {
       expect(patchPayload).toBeTruthy();
       expect(patchPayload.resting_hr).toBe(52);
       expect(patchPayload.dob).toBe('1989-04-15');
+      expect(patchPayload.max_hr).toBeUndefined();
+      expect(patchPayload.is_max_hr_estimated).toBeUndefined();
       expect(screen.getByText(/Profile saved and workout analysis updated/i)).toBeTruthy();
     });
   });

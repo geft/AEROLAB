@@ -48,7 +48,7 @@ export interface ProfileResponse {
   observedPeakHr: ObservedPeakHeartRate | null;
   tanakaMaxHr: number | null;
   effectiveMaxHr: number | null;
-  maxHrSource: 'manual' | 'observed_run' | 'tanaka_formula';
+  maxHrSource: 'observed_run' | 'tanaka_formula';
   isConfigured: boolean;
 }
 

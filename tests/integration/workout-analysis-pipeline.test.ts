@@ -10,7 +10,7 @@ describe('Import and replay share workout analysis', () => {
   it.each(['csv', 'fit-paused', 'fit-laps'] as const)('preserves stored analysis across %s import and repeated replay', kind => {
     const db = openDatabase(':memory:');
     try {
-      db.prepare("UPDATE athlete_profile SET max_hr=190,resting_hr=50,is_max_hr_estimated=0 WHERE id='primary'").run();
+      db.prepare("UPDATE athlete_profile SET age=26,dob=NULL,max_hr=190,resting_hr=50,is_max_hr_estimated=1 WHERE id='primary'").run();
       const run = kind === 'fit-paused'
         ? workoutTrace([{ seconds: 300, hr: 125 }, { seconds: 700, hr: 190 }, { seconds: 200, hr: 125 }])
         : kind === 'fit-laps'

@@ -19,6 +19,7 @@ describe('API Server Integration Tests', () => {
     process.env.DATABASE_PATH = ':memory:';
     // A replay must retain dated external evidence, rather than an arbitrary current cache.
     seedBenchmarkProfile(getDatabase(':memory:'), { datedThresholds: true });
+    getDatabase().prepare("DELETE FROM activities WHERE id='benchmark-max-hr-evidence'").run();
     app = createServer();
   });
 
@@ -240,16 +241,16 @@ describe('API Server Integration Tests', () => {
   it('GET /api/profile returns athlete baseline and HRR zones', async () => {
     const res = await request(app).get('/api/profile');
     expect(res.status).toBe(200);
-    expect(res.body.profile.max_hr).toBe(203);
+    expect(res.body.profile.max_hr).toBe(182);
     expect(res.body.profile.resting_hr).toBe(55);
     expect(res.body.currentThresholds.lt1Hr).toBe(148);
     expect(res.body.currentThresholds.lt2Hr).toBe(167);
     expect(res.body.currentThresholds.lt1Range).toEqual([147, 149]);
-    expect(res.body.zones.z1[1]).toBe(134);
+    expect(res.body.zones.z1[1]).toBe(124);
     expect(res.body.zones.z2[1]).toBe(148);
     expect(res.body.zones.z3[0]).toBe(149);
-    expect(res.body.zones.z4[1]).toBe(187);
-    expect(res.body.zones.z5[0]).toBe(188);
+    expect(res.body.zones.z4[1]).toBe(168);
+    expect(res.body.zones.z5[0]).toBe(169);
   });
 
   it('PATCH /api/profile continuously syncs all coach summaries across database', async () => {
@@ -268,7 +269,7 @@ describe('API Server Integration Tests', () => {
     const res = await request(app)
       .patch('/api/profile')
       .send({
-        age: 40,
+        dob: '1986-04-15',
         is_max_hr_estimated: true
       });
 
@@ -281,7 +282,7 @@ describe('API Server Integration Tests', () => {
     await request(app)
       .patch('/api/profile')
       .send({
-        age: 37,
+        dob: '1989-04-15',
         max_hr: 203,
         is_max_hr_estimated: false
       });

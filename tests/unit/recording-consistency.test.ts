@@ -12,7 +12,7 @@ describe('Observed duration across the analysis pipeline', () => {
   it.each([[1], [5], [15], [1, 15, 3, 8]])('preserves sustained threshold calibration, zones and replay with sampling %j', (...steps) => {
     const db = openDatabase(':memory:');
     try {
-      db.prepare("UPDATE athlete_profile SET max_hr=190,resting_hr=50,is_max_hr_estimated=0 WHERE id='primary'").run();
+      db.prepare("UPDATE athlete_profile SET age=26,dob=NULL,max_hr=190,resting_hr=50,is_max_hr_estimated=1 WHERE id='primary'").run();
       const trace = workoutTrace([{ seconds: 2400, hr: 165 }], { steps });
       expect(importRunContent(db, traceCsv(trace), 'trace.csv').runType).toBe('threshold_lt2');
       const read = () => ({
@@ -36,7 +36,7 @@ describe('Observed duration across the analysis pipeline', () => {
   it.each([null, 250])('does not turn a long sensor dropout (%s bpm) into threshold calibration', hr => {
     const db = openDatabase(':memory:');
     try {
-      db.prepare("UPDATE athlete_profile SET max_hr=190,resting_hr=50,is_max_hr_estimated=0 WHERE id='primary'").run();
+      db.prepare("UPDATE athlete_profile SET age=26,dob=NULL,max_hr=190,resting_hr=50,is_max_hr_estimated=1 WHERE id='primary'").run();
       const trace = workoutTrace([
         { seconds: 600, hr: 165 }, { seconds: 1200, hr }, { seconds: 600, hr: 165 }
       ]);

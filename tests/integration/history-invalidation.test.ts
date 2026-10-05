@@ -12,7 +12,7 @@ describe('Centralized history invalidation', () => {
   let db: Database.Database;
   beforeEach(() => {
     db = openDatabase(':memory:');
-    db.prepare("UPDATE athlete_profile SET max_hr=190,resting_hr=50,is_max_hr_estimated=0 WHERE id='primary'").run();
+    db.prepare("UPDATE athlete_profile SET age=26,dob=NULL,max_hr=190,resting_hr=50,is_max_hr_estimated=1 WHERE id='primary'").run();
   });
   afterEach(() => db.close());
   const seed = (id: string, date: string, hr = 155) => {
@@ -64,7 +64,7 @@ describe('Centralized history invalidation', () => {
   it('reclassifies history after baseline HR changes while retaining confirmations and external evidence', () => {
     seed('source', '2026-01-02'); seed('later', '2026-01-03');
     updateActivityService(db, 'source', { run_type: 'recovery' });
-    db.prepare("UPDATE athlete_profile SET max_hr=175 WHERE id='primary'").run();
+    db.prepare("UPDATE athlete_profile SET age=47,max_hr=175 WHERE id='primary'").run();
     expect(recomputeProfileDerivedData(db, true)).toBe(2);
     expect(db.prepare("SELECT run_type,manual_run_type FROM activities WHERE id='source'").get())
       .toEqual({ run_type: 'recovery', manual_run_type: 'recovery' });

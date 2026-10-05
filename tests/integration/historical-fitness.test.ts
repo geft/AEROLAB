@@ -15,7 +15,7 @@ describe('Historical fitness with stable athlete max HR', () => {
   let db: Database.Database;
   beforeEach(() => {
     db = openDatabase(':memory:');
-    db.prepare("UPDATE athlete_profile SET max_hr=190,resting_hr=50,is_max_hr_estimated=0 WHERE id='primary'").run();
+    db.prepare("UPDATE athlete_profile SET age=26,dob=NULL,max_hr=190,resting_hr=50,is_max_hr_estimated=1 WHERE id='primary'").run();
   });
   afterEach(() => { db.close(); });
 

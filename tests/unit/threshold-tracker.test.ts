@@ -74,6 +74,7 @@ describe('Threshold Tracker Unit Tests', () => {
     { max: 210, rest: 65, lt1: 170, lt2: 190, pace: 280 }
   ])('calibrates independently for athlete LT1 $lt1', ({ max, rest, lt1, lt2, pace }) => {
     db.prepare("UPDATE athlete_profile SET max_hr = ?, resting_hr = ?, lt1_hr = ?, lt2_hr = ?, is_max_hr_estimated = 0 WHERE id = 'primary'").run(max, rest, lt1, lt2);
+    db.prepare("UPDATE activities SET max_heart_rate=? WHERE id='benchmark-max-hr-evidence'").run(max);
     db.prepare("INSERT INTO physiological_thresholds(effective_date,source_kind,lt1_hr,lt2_hr,confidence) VALUES('2026-09-01','external',?,?,1)").run(lt1, lt2);
     insertParentActivity('individual');
     const estimate = evaluateThresholdUpdate(db, 'individual', dummyMetadata.date, 'easy_base', dummyMetadata, [], {

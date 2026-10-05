@@ -28,8 +28,6 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
   const [dob, setDob] = useState<string>('');
   const [gender, setGender] = useState<string>('');
   const [restingHr, setRestingHr] = useState<string>('');
-  const [manualMaxHr, setManualMaxHr] = useState<string>('');
-  const [isAutoMaxHr, setIsAutoMaxHr] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [hasExistingData, setHasExistingData] = useState<boolean>(false);
@@ -61,10 +59,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
         setDob(cleanDob);
         if (p.gender) setGender(p.gender);
         setRestingHr(String(p.resting_hr));
-        if (p.max_hr) {
-          setManualMaxHr(String(p.max_hr));
-          setIsAutoMaxHr(Boolean(p.is_max_hr_estimated));
-        }
+
       })
       .catch(() => {});
 
@@ -81,7 +76,6 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
     return Math.round(208 - 0.7 * computedAge);
   }, [computedAge]);
 
-  const effectiveMaxHr = isAutoMaxHr ? tanakaMaxHr : (Number(manualMaxHr) || null);
 
   // Nothing may be submitted until every required measurement is a real value:
   // no schema placeholders, no half-filled form, no out-of-range numbers.
@@ -91,10 +85,8 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
     if (!dob) return false;
     const rhr = Number(restingHr);
     if (!restingHr || Number.isNaN(rhr) || rhr < 30 || rhr > 120) return false;
-    if (isAutoMaxHr) return computedAge !== null && tanakaMaxHr !== null;
-    const maxHr = Number(manualMaxHr);
-    return manualMaxHr.trim().length > 0 && !Number.isNaN(maxHr) && maxHr >= 100 && maxHr <= 230;
-  }, [dob, restingHr, isAutoMaxHr, computedAge, tanakaMaxHr, manualMaxHr]);
+    return computedAge !== null && tanakaMaxHr !== null;
+  }, [dob, restingHr, computedAge, tanakaMaxHr]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,8 +100,6 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
       const payload: Record<string, unknown> = {
         dob,
         resting_hr: Number(restingHr),
-        max_hr: effectiveMaxHr ?? tanakaMaxHr,
-        is_max_hr_estimated: isAutoMaxHr ? 1 : 0,
         is_configured: 1
       };
       // Gender is optional: only send it when the athlete chose one, so an
@@ -363,80 +353,31 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ onCompleted }) =
               <p style={hintStyle}>{t.onboarding.restingHrHint}</p>
             </div>
 
-            {/* Max HR Mode */}
+            {/* Inferred maximum heart rate */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
                 <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                   {t.onboarding.maxHrLabel}
                 </label>
-                <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.75rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => setIsAutoMaxHr(true)}
-                    style={{
-                      background: isAutoMaxHr ? 'rgba(56,189,248,0.15)' : 'transparent',
-                      border: isAutoMaxHr ? '1px solid #38bdf8' : '1px solid transparent',
-                      color: isAutoMaxHr ? '#38bdf8' : 'var(--text-muted)',
-                      borderRadius: 6,
-                      padding: '2px 8px',
-                      cursor: 'pointer',
-                      fontWeight: 600
-                    }}
-                  >
-                    {t.onboarding.formulaTanaka}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsAutoMaxHr(false)}
-                    style={{
-                      background: !isAutoMaxHr ? 'rgba(56,189,248,0.15)' : 'transparent',
-                      border: !isAutoMaxHr ? '1px solid #38bdf8' : '1px solid transparent',
-                      color: !isAutoMaxHr ? '#38bdf8' : 'var(--text-muted)',
-                      borderRadius: 6,
-                      padding: '2px 8px',
-                      cursor: 'pointer',
-                      fontWeight: 600
-                    }}
-                  >
-                    {t.onboarding.manual}
-                  </button>
-                </div>
               </div>
 
-              {isAutoMaxHr ? (
-                <div style={{
-                  padding: '0.65rem 0.85rem',
-                  background: 'var(--bg-surface)',
-                  borderRadius: 8,
-                  border: '1px solid var(--border-subtle)',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    {t.onboarding.calculatedMaxHr}
-                  </span>
-                  <strong style={{ fontSize: '0.95rem', color: '#38bdf8' }}>
-                    {tanakaMaxHr ? `${tanakaMaxHr} bpm` : t.onboarding.enterDob}
-                  </strong>
-                </div>
-              ) : (
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="number"
-                    min="100"
-                    max="230"
-                    required={!isAutoMaxHr}
-                    placeholder={t.onboarding.maxHrPlaceholder}
-                    value={manualMaxHr}
-                    onChange={e => setManualMaxHr(e.target.value)}
-                    style={inputStyle}
-                  />
-                  <span style={{ position: 'absolute', right: 12, top: 10, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    bpm
-                  </span>
-                </div>
-              )}
+              <div style={{
+                padding: '0.65rem 0.85rem',
+                background: 'var(--bg-surface)',
+                borderRadius: 8,
+                border: '1px solid var(--border-subtle)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  {t.onboarding.calculatedMaxHr}
+                </span>
+                <strong style={{ fontSize: '0.95rem', color: '#38bdf8' }}>
+                  {tanakaMaxHr ? `${tanakaMaxHr} bpm` : t.onboarding.enterDob}
+                </strong>
+              </div>
+              <p style={hintStyle}>{format(t.profile.tanakaFormulaNote, { age: computedAge ?? '—', hr: tanakaMaxHr ?? '—' })}</p>
             </div>
 
             <button

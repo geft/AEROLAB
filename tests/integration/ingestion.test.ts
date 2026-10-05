@@ -228,9 +228,9 @@ describe('Database Ingestion Pipeline (Integration)', () => {
     expect(secondImport.status).toBe('skipped_duplicate');
     expect(secondImport.activityId).toBe('bench-easy-60');
 
-    // Ensure only 1 row in activities table
+    // One imported run plus the prior max-HR evidence.
     const count = db.prepare('SELECT COUNT(*) as count FROM activities').get() as any;
-    expect(count.count).toBe(1);
+    expect(count.count).toBe(2);
   });
 
   it('skips duplicate activity when imported with different ID/filename if start time and distance match', () => {
@@ -246,9 +246,9 @@ describe('Database Ingestion Pipeline (Integration)', () => {
     expect(secondImport.status).toBe('skipped_duplicate');
     expect(secondImport.activityId).toBe('bench-easy-60');
 
-    // Total activities must remain 1
+    // The duplicate must not add to the imported run and prior max-HR evidence.
     const count = db.prepare('SELECT COUNT(*) as count FROM activities').get() as any;
-    expect(count.count).toBe(1);
+    expect(count.count).toBe(2);
   });
 
   it('allows force re-import when force: true is specified', () => {
@@ -261,7 +261,7 @@ describe('Database Ingestion Pipeline (Integration)', () => {
     expect(forceImport.activityId).toBe('bench-easy-60');
 
     const count = db.prepare('SELECT COUNT(*) as count FROM activities').get() as any;
-    expect(count.count).toBe(1);
+    expect(count.count).toBe(2);
   });
 
   it('detects and inserts structured workout intervals during ingestion', () => {

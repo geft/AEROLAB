@@ -263,7 +263,7 @@ describe('named database migrations', () => {
     roots.push(root);
     const file = path.join(root, 'runs.db');
     const first = openDatabase(file);
-    first.prepare("UPDATE athlete_profile SET max_hr=190,resting_hr=50,is_max_hr_estimated=0 WHERE id='primary'").run();
+    first.prepare("UPDATE athlete_profile SET age=26,dob=NULL,max_hr=190,resting_hr=50,is_max_hr_estimated=1 WHERE id='primary'").run();
     const trace = workoutTrace([{ seconds: 2400, hr: 165 }], { id: 'history', date: '2026-01-02' });
     expect(importRunContent(first, traceCsv(trace), 'run.csv').status).toBe('imported');
     first.prepare("UPDATE activities SET run_type='easy_base',auto_run_type='easy_base',z4_seconds=0").run();

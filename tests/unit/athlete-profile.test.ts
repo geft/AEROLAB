@@ -17,14 +17,34 @@ describe('Athlete-independent baseline', () => {
     } finally { db.close(); }
   });
 
-  it('uses an entered maximum even when a workout contains a higher peak', () => {
+  it.each([
+    { peak: null, expected: 180 },
+    { peak: 160, expected: 180 },
+    { peak: 180, expected: 180 },
+    { peak: 195, expected: 195 },
+    { peak: 250, expected: 180 }
+  ])('uses age until a plausible recorded peak raises it: $peak', ({ peak, expected }) => {
     const db = openDatabase(':memory:');
     try {
-      db.prepare("UPDATE athlete_profile SET max_hr = 175, resting_hr = 45, is_max_hr_estimated = 0 WHERE id = 'primary'").run();
-      db.prepare("INSERT INTO activities (id, start_time, name, run_type, max_heart_rate) VALUES ('peak', '2026-09-01', 'Race', 'race', 195)").run();
-      expect(getAthleteHeartRateProfile(db).maxHr).toBe(175);
-      db.prepare("UPDATE athlete_profile SET is_max_hr_estimated = 1 WHERE id = 'primary'").run();
+      // Legacy manual settings must not influence automatic calculations.
+      db.prepare("UPDATE athlete_profile SET age=40,max_hr=220,resting_hr=45,is_max_hr_estimated=0 WHERE id='primary'").run();
+      if (peak != null) {
+        db.prepare("INSERT INTO activities(id,start_time,name,run_type,max_heart_rate) VALUES('peak','2026-09-01','Race','race',?)").run(peak);
+      }
+      expect(getAthleteHeartRateProfile(db).maxHr).toBe(expected);
+    } finally { db.close(); }
+  });
+
+  it('updates the baseline when age changes and when supporting evidence is deleted', () => {
+    const db = openDatabase(':memory:');
+    try {
+      db.prepare("UPDATE athlete_profile SET age=40,resting_hr=45 WHERE id='primary'").run();
+      db.prepare("INSERT INTO activities(id,start_time,run_type,max_heart_rate) VALUES('peak','2026-09-01','easy_base',195)").run();
       expect(getAthleteHeartRateProfile(db).maxHr).toBe(195);
+      db.prepare("DELETE FROM activities WHERE id='peak'").run();
+      expect(getAthleteHeartRateProfile(db).maxHr).toBe(180);
+      db.prepare("UPDATE athlete_profile SET age=50 WHERE id='primary'").run();
+      expect(getAthleteHeartRateProfile(db).maxHr).toBe(173);
     } finally { db.close(); }
   });
 

@@ -20,9 +20,9 @@ describe('FIT-aware import and replay', () => {
         { timestamp: utc(1000), event: 'timer', event_type: 'start' }
       ] };
       expect(importParsedRun(db, { ...run, fileHash: 'paused-fit', fitMetadata }, 'paused.fit').status).toBe('imported');
-      const read = () => db.prepare('SELECT auto_run_type,pause_duration_seconds FROM activities').get();
+      const read = () => db.prepare('SELECT auto_run_type,pause_duration_seconds FROM activities WHERE id=?').get(run.metadata.id);
       expect(read()).toEqual({ auto_run_type: 'recovery', pause_duration_seconds: 700 });
-      const load = () => db.prepare('SELECT training_load,z1_seconds,z2_seconds,z3_seconds,z4_seconds,z5_seconds FROM activities').get();
+      const load = () => db.prepare('SELECT training_load,z1_seconds,z2_seconds,z3_seconds,z4_seconds,z5_seconds FROM activities WHERE id=?').get(run.metadata.id);
       const importedLoad = load();
       expect(importedLoad).toMatchObject({ z4_seconds: 0, z5_seconds: 0 });
       const detail = getActivityDetailService(db, run.metadata.id)!;
@@ -32,9 +32,9 @@ describe('FIT-aware import and replay', () => {
       expect(detail.coachSummary?.classificationEvidence).toMatchObject({ ruleId: 'low_hrr_recovery', confidence: { kind: 'heuristic' } });
       expect(detail.coachSummary?.analysisProvenance).toMatchObject({ workoutStartTime: run.metadata.date, telemetryPolicy: 'fit-timer-and-observed-gaps-v1' });
       expect(detail.coachSummary?.analysisProvenance?.historicalProfile.lt1Hr).toBe(detail.heartRateThresholds.lt1Hr);
-      const storedSummary = db.prepare('SELECT analysis_json,updated_at FROM activity_coach_summaries').get();
+      const storedSummary = db.prepare('SELECT analysis_json,updated_at FROM activity_coach_summaries WHERE activity_id=?').get(run.metadata.id);
       getActivityDetailService(db, run.metadata.id);
-      expect(db.prepare('SELECT analysis_json,updated_at FROM activity_coach_summaries').get()).toEqual(storedSummary);
+      expect(db.prepare('SELECT analysis_json,updated_at FROM activity_coach_summaries WHERE activity_id=?').get(run.metadata.id)).toEqual(storedSummary);
       expect(realignDatabase(db).activitiesFailed).toEqual([]);
       expect(load()).toEqual(importedLoad);
       expect(getActivityDetailService(db, run.metadata.id)?.coachSummary?.classificationEvidence).toEqual(detail.coachSummary?.classificationEvidence);

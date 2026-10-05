@@ -543,16 +543,8 @@ export interface Translations {
     vo2Max: string;
     saveProfile: string;
     thresholdsCardTitle: string;
-    autoMaxHrNote: string;
-    manualMaxHrNote: string;
-    observedPeak: string;
-    tanakaFallback: string;
-    lockCustomMaxHr: string;
     calibratedFromActualRunData: string;
     estimatedBaselineNoHardEfforts: string;
-    manualMaxHrLabel: string;
-    manualMaxHrHint: string;
-    autoCalibrateCheckbox: string;
     trainingZonesPreview: string;
     zone1Title: string;
     zone1Name: string;
@@ -569,7 +561,6 @@ export interface Translations {
     zone5Title: string;
     zone5Name: string;
     zone5Desc: string;
-    iDontKnowMaxHr: string;
     readOnlyBaseline: string;
     thresholdHeartRate: string;
     yearsUnit: string;
@@ -583,7 +574,6 @@ export interface Translations {
     zonesHeaderSummary: string;
     restingHrRangeError: string;
     restingHrPlaceholder: string;
-    maxHrPlaceholder: string;
     savedRecomputing: string;
     saved: string;
     /** Shown when GET /api/profile fails. */
@@ -691,13 +681,10 @@ export interface Translations {
   };
   onboarding: {
     restingHrPlaceholder: string;
-    maxHrPlaceholder: string;
     enterDob: string;
     ageLabel: string;
     ageYears: string;
     tanakaUsage: string;
-    formulaTanaka: string;
-    manual: string;
     calculatedMaxHr: string;
     returnDashboard: string;
     supportedBackups: string;
