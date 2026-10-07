@@ -4,7 +4,7 @@ import { openDatabase } from '../../src/backend/db/client.js';
 import { getAerobicAssessment } from '../../src/backend/physiology/aerobic-assessment.js';
 import { getThresholdsService } from '../../src/backend/services/thresholds-service.js';
 import { getHeartRateProfileAtDate } from '../../src/backend/physiology/threshold-tracker.js';
-import { refreshHeartRateAnalysis } from '../../src/backend/physiology/refresh-heart-rate-analysis.js';
+import { refreshHeartRateAnalysis, refreshRecentHeartRateAnalysis } from '../../src/backend/physiology/refresh-heart-rate-analysis.js';
 import { ANALYSIS_REVISION } from '../../src/shared/analysis-revision.js';
 
 describe('Aerobic reassessment through SQLite and API', () => {
@@ -75,7 +75,10 @@ describe('Aerobic reassessment through SQLite and API', () => {
     source('a', '2026-08-01'); source('b', '2026-08-08'); source('c', '2026-08-15');
     source('later', '2026-08-22');
     const before = getHeartRateProfileAtDate(db, '2026-08-15', 'c').lt1Hr;
+    const prepare = vi.spyOn(db, 'prepare');
     expect(refreshHeartRateAnalysis(db, ['c', 'later'])).toBe(2);
+    expect(prepare.mock.calls.filter(([sql]) => sql.includes("SELECT id, start_time FROM activities WHERE sport"))).toHaveLength(1);
+    prepare.mockRestore();
     for (const [id, expected] of [['c', before], ['later', 157]] as const) {
       const summary = db.prepare('SELECT analysis_json FROM activity_coach_summaries WHERE activity_id=?').get(id) as { analysis_json: string };
       expect(JSON.parse(summary.analysis_json)).toMatchObject({ revision: ANALYSIS_REVISION,
@@ -84,5 +87,10 @@ describe('Aerobic reassessment through SQLite and API', () => {
     }
     expect(db.prepare("SELECT z2_seconds FROM activities WHERE id='later'").get()).toEqual({ z2_seconds: 4800 });
     expect(db.prepare("SELECT COUNT(*) AS n FROM activity_coach_summaries WHERE activity_id IN ('a','b')").get()).toEqual({ n: 0 });
+  });
+  it('automatically refreshes only the preceding 180 days, excluding future runs', () => {
+    source('old', '2026-01-01'); source('recent', '2026-08-01'); source('future', '2026-09-01');
+    expect(refreshRecentHeartRateAnalysis(db)).toBe(1);
+    expect(db.prepare('SELECT activity_id FROM activity_coach_summaries').all()).toEqual([{ activity_id: 'recent' }]);
   });
 });

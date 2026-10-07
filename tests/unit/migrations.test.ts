@@ -21,7 +21,7 @@ describe('named database migrations', () => {
     roots.push(root);
     const file = path.join(root, 'runs.db');
     const first = openDatabase(file);
-    const trace = workoutTrace([{ seconds: 120, hr: 140 }], { id: 'density', steps: [5] });
+    const trace = workoutTrace([{ seconds: 120, hr: 140 }], { id: 'density', date: new Date().toISOString(), steps: [5] });
     expect(importRunContent(first, traceCsv(trace), 'run.csv').status).toBe('imported');
     first.prepare('DELETE FROM schema_migrations WHERE name=?').run(migration);
     first.prepare("UPDATE activity_coach_summaries SET headline='outdated'").run();

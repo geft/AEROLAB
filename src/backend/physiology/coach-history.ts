@@ -84,7 +84,7 @@ export interface CoachContextOptions {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const LAST_SIMILAR_WINDOW_DAYS = 30;
+export const LAST_SIMILAR_WINDOW_DAYS = 30;
 
 function parseTime(value: string | null | undefined): number | null {
   if (!value) return null;

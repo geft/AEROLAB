@@ -87,8 +87,35 @@ export function extractAerobicObservation(records: ActivityRecord[], activityId:
     decouplingPct: strongest.drift, basis: 'run_walk' } : null;
 }
 
-const cache = new WeakMap<Database.Database, { revision: string; observations: AerobicObservation[];
-  activities: Array<{ id: string; start_time: string }> }>();
+type EvidenceSnapshot = { observations: AerobicObservation[]; activities: Array<{ id: string; start_time: string }> };
+const cache = new WeakMap<Database.Database, EvidenceSnapshot & { revision: string }>();
+const batchSnapshots = new WeakMap<Database.Database, EvidenceSnapshot>();
+
+function loadEvidence(db: Database.Database, fromDate: string, toDate: string): EvidenceSnapshot {
+  const columns = new Set((db.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>).map(row => row.name));
+  if (['id', 'start_time', 'sport', 'run_type', 'duration_seconds'].some(name => !columns.has(name)))
+    return { activities: [], observations: [] };
+  const failed = columns.has('manual_failed_workout') ? 'AND COALESCE(manual_failed_workout, 0) = 0' : '';
+  const activities = db.prepare(`SELECT id, start_time FROM activities WHERE sport = 'running'
+    AND (run_type = 'long_run' OR run_type IN ('easy_base', 'tempo') AND duration_seconds >= 3600) ${failed}
+    AND datetime(start_time) BETWEEN datetime(?) AND datetime(?) ORDER BY start_time`)
+    .all(fromDate, toDate) as EvidenceSnapshot['activities'];
+  const observations = activities.flatMap(activity => {
+    const row = extractAerobicObservation(loadAnalysisRecords(db, activity.id), activity.id, activity.start_time);
+    return row ? [row] : [];
+  });
+  return { activities, observations };
+}
+
+/** Reuse unchanged telemetry during a synchronous derived-analysis-only batch. */
+export function withAerobicEvidenceSnapshot<T>(db: Database.Database, action: () => T,
+  bounds?: { fromDate: string; toDate: string }): T {
+  const previous = batchSnapshots.get(db);
+  batchSnapshots.set(db, previous ?? loadEvidence(db, bounds?.fromDate ?? '0001-01-01', bounds?.toDate ?? '9999-12-31'));
+  try { return action(); } finally {
+    if (previous) batchSnapshots.set(db, previous); else batchSnapshots.delete(db);
+  }
+}
 export function getAerobicAssessment(db: Database.Database, asOfDate = new Date().toISOString(),
   options: { strictlyBefore?: boolean; excludeActivityId?: string } = {}): AerobicAssessment {
   const ref = thresholdTime(asOfDate);
@@ -97,28 +124,16 @@ export function getAerobicAssessment(db: Database.Database, asOfDate = new Date(
   const fromDate = new Date(cutoff - 86400000).toISOString().slice(0, 10);
   const toDate = new Date(ref + 86400000).toISOString().slice(0, 10);
   const revision = `${db.pragma('data_version', { simple: true })}:${(db.prepare('SELECT total_changes() AS n').get() as { n: number }).n}:${fromDate}:${toDate}`;
-  let saved = cache.get(db);
-  if (db.inTransaction || !saved || saved.revision !== revision) {
-    const columns = new Set((db.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>).map(row => row.name));
-    // Older/minimal databases cannot establish eligible running observations.
-    if (['id', 'start_time', 'sport', 'run_type', 'duration_seconds'].some(name => !columns.has(name)))
-      return assessAerobicEvidence([], 0, asOfDate, options);
-    const failed = columns.has('manual_failed_workout') ? 'AND COALESCE(manual_failed_workout, 0) = 0' : '';
-    const activities = db.prepare(`SELECT id, start_time FROM activities WHERE sport = 'running'
-      AND (run_type = 'long_run' OR run_type IN ('easy_base', 'tempo') AND duration_seconds >= 3600) ${failed}
-      AND datetime(start_time) BETWEEN datetime(?) AND datetime(?)
-      ORDER BY start_time`).all(fromDate, toDate) as Array<{ id: string; start_time: string }>;
+  const batch = batchSnapshots.get(db);
+  let saved: EvidenceSnapshot | undefined = batch ?? cache.get(db);
+  if (!batch && (db.inTransaction || !saved || cache.get(db)?.revision !== revision)) {
     // Cache dates and observations, not an as-of result, so historical reads
     // remain causal and freshness changes without database writes.
-    saved = { revision, activities, observations: [] };
-    for (const activity of activities) {
-      const observation = extractAerobicObservation(loadAnalysisRecords(db, activity.id), activity.id, activity.start_time);
-      if (observation) saved.observations.push(observation);
-    }
-    if (!db.inTransaction) cache.set(db, saved);
+    saved = loadEvidence(db, fromDate, toDate);
+    if (!db.inTransaction) cache.set(db, { ...saved, revision });
   }
-  const count = saved.activities.filter(activity => activity.id !== options.excludeActivityId &&
+  const count = saved!.activities.filter(activity => activity.id !== options.excludeActivityId &&
     (options.strictlyBefore ? thresholdTime(activity.start_time) < ref : thresholdTime(activity.start_time) <= ref) &&
     thresholdTime(activity.start_time) >= cutoff).length;
-  return assessAerobicEvidence(saved.observations, count, asOfDate, options);
+  return assessAerobicEvidence(saved!.observations, count, asOfDate, options);
 }

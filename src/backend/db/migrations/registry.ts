@@ -6,7 +6,7 @@ import { getAthleteHeartRateProfile } from '../../physiology/athlete-profile.js'
 import { extractSteadyStateMetrics, calculateEconomy } from '../../physiology/economy.js';
 import { syncAllCoachSummaries } from '../../physiology/coach-summary.js';
 import { calculateActivityTrainingLoad } from '../../physiology/training-load.js';
-import { refreshHeartRateAnalysis } from '../../physiology/refresh-heart-rate-analysis.js';
+import { refreshRecentHeartRateAnalysis } from '../../physiology/refresh-heart-rate-analysis.js';
 import { realignDatabase } from '../realign.js';
 import { continuousRaceEffort } from '../../ingestion/continuous-effort.js';
 import { deduplicateRuns } from '../deduplicate.js';
@@ -276,7 +276,7 @@ export function runDerivedMigrations(db: Database.Database, migrations: Runner):
       const result = realignDatabase(db, { strict: true });
       if (result.activitiesFailed.length) throw new Error(`Analysis refresh failed: ${result.activitiesFailed.join('; ')}`);
     });
-    migrations.run('aerobic-reference-v1', () => { refreshHeartRateAnalysis(db); });
+    migrations.run('aerobic-reference-v1', () => { refreshRecentHeartRateAnalysis(db); });
   } catch (err: any) {
     // Migrations are non-fatal so a bad row cannot block startup, but the failure
     // must be visible — this previously swallowed errors silently (see audit).

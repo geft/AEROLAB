@@ -107,10 +107,23 @@ export function aerobicEvidenceAnchor(db: Database.Database): number {
     ? Math.round((range.lt1_min_hr + range.lt1_max_hr) / 2) : independent.lt1Hr;
 }
 
-const cache = new WeakMap<Database.Database, { revision: string; rows: EvidenceRow[]; lt1: ThresholdEvidenceObservation[]; lt2: ThresholdEvidenceObservation[] }>();
+type EvidenceSnapshot = { revision: string; rows: EvidenceRow[]; lt1: ThresholdEvidenceObservation[]; lt2: ThresholdEvidenceObservation[] };
+const cache = new WeakMap<Database.Database, EvidenceSnapshot>();
+const batchSnapshots = new WeakMap<Database.Database, EvidenceSnapshot>();
+
+/** Only for synchronous batches that leave telemetry, thresholds and profile unchanged. */
+export function withThresholdEvidenceSnapshot<T>(db: Database.Database, action: () => T): T {
+  const previous = batchSnapshots.get(db);
+  batchSnapshots.set(db, thresholdEvidenceObservations(db));
+  try { return action(); } finally {
+    if (previous) batchSnapshots.set(db, previous); else batchSnapshots.delete(db);
+  }
+}
 
 /** Reassess saved observations without rewriting the workout history. */
 export function thresholdEvidenceObservations(db: Database.Database) {
+  const snapshot = batchSnapshots.get(db);
+  if (snapshot) return snapshot;
   const anchor = aerobicEvidenceAnchor(db);
   const revision = `${db.pragma('data_version', { simple: true })}:${(db.prepare('SELECT total_changes() AS n').get() as { n: number }).n}:${anchor}`;
   const cached = cache.get(db);

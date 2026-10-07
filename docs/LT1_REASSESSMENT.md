@@ -60,13 +60,21 @@ Historical coaching uses only strictly preceding evidence, excludes its own
 activity, and falls back to independent baseline HR rather than today's saved
 working range. The analysis revision marks old coaching for refresh.
 
-The `aerobic-reference-v1` upgrade refreshes stored zone durations, training
-load and coaching together, using each workout's preceding evidence. Startup
-maintenance runs it once after a safety backup, then refreshes the activity list.
+The `aerobic-reference-v1` upgrade refreshes the preceding 180 days' stored zone
+durations, training load and coaching together, using each workout's preceding
+evidence. Older coaching refreshes on demand. Startup maintenance runs it once
+after a safety backup, then refreshes the activity list.
 It preserves workout classifications and calibration rows. This prevents stale
 list verdicts from changing only when a workout is opened. The reassessment panel
 uses separate reference and candidate cards, readable dates and an expandable
 method explanation.
+
+The derived-only refresh freezes threshold and aerobic observations for its
+synchronous batch and discards those snapshots afterward, including on failure.
+It reads shared evidence telemetry once, while historical date filtering still
+runs for each workout. Snapshot callers must leave telemetry, classifications,
+calibrations and profile fields unchanged. Ordinary API caches retain database
+revision and transaction invalidation.
 
 ## Validation
 
