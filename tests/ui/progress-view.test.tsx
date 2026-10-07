@@ -23,7 +23,8 @@ describe('ProgressView UI Tests', () => {
     currentThresholds: {
       lt1Hr: 148,
       lt2Hr: 171,
-      lt1Range: [147, 149]
+      lt1Range: [147, 149],
+      baselineEconomyEf: 1.19
     },
     history: [
       {
@@ -152,6 +153,7 @@ describe('ProgressView UI Tests', () => {
     expect(screen.getAllByText('Estimated LT2 Pace').length).toBeGreaterThan(0);
     expect(screen.getByText('Estimated VO2 Max / VDOT')).toBeDefined();
     expect(screen.getByText('Running Economy Index')).toBeDefined();
+    expect(screen.getByText('1.19')).toBeDefined();
     const economyCard = container.querySelector('.benchmark-card:last-child');
     expect(economyCard?.textContent).toContain('Running Economy (EF)');
     expect(economyCard?.textContent).not.toContain('Meters / Beat');

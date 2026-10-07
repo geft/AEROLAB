@@ -205,7 +205,11 @@ export const ProgressView: React.FC = () => {
               </button>
             </div>
             <div className="benchmark-value" style={{ color: '#06b6d4' }}>
-              {data.latest.lt1?.baseline_economy_ef ? Number(data.latest.lt1.baseline_economy_ef).toFixed(2) : '—'}
+              {data.currentThresholds?.baselineEconomyEf != null
+                ? Number(data.currentThresholds.baselineEconomyEf).toFixed(2)
+                : data.latest.lt1?.baseline_economy_ef != null
+                  ? Number(data.latest.lt1.baseline_economy_ef).toFixed(2)
+                  : '—'}
             </div>
             <span className="benchmark-sub">{t.browse.efficiencyFactor}</span>
           </div>
