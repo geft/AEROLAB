@@ -5,6 +5,8 @@ import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { thresholdTime } from '../../shared/threshold-trend.js';
 import { supportedThreshold, type ThresholdEvidence } from '../../shared/threshold-evidence.js';
 import { aerobicEvidenceAnchor, thresholdEvidenceObservations } from './threshold-evidence.js';
+import { getAerobicAssessment } from './aerobic-assessment.js';
+import { promoteAerobicReference } from '../../shared/aerobic-assessment.js';
 import Database from 'better-sqlite3';
 import { ActivityMetadata, ActivityRecord } from '../ingestion/csv-parser';
 import { EconomyMetrics } from './economy';
@@ -286,7 +288,7 @@ export function evaluateThresholdUpdate(
   const { maxHr: effMax, restingHr: effRhr, lt2Hr: profileLt2Hr } = profile;
   const reserve = effMax - effRhr;
   const priorRolling = computeRollingThresholds(db, runDate, { strictlyBefore: true, excludeActivityId: activityId });
-  const baselineLt1Hr = priorRolling.lt1Hr ?? aerobicEvidenceAnchor(db);
+  const baselineLt1Hr = priorRolling.lt1Hr ?? profile.lt1Hr;
   // Record low-drift aerobic observations near the supported ceiling. The
   // evidence policy separately decides whether they can update accepted pace.
   const stimulusFloorHr = baselineLt1Hr - Math.max(2, Math.round(reserve * 0.025));
@@ -658,13 +660,13 @@ export function evaluateThresholdUpdate(
       if (rolling.lt1Hr) {
         updates.push('lt1_hr = ?');
         params.push(rolling.lt1Hr);
-        // Preserve an explicitly configured working range when present. The
-        // range is intentionally steadier than the rolling point estimate.
+        // An old range cannot keep a corroborated higher LT1 out of working zones.
         const range = profileRange(db.prepare("SELECT lt1_min_hr, lt1_max_hr FROM athlete_profile WHERE id = 'primary'").get());
-        const minHr = range?.lt1_min_hr ?? rolling.lt1Hr - 1;
-        const maxHr = range?.lt1_max_hr ?? rolling.lt1Hr + 1;
+        const promoted = rolling.lt1Evidence.method === 'aerobic_reference';
+        const minHr = promoted ? rolling.lt1Hr : range?.lt1_min_hr ?? rolling.lt1Hr - 1;
+        const maxHr = promoted ? rolling.lt1Hr : range?.lt1_max_hr ?? rolling.lt1Hr + 1;
         updates.push('z3_start_hr = ?');
-        params.push(maxHr + 1);
+        params.push(promoted ? rolling.lt1Hr + 1 : maxHr + 1);
         updates.push('lt1_min_hr = ?');
         params.push(minHr);
         updates.push('lt1_max_hr = ?');
@@ -718,9 +720,12 @@ export function computeRollingThresholds(
   const refDateStr = asOfDate || new Date().toISOString();
   const evidence = thresholdEvidenceObservations(db);
   const eligible = (rows: typeof evidence.lt1) => rows.filter(row => row.sourceId !== options.excludeActivityId);
-  const rolledLt1 = supportedThreshold(eligible(evidence.lt1), refDateStr,
-    { ...options, aerobicAnchorHr: aerobicEvidenceAnchor(db) });
+  const independent = getAthleteHeartRateProfile(db, false);
+  const legacyLt1 = supportedThreshold(eligible(evidence.lt1), refDateStr,
+    { ...options, aerobicAnchorHr: options.strictlyBefore ? independent.lt1Hr : aerobicEvidenceAnchor(db) });
   const rolledLt2 = supportedThreshold(eligible(evidence.lt2), refDateStr, options);
+  const rolledLt1 = promoteAerobicReference(legacyLt1, getAerobicAssessment(db, refDateStr, options),
+    (rolledLt2.hr ?? independent.lt2Hr) - 2);
 
   return {
     lt1Hr: rolledLt1?.hr ?? null,
@@ -745,7 +750,7 @@ export function getHeartRateProfileAtDate(db: Database.Database, runDate: string
   return {
     ...baseline,
     ...resolveHeartRateProfile({ ...baseline,
-      lt1Hr: rolling.lt1Hr ?? aerobicEvidenceAnchor(db), lt2Hr: rolling.lt2Hr ?? baseline.lt2Hr }),
+      lt1Hr: rolling.lt1Hr ?? baseline.lt1Hr, lt2Hr: rolling.lt2Hr ?? baseline.lt2Hr }),
     lt1Source: rolling.lt1Hr == null ? 'baseline' as const : 'calibrated' as const,
     lt2Source: rolling.lt2Hr == null ? 'baseline' as const : 'calibrated' as const,
     lastLt1Date: rolling.lastLt1Date, lastLt2Date: rolling.lastLt2Date
@@ -821,7 +826,7 @@ export function getCurrentThresholds(db: Database.Database): {
     return {
       lt1Hr,
       lt2Hr,
-      lt1Range: storedRange,
+      lt1Range: rolling.lt1Evidence.method === 'aerobic_reference' ? [lt1Hr, lt1Hr] : storedRange,
       lt1PaceSecKm: rolling.lt1PaceSecKm,
       lt2PaceSecKm: rolling.lt2PaceSecKm,
       baselineEconomyEf: getLatestBaselineEconomyEf(db),

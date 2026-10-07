@@ -10,6 +10,7 @@ import { formatPace } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { translateCalibrationNote, translateActivityName } from '../i18n/coachTranslator.js';
 import { getThresholds } from '../api/client.js';
+import { Lt1Reassessment } from './Lt1Reassessment.js';
 
 interface ThresholdData {
   latest: {
@@ -126,7 +127,8 @@ export const ProgressView: React.FC = () => {
 
   const pred5k = data.predictions?.find((p: ThresholdsResponse['predictions'][number]) => p.distanceName === '5K');
   const lt1Range = data.currentThresholds?.lt1Range;
-  const lt1Display = lt1Range ? `${lt1Range[0]}–${lt1Range[1]}` : String(data.currentThresholds?.lt1Hr ?? '—');
+  const lt1Display = lt1Range && lt1Range[0] !== lt1Range[1]
+    ? `${lt1Range[0]}–${lt1Range[1]}` : String(data.currentThresholds?.lt1Hr ?? '—');
 
   return (
     <div className="progress-grid">
@@ -212,6 +214,8 @@ export const ProgressView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {data.currentThresholds?.lt1Assessment && <Lt1Reassessment assessment={data.currentThresholds.lt1Assessment} />}
 
       {/* Physiological Threshold Anchors Banner */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: '1rem 1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>

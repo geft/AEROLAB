@@ -5,6 +5,7 @@ import type {
 import { getAthleteHeartRateProfile } from '../physiology/athlete-profile.js';
 import { BENCHMARK_FRESHNESS_DAYS, calculateRacePredictions, isFreshPredictionEvidence, type RaceBenchmark } from '../physiology/predictions.js';
 import { getCurrentThresholds } from '../physiology/threshold-tracker.js';
+import { getAerobicAssessment } from '../physiology/aerobic-assessment.js';
 import { thresholdEvidenceObservations } from '../physiology/threshold-evidence.js';
 import { getDefaultZones } from '../physiology/zones.js';
 import { objectRow } from '../db/rows.js';
@@ -87,7 +88,7 @@ export function getThresholdsService(db: Database.Database, runTypeFilter?: stri
       lt2_evidence_usable: evidence.lt2.find(row => row.sourceId === key)?.usable ?? false };
   });
 
-  const currentThresholds = getCurrentThresholds(db);
+  const currentThresholds = { ...getCurrentThresholds(db), lt1Assessment: getAerobicAssessment(db) };
   const hrProfile = getAthleteHeartRateProfile(db);
   const zones = getDefaultZones(hrProfile.maxHr, currentThresholds.lt1Hr, currentThresholds.lt2Hr, hrProfile.restingHr);
 
@@ -98,7 +99,8 @@ export function getThresholdsService(db: Database.Database, runTypeFilter?: stri
   const latestLt2Pace = currentThresholds.lt2PaceSecKm;
   const latestLt1: CalibrationHistoryItem = {
     ...latestLt1Row,
-    confidence: currentThresholds.lt1Evidence?.basis === 'run_walk' ? Math.min(latestLt1Row?.lt1_evidence_confidence ?? 0.65, 0.65) : latestLt1Row?.confidence,
+    confidence: currentThresholds.lt1Evidence?.confidence ?? (currentThresholds.lt1Evidence?.basis === 'run_walk'
+      ? Math.min(latestLt1Row?.lt1_evidence_confidence ?? 0.65, 0.65) : latestLt1Row?.confidence),
     lt1_hr: currentThresholds.lt1Hr,
     lt1_pace_sec_km: latestLt1Pace,
     effective_date: currentThresholds.lt1Evidence?.acceptedDate ?? null,

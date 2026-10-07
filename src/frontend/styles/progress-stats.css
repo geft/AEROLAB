@@ -5,6 +5,80 @@
   gap: 1.5rem;
 }
 
+.aerobic-evidence-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+.aerobic-evidence-panel h3 {
+  margin: 0 0 0.65rem;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.aerobic-evidence-panel p {
+  margin: 0.5rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.aerobic-evidence-note {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  max-width: 90ch;
+}
+
+.aerobic-evidence-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  font-size: 0.8rem;
+}
+
+.aerobic-evidence-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 0.75rem;
+  margin: 0.85rem 0;
+}
+
+.aerobic-evidence-card {
+  min-width: 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.aerobic-evidence-card h4 {
+  margin: 0 0 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.aerobic-evidence-card strong {
+  color: var(--text-primary);
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.aerobic-evidence-card p {
+  font-size: 0.78rem;
+}
+
+.aerobic-evidence-caveat {
+  color: var(--text-muted);
+}
+
+.aerobic-evidence-note summary {
+  cursor: pointer;
+}
+
 .filter-pills {
   display: flex;
   align-items: center;

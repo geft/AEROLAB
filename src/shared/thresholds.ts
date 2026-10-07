@@ -1,4 +1,5 @@
 import type { ThresholdEvidence } from './threshold-evidence.js';
+import type { AerobicAssessment } from './aerobic-assessment.js';
 /**
  * Wire contracts for GET /api/thresholds (and the shared heart-rate profile
  * shapes reused by the profile endpoint).
@@ -26,6 +27,7 @@ export interface CurrentThresholds {
   lastCalibratedDate: string | null;
   lt1Evidence?: ThresholdEvidence;
   lt2Evidence?: ThresholdEvidence;
+  lt1Assessment?: AerobicAssessment;
 }
 
 /** A row from the calibration history (physiological_thresholds). */

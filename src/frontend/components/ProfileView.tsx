@@ -141,7 +141,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ readOnly = false }) =>
   const lt2Pace = currentThresholds?.lt2PaceSecKm
     ? formatPace(currentThresholds.lt2PaceSecKm)
     : (currentThresholds?.lt1PaceSecKm ? `${formatPace(Math.round(currentThresholds.lt1PaceSecKm * 0.86))} (Est.)` : '--');
-  const lt1HrDisplay = currentThresholds?.lt1Range
+  const lt1HrDisplay = currentThresholds?.lt1Range && currentThresholds.lt1Range[0] !== currentThresholds.lt1Range[1]
     ? `${currentThresholds.lt1Range[0]}–${currentThresholds.lt1Range[1]}`
     : String(currentThresholds?.lt1Hr ?? '—');
 

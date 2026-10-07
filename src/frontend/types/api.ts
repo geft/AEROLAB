@@ -1,5 +1,6 @@
 import type { CoachSummary } from '../../shared/contracts/activity-detail.js';
 import type { ThresholdEvidence } from '../../shared/threshold-evidence.js';
+import type { AerobicAssessment } from '../../shared/aerobic-assessment.js';
 /**
  * API response contracts.
  *
@@ -66,6 +67,7 @@ export interface ThresholdsResponse {
     baselineEconomyEf?: number | null;
     lt1Evidence?: ThresholdEvidence;
     lt2Evidence?: ThresholdEvidence;
+    lt1Assessment?: AerobicAssessment;
   } | null;
   zones?: Record<string, [number, number]> | null;
   predictions: Array<{

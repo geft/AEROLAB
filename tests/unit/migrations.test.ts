@@ -16,7 +16,7 @@ describe('named database migrations', () => {
     for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
   });
 
-  it.each(['coaching-duration-v1', 'classification-telemetry-v1', 'sustained-work-v1'])('refreshes pending %s once and persists the current revision', migration => {
+  it.each(['coaching-duration-v1', 'classification-telemetry-v1', 'sustained-work-v1', 'aerobic-reference-v1'])('refreshes pending %s once and persists the current revision', migration => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aerolab-duration-migration-'));
     roots.push(root);
     const file = path.join(root, 'runs.db');

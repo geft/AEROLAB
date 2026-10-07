@@ -23,6 +23,8 @@ export interface ThresholdEvidence {
   observationDate: string | null;
   supportCount: number;
   basis?: 'continuous' | 'run_walk' | 'external';
+  method?: 'aerobic_reference';
+  confidence?: number;
 }
 
 export interface SupportedThreshold {
