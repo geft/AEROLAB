@@ -11,6 +11,7 @@ import { translateActivityName } from '../../i18n/coachTranslator.js';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { patchActivity } from '../../api/client.js';
 import { downloadSessionCsv } from '../../utils/sessionCsv.js';
+import { isTreadmillFitMetadata } from '../../../shared/activity-environment.js';
 
 interface ActivityDetailHeaderProps {
   act: Activity;
@@ -45,6 +46,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
   const [customTitle, setCustomTitle] = useState<string>('');
   const { formatDate, language } = useTranslation();
   const displayCadence = act.steady_cadence || act.avg_cadence;
+  const isTreadmill = act.is_treadmill || isTreadmillFitMetadata(fitMetadata);
 
   const currentTags = getActivityTags(act);
 
@@ -94,6 +96,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
               <h1 style={{ margin: 0 }}>{translateActivityName(getDisplayTitle(act, t), language, t.browse.coachLegacyTemplates)}</h1>
+              {isTreadmill && <span className="activity-context-badge">{t.browse.treadmillActivity}</span>}
               {!readOnly && <button
                 onClick={() => { setCustomTitle(act.name ?? ''); setIsEditingTitle(true); }}
                 title={t.browse.renameTooltip}
@@ -109,6 +112,8 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
             <span>•</span>
             <span>{formatDate(act.start_time, { hour: '2-digit', minute: '2-digit', hour12: false })} ({getTimeOfDay(act.start_time)})</span>
           </div>
+
+          {isTreadmill && <p className="treadmill-metrics-note">{t.browse.treadmillMetricsNote}</p>}
 
           {!readOnly && <button
             type="button"

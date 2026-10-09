@@ -13,7 +13,7 @@ const LEGACY_DERIVED_MIGRATIONS = [
   'realign-v1'
 ] as const;
 
-export const DERIVED_MIGRATIONS = [...LEGACY_DERIVED_MIGRATIONS, 'continuous-race-v1', 'signal-classification-v1', 'effort-structure-v1', 'stride-recovery-v1', 'historical-fitness-v1', 'recovery-hrr-v1', 'fit-structure-v1', 'analysis-telemetry-policy-v1', 'structured-tempo-v1', 'coaching-prose-v1', 'coaching-duration-v1', 'classification-telemetry-v1', 'aerobic-reference-v1'] as const;
+export const DERIVED_MIGRATIONS = [...LEGACY_DERIVED_MIGRATIONS, 'continuous-race-v1', 'signal-classification-v1', 'effort-structure-v1', 'stride-recovery-v1', 'historical-fitness-v1', 'recovery-hrr-v1', 'fit-structure-v1', 'analysis-telemetry-policy-v1', 'structured-tempo-v1', 'coaching-prose-v1', 'coaching-duration-v1', 'classification-telemetry-v1', 'aerobic-reference-v1', 'treadmill-analysis-v1'] as const;
 
 /** Run each data change once, with a rollback boundary and a pre-change snapshot. */
 export function createMigrationRunner(db: Database.Database) {

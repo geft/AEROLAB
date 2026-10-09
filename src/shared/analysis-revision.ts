@@ -1,5 +1,5 @@
 /** Bump when a persisted analysis policy changes; upgrades refresh history once. */
-export const ANALYSIS_REVISION = 'threshold-evidence-v3';
+export const ANALYSIS_REVISION = 'treadmill-analysis-v1';
 export interface AnalysisFreshness {
   revision: string | null;
   status: 'fresh' | 'stale' | 'missing' | 'updating';

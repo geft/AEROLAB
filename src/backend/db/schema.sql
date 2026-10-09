@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS activities (
   start_time TEXT NOT NULL,
   name TEXT,
   sport TEXT DEFAULT 'running',
+  is_treadmill INTEGER NOT NULL DEFAULT 0,
   run_type TEXT,
   auto_run_type TEXT,
   manual_run_type TEXT,

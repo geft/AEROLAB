@@ -280,9 +280,9 @@ describe('AI Coach Summary Unit Tests', () => {
     });
 
     // Check pause isolation insight
-    const stopInsight = summary.keyInsights.find(i => i.startsWith('Traffic & Walk Break Isolation'));
+    const stopInsight = summary.keyInsights.find(i => i.startsWith('Stop & Walk Isolation'));
     expect(stopInsight).toBeDefined();
-    expect(stopInsight).toContain('3 stationary/traffic stops (2m 0s idle)');
+    expect(stopInsight).toContain('3 stationary stops (2m 0s idle)');
     expect(stopInsight).toContain('2 walk breaks (3m 0s, 220m)');
     expect(stopInsight).toContain('5:45/km at 134 bpm (178 spm)');
 

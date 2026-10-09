@@ -1,4 +1,5 @@
 import { decodeStoredJson, compressActivity } from '../db/compression.js';
+import { isTreadmillFitMetadata } from '../../shared/activity-environment.js';
 import { persistWorkoutSegments } from '../db/workout-segments.js';
 import { assertDatabaseWritable } from '../application/database-operations.js';
 import { analyzeWorkout, prepareAnalysisContext } from '../application/analysis/analyze-workout.js';
@@ -81,7 +82,8 @@ export function importRunContent(
 export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filename: string, options: ImportOptions = {}): ImportResult {
   assertDatabaseWritable();
   try {
-    const { fileHash, metadata, records } = parsed;
+    const { fileHash, records } = parsed;
+    const metadata = { ...parsed.metadata };
 
     if (!records || records.length === 0) {
       return { status: 'error', error: 'CSV file contains no valid records' };
@@ -128,10 +130,12 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
     { manual_run_type: import('./classifier.js').RunType | null; manual_failed_workout: number | null } : undefined;
   const storedFit = existing && !parsed.fitMetadata ? db.prepare('SELECT metadata_json FROM activity_fit_details WHERE activity_id = ?')
     .get(existing.id) as { metadata_json: string | Buffer } | undefined : undefined;
+  const fitMetadata = parsed.fitMetadata ?? (storedFit ? JSON.parse(decodeStoredJson(storedFit.metadata_json)) : undefined);
+  metadata.isTreadmill = isTreadmillFitMetadata(fitMetadata);
   const hrProfile = getHeartRateProfileAtDate(db, metadata.date, existing?.id ?? metadata.id);
   const stridePaceAnchorSecKm = getStridePaceAnchorSecKmAtDate(db, metadata.date, existing?.id ?? metadata.id);
   const context = prepareAnalysisContext({ metadata, rawRecords: records,
-    fitMetadata: parsed.fitMetadata ?? (storedFit ? JSON.parse(decodeStoredJson(storedFit.metadata_json)) : undefined),
+    fitMetadata,
     historicalProfile: hrProfile, stridePaceAnchorSecKm });
   const { economy, splits, classification, runType, intervals, tags: initialTags } = analyzeWorkout(context, {
     confirmedRunType: confirmed?.manual_run_type, precomputed: options.precomputed
@@ -160,7 +164,7 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
   // 4. Ingest into Database in a Transaction
   const insertActivity = db.prepare(`
     INSERT INTO activities (
-      id, source_filename, source_file_hash, start_time, name, sport,
+      id, source_filename, source_file_hash, start_time, name, sport, is_treadmill,
       run_type, auto_run_type, distance_meters, duration_seconds, elapsed_seconds,
       avg_pace_sec_km, avg_heart_rate, max_heart_rate, avg_cadence, max_cadence,
       calories, elevation_gain_m, elevation_loss_m, avg_temperature,
@@ -171,7 +175,7 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
       tags,
       training_load, z1_seconds, z2_seconds, z3_seconds, z4_seconds, z5_seconds
     ) VALUES (
-      ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?,
       ?, ?, ?, ?,
@@ -256,6 +260,7 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
       metadata.date,
       metadata.name,
       metadata.sport,
+      Number(metadata.isTreadmill),
       runType,
       classification.runType,
       metadata.totalDistanceMeters,

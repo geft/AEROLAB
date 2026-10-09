@@ -178,11 +178,13 @@ export function activityFromRow(value: unknown): Activity {
   const run_type = row.run_type;
   if (name != null && typeof name !== 'string') throw new Error('Invalid activities.name');
   if (run_type != null && typeof run_type !== 'string') throw new Error('Invalid activities.run_type');
+  if (row.is_treadmill != null && row.is_treadmill !== 0 && row.is_treadmill !== 1) throw new Error('Invalid activities.is_treadmill');
   return {
     ...row,
     id, start_time, distance_meters, duration_seconds,
     name: name ?? null,
     run_type: run_type ?? null,
+    is_treadmill: row.is_treadmill === 1,
     avg_pace_sec_km: nullableNumber(row, 'avg_pace_sec_km', 'activities'),
     avg_heart_rate: nullableNumber(row, 'avg_heart_rate', 'activities'),
     avg_cadence: nullableNumber(row, 'avg_cadence', 'activities'),

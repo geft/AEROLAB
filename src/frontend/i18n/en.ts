@@ -262,6 +262,8 @@ export const en: Translations = {
     distance: 'Distance',
     movingTime: 'Moving Time',
     avgPace: 'Avg Pace',
+    treadmillActivity: 'Treadmill',
+    treadmillMetricsNote: 'Indoor pace and distance may need calibration. Time and heart rate remain useful.',
     avgHeartRate: 'Avg Heart Rate',
     maxHeartRate: 'Max HR',
     trainingLoad: 'Training Load',

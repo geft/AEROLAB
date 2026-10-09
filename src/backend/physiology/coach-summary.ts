@@ -7,6 +7,7 @@ import { assertDatabaseWritable } from '../application/database-operations.js';
 import type { CoachMessages } from '../../shared/coaching.js';
 import type { SessionVerdict } from '../../shared/session-verdict.js';
 import { getHeartRateProfileAtDate } from './threshold-tracker.js';
+import { calculateActivityTrainingLoad } from './training-load.js';
 import { resolveHeartRateProfile } from '../../shared/heart-rate.js';
 import { PauseBreakdown, extractSteadyStateMetrics } from './economy.js';
 import { ZoneDistribution } from './zones.js';
@@ -64,6 +65,7 @@ export interface CoachSummary {
 export function generateCoachSummary(params: {
   runType: string;
   sessionTags?: string[];
+  isTreadmill?: boolean;
   distanceKm: number;
   durationMin: number;
   avgPaceSecKm: number;
@@ -135,6 +137,7 @@ export function generateCoachSummary(params: {
   const hasMarathonPaceBlocks = runType === 'marathon_pace' ||
     (runType === 'long_run' && (params.sessionTags || []).includes('Marathon Pace'));
   const insights = createInsightLog();
+  if (params.isTreadmill) insights.add('neutral', coachMessage('insight.treadmill_pace_context'));
 
   // Failed workout alert
   if (params.isFailedWorkout) {
@@ -168,7 +171,7 @@ export function generateCoachSummary(params: {
   // Aerobic decoupling / Cardiac Drift insight (applies ONLY to steady continuous aerobic runs)
   const isSteadyAerobic = runType === 'easy_base' || runType === 'long_run' || runType === 'recovery' || runType === 'accidental_tempo';
   const driftTarget = driftTargetFor(ambientTempC, params.durationMin ?? null);
-  if (isSteadyAerobic && decouplingPct !== null) {
+  if (isSteadyAerobic && !params.isTreadmill && decouplingPct !== null) {
     const conditionNote = driftTarget.conditionsAdjusted ? coachMessage("fragment.over_min", { p0: ambientTempC !== null ? coachMessage("fragment.c", { p0: ambientTempC }) : coachMessage("fragment.these_conditions"), p1: Math.round(params.durationMin) }) : '';
     if (decouplingPct <= driftTarget.fullAtPct) {
       insights.add('positive', coachMessage("insight.superb_cardiovascular_stability_with_only_drift_at_or", { p0: decouplingPct.toFixed(1), p1: driftTarget.fullAtPct, p2: conditionNote || coachMessage('fragment.these_conditions') }));
@@ -424,7 +427,7 @@ export function generateCoachSummary(params: {
   // Walk breaks are coaching information, not a moral judgement: explain what
   // they were for, and only flag the ones that actually cost the session.
   const walkAudit = rubric.walkAudit;
-  if (walkAudit && walkAudit.rawBlockCount > 0) {
+  if (!params.isTreadmill && walkAudit && walkAudit.rawBlockCount > 0) {
     const walkPct = ((walkAudit.walkSec / walkAudit.movingSec) * 100).toFixed(1);
     const deliberateSec = walkAudit.deliberateWalkSec + walkAudit.preventiveWalkSec;
     if (walkAudit.recoveryWalkSec >= 20) {
@@ -464,7 +467,7 @@ export function generateCoachSummary(params: {
   // Pacing stability is measured on the kilometres actually run, so city
   // navigation (lights, junctions, turns) is reported rather than charged.
   const pacing = rubric.pacing;
-  if (pacing && pacing.source === 'records' && pacing.sampleCount >= 5 && pacing.affectedCount >= 1) {
+  if (!params.isTreadmill && pacing && pacing.source === 'records' && pacing.sampleCount >= 5 && pacing.affectedCount >= 1) {
     const trendNote = Math.abs(pacing.trendSecPerKm) >= 2
       ? coachMessage(pacing.trendSecPerKm > 0 ? 'fragment.pace_slowdown' : 'fragment.pace_progression', { delta: Math.abs(pacing.trendSecPerKm).toFixed(1) })
       : '';
@@ -602,7 +605,8 @@ export function syncActivityCoachSummary(
   const intervals = db.prepare('SELECT * FROM activity_intervals WHERE activity_id = ? ORDER BY interval_index ASC').all(activityId).map(activityIntervalFromRow);
   const splits = db.prepare('SELECT * FROM activity_splits WHERE activity_id = ? ORDER BY split_index ASC').all(activityId).map(activitySplitFromRow);
 
-  const { maxHr: maxHeartRate, restingHr, lt1Hr, lt2Hr } = getHeartRateProfileAtDate(db, activity.start_time, activityId);
+  const profile = getHeartRateProfileAtDate(db, activity.start_time, activityId);
+  const { maxHr: maxHeartRate, restingHr, lt1Hr, lt2Hr } = profile;
 
   // Personal baseline comparison against the athlete's own prior comparable runs.
   // Steady-state values win over the raw columns so the pace-specific comparison
@@ -629,6 +633,7 @@ export function syncActivityCoachSummary(
   `).get(activityId, activity.start_time) as { avg_temp: number | null } | undefined;
   const coachSummary = generateCoachSummary({
     sessionTags: Array.isArray(sessionTags) ? sessionTags : [],
+    isTreadmill: activity.is_treadmill,
     runType: overrides?.runType || activity.run_type || 'easy_base',
     distanceKm: (activity.distance_meters || 0) / 1000,
     durationMin: (activity.duration_seconds || 0) / 60,
@@ -698,42 +703,49 @@ export function syncActivityCoachSummary(
   if (options.persist === false) return coachSummary;
   assertDatabaseWritable();
 
-  db.prepare(`
-    INSERT INTO activity_coach_summaries (
-      activity_id, headline, effectiveness_score, key_insights_json, insight_tones_json,
-      recommendation, steady_pace_sec_km, steady_heart_rate,
-      steady_cadence, steady_stance_time, pause_breakdown_json, score_breakdown_json,
-      analysis_json, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    ON CONFLICT(activity_id) DO UPDATE SET
-      headline = excluded.headline,
-      effectiveness_score = excluded.effectiveness_score,
-      key_insights_json = excluded.key_insights_json,
-      insight_tones_json = excluded.insight_tones_json,
-      recommendation = excluded.recommendation,
-      steady_pace_sec_km = excluded.steady_pace_sec_km,
-      steady_heart_rate = excluded.steady_heart_rate,
-      steady_cadence = excluded.steady_cadence,
-      steady_stance_time = excluded.steady_stance_time,
-      pause_breakdown_json = excluded.pause_breakdown_json,
-      score_breakdown_json = excluded.score_breakdown_json,
-      analysis_json = excluded.analysis_json,
-      updated_at = CURRENT_TIMESTAMP
-  `).run(
-    activityId,
-    coachSummary.headline,
-    coachSummary.effectivenessScore,
-    JSON.stringify(coachSummary.keyInsights),
-    JSON.stringify(coachSummary.insightTones || []),
-    coachSummary.recommendation,
-    pauseBreakdown.steadyPaceSecKm,
-    pauseBreakdown.steadyHeartRate,
-    pauseBreakdown.steadyCadence,
-    pauseBreakdown.steadyStanceTimeMs,
-    JSON.stringify(pauseBreakdown),
-    JSON.stringify(coachSummary.scoreBreakdown),
-    JSON.stringify(analysis)
-  );
+  const load = calculateActivityTrainingLoad(records, profile,
+    { durationSeconds: activity.duration_seconds, avgHeartRate: activity.avg_heart_rate });
+  db.transaction(() => {
+    db.prepare(`UPDATE activities SET training_load=?,z1_seconds=?,z2_seconds=?,z3_seconds=?,z4_seconds=?,z5_seconds=? WHERE id=?`)
+      .run(load.trainingLoad, load.zones.z1Seconds, load.zones.z2Seconds, load.zones.z3Seconds,
+        load.zones.z4Seconds, load.zones.z5Seconds, activityId);
+    db.prepare(`
+      INSERT INTO activity_coach_summaries (
+        activity_id, headline, effectiveness_score, key_insights_json, insight_tones_json,
+        recommendation, steady_pace_sec_km, steady_heart_rate,
+        steady_cadence, steady_stance_time, pause_breakdown_json, score_breakdown_json,
+        analysis_json, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(activity_id) DO UPDATE SET
+        headline = excluded.headline,
+        effectiveness_score = excluded.effectiveness_score,
+        key_insights_json = excluded.key_insights_json,
+        insight_tones_json = excluded.insight_tones_json,
+        recommendation = excluded.recommendation,
+        steady_pace_sec_km = excluded.steady_pace_sec_km,
+        steady_heart_rate = excluded.steady_heart_rate,
+        steady_cadence = excluded.steady_cadence,
+        steady_stance_time = excluded.steady_stance_time,
+        pause_breakdown_json = excluded.pause_breakdown_json,
+        score_breakdown_json = excluded.score_breakdown_json,
+        analysis_json = excluded.analysis_json,
+        updated_at = CURRENT_TIMESTAMP
+    `).run(
+      activityId,
+      coachSummary.headline,
+      coachSummary.effectivenessScore,
+      JSON.stringify(coachSummary.keyInsights),
+      JSON.stringify(coachSummary.insightTones || []),
+      coachSummary.recommendation,
+      pauseBreakdown.steadyPaceSecKm,
+      pauseBreakdown.steadyHeartRate,
+      pauseBreakdown.steadyCadence,
+      pauseBreakdown.steadyStanceTimeMs,
+      JSON.stringify(pauseBreakdown),
+      JSON.stringify(coachSummary.scoreBreakdown),
+      JSON.stringify(analysis)
+    );
+  })();
 
   // The values just generated and persisted are already validated domain data.
   // Read only the database-generated timestamp, rather than reparsing our JSON.

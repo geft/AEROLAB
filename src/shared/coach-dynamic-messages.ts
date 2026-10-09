@@ -1,4 +1,5 @@
 export const COACH_DYNAMIC_MESSAGE_IDS = [
+  "insight.treadmill_pace_context",
   "description.sustained_completion",
   "category.sustained_intensity",
   "description.sustained_intensity",

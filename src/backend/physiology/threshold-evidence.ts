@@ -6,6 +6,7 @@ import { MAX_OBSERVED_GAP_SECONDS, sameTimerSegment } from './time-series.js';
 import type { ThresholdEvidenceObservation } from '../../shared/threshold-evidence.js';
 
 interface EvidenceRow {
+  is_treadmill?: number;
   id: number; source_activity_id: string | null; source_kind: string; effective_date: string;
   lt1_hr: number | null; lt1_pace_sec_km: number | null;
   lt2_hr: number | null; lt2_pace_sec_km: number | null;
@@ -131,12 +132,13 @@ export function thresholdEvidenceObservations(db: Database.Database) {
   const hasThresholds = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='physiological_thresholds'").get();
   const activityColumns = new Set((db.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>).map(c => c.name));
   const failedColumn = activityColumns.has('manual_failed_workout') ? 'a.manual_failed_workout' : 'NULL AS manual_failed_workout';
-  const rows = (hasThresholds ? db.prepare(`SELECT p.*, a.run_type, ${failedColumn} FROM physiological_thresholds p
+  const environmentColumn = activityColumns.has('is_treadmill') ? 'a.is_treadmill' : '0 AS is_treadmill';
+  const rows = (hasThresholds ? db.prepare(`SELECT p.*, a.run_type, ${failedColumn}, ${environmentColumn} FROM physiological_thresholds p
     LEFT JOIN activities a ON a.id=p.source_activity_id ORDER BY p.effective_date, p.id`).all() : []) as EvidenceRow[];
   const lt1: ThresholdEvidenceObservation[] = [], lt2: ThresholdEvidenceObservation[] = [];
   for (const row of rows) {
     const external = row.source_kind === 'external';
-    if (!external && row.manual_failed_workout === 1) continue;
+    if (!external && (row.manual_failed_workout === 1 || row.is_treadmill === 1)) continue;
     let records: ActivityRecord[] | undefined;
     const telemetry = () => records ??= row.source_activity_id ? loadAnalysisRecords(db, row.source_activity_id) : [];
     const temperature = () => {

@@ -96,8 +96,9 @@ function loadEvidence(db: Database.Database, fromDate: string, toDate: string): 
   if (['id', 'start_time', 'sport', 'run_type', 'duration_seconds'].some(name => !columns.has(name)))
     return { activities: [], observations: [] };
   const failed = columns.has('manual_failed_workout') ? 'AND COALESCE(manual_failed_workout, 0) = 0' : '';
+  const environment = columns.has('is_treadmill') ? 'AND is_treadmill = 0' : '';
   const activities = db.prepare(`SELECT id, start_time FROM activities WHERE sport = 'running'
-    AND (run_type = 'long_run' OR run_type IN ('easy_base', 'tempo') AND duration_seconds >= 3600) ${failed}
+    AND (run_type = 'long_run' OR run_type IN ('easy_base', 'tempo') AND duration_seconds >= 3600) ${failed} ${environment}
     AND datetime(start_time) BETWEEN datetime(?) AND datetime(?) ORDER BY start_time`)
     .all(fromDate, toDate) as EvidenceSnapshot['activities'];
   const observations = activities.flatMap(activity => {

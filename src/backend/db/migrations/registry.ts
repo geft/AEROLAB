@@ -1,4 +1,5 @@
-import { migrateCompression } from '../compression.js';
+import { migrateCompression, decodeStoredJson } from '../compression.js';
+import { isTreadmillFitMetadata } from '../../../shared/activity-environment.js';
 import { loadAnalysisRecords } from '../analysis-records.js';
 import { activityRecordFromRow } from '../rows.js';
 import type Database from 'better-sqlite3';
@@ -15,7 +16,7 @@ import type { createMigrationRunner } from '../migrations.js';
 
 type Runner = ReturnType<typeof createMigrationRunner>;
 
-export const ANALYSIS_UPGRADES = ['signal-classification-v1', 'effort-structure-v1', 'stride-recovery-v1', 'historical-fitness-v1', 'recovery-hrr-v1', 'fit-structure-v1', 'analysis-telemetry-policy-v1', 'structured-tempo-v1', 'coaching-prose-v1', 'coaching-duration-v1', 'coaching-running-evidence-v1', 'classification-telemetry-v1', 'sustained-work-v1'] as const;
+export const ANALYSIS_UPGRADES = ['signal-classification-v1', 'effort-structure-v1', 'stride-recovery-v1', 'historical-fitness-v1', 'recovery-hrr-v1', 'fit-structure-v1', 'analysis-telemetry-policy-v1', 'structured-tempo-v1', 'coaching-prose-v1', 'coaching-duration-v1', 'coaching-running-evidence-v1', 'classification-telemetry-v1', 'sustained-work-v1', 'treadmill-analysis-v1'] as const;
 
 /** Essential compatibility changes always run before scheduling analysis. */
 export function runSchemaMigrations(db: Database.Database, migrations: Runner): void {
@@ -101,6 +102,15 @@ export function runSchemaMigrations(db: Database.Database, migrations: Runner): 
   });
 
   register('lossless-fit-gzip-v1', () => migrateCompression(db));
+
+  register('activity-environment-v1', () => {
+    const columns = new Set((db.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>).map(column => column.name));
+    if (!columns.has('is_treadmill')) db.exec('ALTER TABLE activities ADD COLUMN is_treadmill INTEGER NOT NULL DEFAULT 0');
+    const update = db.prepare('UPDATE activities SET is_treadmill = ? WHERE id = ?');
+    const details = db.prepare('SELECT activity_id, metadata_json FROM activity_fit_details').all() as
+      Array<{ activity_id: string; metadata_json: string | Buffer }>;
+    for (const detail of details) update.run(Number(isTreadmillFitMetadata(JSON.parse(decodeStoredJson(detail.metadata_json)))), detail.activity_id);
+  });
 
   for (const step of steps) migrations.run(step.id, step.apply);
 }

@@ -4,6 +4,7 @@ export interface ActivityMetadata {
   name: string;
   date: string;
   sport: string;
+  isTreadmill?: boolean;
   totalDistanceMeters: number;
   totalDurationSeconds: number;
   totalElapsedSeconds: number;

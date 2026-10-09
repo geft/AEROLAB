@@ -303,6 +303,7 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
                       {(t.runTypes as Record<string, string | undefined>)[a.run_type ?? ''] || (a.run_type || 'Easy').replace('_', ' ')}
                     </span>
                   </div>
+                  {a.is_treadmill && <span className="activity-context-badge">{t.browse.treadmillActivity}</span>}
                   {isRace && <div className="session-name">{getDisplayTitle(a, t)}</div>}
                   <div className="session-stats">
                     <span>{distKm} km</span>

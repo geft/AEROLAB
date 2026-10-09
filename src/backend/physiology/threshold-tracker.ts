@@ -28,7 +28,7 @@ export function getStridePaceAnchorSecKmAtDate(db: Database.Database, runDate: s
     const prior = (date: string) => Number.isFinite(thresholdTime(date)) && thresholdTime(date) < ref;
     const lt2Row = (db.prepare(`SELECT lt2_pace_sec_km, effective_date, confidence, source_activity_id
       FROM physiological_thresholds WHERE lt2_pace_sec_km IS NOT NULL
-        AND (source_kind='external' OR source_activity_id NOT IN (SELECT id FROM activities WHERE manual_failed_workout=1))
+        AND (source_kind='external' OR source_activity_id NOT IN (SELECT id FROM activities WHERE manual_failed_workout=1 OR is_treadmill=1))
       ORDER BY id DESC`).all() as
       Array<{ lt2_pace_sec_km: number; effective_date: string; confidence: number; source_activity_id: string | null }>)
       .filter(row => row.source_activity_id !== excludeActivityId && prior(row.effective_date) && row.confidence > 0 && row.confidence <= 1 &&
@@ -42,7 +42,7 @@ export function getStridePaceAnchorSecKmAtDate(db: Database.Database, runDate: s
       SELECT a.id, a.run_type, a.start_time, i.avg_pace_sec_km
       FROM activities a JOIN activity_intervals i ON i.activity_id = a.id
       WHERE a.run_type IN ('threshold_lt2', 'intervals_vo2')
-        AND COALESCE(a.manual_failed_workout, 0) = 0
+        AND COALESCE(a.manual_failed_workout, 0) = 0 AND a.is_treadmill = 0
         AND i.type = 'work' AND i.duration_seconds >= 60
         AND i.avg_pace_sec_km BETWEEN 120 AND 1200
       ORDER BY a.id DESC, i.interval_index ASC
@@ -283,6 +283,9 @@ export function evaluateThresholdUpdate(
   let estimatedLt2Hr: number | null = null;
   let estimatedLt2Pace: number | null = null;
   let lt1Confidence = 0.88;
+
+  // Unknown belt calibration and incline cannot establish a pace-based threshold.
+  if (metadata.isTreadmill) return { lt1Hr: null, lt1PaceSecKm: null, lt2Hr: null, lt2PaceSecKm: null, baselineEconomyEf: null };
 
   const profile = historicalProfile ?? getAthleteHeartRateProfile(db);
   const { maxHr: effMax, restingHr: effRhr, lt2Hr: profileLt2Hr } = profile;
@@ -603,7 +606,7 @@ export function evaluateThresholdUpdate(
   // 3. Compute 30-day rolling baseline economy
   const ref = thresholdTime(runDate);
   const recentEconomy = (db.prepare(`SELECT start_time, efficiency_factor FROM activities
-    WHERE efficiency_factor IS NOT NULL`).all() as Array<{ start_time: string; efficiency_factor: number }>)
+    WHERE efficiency_factor IS NOT NULL AND is_treadmill = 0`).all() as Array<{ start_time: string; efficiency_factor: number }>)
     .filter(row => thresholdTime(row.start_time) <= ref && ref - thresholdTime(row.start_time) <= 30 * 86400000);
   const avgEf = recentEconomy.length ? recentEconomy.reduce((sum, row) => sum + row.efficiency_factor, 0) / recentEconomy.length : null;
   const baselineEconomyEf = avgEf ? Number(avgEf.toFixed(4)) : economy.efficiencyFactor;

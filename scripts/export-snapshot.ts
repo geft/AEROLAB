@@ -20,7 +20,7 @@ const outputPath = path.resolve('snapshot-data', SNAPSHOT_FILENAME);
 // Deliberate wire allowlist. In particular, no activity GPS, detailed record
 // coordinates, database paths, profile location, route names, or credentials.
 const activityFields = new Set([
-  'id', 'name', 'start_time', 'sport', 'run_type', 'auto_run_type', 'distance_meters',
+  'id', 'name', 'start_time', 'sport', 'is_treadmill', 'run_type', 'auto_run_type', 'distance_meters',
   'duration_seconds', 'elapsed_seconds', 'avg_pace_sec_km', 'avg_heart_rate', 'max_heart_rate',
   'avg_cadence', 'max_cadence', 'calories', 'elevation_gain_m', 'elevation_loss_m',
   'avg_temperature', 'avg_vertical_oscillation', 'avg_stance_time', 'efficiency_factor',

@@ -301,6 +301,8 @@ export interface Translations {
     distance: string;
     movingTime: string;
     avgPace: string;
+    treadmillActivity: string;
+    treadmillMetricsNote: string;
     avgHeartRate: string;
     maxHeartRate: string;
     trainingLoad: string;

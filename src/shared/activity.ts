@@ -6,6 +6,7 @@ export interface Activity {
   name: string | null;
   start_time: string;
   sport?: string | null;
+  is_treadmill?: boolean;
   run_type: string | null;
   auto_run_type?: string | null;
   distance_meters: number;

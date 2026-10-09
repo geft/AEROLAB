@@ -52,6 +52,7 @@ export interface CoachContext {
 }
 
 export interface HistoryRow {
+  is_treadmill?: boolean;
   id: string;
   start_time: string;
   run_type?: string | null;
@@ -67,6 +68,7 @@ export interface HistoryRow {
 }
 
 export interface CurrentRun {
+  isTreadmill?: boolean;
   id: string;
   start_time: string;
   runType: string;
@@ -129,10 +131,10 @@ export function buildCoachContext(
   });
 
   const family: RunFamily = runFamilyOf(current.runType);
-  const comparable = prior.filter(row => runFamilyOf(row.run_type || 'easy_base') === family);
+  const comparable = current.isTreadmill ? [] : prior.filter(row => !row.is_treadmill && runFamilyOf(row.run_type || 'easy_base') === family);
 
   const lastSimilar = current.distanceKm > 0 && current.steadyPaceSecKm && current.steadyHr
-    ? prior
+    ? comparable
         .filter(row => {
           const distanceKm = (row.distance_meters ?? 0) / 1000;
           return row.run_type === current.runType &&
@@ -244,7 +246,7 @@ export function buildCoachContext(
  * genuinely meaningful are surfaced; silent metrics stay silent.
  */
 export function buildContextInsights(ctx: CoachContext | null | undefined): CoachInsight[] {
-  if (!ctx || ctx.comparableRuns < 2) return [];
+  if (!ctx) return [];
   const insights = createInsightLog();
 
   // 1. Training load context (explains why today felt the way it did)
@@ -312,8 +314,10 @@ export function loadCoachHistoryContext(
 ): CoachContext | null {
   if (!db || !activity || !activity.start_time) return null;
   try {
+    const columns = db.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>;
+    const environment = columns.some(column => column.name === 'is_treadmill') ? 'is_treadmill' : '0 AS is_treadmill';
     const rows = db.prepare(`
-      SELECT id, start_time, run_type, distance_meters, duration_seconds, efficiency_factor,
+      SELECT id, start_time, run_type, ${environment}, distance_meters, duration_seconds, efficiency_factor,
              aerobic_decoupling_pct, avg_cadence, avg_heart_rate,
              steady_heart_rate, avg_pace_sec_km, steady_pace_sec_km, training_load
       FROM activities
@@ -325,6 +329,7 @@ export function loadCoachHistoryContext(
     if (!rows || rows.length === 0) return null;
 
     const current: CurrentRun = {
+      isTreadmill: activity.is_treadmill,
       id: String(activity.id),
       start_time: String(activity.start_time),
       runType: activity.run_type || 'easy_base',

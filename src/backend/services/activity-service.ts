@@ -449,7 +449,10 @@ export function getActivityDetailService(db: Database.Database, id: string, opti
   } else {
     const persist = options.persistCoachSummary !== false;
     coachSummary = withDatabaseOperation('analysis', () => syncActivityCoachSummary(db, id, undefined, { persist }));
-    if (persist && coachSummary) freshness = { revision: ANALYSIS_REVISION, status: 'fresh' };
+    if (persist && coachSummary) {
+      freshness = { revision: ANALYSIS_REVISION, status: 'fresh' };
+      Object.assign(activity, activityFromRow(db.prepare('SELECT * FROM activities WHERE id = ?').get(id)));
+    }
   }
 
   return {

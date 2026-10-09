@@ -294,7 +294,7 @@ export function calculateEconomy(records: ActivityRecord[]): EconomyMetrics {
 export function calculateKmSplits(records: ActivityRecord[], splitDistanceMeters: number = 1000): SplitLap[] {
   if (!records || records.length < 2 || !Number.isFinite(splitDistanceMeters) || splitDistanceMeters <= 0) return [];
   const splits: SplitLap[] = [];
-  const metricFloors = { heartRate: 0, cadence: 50, stanceTime: 100, verticalOscillation: 0 } as const;
+  const metricFloors = { heartRate: 0, cadence: 50, stanceTime: 100, verticalOscillation: 0, verticalRatio: 0, stepLength: 0 } as const;
   type Metric = keyof typeof metricFloors;
   const metrics = Object.keys(metricFloors) as Metric[];
   const emptyWeights = () => Object.fromEntries(metrics.map(key => [key, { sum: 0, seconds: 0 }])) as Record<Metric, { sum: number; seconds: number }>;
@@ -319,7 +319,10 @@ export function calculateKmSplits(records: ActivityRecord[], splitDistanceMeters
         const stance = mean('stanceTime');
         const vo = mean('verticalOscillation');
         const speed = distance / duration;
-        const strideLengthCm = cadence && cadence > 0 ? speed / (cadence / 120) * 100 : 0;
+        const recordedStepLengthMm = mean('stepLength');
+        const stepLengthMeters = recordedStepLengthMm != null ? recordedStepLengthMm / 1000
+          : cadence && cadence > 0 ? speed / (cadence / 60) : 0;
+        const verticalRatio = mean('verticalRatio') ?? (vo && stepLengthMeters > 0 ? vo / (stepLengthMeters * 1000) * 100 : null);
         splits.push({
           splitIndex: splits.length + 1,
           distanceMeters: Number(distance.toFixed(1)),
@@ -332,7 +335,7 @@ export function calculateKmSplits(records: ActivityRecord[], splitDistanceMeters
           avgCadence: cadence == null ? null : Math.round(cadence),
           avgStanceTimeMs: stance == null ? null : Number(stance.toFixed(1)),
           avgVertOscMm: vo == null ? null : Number(vo.toFixed(1)),
-          avgVertRatioPct: vo && strideLengthCm > 0 ? Number((vo / 10 / strideLengthCm * 100).toFixed(2)) : null
+          avgVertRatioPct: verticalRatio == null ? null : Number(verticalRatio.toFixed(2))
         });
       }
       startMeters = endMeters;

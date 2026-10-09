@@ -100,7 +100,7 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
         OR source_activity_id IN (
           SELECT t.source_activity_id FROM physiological_thresholds t
           JOIN activities a ON a.id = t.source_activity_id
-          WHERE a.manual_failed_workout = 1
+          WHERE a.manual_failed_workout = 1 OR a.is_treadmill = 1
             OR (t.lt2_hr IS NOT NULL AND a.run_type NOT IN ('threshold_lt2', 'race'))
             OR (t.lt1_hr IS NOT NULL AND t.lt2_hr IS NULL AND a.run_type NOT IN ('easy_base', 'long_run'))
         )
@@ -128,6 +128,7 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
           id: act.id,
           name: act.name ?? '',
           sport: act.sport ?? 'running',
+          isTreadmill: act.is_treadmill,
           date: act.start_time,
           totalDistanceMeters: act.distance_meters,
           totalDurationSeconds: act.duration_seconds,
