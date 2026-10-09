@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isTreadmillFitMetadata } from '../../src/shared/activity-environment.js';
 import { calculateKmSplits } from '../../src/backend/physiology/economy.js';
-import { buildCoachContext } from '../../src/backend/physiology/coach-history.js';
+import { buildCoachContext, buildContextInsights } from '../../src/backend/physiology/coach-history.js';
 import { workoutTrace } from '../fixtures/workout-trace.js';
 
 describe('Treadmill metric boundaries', () => {
@@ -35,5 +35,6 @@ describe('Treadmill metric boundaries', () => {
     expect(indoor.baselineEf).toBeNull();
     expect(indoor.lastSimilarRun).toBeNull();
     expect(indoor.acute7DayLoad).toBe(40);
+    expect(buildContextInsights(indoor)).toEqual([]);
   });
 });

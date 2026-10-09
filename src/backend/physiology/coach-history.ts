@@ -246,7 +246,7 @@ export function buildCoachContext(
  * genuinely meaningful are surfaced; silent metrics stay silent.
  */
 export function buildContextInsights(ctx: CoachContext | null | undefined): CoachInsight[] {
-  if (!ctx) return [];
+  if (!ctx || ctx.comparableRuns < 2) return [];
   const insights = createInsightLog();
 
   // 1. Training load context (explains why today felt the way it did)
