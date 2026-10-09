@@ -53,7 +53,7 @@ describe('Database Ingestion Pipeline (Integration)', () => {
     expect(read()).toEqual(first);
     realignDatabase(db);
     expect(read()).toEqual(first);
-  });
+  }, 15000); // Imports every benchmark and performs three complete history replays.
 
   it('imports activity, computes running economy, and stores splits & records', () => {
     const weatherFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Unexpected weather lookup'));

@@ -17,7 +17,7 @@ describe('dependency boundaries including type-only imports', () => {
     ['src/frontend/features/browse/fixture.ts', "import type { State } from './useActivityDetail.js';"]
   ])('rejects %s: %s', async (file, code) => {
     expect(await boundaries(code, file)).toHaveLength(1);
-  });
+  }, 15000); // Cold ESLint initialization can exceed five seconds on Windows CI.
   it.each([
     ['src/backend/domain/fixture.ts', "import type { Message } from '../../shared/coaching.js';"],
     ['src/shared/fixture.ts', "export * from './activity.js';"],
@@ -25,5 +25,5 @@ describe('dependency boundaries including type-only imports', () => {
     ['src/frontend/components/BrowseView.tsx', "import { useActivityDetail } from '../features/browse/useActivityDetail.js';"]
   ])('allows %s: %s', async (file, code) => {
     expect(await boundaries(code, file)).toHaveLength(0);
-  });
+  }, 15000);
 });
