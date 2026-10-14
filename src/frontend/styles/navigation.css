@@ -6,6 +6,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
   padding: 1rem 2rem;
   background: var(--navbar-bg);
   backdrop-filter: blur(12px);
@@ -15,6 +17,7 @@
 
 .nav-brand {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 0.75rem;
   font-family: var(--font-heading);
@@ -31,6 +34,7 @@
 
 .nav-tabs {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   background: rgba(255, 255, 255, 0.04);
   padding: 0.25rem;
@@ -44,6 +48,8 @@
 
 .nav-tab-btn {
   display: inline-flex;
+  flex-shrink: 0;
+  white-space: nowrap;
   align-items: center;
   gap: 0.45rem;
   background: transparent;
@@ -95,6 +101,7 @@
 
 .nav-actions {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 0.75rem;
 }
@@ -111,6 +118,8 @@
 
 .theme-toggle-btn {
   display: flex;
+  flex-shrink: 0;
+  white-space: nowrap;
   align-items: center;
   gap: 0.45rem;
   background: rgba(255, 255, 255, 0.05);
@@ -274,6 +283,8 @@
 
 .upload-btn {
   display: flex;
+  flex-shrink: 0;
+  white-space: nowrap;
   align-items: center;
   gap: 0.5rem;
   background: rgba(255, 255, 255, 0.06);
@@ -286,6 +297,10 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+.nav-import-actions .upload-btn svg {
+  flex-shrink: 0;
 }
 
 .nav-import-actions {
@@ -549,15 +564,14 @@
   .navbar {
     padding: 0.65rem 1rem;
     gap: 0.5rem;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
   }
   .nav-brand {
     flex-shrink: 0;
   }
   .nav-tabs {
     padding: 0.2rem;
-    flex-shrink: 1;
-    min-width: 0;
+    flex-shrink: 0;
     gap: 0.15rem;
   }
   .nav-tab-btn {

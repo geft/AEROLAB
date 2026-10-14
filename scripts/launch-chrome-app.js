@@ -194,8 +194,7 @@ async function main() {
     const browserArgs = [
       `--app=${appUrl}`,
       `--user-data-dir=${profileDir}`,
-      '--window-size=1440,920',
-      '--window-position=center',
+      '--start-maximized',
       '--disable-extensions',
       '--disable-component-extensions-with-background-pages',
       '--no-first-run',
