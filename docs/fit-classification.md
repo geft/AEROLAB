@@ -1,8 +1,8 @@
 # FIT telemetry and classification
 
-Implemented October 3, 2026. Local database audit: 339 runs, including 196 with
-FIT metadata from February 2, 2026 onward. Earlier runs keep telemetry-only
-detection; availability is checked per activity rather than by a date cutoff.
+Implemented October 3, 2026. Activities without usable FIT metadata keep
+telemetry-only detection; availability is checked per activity rather than by a
+date cutoff. Personal dataset coverage belongs in private evaluation reports.
 
 ## Incorporated
 
@@ -38,9 +38,9 @@ and [workout intensity documentation](https://developer.garmin.com/fit/articles/
 
 ## Other stored telemetry
 
-The audit found 204,499 records with measured step length and vertical ratio.
-Power, respiration rate, and core temperature had zero populated records.
-The replay query now includes all additional typed telemetry columns so these
+Measured step length and vertical ratio are used where present. Power,
+respiration rate, and core temperature require usable data before evaluation.
+The replay query includes all additional typed telemetry columns so these
 fields remain available for future analysis without reading large raw FIT JSON.
 
 | Telemetry | Current use / refinement decision |

@@ -282,7 +282,7 @@ AEROLAB operates on a **single embedded SQLite WAL database file**. Development 
 
 ### 3. Stats View
 - **Physiological Benchmark Cards**: Current LT1 Pace & HR, LT2 Pace & HR, VO2 Max estimate, and 30-day baseline Running Economy.
-- **Calibrated Heart Rate Zones**: 5-zone cardiovascular distribution dynamically derived from HRR, LT1 ceiling (~148 bpm), and LT2 turnpoint (~172 bpm).
+- **Calibrated Heart Rate Zones**: 5-zone cardiovascular distribution dynamically derived from HRR, the individual LT1 ceiling, and the individual LT2 turnpoint.
 - **Training Load**: Acute 7-day load, 28-day chronic baseline, their optimal range, and a status summary; choose a 7–90 day timeline.
 - **Aerobic Turnpoint Margin & Guide**: Measures the pace gap between LT1 easy base and LT2 threshold. Click the info button to open the educational modal featuring benchmark tiers (Optimal <= 50s, Well-Conditioned 50 - 70s, Base Opportunity > 70s).
 - **Calibrated Race Time Predictions**: VDOT-derived finish times, average pace, and kilometer splits for 5K, 10K, Half Marathon, and Marathon, with age- and gender-based benchmark tiers when profile details are available.
@@ -290,7 +290,7 @@ AEROLAB operates on a **single embedded SQLite WAL database file**. Development 
 
 ### 4. Profile View
 - **Cardiovascular Baselines**: Resting HR, Max HR engine, and VO2 Max.
-- **Max Heart Rate Engine & Auto-Inference**: Automatically infers peak heart rate from your hardest actual workout efforts (e.g. 5K time trial at 203 bpm), with an opt-out toggle to auto-estimate via the Tanaka formula (208 - 0.7 * age) or manual baseline entry.
+- **Max Heart Rate Engine & Auto-Inference**: Automatically infers peak heart rate from your hardest actual workout efforts, with an opt-out toggle to auto-estimate via the Tanaka formula (208 - 0.7 * age) or manual baseline entry.
 - **Inferred Physiological Thresholds**: Visual reference card displaying active LT1 and LT2 paces and heart rates calibrated from empirical training sessions.
 - **Local Backups**: Manual SQLite snapshots with a configurable folder, three-file rotation, per-snapshot deletion, and immediate database snapshot download.
 - **Display & Typography**: Font size selector pills with live typography sample preview.

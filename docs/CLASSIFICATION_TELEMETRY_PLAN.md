@@ -16,22 +16,12 @@ exist; the work below refines how the classifier evaluates their evidence.
 
 ## Available data
 
-After the completed reimport, the selected database contains 341 activities and
-709,683 telemetry samples. All 341 activities have saved FIT metadata and their
-original FIT file; none are missing. The refreshed sensor audit counted
-activities with at least one positive reading per channel:
-
-| Channel | Activities | Role in this plan |
-| --- | ---: | --- |
-| Heart rate | 341 | Athlete-relative intensity and sustained exposure |
-| Cadence | 341 | Running, walking, and stationary separation |
-| Speed | 341 | Within-run work/recovery contrast; movement fallback |
-| Ground contact time | 341 | Supporting movement/segmentation evidence |
-| Positive altitude | 340 | Terrain context, where reliable |
-| Running power | 94 | Investigate optional within-run contrast after coverage/device validation |
-| Respiration rate | 0 | Defer until usable data and a baseline exist |
-| FIT metadata | 341 | Validate recorded timer/lap structure per activity |
-| Original FIT file | 341 | Preserve source bytes for export and reproducible analysis |
+Evaluate available heart rate, cadence, speed, ground-contact time, altitude,
+running power, respiration, FIT metadata, and original FIT files. Keep personal
+dataset sizes and channel-coverage counts in private evaluation reports. Heart
+rate supports athlete-relative intensity; cadence, speed, and ground-contact time
+support movement and segmentation. Altitude provides terrain context. Optional
+power and respiration require sufficient coverage and separate validation.
 
 Presence is not completeness. Measure observed duration and usable coverage per
 activity and per rep before relying on a channel. Reimporting all activities
@@ -39,8 +29,7 @@ does not make missing readings, device artifacts, or recording gaps valid data.
 Saved FIT metadata also does not guarantee usable timer events or prescribed
 work/recovery laps. Keep telemetry-only segmentation when that structure is absent.
 
-Power coverage increased from 1 to 94 activities after reimport. Audit device
-provenance, usable duration, and work/recovery contrast on those runs before
+Audit device provenance, usable duration, and work/recovery contrast before
 adding an optional corroborating signal. Keep the initial HR/structure improvements
 independent of power availability; do not introduce absolute watt targets.
 
@@ -142,7 +131,7 @@ and remains compatible with older saved summaries.
   Cover irregular sampling, timer pauses, missing channels, clock offsets,
   sensor spikes, boundary crossings, HR lag, elevated recoveries, walking,
   terrain variation, manual overrides, and raw-record preservation.
-- Replay all 341 activities on a database copy. Review every label transition
+- Replay the full evaluation set on a database copy. Review every label transition
   with its rule and trace measurements; explain intended changes and resolve
   regressions before rollout. Do not optimize for more quality-session labels.
 - Verify held-out reviewed cases, import/replay agreement, repeatable replay,

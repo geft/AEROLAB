@@ -79,20 +79,19 @@ calibration; it is broader than a split-only refresh.
 
 ## Athlete-confirmed historical cases (October 2, 2026)
 
-The [confirmed-run catalog](CONFIRMED_RUNS.md) records the failed July 5 time trial,
-November 27's three VO2 reps, April 30 and May 14 VO2 sessions, and the May 21 and
-September 10 threshold controls. Original sparse telemetry is checked into the
-test fixtures without GPS. Confirmed intent survives replay and force reimport;
-the independent automatic prediction remains available. Confirmed failures do
-not supply threshold calibrations.
+The [confirmed-workout policy](CONFIRMED_RUNS.md) covers failed race attempts,
+longer VO2 repetitions, and threshold controls. Keep personal evaluation data
+private. Confirmed intent survives replay and force reimport; the independent
+automatic prediction remains available. Confirmed failures do not supply
+threshold calibrations.
 
 Longer VO2 bouts of up to ten minutes can qualify when two separate reps each spend at least 120
 seconds and 25% of their duration at or above 91% of athlete max HR. This is an
 explicit evidence policy, not a validated physiological boundary; it avoids a
 six-minute duration ceiling and does not infer VO2 from isolated peaks. A brief
 running dip before a shorter finishing portion no longer invents another rep.
-April, May and failed time-trial intent still require confirmation where recorded
-HR cannot support automatic inference.
+Workout intent still requires confirmation where recorded HR cannot support
+automatic inference.
 
 
 ## Date-specific fitness and regression expansion (October 2, 2026)
@@ -111,28 +110,14 @@ failed calibration rollback, migration persistence, and recording-density/gap
 behavior. Normal 15-second samples now count fully in training load and zones;
 larger gaps and invalid HR do not supply invented duration or LT2 evidence.
 
-The selected 338-activity database replay completed with no failed/skipped
-activities. A second complete replay on an online backup copy reproduced labels,
-calibrations, stored zones and coaching exactly. All six athlete confirmations
-were retained. Compared with the October 2 13:34 UTC backup, these eight
-unconfirmed stored labels changed to threshold:
+Private database replay completed without failed or skipped activities. Repeating
+the replay on a backup reproduced labels, calibrations, stored zones, and
+coaching while retaining confirmations. Individual activity dates, performance
+details, and label transitions are retained only in private evaluation reports.
 
-| Local date | Previous stored label | New stored label |
-| --- | --- | --- |
-| August 28, 2025 | Easy | Threshold |
-| September 2, 2025 | Easy | Threshold |
-| October 17, 2025 | Easy | Threshold |
-| October 22, 2025 | Easy | Threshold |
-| December 20, 2025 | Long run | Threshold |
-| January 3, 2026 | Long run | Threshold |
-| January 31, 2026 | Long run | Threshold |
-| March 5, 2026 | Easy | Threshold |
-
-These are changed algorithm predictions, not newly confirmed ground truth.
-May 14's independent automatic prediction changed from easy to threshold while its
-confirmed VO2 label stayed intact. September 10's automatic prediction changed from
-threshold to easy while its confirmed threshold label stayed intact. Preserve both
-fields so disagreement remains visible rather than passing it off as accuracy.
+Changed algorithm predictions are not newly confirmed ground truth. Preserve
+confirmed intent and independent automatic labels so disagreements remain
+visible rather than being presented as classification accuracy.
 
 Verification: 92 test files / 981 tests, zero TypeScript errors, zero lint errors
 (115 existing warnings), all 733 dictionary keys referenced, and `git diff --check`.

@@ -18,9 +18,9 @@ crossings preserve duration weighting under irregular sampling.
 Continuous threshold requires at least 120 seconds of valid running HR, 60% HR
 coverage, and 35% threshold exposure. Work reps require 60% valid running HR
 coverage. Threshold reps need 50% band exposure, or a mean within 0.5 bpm of the
-band floor with at least 25% exposure. The latter retains the confirmed May 21
-threshold control at the integer-summary rounding boundary without allowing a
-peak alone to certify a rep.
+band floor with at least 25% exposure. The latter preserves threshold controls
+at the integer-summary rounding boundary without allowing a peak alone to
+certify a rep.
 
 VO2 requires at least two work reps, each with at least 20 seconds and 20% of
 the rep above the athlete-relative VO2 boundary, including a continuous 15-second
@@ -38,18 +38,11 @@ contracts remain compatible. Automatic predictions and manual intent remain sepa
 
 ## Evaluation and transition review
 
-The original baseline contains 341 activities. Fixed historical profiles isolate
-classifier changes; a separate chronological replay rebuilds threshold calibration,
-load, tags, segments and coaching. The settled policy produces one automatic and
-effective label change in both comparisons:
-
-| Activity | Before | After | Supporting observations |
-| --- | --- | --- | --- |
-| `garmin_3611393439_1130066804`, October 22, 2025 | Tempo | Threshold | Historical LT2 173 bpm, band floor 169 bpm; 3,487 valid running-HR seconds, 42.4% in band. The second work window contributes 988 band seconds out of 1,198 valid seconds. Walking previously diluted intensity. No sustained VO2 evidence. |
-
-Every other automatic and effective label is retained. Replay processed all 341
-activities with no skips or failures. The athlete confirmed on October 4, 2026
-that the October 22, 2025 session was threshold work.
+Fixed historical profiles isolate classifier changes; a separate chronological
+replay rebuilds threshold calibration, load, tags, segments, and coaching. All
+activities replayed without skips or failures. Individual activity identifiers,
+dates, heart-rate evidence, and label transitions are retained only in private
+evaluation reports.
 A second replay yields identical labels and
 dependent analyses, excluding generated row IDs and timestamps. SHA-256 comparisons
 verify unchanged raw telemetry and original FIT data; override values are unchanged.
@@ -57,20 +50,17 @@ Re-evaluation through the shared import analysis pipeline agrees with all replay
 automatic and effective labels. Two replays plus shared-pipeline verification take
 approximately 39 seconds on this machine, before integrity hashing overhead.
 
-The existing athlete-confirmed fixture supplies race/failure, VO2 and threshold
-intent controls. May 21 was used to review the rounding boundary; the September 10
-threshold control, November long-VO2 control, profile matrix and benchmark suite
-remain regression checks. Synthetic cases cover easy/recovery, long, tempo,
-walking, sensor peaks, missing channels, HR lag, pauses, clock offsets, gaps and
-irregular sampling. Intent confirmations do not imply that every automatic
-prediction can infer the intended workout. No accuracy percentage is claimed.
+Evaluation should include race/failure, longer VO2, and threshold intent controls
+alongside independent profile matrices and benchmark suites. Synthetic cases
+cover easy/recovery, long, tempo, walking, sensor peaks, missing channels, HR lag,
+pauses, clock offsets, gaps, and irregular sampling. Intent confirmations do not
+imply that automatic predictions can always infer intent. No accuracy percentage
+is claimed.
 
-Power remains deferred. Observed positive power spans 94 activities, ranging
-from 718 to 10,922 active seconds. FIT device metadata lists several Garmin
-products and software versions; this does not establish which device supplied
-each individual power reading. Reports include active observed coverage, device
+Power remains deferred. Reports should measure active observed coverage, device
 manufacturer/product provenance, and per-work/recovery means for optional power
-audit. No power or respiration input changes classification or confidence.
+audits. Device metadata alone does not establish the source of individual power
+readings. No power or respiration input changes classification or confidence.
 
 The initial pre-refresh comparison is `final.json` and
 `final-chronological.json`. The later `settled.json` still compares fixed profiles
@@ -81,7 +71,7 @@ Development workspace verification: TypeScript passes; ESLint reports zero error
 and warnings; all 1,268 tests across 122 files pass; all 816 dictionary keys are
 referenced. The isolated commit also passes all four checks: 1,246 tests across
 120 files and all 814 dictionary keys, excluding unrelated pending work.
-The final `settled-chronological.json` verifies all 341 activities, unchanged raw
+The final `settled-chronological.json` verifies the full evaluation set, unchanged raw
 data and overrides, repeatable dependent analyses, and shared-pipeline agreement.
 
 ## Reproduce
