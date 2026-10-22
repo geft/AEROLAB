@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased
+## 1.5.0 — 2026-10-22
+
+### Garmin Connect sync
+
+- Add a **Sync with Garmin** action to the header. It downloads original FIT files from Garmin Connect in batches of 10, importing newer runs first and then backfilling older history without gaps.
+- Keep the Garmin Personal API key out of the database. Configure it in Settings, or provide `GARMIN_API_KEY` through the environment. `GARMIN_API_KEY_EXPIRY` supplies the expiry date for the one-month warning without creating a credentials file.
+- Resume safely after failures or rate limits: the backfill cursor only advances past activities that were fully processed, so retries do not skip runs.
+- Show sync progress, per-activity results, and bilingual key and expiry guidance in English and Chinese.
+
+## 1.4.1 — 2026-10-09
+
+### Run–walk evidence
 
 - Show usable run–walk observations as hollow supporting markers alongside accepted threshold trends, including evidence that has not yet established an estimate. Default the trend to all history, show running-only metrics and lower confidence on selection, and format full dates as YYYYMMDD in both languages.
 

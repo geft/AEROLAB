@@ -246,6 +246,8 @@ export const App: React.FC = () => {
         onTabChange={setActiveTab}
         onOpenUpload={() => setIsUploadOpen(true)}
         onScanImportComplete={handleImportComplete}
+        onGarminSyncComplete={handleImportComplete}
+        onOpenGarminSettings={() => setActiveTab('settings')}
         onOpenBackup={() => setIsBackupOpen(true)}
         theme={theme}
         onToggleTheme={toggleTheme}

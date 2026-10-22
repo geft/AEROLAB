@@ -5,6 +5,7 @@ import { useFontSize, FontSize, FONT_PERCENTAGES } from '../context/FontSizeCont
 import { BackupManagementPanel } from './BackupManagementPanel.js';
 import { DatabaseLocation } from './DatabaseLocation.js';
 import { GarminImportPanel } from './GarminImportPanel.js';
+import { GarminApiPanel } from './GarminApiPanel.js';
 
 export interface SettingsViewProps {
   onRestoreComplete?: () => void;
@@ -30,6 +31,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   return (
     <div className="settings-view">
       <DatabaseLocation />
+      <GarminApiPanel />
       <GarminImportPanel />
       {/* Section 1: Database Backup & Cloud Sync */}
       <section className="overview-card" style={{ padding: '1.75rem' }}>

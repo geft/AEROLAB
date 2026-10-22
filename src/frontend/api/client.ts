@@ -8,6 +8,8 @@ import type {
   BackupSettingsResponse,
   BestEffortsResponse,
   DatabaseStatus,
+  GarminKeyStatus,
+  GarminSyncResponse,
   IngestResultItem,
   MaintenanceStatus,
   ProgressHistoryResponse,
@@ -89,7 +91,8 @@ async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
   const result = body as Record<string, unknown>;
   const mutation = options?.method && !['GET', 'HEAD'].includes(options.method);
   if (mutation && (/^\/api\/activities\//.test(url) || url === '/api/profile' ||
-      /^\/api\/ingest\/(upload|upload-batch|scan)$/.test(url) || /^\/api\/database\/restore/.test(url))) invalidateActivityData();
+      /^\/api\/ingest\/(upload|upload-batch|scan)$/.test(url) || url === '/api/ingest/garmin/sync' ||
+      /^\/api\/database\/restore/.test(url))) invalidateActivityData();
   if (/^\/api\/ingest\/jobs\//.test(url) && result.phase === 'complete' && typeof result.jobId === 'string' && result.jobId !== completedImportId) {
     completedImportId = result.jobId;
     invalidateActivityData();
@@ -247,6 +250,30 @@ export function selectImportFolder(title: string): Promise<SelectFolderResponse>
 /** POST /api/ingest/scan — import every supported run file from the configured folder. */
 export function scanImportFolder(): Promise<{ directory: string; results: IngestResultItem[] }> {
   return requestJson('/api/ingest/scan', { method: 'POST' });
+}
+
+/** GET /api/ingest/garmin/status - whether a Personal API key is available. */
+export function getGarminKeyStatus(): Promise<{ key: GarminKeyStatus }> {
+  return requestJson('/api/ingest/garmin/status');
+}
+
+/** PUT /api/ingest/garmin/key - validate and store a Personal API key. */
+export function saveGarminApiKey(apiKey: string, expiresAt: string | null): Promise<{ key: GarminKeyStatus }> {
+  return requestJson('/api/ingest/garmin/key', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ apiKey, expiresAt })
+  });
+}
+
+/** DELETE /api/ingest/garmin/key - forget the locally stored key. */
+export function deleteGarminApiKey(): Promise<{ key: GarminKeyStatus }> {
+  return requestJson('/api/ingest/garmin/key', { method: 'DELETE' });
+}
+
+/** POST /api/ingest/garmin/sync - download the next batch of Garmin FIT files. */
+export function syncGarmin(): Promise<GarminSyncResponse> {
+  return requestJson('/api/ingest/garmin/sync', { method: 'POST' });
 }
 
 /** POST /api/database/restore — replace the active database from a raw .db file body. */

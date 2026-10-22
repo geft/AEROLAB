@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
-import { Compass, TrendingUp, BarChart2, User, Settings, UploadCloud, Sun, Moon, Globe, Type, ChevronDown, Check, Minus, Plus, MoreHorizontal, RefreshCw } from 'lucide-react';
+import { Compass, TrendingUp, BarChart2, User, Settings, UploadCloud, Sun, Moon, Globe, Type, ChevronDown, Check, Minus, Plus, MoreHorizontal, RefreshCw, CloudDownload } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES } from '../i18n/types.js';
 import { useFontSize, FONT_PERCENTAGES } from '../context/FontSizeContext.js';
 const SNAPSHOT_BUILD = import.meta.env.VITE_AEROLAB_TARGET === 'snapshot';
 const GarminScanModal = SNAPSHOT_BUILD ? null : lazy(() => import('./GarminScanModal.js').then(module => ({ default: module.GarminScanModal })));
+const GarminSyncModal = SNAPSHOT_BUILD ? null : lazy(() => import('./GarminSyncModal.js').then(module => ({ default: module.GarminSyncModal })));
 
 export type TabType = 'browse' | 'progress' | 'stats' | 'profile' | 'settings';
 
@@ -13,6 +14,8 @@ interface NavbarProps {
   onTabChange: (tab: TabType) => void;
   onOpenUpload: () => void;
   onScanImportComplete?: () => void;
+  onGarminSyncComplete?: () => void;
+  onOpenGarminSettings?: () => void;
   onOpenBackup?: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
@@ -24,6 +27,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onTabChange,
   onOpenUpload,
   onScanImportComplete,
+  onGarminSyncComplete,
+  onOpenGarminSettings,
   theme,
   onToggleTheme,
   snapshotMode = false
@@ -33,6 +38,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [isGarminScanOpen, setIsGarminScanOpen] = useState(false);
+  const [isGarminSyncOpen, setIsGarminSyncOpen] = useState(false);
 
   const langRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -319,12 +325,31 @@ export const Navbar: React.FC<NavbarProps> = ({
             <RefreshCw size={15} />
             <span className="nav-btn-text">{t.garminImport.scanFolder}</span>
           </button>
+          <button
+            id="nav-garmin-sync-btn"
+            className="upload-btn garmin-sync-btn"
+            onClick={() => setIsGarminSyncOpen(true)}
+            title={t.garminSync.syncButton}
+            aria-label={t.garminSync.syncButton}
+          >
+            <CloudDownload size={16} />
+            <span className="nav-btn-text">{t.garminSync.syncButton}</span>
+          </button>
         </div>}
       </div>
       {!snapshotMode && !SNAPSHOT_BUILD && GarminScanModal && <Suspense fallback={null}><GarminScanModal
         isOpen={isGarminScanOpen}
         onClose={() => setIsGarminScanOpen(false)}
         onImportComplete={onScanImportComplete}
+      /></Suspense>}
+      {!snapshotMode && !SNAPSHOT_BUILD && GarminSyncModal && isGarminSyncOpen && <Suspense fallback={null}><GarminSyncModal
+        isOpen
+        onClose={() => setIsGarminSyncOpen(false)}
+        onOpenSettings={() => {
+          setIsGarminSyncOpen(false);
+          onOpenGarminSettings?.();
+        }}
+        onImportComplete={onGarminSyncComplete}
       /></Suspense>}
     </header>
   );

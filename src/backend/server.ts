@@ -1,3 +1,4 @@
+import './env.js';
 import express from 'express';
 import { randomBytes, timingSafeEqual } from 'crypto';
 import path from 'path';

@@ -49,6 +49,17 @@ export function apiErrorMessage(t: Translations, err: unknown, fallback: string)
       return t.apiErrors.zipInvalid;
     case 'ERR_DEV_DIAGNOSTICS_FAILED':
       return t.apiErrors.devDiagnosticsFailed;
+    case 'GARMIN_KEY_MISSING':
+      return t.apiErrors.garminKeyMissing;
+    case 'GARMIN_KEY_INVALID':
+      return t.apiErrors.garminKeyInvalid;
+    case 'GARMIN_RATE_LIMITED':
+      return t.apiErrors.garminRateLimited;
+    case 'GARMIN_UNAVAILABLE':
+    case 'GARMIN_DOWNLOAD_FAILED':
+      return t.apiErrors.garminUnavailable;
+    case 'ERR_INVALID_GARMIN_EXPIRY':
+      return t.apiErrors.invalidGarminExpiry;
     default:
       return fallback;
   }
