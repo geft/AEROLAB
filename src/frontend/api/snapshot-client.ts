@@ -4,6 +4,7 @@ import type {
   Activity, ActivityDetailResponse, BestEffortsResponse, ProfileResponse, ThresholdsResponse,
   TrainingLoadResponse, VolumeData, ProgressHistoryResponse, ActivityPatchInput
 } from '../types/api.js';
+import type { GarminKeyStatus } from '../../shared/garmin.js';
 export class ApiRequestError extends Error {
   constructor(public readonly status: number, public readonly code: string, message: string) {
     super(message);
@@ -69,3 +70,21 @@ export const getImportFolder = (): never => readOnly();
 export const getMaintenanceStatus = (): never => readOnly();
 export const getDevDiagnostics = (): never => readOnly();
 export const simulateDevError = (_payload: unknown): never => readOnly();
+
+/** Snapshots are read-only and never contain Garmin credentials. */
+export async function getGarminKeyStatus(): Promise<{ key: GarminKeyStatus }> {
+  return {
+    key: {
+      configured: false,
+      source: null,
+      expiresAt: null,
+      daysUntilExpiry: null,
+      expiringSoon: false,
+      expired: false,
+      expirySource: null
+    }
+  };
+}
+export const saveGarminApiKey = (_apiKey: string, _expiresAt: string | null): never => readOnly();
+export const deleteGarminApiKey = (): never => readOnly();
+export const syncGarmin = (): never => readOnly();

@@ -7,6 +7,8 @@ import { DatabaseLocation } from './DatabaseLocation.js';
 import { GarminImportPanel } from './GarminImportPanel.js';
 import { GarminApiPanel } from './GarminApiPanel.js';
 
+const SNAPSHOT_BUILD = import.meta.env.VITE_AEROLAB_TARGET === 'snapshot';
+
 export interface SettingsViewProps {
   onRestoreComplete?: () => void;
   theme: 'dark' | 'light';
@@ -31,7 +33,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   return (
     <div className="settings-view">
       <DatabaseLocation />
-      <GarminApiPanel />
+      {!SNAPSHOT_BUILD && <GarminApiPanel />}
       <GarminImportPanel />
       {/* Section 1: Database Backup & Cloud Sync */}
       <section className="overview-card" style={{ padding: '1.75rem' }}>
