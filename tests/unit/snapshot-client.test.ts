@@ -104,6 +104,20 @@ describe('snapshot API client', () => {
     const client = await import('../../src/frontend/api/snapshot-client.js');
     expect(() => client.patchActivity('run-1', { name: 'Changed' })).toThrowError('This snapshot is read-only.');
     expect(() => client.updateProfile({})).toThrowError('This snapshot is read-only.');
+    expect(() => client.syncGarmin()).toThrowError('This snapshot is read-only.');
+    expect(() => client.saveGarminApiKey('garmin-key-123456', null)).toThrowError('This snapshot is read-only.');
+    expect(() => client.deleteGarminApiKey()).toThrowError('This snapshot is read-only.');
+    await expect(client.getGarminKeyStatus()).resolves.toEqual({
+      key: {
+        configured: false,
+        source: null,
+        expiresAt: null,
+        daysUntilExpiry: null,
+        expiringSoon: false,
+        expired: false,
+        expirySource: null
+      }
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

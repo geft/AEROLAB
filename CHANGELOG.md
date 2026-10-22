@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep the Garmin sync action and credentials panel out of snapshot builds, so read-only snapshots never expose or run the sync flow.
+
 ## 1.5.0 — 2026-10-22
 
 ### Garmin Connect sync

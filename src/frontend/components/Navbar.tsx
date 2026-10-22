@@ -325,16 +325,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             <RefreshCw size={15} />
             <span className="nav-btn-text">{t.garminImport.scanFolder}</span>
           </button>
-          <button
-            id="nav-garmin-sync-btn"
-            className="upload-btn garmin-sync-btn"
-            onClick={() => setIsGarminSyncOpen(true)}
-            title={t.garminSync.syncButton}
-            aria-label={t.garminSync.syncButton}
-          >
-            <CloudDownload size={16} />
-            <span className="nav-btn-text">{t.garminSync.syncButton}</span>
-          </button>
+          {!SNAPSHOT_BUILD && (
+            <button
+              id="nav-garmin-sync-btn"
+              className="upload-btn garmin-sync-btn"
+              onClick={() => setIsGarminSyncOpen(true)}
+              title={t.garminSync.syncButton}
+              aria-label={t.garminSync.syncButton}
+            >
+              <CloudDownload size={16} />
+              <span className="nav-btn-text">{t.garminSync.syncButton}</span>
+            </button>
+          )}
         </div>}
       </div>
       {!snapshotMode && !SNAPSHOT_BUILD && GarminScanModal && <Suspense fallback={null}><GarminScanModal
