@@ -277,8 +277,8 @@ AEROLAB operates on a **single embedded SQLite WAL database file**. Development 
 - **Personal Best Efforts**: Fastest continuous telemetry segments at tracked race distances, shown for all time or the current year.
 
 ### 4. Profile View
-- **Cardiovascular Baselines**: Resting HR, Max HR engine, and VO2 Max.
-- **Max Heart Rate Engine & Auto-Inference**: Automatically infers peak heart rate from your hardest actual workout efforts, with an opt-out toggle to auto-estimate via the Tanaka formula (208 - 0.7 * age) or manual baseline entry.
+- **Cardiovascular Baselines**: Resting HR, inferred Max HR, and the calibrated Efficiency Factor baseline.
+- **Max Heart Rate Engine & Auto-Inference**: Automatically infers peak heart rate from your hardest actual workout efforts and falls back to the Tanaka formula (208 - 0.7 * age) when no hard effort exists.
 - **Inferred Physiological Thresholds**: Visual reference card displaying active LT1 and LT2 paces and heart rates calibrated from empirical training sessions.
 - **Local Backups**: Manual SQLite snapshots with a configurable folder, three-file rotation, per-snapshot deletion, and immediate database snapshot download.
 - **Display & Typography**: Font size selector pills with live typography sample preview.

@@ -6,6 +6,7 @@
 - Show full dates as `YYYY-MM-DD` in both languages instead of the unseparated `YYYYMMDD` form.
 - Classify repeated upper-aerobic work reps as tempo sessions instead of off-target easy runs, and refresh saved analyses once when the app upgrades.
 - Remove manual FIT/ZIP upload and Downloads folder scanning. Garmin Connect sync and the local import CLI remain the supported ways to add runs.
+- Stop storing profile notes the app never read: shoe rotation, weekly schedule, race goals, home location, favourite route, body measurements, VO2 max and HR metric. The schema, `PATCH /api/profile` and existing databases now keep only the values that drive analysis.
 
 ## 1.5.0 — 2026-10-22
 
