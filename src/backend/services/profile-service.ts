@@ -45,7 +45,6 @@ export function getProfileService(db: Database.Database): ProfileResponse | null
       is_configured: isConfigured ? 1 : 0,
       max_hr: hrProfile.hasBaseline ? effectiveMaxHr : null,
       is_max_hr_estimated: 1,
-      schedule: typeof profile.schedule_json === 'string' ? JSON.parse(profile.schedule_json) : null,
       preferences: typeof profile.preferences_json === 'string' ? JSON.parse(profile.preferences_json) : null
     },
     currentThresholds: hrProfile.hasBaseline ? currentThresholds : null,
@@ -59,17 +58,15 @@ export function getProfileService(db: Database.Database): ProfileResponse | null
 }
 
 export interface UpdateProfileInput {
-  name?: string; gender?: string; age?: number; dob?: string;
-  height_cm?: number; weight_kg?: number; resting_hr?: number; max_hr?: number;
-  is_max_hr_estimated?: boolean | 0 | 1; hr_metric?: string; vo2_max?: number;
-  goal_marathon?: string; upcoming_benchmark?: string; pb_5k?: string; pb_hm?: string;
-  shoe_threshold?: string; shoe_easy?: string; shoe_retired?: string;
-  location?: string; favorite_route?: string; is_configured?: boolean | 0 | 1;
-  opt_out_max_hr?: boolean; schedule?: unknown; preferences?: unknown;
+  gender?: string; age?: number; dob?: string;
+  resting_hr?: number; max_hr?: number;
+  is_max_hr_estimated?: boolean | 0 | 1; pb_5k?: string;
+  is_configured?: boolean | 0 | 1;
+  opt_out_max_hr?: boolean; preferences?: unknown;
 }
 
-const textFields = new Set(['name', 'gender', 'dob', 'hr_metric', 'goal_marathon', 'upcoming_benchmark', 'pb_5k', 'pb_hm', 'shoe_threshold', 'shoe_easy', 'shoe_retired', 'location', 'favorite_route']);
-const numberFields = new Set(['age', 'height_cm', 'weight_kg', 'resting_hr', 'max_hr', 'vo2_max']);
+const textFields = new Set(['gender', 'dob', 'pb_5k']);
+const numberFields = new Set(['age', 'resting_hr', 'max_hr']);
 const flagFields = new Set(['is_max_hr_estimated', 'is_configured', 'opt_out_max_hr']);
 
 export function parseProfileUpdate(value: unknown): UpdateProfileInput | null {
@@ -83,7 +80,7 @@ export function parseProfileUpdate(value: unknown): UpdateProfileInput | null {
       if (field !== null && (typeof field !== 'number' || !Number.isFinite(field))) return null;
     } else if (flagFields.has(key)) {
       if (field !== true && field !== false && field !== 0 && field !== 1) return null;
-    } else if (key === 'schedule' || key === 'preferences') {
+    } else if (key === 'preferences') {
       if (field !== null && (typeof field !== 'object' || Array.isArray(field))) return null;
     } else {
       return null;
@@ -103,11 +100,8 @@ export function updateProfileService(db: Database.Database, rawUpdates: UpdatePr
   const updates: Record<string, unknown> = { ...rawUpdates };
 
   const allowedFields = [
-    'name', 'gender', 'age', 'dob', 'height_cm', 'weight_kg', 'resting_hr', 'max_hr',
-    'is_max_hr_estimated', 'hr_metric', 'vo2_max',
-    'goal_marathon', 'upcoming_benchmark', 'pb_5k', 'pb_hm',
-    'shoe_threshold', 'shoe_easy', 'shoe_retired', 'location',
-    'favorite_route', 'is_configured'
+    'gender', 'age', 'dob', 'resting_hr', 'max_hr',
+    'is_max_hr_estimated', 'pb_5k', 'is_configured'
   ];
 
   const existingRow = db.prepare('SELECT * FROM athlete_profile WHERE id = ?').get('primary');
@@ -157,9 +151,6 @@ export function updateProfileService(db: Database.Database, rawUpdates: UpdatePr
     if (allowedFields.includes(key)) {
       sets.push(`${key} = ?`);
       values.push(val === null ? null : typeof val === 'boolean' ? Number(val) : val as string | number);
-    } else if (key === 'schedule') {
-      sets.push(`schedule_json = ?`);
-      values.push(JSON.stringify(val));
     } else if (key === 'preferences') {
       sets.push(`preferences_json = ?`);
       values.push(JSON.stringify(val));
@@ -200,7 +191,6 @@ export function updateProfileService(db: Database.Database, rawUpdates: UpdatePr
         ...updated,
         max_hr: updatedHr.hasBaseline ? updatedHr.maxHr : null,
         is_max_hr_estimated: 1,
-        schedule: typeof updated.schedule_json === 'string' ? JSON.parse(updated.schedule_json) : null,
         preferences: typeof updated.preferences_json === 'string' ? JSON.parse(updated.preferences_json) : null
       },
       syncedActivitiesCount,

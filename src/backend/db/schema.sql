@@ -169,14 +169,13 @@ CREATE TABLE IF NOT EXISTS physiological_thresholds (
 
 CREATE INDEX IF NOT EXISTS idx_thresholds_date ON physiological_thresholds(effective_date DESC);
 
+-- Only fields a feature reads. Personal notes (shoes, schedule, goals, routes)
+-- were never rendered or computed with, so they are not stored at all.
 CREATE TABLE IF NOT EXISTS athlete_profile (
   id TEXT PRIMARY KEY DEFAULT 'primary',
-  name TEXT DEFAULT 'Runner',
   gender TEXT DEFAULT 'Prefer not to say',
   age INTEGER,
   dob TEXT,
-  height_cm REAL,
-  weight_kg REAL,
   resting_hr INTEGER,
   max_hr INTEGER,
   is_max_hr_estimated INTEGER DEFAULT 0,
@@ -187,18 +186,7 @@ CREATE TABLE IF NOT EXISTS athlete_profile (
   lt1_max_hr INTEGER,
   z3_start_hr INTEGER,
   z4_start_hr INTEGER,
-  hr_metric TEXT DEFAULT 'HRR',
-  vo2_max REAL,
-  goal_marathon TEXT,
-  upcoming_benchmark TEXT,
   pb_5k TEXT,
-  pb_hm TEXT,
-  shoe_threshold TEXT,
-  shoe_easy TEXT,
-  shoe_retired TEXT,
-  location TEXT,
-  favorite_route TEXT,
-  schedule_json TEXT,
   preferences_json TEXT,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );

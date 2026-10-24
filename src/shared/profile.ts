@@ -12,12 +12,9 @@ export interface ObservedPeakHeartRate {
 /** A row of the athlete_profile table (loose: the schema evolves additively). */
 export interface AthleteProfileRow {
   id: string;
-  name?: string | null;
   gender?: string | null;
   age?: number | null;
   dob?: string | null;
-  height_cm?: number | null;
-  weight_kg?: number | null;
   resting_hr?: number | null;
   max_hr?: number | null;
   is_max_hr_estimated?: number | null;
@@ -30,13 +27,11 @@ export interface ProfilePayload extends AthleteProfileRow {
   age: number | null;
   is_configured: number;
   max_hr: number | null;
-  schedule: unknown;
   preferences: unknown;
 }
 
 /** The profile payload returned by PATCH /api/profile. */
 export interface ProfilePatchPayload extends AthleteProfileRow {
-  schedule: unknown;
   preferences: unknown;
 }
 

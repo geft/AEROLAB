@@ -252,11 +252,10 @@ describe('API Server Integration Tests', () => {
   it('PATCH /api/profile continuously syncs all coach summaries across database', async () => {
     const res = await request(app)
       .patch('/api/profile')
-      .send({ vo2_max: 59, upcoming_benchmark: '10k Garmin Race Oct 2026' });
+      .send({ pb_5k: '21:25' });
 
     expect(res.status).toBe(200);
-    expect(res.body.profile.vo2_max).toBe(59);
-    expect(res.body.profile.upcoming_benchmark).toBe('10k Garmin Race Oct 2026');
+    expect(res.body.profile.pb_5k).toBe('21:25');
     expect(res.body.syncedActivitiesCount).toBeGreaterThanOrEqual(1);
   });
 
@@ -278,7 +277,7 @@ describe('API Server Integration Tests', () => {
     await request(app)
       .patch('/api/profile')
       .send({
-        dob: '1989-04-15',
+        dob: '1989-01-01',
         max_hr: 203,
         is_max_hr_estimated: false
       });

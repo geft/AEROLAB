@@ -220,12 +220,9 @@ export interface ObservedPeakHeartRate {
 /** The athlete_profile row as returned by the profile endpoints. */
 export interface AthleteProfile {
   id?: string;
-  name?: string | null;
   gender?: string | null;
   age?: number | null;
   dob?: string | null;
-  height_cm?: number | null;
-  weight_kg?: number | null;
   resting_hr?: number | null;
   max_hr?: number | null;
   is_max_hr_estimated?: number | boolean | null;

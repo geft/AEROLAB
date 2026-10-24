@@ -100,12 +100,11 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
   // A fresh profile contains no personal measurements or training history.
   if (!db.prepare("SELECT id FROM athlete_profile WHERE id = 'primary'").get()) {
     // Explicit nulls also override personal DEFAULT clauses in older schemas.
-    db.prepare(`INSERT INTO athlete_profile (id, age, dob, height_cm, weight_kg, resting_hr, max_hr,
-      lt1_hr, lt2_hr, lt1_min_hr, lt1_max_hr, z3_start_hr, z4_start_hr, vo2_max,
-      goal_marathon, upcoming_benchmark, pb_5k, pb_hm, shoe_threshold, shoe_easy, shoe_retired,
-      location, favorite_route, schedule_json, preferences_json, is_max_hr_estimated)
-      VALUES ('primary', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-        NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '{}', 1)`).run();
+    db.prepare(`INSERT INTO athlete_profile (id, age, dob, resting_hr, max_hr,
+      lt1_hr, lt2_hr, lt1_min_hr, lt1_max_hr, z3_start_hr, z4_start_hr, pb_5k,
+      preferences_json, is_max_hr_estimated)
+      VALUES ('primary', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+        '{}', 1)`).run();
   }
 
   if (!deferDerivedMigrations) runDerivedMigrations(db, migrations);

@@ -160,7 +160,7 @@ describe('Onboarding & Profile Backup / Import UI Component Tests', () => {
             profile: {
               id: 'primary',
               gender: 'Prefer not to say',
-              dob: '1989-04-15',
+              dob: '1989-01-01',
               resting_hr: 55,
               is_configured: 0
             }

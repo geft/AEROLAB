@@ -197,7 +197,7 @@ export function profileFromRow(value: unknown): AthleteProfileRow {
   for (const key of ['age', 'resting_hr', 'max_hr', 'is_configured', 'is_max_hr_estimated']) {
     nullableNumber(row, key, 'athlete_profile');
   }
-  for (const key of ['name', 'gender', 'dob', 'schedule_json', 'preferences_json']) {
+  for (const key of ['gender', 'dob', 'preferences_json']) {
     if (row[key] != null && typeof row[key] !== 'string') throw new Error(`Invalid athlete_profile.${key}`);
   }
   return { ...row, id };

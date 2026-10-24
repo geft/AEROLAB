@@ -25,7 +25,7 @@ describe('Athlete Profile & Resting HR Persistence Tests', () => {
       .send({
         resting_hr: 54,
         max_hr: 203,
-        dob: '1989-04-15',
+        dob: '1989-01-01',
         is_configured: 1
       });
 
@@ -44,10 +44,10 @@ describe('Athlete Profile & Resting HR Persistence Tests', () => {
     // 1. Update fitness metrics
     const res1 = await request(app)
       .patch('/api/profile')
-      .send({ vo2_max: 60, weight_kg: 56, upcoming_benchmark: 'Time Trial 10k' });
+      .send({ pb_5k: '21:25' });
     expect(res1.status).toBe(200);
     expect(res1.body.profile.resting_hr).toBe(54);
-    expect(res1.body.profile.vo2_max).toBe(60);
+    expect(res1.body.profile.pb_5k).toBe('21:25');
 
     // 2. Update preferences
     const res2 = await request(app)
@@ -61,18 +61,6 @@ describe('Athlete Profile & Resting HR Persistence Tests', () => {
       });
     expect(res2.status).toBe(200);
     expect(res2.body.profile.resting_hr).toBe(54);
-
-    // 3. Update weekly schedule
-    const res3 = await request(app)
-      .patch('/api/profile')
-      .send({
-        schedule: {
-          monday: '60m Easy Aerobic',
-          sunday: 'Rest & Mobility'
-        }
-      });
-    expect(res3.status).toBe(200);
-    expect(res3.body.profile.resting_hr).toBe(54);
 
     // Verify GET /api/profile confirms resting HR is still 54
     const getRes = await request(app).get('/api/profile');

@@ -79,7 +79,7 @@ export function runSchemaMigrations(db: Database.Database, migrations: Runner): 
     addMissing('athlete_profile', [
       ['is_configured', 'INTEGER DEFAULT 0'], ['gender', "TEXT DEFAULT 'Prefer not to say'"],
       ['is_max_hr_estimated', 'INTEGER DEFAULT 0'], ['lt1_hr', 'INTEGER'], ['lt2_hr', 'INTEGER'],
-      ['lt1_min_hr', 'INTEGER'], ['lt1_max_hr', 'INTEGER'], ['name', "TEXT DEFAULT 'Runner'"]
+      ['lt1_min_hr', 'INTEGER'], ['lt1_max_hr', 'INTEGER']
     ]);
     addMissing('activity_coach_summaries', [
       ['score_breakdown_json', 'TEXT'], ['analysis_json', 'TEXT'], ['insight_tones_json', 'TEXT']
@@ -277,6 +277,20 @@ export function runDerivedMigrations(db: Database.Database, migrations: Runner):
       if (activityIds.length === 0) return;
       const result = realignDatabase(db, { activityIds });
       if (result.activitiesFailed.length > 0) throw new Error(`${result.activitiesFailed.length} continuous efforts failed to realign`);
+    });
+
+    // Personal notes the app never reads: shoes, weekly schedule, race goals,
+    // home location, favourite route and body measurements. They were only ever
+    // stored and echoed back, so drop the columns (and their data) once.
+    register('profile-prune-v1', () => {
+      const existing = new Set((db.prepare('PRAGMA table_info(athlete_profile)').all() as Array<{ name: string }>).map(column => column.name));
+      for (const column of [
+        'name', 'height_cm', 'weight_kg', 'hr_metric', 'vo2_max', 'goal_marathon',
+        'upcoming_benchmark', 'pb_hm', 'shoe_threshold', 'shoe_easy', 'shoe_retired',
+        'location', 'favorite_route', 'schedule_json'
+      ]) {
+        if (existing.has(column)) db.exec(`ALTER TABLE athlete_profile DROP COLUMN ${column}`);
+      }
     });
 
     for (const step of steps) migrations.run(step.id, step.apply);

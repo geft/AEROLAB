@@ -19,7 +19,7 @@ describe('database and request boundaries', () => {
   it('checks profile row types and rejects unknown request fields', () => {
     expect(profileFromRow({ id: 'primary', resting_hr: 55 }).resting_hr).toBe(55);
     expect(() => profileFromRow({ id: 'primary', resting_hr: '55' })).toThrow('athlete_profile.resting_hr');
-    expect(parseProfileUpdate({ resting_hr: 55, name: 'Runner' })).toEqual({ resting_hr: 55, name: 'Runner' });
+    expect(parseProfileUpdate({ resting_hr: 55, gender: 'Male' })).toEqual({ resting_hr: 55, gender: 'Male' });
     expect(parseProfileUpdate({ resting_hr: 'bad' })).toBeNull();
     expect(parseProfileUpdate({ unknown_column: 1 })).toBeNull();
     expect(parseActivityUpdate({ tags: ['Easy Base'] })).toEqual({ tags: ['Easy Base'] });

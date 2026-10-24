@@ -10,7 +10,7 @@ describe('Athlete-independent baseline', () => {
     try {
       realignDatabase(db);
       const row = db.prepare("SELECT * FROM athlete_profile WHERE id = 'primary'").get() as any;
-      for (const field of ['dob', 'age', 'max_hr', 'resting_hr', 'lt1_hr', 'lt2_hr', 'vo2_max', 'pb_5k', 'location']) {
+      for (const field of ['dob', 'age', 'max_hr', 'resting_hr', 'lt1_hr', 'lt2_hr', 'pb_5k']) {
         expect(row[field], field).toBeNull();
       }
       expect(getAthleteHeartRateProfile(db).hasBaseline).toBe(false);

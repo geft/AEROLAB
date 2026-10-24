@@ -223,7 +223,7 @@ export function toCsv(bench: BenchmarkRun): string {
 
 /** Test-only athlete; application databases deliberately start without measurements. */
 export function seedBenchmarkProfile(db: import('better-sqlite3').Database, options: { datedThresholds?: boolean } = {}): void {
-  db.prepare("UPDATE athlete_profile SET age = 37, dob = '1989-04-15', max_hr = 203, resting_hr = 55, lt1_hr = 148, lt2_hr = 167, is_max_hr_estimated = 1 WHERE id = 'primary'").run();
+  db.prepare("UPDATE athlete_profile SET age = 37, dob = '1989-01-01', max_hr = 203, resting_hr = 55, lt1_hr = 148, lt2_hr = 167, is_max_hr_estimated = 1 WHERE id = 'primary'").run();
   // The benchmark athlete's higher maximum is backed by a prior recorded race.
   db.prepare(`INSERT OR REPLACE INTO activities(id,name,start_time,run_type,max_heart_rate,avg_heart_rate,duration_seconds,distance_meters)
     VALUES('benchmark-max-hr-evidence','Prior maximum HR race','2025-01-01 07:00:00','race',203,180,1200,5000)`).run();
