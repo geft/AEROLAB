@@ -3,6 +3,9 @@
 ## Unreleased
 
 - Keep the Garmin sync action and credentials panel out of snapshot builds, so read-only snapshots never expose or run the sync flow.
+- Show full dates as `YYYY-MM-DD` in both languages instead of the unseparated `YYYYMMDD` form.
+- Classify repeated upper-aerobic work reps as tempo sessions instead of off-target easy runs, and refresh saved analyses once when the app upgrades.
+- Remove manual FIT/ZIP upload and Downloads folder scanning. Garmin Connect sync and the local import CLI remain the supported ways to add runs.
 
 ## 1.5.0 — 2026-10-22
 

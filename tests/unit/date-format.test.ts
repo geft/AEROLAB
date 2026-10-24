@@ -3,10 +3,10 @@ import { formatDateValue } from '../../src/frontend/i18n/date-format.js';
 import { LOCALES } from '../../src/frontend/i18n/types.js';
 
 describe('Compact full dates', () => {
-  it('uses YYYYMMDD in both supported languages and pads month and day', () => {
+  it('uses YYYY-MM-DD in both supported languages and pads month and day', () => {
     for (const locale of Object.values(LOCALES)) {
-      expect(formatDateValue('2026-01-05 12:00:00', locale)).toBe('20260105');
-      expect(formatDateValue('2026-01-05T12:00:00', locale, { year: 'numeric', month: 'short', day: 'numeric' })).toBe('20260105');
+      expect(formatDateValue('2026-01-05 12:00:00', locale)).toBe('2026-01-05');
+      expect(formatDateValue('2026-01-05T12:00:00', locale, { year: 'numeric', month: 'short', day: 'numeric' })).toBe('2026-01-05');
     }
   });
   it('preserves partial dates and time formats and handles invalid dates', () => {

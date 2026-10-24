@@ -12,7 +12,7 @@ function getDateFormatter(locale: string, options?: Intl.DateTimeFormatOptions):
   return formatter;
 }
 
-/** Full dates use YYYYMMDD; partial dates and time formats keep their requested options. */
+/** Full dates use YYYY-MM-DD; partial dates and time formats keep their requested options. */
 export function formatDateValue(value: string | number | Date, locale: string, options?: Intl.DateTimeFormatOptions): string {
   const date = value instanceof Date ? value : new Date(typeof value === 'string' ? value.replace(' ', 'T') : value);
   if (Number.isNaN(date.getTime())) return '';
@@ -20,6 +20,6 @@ export function formatDateValue(value: string | number | Date, locale: string, o
   if (!fullDate) return getDateFormatter(locale, options).format(date);
   const parts = getDateFormatter(locale, { ...options, year: 'numeric', month: '2-digit', day: '2-digit',
     calendar: 'gregory', numberingSystem: 'latn' }).formatToParts(date);
-  return ['year', 'month', 'day'].map(type => parts.find(part => part.type === type)?.value ?? '').join('');
+  return ['year', 'month', 'day'].map(type => parts.find(part => part.type === type)?.value ?? '').join('-');
 }
 

@@ -567,7 +567,7 @@ describe('BrowseView User Flow & Navigation Tests', () => {
     );
 
     // Both cards still carry the shared calendar day ...
-    expect(screen.getAllByText(/^20260910/, { selector: '.session-date' })).toHaveLength(2);
+    expect(screen.getAllByText(/^2026-09-10/, { selector: '.session-date' })).toHaveLength(2);
 
     // ... and each one now shows its own start time.
     const morningCard = screen.getByText('07:00').closest('.session-card');
