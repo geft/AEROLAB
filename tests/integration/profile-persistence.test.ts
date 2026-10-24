@@ -25,13 +25,13 @@ describe('Athlete Profile & Resting HR Persistence Tests', () => {
       .send({
         resting_hr: 54,
         max_hr: 203,
-        dob: '1989-01-01',
+        dob: '1990-01-01',
         is_configured: 1
       });
 
     expect(res.status).toBe(200);
     expect(res.body.profile.resting_hr).toBe(54);
-    expect(res.body.profile.max_hr).toBe(182);
+    expect(res.body.profile.max_hr).toBe(183);
     expect(res.body.profile.is_configured).toBe(1);
 
     const getRes = await request(app).get('/api/profile');
@@ -110,7 +110,7 @@ describe('Athlete Profile & Resting HR Persistence Tests', () => {
     expect(unknown.body.code).toBe('ERR_INVALID_PROFILE_INPUT');
 
     const verify = await request(app).get('/api/profile');
-    expect(verify.body.profile.max_hr).toBe(182);
+    expect(verify.body.profile.max_hr).toBe(183);
   });
 
   it('does NOT reset resting HR across database re-initialization and migrations', async () => {
@@ -121,7 +121,7 @@ describe('Athlete Profile & Resting HR Persistence Tests', () => {
 
     const row = db.prepare('SELECT resting_hr, max_hr, is_configured FROM athlete_profile WHERE id = ?').get('primary') as any;
     expect(row.resting_hr).toBe(54);
-    expect(row.max_hr).toBe(182);
+    expect(row.max_hr).toBe(183);
     expect(row.is_configured).toBe(1);
   });
 
@@ -170,15 +170,15 @@ describe('Athlete Profile & Resting HR Persistence Tests', () => {
 
     // A sub-threshold 145 bpm run does not lower LT1; Z1 follows the athlete’s HR reserve.
     // LT2 stays in Zone 4; Zone 5 starts at the high-intensity 90% HRR boundary.
-    expect(res.body.zones.z1[1]).toBe(123);
-    expect(res.body.zones.z4[1]).toBe(168);
-    expect(res.body.zones.z5[0]).toBe(169);
+    expect(res.body.zones.z1[1]).toBe(124);
+    expect(res.body.zones.z4[1]).toBe(169);
+    expect(res.body.zones.z5[0]).toBe(170);
 
     // Verify GET /api/profile zones also reflect the custom resting HR and persisted profile
     const profRes = await request(app).get('/api/profile');
     expect(profRes.body.profile.resting_hr).toBe(54);
-    expect(profRes.body.zones.z1[1]).toBe(123);
-    expect(profRes.body.zones.z4[1]).toBe(168);
-    expect(profRes.body.zones.z5[0]).toBe(169);
+    expect(profRes.body.zones.z1[1]).toBe(124);
+    expect(profRes.body.zones.z4[1]).toBe(169);
+    expect(profRes.body.zones.z5[0]).toBe(170);
   });
 });

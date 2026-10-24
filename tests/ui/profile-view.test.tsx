@@ -7,9 +7,9 @@ import { ProfileView } from '../../src/frontend/components/ProfileView.js';
 describe('ProfileView UI Tests', () => {
   const mockProfile = {
     id: 'primary',
-    dob: '1989-01-01',
+    dob: '1990-01-01',
     gender: 'Male',
-    age: 37,
+    age: 36,
     resting_hr: 55,
     max_hr: 203,
     is_max_hr_estimated: 0,
@@ -44,7 +44,7 @@ describe('ProfileView UI Tests', () => {
             profile: mockProfile,
             currentThresholds: mockThresholds,
             observedPeakHr: mockObservedPeak,
-            tanakaMaxHr: 182,
+            tanakaMaxHr: 183,
             effectiveMaxHr: 203,
             maxHrSource: 'observed_run'
           })
@@ -64,7 +64,7 @@ describe('ProfileView UI Tests', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Workout-Based Threshold Estimates')).toBeTruthy();
-      expect(screen.getByDisplayValue('1989-01-01')).toBeTruthy();
+      expect(screen.getByDisplayValue('1990-01-01')).toBeTruthy();
       expect(screen.getByDisplayValue('55')).toBeTruthy();
       expect(screen.getByText('203 bpm')).toBeTruthy();
       expect(screen.getByText(/~148 bpm/)).toBeTruthy();
@@ -95,12 +95,12 @@ describe('ProfileView UI Tests', () => {
     render(<ProfileView />);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('1989-01-01')).toBeTruthy();
+      expect(screen.getByDisplayValue('1990-01-01')).toBeTruthy();
     });
 
 
     // Change DOB to 1986-04-15 -> age 40 in 2026 -> Tanaka formula: 208 - (0.7 * 40) = 180
-    const dobInput = screen.getByDisplayValue('1989-01-01');
+    const dobInput = screen.getByDisplayValue('1990-01-01');
     fireEvent.change(dobInput, { target: { value: '1986-04-15' } });
 
     await waitFor(() => {
@@ -143,7 +143,7 @@ describe('ProfileView UI Tests', () => {
             profile: mockProfile,
             currentThresholds: mockThresholds,
             observedPeakHr: mockObservedPeak,
-            tanakaMaxHr: 182,
+            tanakaMaxHr: 183,
             effectiveMaxHr: 203,
             maxHrSource: 'observed_run'
           })
@@ -155,7 +155,7 @@ describe('ProfileView UI Tests', () => {
     render(<ProfileView />);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('1989-01-01')).toBeTruthy();
+      expect(screen.getByDisplayValue('1990-01-01')).toBeTruthy();
     });
 
     // Change resting HR to 52
@@ -168,7 +168,7 @@ describe('ProfileView UI Tests', () => {
     await waitFor(() => {
       expect(patchPayload).toBeTruthy();
       expect(patchPayload.resting_hr).toBe(52);
-      expect(patchPayload.dob).toBe('1989-01-01');
+      expect(patchPayload.dob).toBe('1990-01-01');
       expect(patchPayload.max_hr).toBeUndefined();
       expect(patchPayload.is_max_hr_estimated).toBeUndefined();
       expect(screen.getByText(/Profile saved and workout analysis updated/i)).toBeTruthy();

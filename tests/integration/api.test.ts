@@ -237,7 +237,7 @@ describe('API Server Integration Tests', () => {
   it('GET /api/profile returns athlete baseline and HRR zones', async () => {
     const res = await request(app).get('/api/profile');
     expect(res.status).toBe(200);
-    expect(res.body.profile.max_hr).toBe(182);
+    expect(res.body.profile.max_hr).toBe(183);
     expect(res.body.profile.resting_hr).toBe(55);
     expect(res.body.currentThresholds.lt1Hr).toBe(148);
     expect(res.body.currentThresholds.lt2Hr).toBe(167);
@@ -245,8 +245,8 @@ describe('API Server Integration Tests', () => {
     expect(res.body.zones.z1[1]).toBe(124);
     expect(res.body.zones.z2[1]).toBe(148);
     expect(res.body.zones.z3[0]).toBe(149);
-    expect(res.body.zones.z4[1]).toBe(168);
-    expect(res.body.zones.z5[0]).toBe(169);
+    expect(res.body.zones.z4[1]).toBe(169);
+    expect(res.body.zones.z5[0]).toBe(170);
   });
 
   it('PATCH /api/profile continuously syncs all coach summaries across database', async () => {
@@ -277,7 +277,7 @@ describe('API Server Integration Tests', () => {
     await request(app)
       .patch('/api/profile')
       .send({
-        dob: '1989-01-01',
+        dob: '1990-01-01',
         max_hr: 203,
         is_max_hr_estimated: false
       });
@@ -296,11 +296,11 @@ describe('API Server Integration Tests', () => {
       .patch('/api/profile')
       .send({
         is_max_hr_estimated: true,
-        age: 37
+        age: 36
       });
 
     expect(patchRes.status).toBe(200);
-    // Should prefer observed peak (199 bpm) over hardcoded Tanaka (182 bpm)
+    // Should prefer observed peak (199 bpm) over hardcoded Tanaka (183 bpm)
     expect(patchRes.body.profile.max_hr).toBe(199);
 
     const getRes = await request(app).get('/api/profile');

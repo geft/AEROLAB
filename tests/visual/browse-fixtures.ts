@@ -122,12 +122,12 @@ const volumeData = {
 const profileData = {
   isConfigured: true,
   profile: {
-    id: 'primary', name: 'Visual Runner', gender: 'Male', age: 37,
-    dob: '1989-01-01', resting_hr: 55, max_hr: 203, is_max_hr_estimated: 0
+    id: 'primary', name: 'Visual Runner', gender: 'Male', age: 36,
+    dob: '1990-01-01', resting_hr: 55, max_hr: 203, is_max_hr_estimated: 0
   },
   currentThresholds: thresholdData.currentThresholds,
   observedPeakHr: { peakHr: 198, activityId: 'visual-run-1', activityName: 'Interval Workout', activityDate: '2026-09-12', runType: 'intervals_vo2' },
-  tanakaMaxHr: 182,
+  tanakaMaxHr: 183,
   effectiveMaxHr: 203,
   maxHrSource: 'observed'
 };
