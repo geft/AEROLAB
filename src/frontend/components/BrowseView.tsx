@@ -4,7 +4,6 @@ import React, { useMemo } from 'react';
 import type { ActivityInterval } from '../types/api.js';
 import {
   HeartPulse,
-  Plus,
   RefreshCw,
   AlertTriangle,
   Zap,
@@ -30,7 +29,6 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
   selectedActivityId,
   dataRefreshKey = 0,
   onSelectActivity,
-  onOpenUpload,
   onActivityUpdated,
   theme = 'dark',
   readOnly = false
@@ -112,8 +110,6 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
         availableYears={availableYears}
         activeDatesMap={activeDatesMap}
         setMobileSubTab={setMobileSubTab}
-        onOpenUpload={onOpenUpload}
-        readOnly={readOnly}
         getDisplayTitle={getDisplayTitle}
         formatPace={formatPace}
         language={language}
@@ -159,27 +155,6 @@ export const BrowseView: React.FC<BrowseViewProps> = ({
             <p style={{ maxWidth: 460, color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.55, margin: 0 }}>
               {t.browse.readyFirstRunDesc}
             </p>
-            {!readOnly && <button
-              onClick={onOpenUpload}
-              style={{
-                marginTop: '0.5rem',
-                padding: '0.7rem 1.4rem',
-                fontSize: '0.88rem',
-                fontWeight: 700,
-                borderRadius: 8,
-                background: 'linear-gradient(135deg, #0284c7, #06b6d4)',
-                border: 'none',
-                color: '#ffffff',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                boxShadow: '0 4px 14px 0 rgba(6, 182, 212, 0.35)'
-              }}
-            >
-              <Plus size={16} />
-              <span>{t.browse.importFirstWorkoutBtn}</span>
-            </button>}
           </div>
         ) : detailError ? (
           <div

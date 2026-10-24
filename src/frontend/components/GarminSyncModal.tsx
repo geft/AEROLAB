@@ -148,7 +148,7 @@ export const GarminSyncModal: React.FC<GarminSyncModalProps> = ({
               {t.garminSync.title}
             </h2>
           </div>
-          <button type="button" className="modal-close-btn" onClick={onClose} aria-label={t.upload.done} title={t.upload.done}>
+          <button type="button" className="modal-close-btn" onClick={onClose} aria-label={t.common.done} title={t.common.done}>
             <X size={20} />
           </button>
         </div>
@@ -272,7 +272,7 @@ export const GarminSyncModal: React.FC<GarminSyncModalProps> = ({
 
         {(phase === 'done' || (phase === 'error' && !needsKey) || (phase === 'error' && needsKey && configured)) && (
           <div className="garmin-scan-footer garmin-sync-footer">
-            <button type="button" className="outline-btn" onClick={onClose}>{t.upload.done}</button>
+            <button type="button" className="outline-btn" onClick={onClose}>{t.common.done}</button>
             <button type="button" className="garmin-folder-action" onClick={() => void runSync()}>
               <RefreshCw size={15} /> {t.garminSync.syncAgain}
             </button>

@@ -19,7 +19,6 @@ const ProgressView = lazy(() => import('./components/ProgressView').then(m => ({
 const StatsView = lazy(() => import('./components/StatsView').then(m => ({ default: m.StatsView })));
 const ProfileView = lazy(() => import('./components/ProfileView').then(m => ({ default: m.ProfileView })));
 const SettingsView = SNAPSHOT_MODE ? null : lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })));
-const UploadModal = SNAPSHOT_MODE ? null : lazy(() => import('./components/UploadModal').then(m => ({ default: m.UploadModal })));
 const BackupModal = SNAPSHOT_MODE ? null : lazy(() => import('./components/BackupModal').then(m => ({ default: m.BackupModal })));
 const OnboardingPage = SNAPSHOT_MODE ? null : lazy(() => import('./components/OnboardingPage').then(m => ({ default: m.OnboardingPage })));
 
@@ -51,7 +50,6 @@ export const App: React.FC = () => {
   const [activities, setActivities] = useState<ActivitySummary[]>([]);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
   const activityDataVersion = useActivityRevision();
-  const [isUploadOpen, setIsUploadOpen] = useState<boolean>(false);
   const [isBackupOpen, setIsBackupOpen] = useState<boolean>(false);
   // null = still loading, false = needs onboarding, true = ready
   const [isConfigured, setIsConfigured] = useState<boolean | null>(SNAPSHOT_MODE ? true : null);
@@ -165,16 +163,6 @@ export const App: React.FC = () => {
     if (activityDataVersion > 0 && isConfigured === true) void fetchActivities();
   }, [activityDataVersion, isConfigured, fetchActivities]);
 
-  const handleUploadSuccess = async (importedActivityId?: string) => {
-    setIsUploadOpen(false);
-    await checkProfileConfigured();
-    await fetchActivities(importedActivityId);
-    if (importedActivityId) {
-      setSelectedActivityId(importedActivityId);
-      setActiveTab('browse');
-    }
-  };
-
   const handleActivityUpdated = useCallback((updatedActivity: ActivityUpdate) => {
     setActivities(prev =>
       prev.map(a => (a.id === updatedActivity.id ? { ...a, ...updatedActivity } : a))
@@ -244,8 +232,6 @@ export const App: React.FC = () => {
       <Navbar
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        onOpenUpload={() => setIsUploadOpen(true)}
-        onScanImportComplete={handleImportComplete}
         onGarminSyncComplete={handleImportComplete}
         onOpenGarminSettings={() => setActiveTab('settings')}
         onOpenBackup={() => setIsBackupOpen(true)}
@@ -268,7 +254,6 @@ export const App: React.FC = () => {
               selectedActivityId={selectedActivityId}
               dataRefreshKey={activityDataVersion}
               onSelectActivity={setSelectedActivityId}
-              onOpenUpload={() => setIsUploadOpen(true)}
               onActivityUpdated={handleActivityUpdated}
               theme={theme}
               readOnly={SNAPSHOT_MODE}
@@ -300,14 +285,6 @@ export const App: React.FC = () => {
       <Footer />
 
       <Suspense fallback={null}>
-        {!SNAPSHOT_MODE && UploadModal && isUploadOpen && (
-          <UploadModal
-            isOpen={isUploadOpen}
-            onClose={() => setIsUploadOpen(false)}
-            onUploadSuccess={handleUploadSuccess}
-          />
-        )}
-
         {!SNAPSHOT_MODE && BackupModal && isBackupOpen && (
           <BackupModal
             isOpen={isBackupOpen}

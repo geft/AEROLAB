@@ -65,18 +65,11 @@
 }
 
 .session-card:focus-visible,
-.dropzone-inline:focus-visible,
 .nav-tab-btn:focus-visible,
 .nav-import-actions .upload-btn:focus-visible,
 .nav-more-trigger-btn:focus-visible {
   outline: 2px solid var(--accent-cyan);
   outline-offset: 2px;
-}
-
-.dropzone-inline {
-  display: block;
-  width: 100%;
-  font-family: var(--font-body);
 }
 
 .nav-tab-icon {
@@ -367,14 +360,6 @@
 
 .garmin-scan-error {
   color: var(--accent-rose);
-}
-
-.garmin-scan-empty {
-  margin: 0;
-  padding: 1.25rem 0.5rem;
-  text-align: center;
-  color: var(--text-secondary);
-  font-size: 0.88rem;
 }
 
 .garmin-scan-results {

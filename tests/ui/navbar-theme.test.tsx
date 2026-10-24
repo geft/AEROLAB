@@ -14,14 +14,12 @@ describe('Navbar & Theme Switcher UI Component Tests', () => {
 
   it('renders AEROLAB brand, tabs, and active tab highlights', () => {
     const onTabChange = vi.fn();
-    const onOpenUpload = vi.fn();
     const onToggleTheme = vi.fn();
 
     render(
       <Navbar
         activeTab="browse"
         onTabChange={onTabChange}
-        onOpenUpload={onOpenUpload}
         theme="dark"
         onToggleTheme={onToggleTheme}
       />
@@ -43,7 +41,6 @@ describe('Navbar & Theme Switcher UI Component Tests', () => {
       <Navbar
         activeTab="browse"
         onTabChange={onTabChange}
-        onOpenUpload={vi.fn()}
         theme="dark"
         onToggleTheme={vi.fn()}
       />
@@ -64,7 +61,6 @@ describe('Navbar & Theme Switcher UI Component Tests', () => {
       <Navbar
         activeTab="browse"
         onTabChange={vi.fn()}
-        onOpenUpload={vi.fn()}
         theme="dark"
         onToggleTheme={onToggleTheme}
       />
@@ -84,7 +80,6 @@ describe('Navbar & Theme Switcher UI Component Tests', () => {
       <Navbar
         activeTab="browse"
         onTabChange={vi.fn()}
-        onOpenUpload={vi.fn()}
         theme="light"
         onToggleTheme={onToggleTheme}
       />
@@ -98,23 +93,21 @@ describe('Navbar & Theme Switcher UI Component Tests', () => {
     expect(onToggleTheme).toHaveBeenCalledTimes(1);
   });
 
-  it('triggers onOpenUpload when Import FIT / ZIP button is clicked', () => {
-    const onOpenUpload = vi.fn();
+  it('renders the Garmin sync action button without the removed manual import buttons', () => {
     render(
       <Navbar
         activeTab="browse"
         onTabChange={vi.fn()}
-        onOpenUpload={onOpenUpload}
         theme="dark"
         onToggleTheme={vi.fn()}
       />
     );
 
-    const uploadBtn = document.getElementById('nav-upload-btn');
-    expect(uploadBtn).toBeTruthy();
-    expect(uploadBtn?.textContent).toContain('Import FIT / ZIP');
-    fireEvent.click(uploadBtn!);
-    expect(onOpenUpload).toHaveBeenCalledTimes(1);
+    const syncBtn = document.getElementById('nav-garmin-sync-btn');
+    expect(syncBtn).toBeTruthy();
+    expect(syncBtn?.textContent).toContain('Sync with Garmin');
+    expect(document.getElementById('nav-upload-btn')).toBeNull();
+    expect(document.getElementById('nav-scan-import-btn')).toBeNull();
   });
 
   it('renders language switcher dropdown and switches language via dropdown menu', () => {
@@ -124,7 +117,6 @@ describe('Navbar & Theme Switcher UI Component Tests', () => {
           <Navbar
             activeTab="browse"
             onTabChange={vi.fn()}
-            onOpenUpload={vi.fn()}
             theme="dark"
             onToggleTheme={vi.fn()}
           />
@@ -164,7 +156,6 @@ describe('Navbar & Theme Switcher UI Component Tests', () => {
           <Navbar
             activeTab="browse"
             onTabChange={vi.fn()}
-            onOpenUpload={vi.fn()}
             theme="dark"
             onToggleTheme={vi.fn()}
           />

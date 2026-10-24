@@ -152,16 +152,6 @@ export interface MaintenanceStatus {
   status: 'idle' | 'running' | 'complete' | 'failed' | 'interrupted';
 }
 
-/** A single entry in an ingestion response. */
-export interface IngestResultItem {
-  status: 'imported' | 'skipped_duplicate' | 'skipped_non_running' | 'error';
-  filename?: string;
-  activityId?: string;
-  error?: string;
-  name?: string;
-  reason?: string;
-}
-
 /** A structured log line returned by /api/dev/diagnostics. */
 export interface ServerLogEntry {
   id: string;
@@ -325,21 +315,6 @@ export interface ActivityPatchInput {
   run_type?: string;
   name?: string;
   tags?: string[];
-}
-
-/** One item in a batch ingestion response. */
-export interface UploadResult {
-  status: 'imported' | 'skipped' | 'skipped_duplicate' | 'skipped_non_run' | 'error' | (string & {});
-  activityId?: string;
-  reason?: string;
-  message?: string;
-  error?: string;
-  name?: string;
-}
-
-/** POST /api/ingest/upload */
-export interface UploadResponse {
-  result: UploadResult;
 }
 
 /** POST /api/database/restore */

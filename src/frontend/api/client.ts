@@ -10,7 +10,6 @@ import type {
   DatabaseStatus,
   GarminKeyStatus,
   GarminSyncResponse,
-  IngestResultItem,
   MaintenanceStatus,
   ProgressHistoryResponse,
   ProfilePatchResponse,
@@ -22,13 +21,10 @@ import type {
   ServerDiagnostics,
   ThresholdsResponse,
   TrainingLoadResponse,
-  UploadResponse,
   VolumeData
 } from '../types/api.js';
-import type { ImportJobStatus } from '../../shared/import-job.js';
 import { invalidateActivityData } from '../features/activity-revision.js';
 
-let completedImportId: string | null = null;
 let completedMaintenance: string | null = null;
 
 export class ApiRequestError extends Error {
@@ -91,12 +87,8 @@ async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
   const result = body as Record<string, unknown>;
   const mutation = options?.method && !['GET', 'HEAD'].includes(options.method);
   if (mutation && (/^\/api\/activities\//.test(url) || url === '/api/profile' ||
-      /^\/api\/ingest\/(upload|upload-batch|scan)$/.test(url) || url === '/api/ingest/garmin/sync' ||
+      url === '/api/ingest/garmin/sync' ||
       /^\/api\/database\/restore/.test(url))) invalidateActivityData();
-  if (/^\/api\/ingest\/jobs\//.test(url) && result.phase === 'complete' && typeof result.jobId === 'string' && result.jobId !== completedImportId) {
-    completedImportId = result.jobId;
-    invalidateActivityData();
-  }
   if (url === '/api/system/maintenance' && result.status === 'complete' && typeof result.finishedAt === 'string' && result.finishedAt !== completedMaintenance) {
     completedMaintenance = result.finishedAt;
     invalidateActivityData();
@@ -188,68 +180,6 @@ export function patchActivity(id: string, patch: ActivityPatchInput): Promise<Ac
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch)
   });
-}
-
-/** POST /api/ingest/upload — import a single FIT/CSV payload. */
-export function uploadActivity(payload: { content: string; filename: string; force?: boolean; overwrite?: boolean }): Promise<UploadResponse> {
-  return requestJson('/api/ingest/upload', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-}
-
-/** POST /api/ingest/upload-batch — replay affected history once per batch. */
-export function uploadActivities(payload: { files: Array<{ content: string; filename: string }>; force?: boolean }): Promise<{ results: UploadResponse['result'][] }> {
-  return requestJson('/api/ingest/upload-batch', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-}
-
-export function startImportJob(totalFiles: number, force: boolean): Promise<ImportJobStatus> {
-  return requestJson('/api/ingest/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ totalFiles, force }) });
-}
-export function stageImportJob(jobId: string, files: Array<{ filename: string; content: string }>): Promise<ImportJobStatus> {
-  return requestJson(`/api/ingest/jobs/${encodeURIComponent(jobId)}/files`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ files }) });
-}
-export function finishImportJob(jobId: string, totalFiles: number): Promise<ImportJobStatus> {
-  return requestJson(`/api/ingest/jobs/${encodeURIComponent(jobId)}/finish`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ totalFiles }) });
-}
-export function getImportJob(jobId: string): Promise<ImportJobStatus> {
-  return requestJson(`/api/ingest/jobs/${encodeURIComponent(jobId)}`);
-}
-export function cancelImportJob(jobId: string): Promise<{ cancelled: boolean }> {
-  return requestJson(`/api/ingest/jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE' });
-}
-
-/** GET /api/ingest/settings — configured Garmin export folder. */
-export function getImportFolder(): Promise<{ directory: string; exists: boolean }> {
-  return requestJson('/api/ingest/settings');
-}
-
-/** POST /api/ingest/settings — persist the folder scanned for Garmin exports. */
-export function saveImportFolder(directory: string): Promise<{ directory: string; exists: boolean }> {
-  return requestJson('/api/ingest/settings', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ directory })
-  });
-}
-
-/** POST /api/ingest/select-folder — open the native folder picker for Garmin exports. */
-export function selectImportFolder(title: string): Promise<SelectFolderResponse> {
-  return requestJson('/api/ingest/select-folder', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title })
-  });
-}
-
-/** POST /api/ingest/scan — import every supported run file from the configured folder. */
-export function scanImportFolder(): Promise<{ directory: string; results: IngestResultItem[] }> {
-  return requestJson('/api/ingest/scan', { method: 'POST' });
 }
 
 /** GET /api/ingest/garmin/status - whether a Personal API key is available. */

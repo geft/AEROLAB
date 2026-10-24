@@ -1,10 +1,9 @@
 import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
-import { Compass, TrendingUp, BarChart2, User, Settings, UploadCloud, Sun, Moon, Globe, Type, ChevronDown, Check, Minus, Plus, MoreHorizontal, RefreshCw, CloudDownload } from 'lucide-react';
+import { Compass, TrendingUp, BarChart2, User, Settings, Sun, Moon, Globe, Type, ChevronDown, Check, Minus, Plus, MoreHorizontal, CloudDownload } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES } from '../i18n/types.js';
 import { useFontSize, FONT_PERCENTAGES } from '../context/FontSizeContext.js';
 const SNAPSHOT_BUILD = import.meta.env.VITE_AEROLAB_TARGET === 'snapshot';
-const GarminScanModal = SNAPSHOT_BUILD ? null : lazy(() => import('./GarminScanModal.js').then(module => ({ default: module.GarminScanModal })));
 const GarminSyncModal = SNAPSHOT_BUILD ? null : lazy(() => import('./GarminSyncModal.js').then(module => ({ default: module.GarminSyncModal })));
 
 export type TabType = 'browse' | 'progress' | 'stats' | 'profile' | 'settings';
@@ -12,8 +11,6 @@ export type TabType = 'browse' | 'progress' | 'stats' | 'profile' | 'settings';
 interface NavbarProps {
   activeTab: TabType;
   onTabChange: (tab: TabType) => void;
-  onOpenUpload: () => void;
-  onScanImportComplete?: () => void;
   onGarminSyncComplete?: () => void;
   onOpenGarminSettings?: () => void;
   onOpenBackup?: () => void;
@@ -25,8 +22,6 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   onTabChange,
-  onOpenUpload,
-  onScanImportComplete,
   onGarminSyncComplete,
   onOpenGarminSettings,
   theme,
@@ -37,7 +32,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { fontSize, increaseFontSize, decreaseFontSize } = useFontSize();
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
-  const [isGarminScanOpen, setIsGarminScanOpen] = useState(false);
   const [isGarminSyncOpen, setIsGarminSyncOpen] = useState(false);
 
   const langRef = useRef<HTMLDivElement>(null);
@@ -311,20 +305,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {!snapshotMode && <div className="nav-import-actions">
-          <button id="nav-upload-btn" className="upload-btn" onClick={onOpenUpload} title={t.upload.title} aria-label={t.nav.importRuns}>
-            <UploadCloud size={16} />
-            <span className="nav-btn-text">{t.nav.importRuns}</span>
-          </button>
-          <button
-            id="nav-scan-import-btn"
-            className="upload-btn scan-import-btn"
-            onClick={() => setIsGarminScanOpen(true)}
-            title={t.garminImport.scanFolder}
-            aria-label={t.garminImport.scanFolder}
-          >
-            <RefreshCw size={15} />
-            <span className="nav-btn-text">{t.garminImport.scanFolder}</span>
-          </button>
           {!SNAPSHOT_BUILD && (
             <button
               id="nav-garmin-sync-btn"
@@ -339,11 +319,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </div>}
       </div>
-      {!snapshotMode && !SNAPSHOT_BUILD && GarminScanModal && <Suspense fallback={null}><GarminScanModal
-        isOpen={isGarminScanOpen}
-        onClose={() => setIsGarminScanOpen(false)}
-        onImportComplete={onScanImportComplete}
-      /></Suspense>}
       {!snapshotMode && !SNAPSHOT_BUILD && GarminSyncModal && isGarminSyncOpen && <Suspense fallback={null}><GarminSyncModal
         isOpen
         onClose={() => setIsGarminSyncOpen(false)}

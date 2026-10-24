@@ -150,7 +150,7 @@ describe('BrowseView User Flow & Navigation Tests', () => {
   it('counts and filters Tempo sessions even without a Tempo tag', async () => {
     const tempo = { ...mockActivities[0], id: 'act-tempo', name: 'Tempo Test Session', run_type: 'tempo', tags: '[]' };
     render(<BrowseView activities={[...mockActivities, tempo]} selectedActivityId="act-101"
-      onSelectActivity={vi.fn()} onOpenUpload={vi.fn()} />);
+      onSelectActivity={vi.fn()} />);
     await screen.findByText('Easy Aerobic Base');
     const filter = screen.getByRole('button', { name: /^Tempo \(1\)$/ });
     fireEvent.click(filter);
@@ -169,7 +169,6 @@ describe('BrowseView User Flow & Navigation Tests', () => {
         activities={mockActivities}
         selectedActivityId="act-101"
         onSelectActivity={vi.fn()}
-        onOpenUpload={vi.fn()}
         theme="dark"
       />
     );
@@ -225,7 +224,6 @@ describe('BrowseView User Flow & Navigation Tests', () => {
         activities={mockActivities}
         selectedActivityId="act-101"
         onSelectActivity={vi.fn()}
-        onOpenUpload={vi.fn()}
         theme="dark"
       />
     );
@@ -263,7 +261,6 @@ describe('BrowseView User Flow & Navigation Tests', () => {
         activities={mockActivities}
         selectedActivityId="act-101"
         onSelectActivity={vi.fn()}
-        onOpenUpload={vi.fn()}
         theme="dark"
       />
     );
@@ -294,7 +291,7 @@ describe('BrowseView User Flow & Navigation Tests', () => {
 
   it('shows derived tags without a tag editor', async () => {
     render(<BrowseView activities={mockActivities} selectedActivityId="act-101"
-      onSelectActivity={vi.fn()} onOpenUpload={vi.fn()} theme="dark" />);
+      onSelectActivity={vi.fn()} theme="dark" />);
     await waitFor(() => expect(document.querySelector('.overview-card .run-title-group')).not.toBeNull());
     expect(screen.queryByRole('button', { name: /^tag$/i })).toBeNull();
     expect(document.querySelector('.overview-card')?.textContent).not.toContain('Recovery');
@@ -321,7 +318,6 @@ describe('BrowseView User Flow & Navigation Tests', () => {
         activities={[activityWithPauses]}
         selectedActivityId="act-pause-1"
         onSelectActivity={vi.fn()}
-        onOpenUpload={vi.fn()}
         theme="dark"
       />
     );
@@ -402,7 +398,6 @@ describe('BrowseView User Flow & Navigation Tests', () => {
         activities={[activityWithStrides]}
         selectedActivityId="act-strides-1"
         onSelectActivity={vi.fn()}
-        onOpenUpload={vi.fn()}
         theme="dark"
       />
     );
@@ -438,7 +433,6 @@ describe('BrowseView User Flow & Navigation Tests', () => {
         activities={mockActivities}
         selectedActivityId="act-101"
         onSelectActivity={onSelect}
-        onOpenUpload={vi.fn()}
         theme="dark"
       />
     );
@@ -491,7 +485,6 @@ describe('BrowseView User Flow & Navigation Tests', () => {
         activities={multiYearActivities}
         selectedActivityId="act-101"
         onSelectActivity={vi.fn()}
-        onOpenUpload={vi.fn()}
         theme="dark"
       />
     );
@@ -569,7 +562,6 @@ describe('BrowseView User Flow & Navigation Tests', () => {
         activities={sameDayRuns}
         selectedActivityId="act-double-morning"
         onSelectActivity={vi.fn()}
-        onOpenUpload={vi.fn()}
         theme="dark"
       />
     );
@@ -594,7 +586,6 @@ describe('BrowseView User Flow & Navigation Tests', () => {
         activities={mockActivities}
         selectedActivityId="act-101"
         onSelectActivity={vi.fn()}
-        onOpenUpload={vi.fn()}
         theme="dark"
       />
     );

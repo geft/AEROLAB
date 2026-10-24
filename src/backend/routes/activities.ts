@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { getDatabase } from '../db/client.js';
-import { isImportJobRunning } from '../jobs/import-job.js';
 import {
   getActivityCoachSummaryService,
   getActivityDetailService,
@@ -72,7 +71,7 @@ activitiesRouter.get('/', (req, res) => {
 // GET /api/activities/:id - deep dive into individual run
 activitiesRouter.get('/:id', async (req, res) => {
   try {
-    const detail = getActivityDetailService(getDatabase(), req.params.id, { persistCoachSummary: !isImportJobRunning() });
+    const detail = getActivityDetailService(getDatabase(), req.params.id, { persistCoachSummary: true });
     if (!detail) {
       return res.status(404).json({ code: 'ERR_ACTIVITY_NOT_FOUND', error: 'Activity not found' });
     }
@@ -100,7 +99,7 @@ activitiesRouter.patch('/:id', (req, res) => {
 // GET /api/activities/:id/coach-summary - retrieve persistent coach summary from table
 activitiesRouter.get('/:id/coach-summary', (req, res) => {
   try {
-    const result = getActivityCoachSummaryService(getDatabase(), req.params.id, { persist: !isImportJobRunning() });
+    const result = getActivityCoachSummaryService(getDatabase(), req.params.id, { persist: true });
     if (!result) {
       return res.status(404).json({ code: 'ERR_COACH_SUMMARY_NOT_FOUND', error: 'Coach summary not found' });
     }

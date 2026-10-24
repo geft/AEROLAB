@@ -225,11 +225,9 @@ This produces a single, self-extracting installer executable in `release/AEROLAB
 
 AEROLAB offers multiple flexible ways to populate your running history:
 
-### Method A: Drag & Drop in the Web Dashboard (Recommended)
-1. Open `http://localhost:5173` (or launch the desktop app).
-2. Click the **"Import FIT / ZIP"** button in the navigation bar.
-3. Drag and drop **one or multiple `.fit` or `.zip` files** (batch multi-file upload supported).
-4. Ingestion runs in-memory directly into SQLite with SHA-256 deduplication and an optional overwrite toggle. No raw files linger on disk.
+### Method A: Garmin Sync (Recommended)
+1. Add a Garmin Personal API key in **Settings → Garmin API**.
+2. Select **Sync with Garmin** in the navigation bar. AEROLAB downloads the next batch of FIT activities and imports new runs with SHA-256 deduplication.
 
 ### Method B: Terminal Ingestion CLI (FIT & ZIP)
 Drop any `.fit` or `.zip` files into `data/raw/` or specify a single file/folder, and run:
@@ -241,17 +239,7 @@ Add `--clean` to automatically delete raw files after successful database ingest
 npm run ingest -- --clean
 ```
 
-### Method C: Scan a Garmin export folder
-1. In **Settings → Import Garmin Runs**, choose and save your Garmin FIT or original activity ZIP download folder. No conversion or extension is required.
-2. Select **Scan & Import** in the navbar. AEROLAB imports new supported activities and reports duplicates, non-running files, and errors.
-
-### Method D: Python Batch Ingestion Script
-For batch-importing from external folders or USB Garmin mounts:
-```bash
-python scripts/batch_ingest.py --dir "C:/path/to/Garmin/Activities" --clean
-```
-
-### Method E: Direct Database Portability (`data/runs.db`)
+### Method C: Direct Database Portability (`data/runs.db`)
 AEROLAB operates on a **single embedded SQLite WAL database file**. Development defaults to `data/runs.db`; the Windows app defaults to `%APPDATA%\aerolab\runs.db`. Settings shows the active location. To back up or transfer your running history, use **Download Snapshot** in the backup panel so the copy includes committed WAL data.
 
 ---

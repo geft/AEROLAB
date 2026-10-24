@@ -14,9 +14,6 @@ if (!fs.existsSync('dist-backend')) {
 }
 execSync('npx esbuild src/backend/server.ts --bundle --platform=node --format=cjs --external:better-sqlite3 --define:import.meta.url="undefined" --log-override:empty-import-meta=silent --outfile=dist-backend/server.cjs', { stdio: 'inherit' });
 execSync('npx esbuild src/backend/jobs/maintenance-worker.ts --bundle --platform=node --format=cjs --external:better-sqlite3 --outfile=dist-backend/maintenance-worker.cjs', { stdio: 'inherit' });
-for (const worker of ['import-worker', 'fit-decode-worker']) {
-  execSync(`npx esbuild src/backend/jobs/${worker}.ts --bundle --platform=node --format=cjs --external:better-sqlite3 --define:import.meta.url="undefined" --log-override:empty-import-meta=silent --outfile=dist-backend/${worker}.cjs`, { stdio: 'inherit' });
-}
 execSync('npx esbuild scripts/export-snapshot.ts --bundle --platform=node --format=cjs --external:better-sqlite3 --define:import.meta.url="undefined" --log-override:empty-import-meta=silent --outfile=dist-backend/export-snapshot.cjs', { stdio: 'inherit' });
 
 console.log('📋 Copying Database Schema...');

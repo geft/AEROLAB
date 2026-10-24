@@ -180,10 +180,6 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .upload-btn-text {
-    display: none;
-  }
-
   /* Docked Fixed Bottom App Bar */
   .nav-tabs {
     position: fixed !important;

@@ -23,7 +23,6 @@ describe('SettingsView & Header Tab Navigation Tests', () => {
           <Navbar
             activeTab="browse"
             onTabChange={onTabChange}
-            onOpenUpload={vi.fn()}
             theme="dark"
             onToggleTheme={vi.fn()}
           />
@@ -172,7 +171,6 @@ describe('SettingsView & Header Tab Navigation Tests', () => {
           <Navbar
             activeTab="browse"
             onTabChange={vi.fn()}
-            onOpenUpload={vi.fn()}
             theme="dark"
             onToggleTheme={onToggleTheme}
           />

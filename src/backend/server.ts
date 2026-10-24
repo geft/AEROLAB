@@ -93,17 +93,14 @@ export function createServer(options: { sessionToken?: string } = {}) {
     });
   }
 
-  // Base64 snapshots and activity imports have separate ceilings. Ordinary
-  // API calls use a much smaller global JSON parser.
+  // Base64 database snapshots need a much larger ceiling; ordinary API calls
+  // use the smaller global JSON parser.
   app.use('/api/database/restore', express.json({ limit: '160mb' }));
-  app.use('/api/ingest/upload', express.json({ limit: '64mb' }));
-  app.use('/api/ingest/upload-batch', express.json({ limit: '64mb' }));
-  app.use('/api/ingest/jobs', express.json({ limit: '64mb' }));
   app.use(express.json({ limit: '1mb' }));
   app.use(requestLogger);
   app.use('/api', (req, res, next) => {
     const operation = currentDatabaseOperation();
-    if (operation && !['GET', 'HEAD', 'OPTIONS'].includes(req.method) && !(operation === 'import' && req.path.startsWith('/ingest/jobs/'))) {
+    if (operation && !['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
       return res.status(409).json({ code: operation === 'import' ? 'ERR_IMPORT_BUSY' : 'DATABASE_BUSY', error: 'Wait for the current database operation to finish.' });
     }
     next();

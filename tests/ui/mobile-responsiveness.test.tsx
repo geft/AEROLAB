@@ -85,7 +85,6 @@ describe('Mobile Responsiveness & View Switcher UI Tests', () => {
         activities={mockActivities}
         selectedActivityId={mockActivities[0].id}
         onSelectActivity={vi.fn()}
-        onOpenUpload={vi.fn()}
       />
     );
 
@@ -104,7 +103,6 @@ describe('Mobile Responsiveness & View Switcher UI Tests', () => {
         activities={mockActivities}
         selectedActivityId={mockActivities[0].id}
         onSelectActivity={vi.fn()}
-        onOpenUpload={vi.fn()}
       />
     );
 
@@ -135,7 +133,6 @@ describe('Mobile Responsiveness & View Switcher UI Tests', () => {
         activities={mockActivities}
         selectedActivityId={mockActivities[0].id}
         onSelectActivity={onSelectActivity}
-        onOpenUpload={vi.fn()}
       />
     );
 
@@ -159,7 +156,6 @@ describe('Mobile Responsiveness & View Switcher UI Tests', () => {
         activities={mockActivities}
         selectedActivityId={mockActivities[0].id}
         onSelectActivity={vi.fn()}
-        onOpenUpload={vi.fn()}
       />
     );
 
@@ -190,7 +186,6 @@ describe('Mobile Responsiveness & View Switcher UI Tests', () => {
         activities={mockActivities}
         selectedActivityId={mockActivities[0].id}
         onSelectActivity={onSelectActivity}
-        onOpenUpload={vi.fn()}
       />
     );
 
@@ -205,7 +200,6 @@ describe('Mobile Responsiveness & View Switcher UI Tests', () => {
       <Navbar
         activeTab="browse"
         onTabChange={vi.fn()}
-        onOpenUpload={vi.fn()}
         theme="dark"
         onToggleTheme={vi.fn()}
       />

@@ -3,10 +3,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import request from 'supertest';
 import { zipSync } from 'fflate';
-import { openDatabase, getDatabase, closeDatabase } from '../../src/backend/db/client.js';
-import { createServer } from '../../src/backend/server.js';
+import { openDatabase, closeDatabase } from '../../src/backend/db/client.js';
 import { importParsedRun, importDirectory } from '../../src/backend/ingestion/importer.js';
 import { parseRunFit, convertFitToCsv } from '../../src/backend/ingestion/fit-parser.js';
 import { parseRunCSV } from '../../src/backend/ingestion/csv-parser.js';
@@ -60,55 +58,6 @@ describe('native FIT and Garmin ZIP ingestion', () => {
       expect(importParsedRun(db, exported, 'ai-analysis.csv', { force: true }).status).toBe('imported');
       expect(decodeSourceFit((db.prepare('SELECT source_fit FROM activity_fit_details').get() as { source_fit: Buffer }).source_fit)).toEqual(fit);
     } finally { db.close(); }
-  });
-
-  it('uploads ZIP, exposes metadata, and deduplicates its extracted FIT by original bytes', async () => {
-    process.env.DATABASE_PATH = ':memory:';
-    getDatabase(':memory:');
-    const app = createServer();
-    const fit = richFit();
-    const zip = zipSync({ 'activity/activity.fit': fit });
-    const upload = await request(app).post('/api/ingest/upload').send({ content: Buffer.from(zip).toString('base64'), filename: 'garmin.zip' });
-    expect(upload.status).toBe(200);
-    expect(upload.body.result.status).toBe('imported');
-    const detail = await request(app).get(`/api/activities/${upload.body.result.activityId}`);
-    expect(detail.status).toBe(200);
-    expect(detail.body.fitMetadata.events).toHaveLength(4);
-    const duplicate = await request(app).post('/api/ingest/upload').send({ content: fit.toString('base64'), filename: 'run.fit' });
-    expect(duplicate.body.result.status).toBe('skipped_duplicate');
-    const bad = await request(app).post('/api/ingest/upload').send({ content: 'UEsDBA==', filename: 'bad.zip' });
-    expect(bad.status).toBe(422);
-    expect(bad.body.code).toBe('ERR_ZIP_INVALID');
-  });
-
-  it('batch imports valid FIT alongside malformed files and honours overwrite while preserving metadata', async () => {
-    process.env.DATABASE_PATH = ':memory:';
-    const db = getDatabase(':memory:');
-    const app = createServer();
-    const file = { content: richFit().toString('base64'), filename: 'run.fit' };
-    const response = await request(app).post('/api/ingest/upload-batch').send({ files: [file, { content: 'bad', filename: 'bad.fit' }] });
-    expect(response.status).toBe(200);
-    expect(response.body.results.map((result: { status: string }) => result.status)).toEqual(['imported', 'error']);
-    const id = response.body.results[0].activityId;
-    expect((await request(app).post('/api/ingest/upload-batch').send({ files: [file] })).body.results[0].status).toBe('skipped_duplicate');
-    db.prepare('UPDATE activity_records SET step_length_m=NULL WHERE activity_id=?').run(id);
-    const overwrite = await request(app).post('/api/ingest/upload-batch').send({ files: [file], force: true });
-    expect(overwrite.status).toBe(200);
-    expect(overwrite.body.results[0]).toMatchObject({ status: 'imported', activityId: id });
-    expect(db.prepare('SELECT step_length_m FROM activity_records WHERE activity_id=? ORDER BY elapsed_seconds LIMIT 1').get(id)).toEqual({ step_length_m: 1.1 });
-    const details = db.prepare('SELECT metadata_json,source_fit FROM activity_fit_details WHERE activity_id=?').get(id) as { metadata_json: string; source_fit: Buffer };
-    expect(JSON.parse(decodeStoredJson(details.metadata_json)).events).toHaveLength(4);
-    expect(decodeSourceFit(details.source_fit)).toEqual(richFit());
-  });
-
-  it('rejects empty, oversized and malformed upload batches before importing', async () => {
-    process.env.DATABASE_PATH = ':memory:';
-    const db = getDatabase(':memory:');
-    const app = createServer();
-    for (const files of [[], Array.from({ length: 9 }, () => ({ content: 'bad', filename: 'bad.fit' })), [null], [{ filename: 'missing.fit' }]]) {
-      expect((await request(app).post('/api/ingest/upload-batch').send({ files })).status).toBe(400);
-    }
-    expect(db.prepare('SELECT COUNT(*) n FROM activities').get()).toEqual({ n: 0 });
   });
 
   it('folder import accepts ZIP alongside FIT and ignores CSV exports', () => {

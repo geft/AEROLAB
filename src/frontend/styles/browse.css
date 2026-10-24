@@ -304,21 +304,3 @@
   font-size: 0.75rem;
   color: var(--text-muted);
 }
-
-.dropzone-inline {
-  border: 1px dashed rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  padding: 0.85rem;
-  text-align: center;
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background: rgba(255, 255, 255, 0.01);
-}
-
-.dropzone-inline:hover {
-  border-color: var(--accent-cyan);
-  color: var(--accent-cyan);
-  background: var(--accent-cyan-glow);
-}

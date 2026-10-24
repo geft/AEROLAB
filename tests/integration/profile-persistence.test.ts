@@ -7,10 +7,11 @@ import { syncAllCoachSummaries } from '../../src/backend/physiology/coach-summar
 import { evaluateThresholdUpdate } from '../../src/backend/physiology/threshold-tracker.js';
 import { getBenchmark } from '../fixtures/benchmark-runs.js';
 import { benchmarkFit } from '../fixtures/benchmark-fit.js';
+import { importParsedRun } from '../../src/backend/ingestion/importer.js';
+import { parseRunFit } from '../../src/backend/ingestion/fit-parser.js';
 
 describe('Athlete Profile & Resting HR Persistence Tests', () => {
   let app: any;
-  const benchmarkContent = benchmarkFit(getBenchmark('bench-easy-60')).toString('base64');
 
   beforeAll(() => {
     process.env.DATABASE_PATH = ':memory:';
@@ -166,12 +167,10 @@ describe('Athlete Profile & Resting HR Persistence Tests', () => {
     expect(row.resting_hr).toBe(54);
   });
 
-  it('does NOT reset resting HR when importing or uploading new activities', async () => {
-    const res = await request(app)
-      .post('/api/ingest/upload')
-      .send({ content: benchmarkContent, filename: 'bench_easy_persistence.fit' });
-
-    expect(res.status).toBe(200);
+  it('does NOT reset resting HR when importing new activities', async () => {
+    const parsed = parseRunFit(benchmarkFit(getBenchmark('bench-easy-60')), 'bench_easy_persistence.fit')!;
+    const result = importParsedRun(getDatabase(), parsed, 'bench_easy_persistence.fit');
+    expect(result.status).toBe('imported');
 
     const getRes = await request(app).get('/api/profile');
     expect(getRes.body.profile.resting_hr).toBe(54);

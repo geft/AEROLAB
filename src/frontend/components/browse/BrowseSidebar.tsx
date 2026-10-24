@@ -30,8 +30,6 @@ interface BrowseSidebarProps {
   availableYears: string[];
   activeDatesMap: Map<string, { count: number; runTypes: string[]; ids: string[] }>;
   setMobileSubTab: (tab: 'list' | 'detail') => void;
-  onOpenUpload: () => void;
-  readOnly?: boolean;
   getDisplayTitle: DisplayTitleFn;
   formatPace: (secKm: number | null) => string;
   language: 'en' | 'zh';
@@ -58,8 +56,6 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
   availableYears,
   activeDatesMap,
   setMobileSubTab,
-  onOpenUpload,
-  readOnly = false,
   getDisplayTitle,
   formatPace,
   language,
@@ -344,10 +340,6 @@ export const BrowseSidebar: React.FC<BrowseSidebarProps> = ({
           </div>
         )}
       </div>
-
-      {!readOnly && <button type="button" className="dropzone-inline" onClick={onOpenUpload}>
-        {t.browse.dropOrImportRun}
-      </button>}
     </aside>
   );
 };

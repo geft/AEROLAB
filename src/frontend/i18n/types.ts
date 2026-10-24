@@ -88,7 +88,6 @@ export interface Translations {
     settings: string;
     dayMode: string;
     nightMode: string;
-    importRuns: string;
     langTitle: string;
     fontSize: string;
     backup: string;
@@ -238,11 +237,9 @@ export interface Translations {
     strideLengthShort: string;
     verticalRatioShort: string;
     verticalOscShort: string;
-    dropOrImportRun: string;
     noRunsMatchingFilter: string;
     readyFirstRunTitle: string;
     readyFirstRunDesc: string;
-    importFirstWorkoutBtn: string;
     showAll: string;
     cadenceLabel: string;
     raw: string;
@@ -597,38 +594,6 @@ export interface Translations {
     /** Fallback when PATCH /api/profile fails with an unmapped code. */
     saveFailed: string;
   };
-  upload: {
-    currentFile: string;
-    title: string;
-    dragDrop: string;
-    selectFiles: string;
-    overwriteTip: string;
-    importingCount: string;
-    uploadingFiles: string;
-    decodingFiles: string;
-    reanalysingRuns: string;
-    busy: string;
-    importedCard: string;
-    skippedCard: string;
-    nonRunCard: string;
-    errorsCard: string;
-    alreadyInDatabase: string;
-    retryWithOverwrite: string;
-    viewRun: string;
-    done: string;
-    errorDetails: string;
-    batchSuccess: string;
-    batchWarnings: string;
-    batchFailed: string;
-    fitZipOnly: string;
-    /** Fallback per-file error when an upload fails with an unmapped code. */
-    importFailed: string;
-    importFailedReason: string;
-    errorOverrides: Record<string, string>;
-    dupTip: string;
-    /** Plural copy for the number of skipped duplicate files. */
-    skippedFiles: PluralForms;
-  };
   backup: {
     directoryPlaceholder: string;
     cardTitle: string;
@@ -811,29 +776,6 @@ export interface Translations {
     fontLarge: string;
     fontXLarge: string;
   };
-  garminImport: {
-    title: string;
-    modalTitle: string;
-    description: string;
-    pickerTitle: string;
-    folderLabel: string;
-    chooseFolder: string;
-    saveFolder: string;
-    scanFolder: string;
-    scanning: string;
-    saved: string;
-    folderUnavailable: string;
-    chooseFolderFailed: string;
-    saveFailed: string;
-    scanFailed: string;
-    noFiles: string;
-    filesScanned: string;
-    resultDetails: string;
-    resultImported: string;
-    resultDuplicate: string;
-    resultNonRunning: string;
-    resultError: string;
-  };
   garminSync: {
     syncButton: string;
     title: string;
@@ -995,7 +937,7 @@ export interface Translations {
     coachSummaryNotFound: string;
     invalidResponse: string;
     noGps: string;
-    zipInvalid: string;
+    importBusy: string;
     devDiagnosticsFailed: string;
     garminKeyMissing: string;
     garminKeyInvalid: string;

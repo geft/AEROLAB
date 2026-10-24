@@ -14,7 +14,7 @@ export function apiErrorMessage(t: Translations, err: unknown, fallback: string)
 
   switch (err.code) {
     case 'ERR_IMPORT_BUSY':
-      return t.upload.busy;
+      return t.apiErrors.importBusy;
     case 'ERR_API':
       return t.apiErrors.generic;
     case 'ERR_NETWORK':
@@ -43,10 +43,6 @@ export function apiErrorMessage(t: Translations, err: unknown, fallback: string)
       return t.apiErrors.invalidResponse;
     case 'ERR_NO_GPS':
       return t.apiErrors.noGps;
-    case 'ERR_IMPORT_FORMAT':
-      return t.upload.fitZipOnly;
-    case 'ERR_ZIP_INVALID':
-      return t.apiErrors.zipInvalid;
     case 'ERR_DEV_DIAGNOSTICS_FAILED':
       return t.apiErrors.devDiagnosticsFailed;
     case 'GARMIN_KEY_MISSING':

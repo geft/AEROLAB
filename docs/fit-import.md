@@ -1,6 +1,6 @@
 # Garmin FIT and ZIP imports
 
-Import a Garmin original activity FIT file or its ZIP download using **Import Garmin Runs**, drag and drop, or folder scan. No extension, conversion, or cloud service is required. A ZIP must contain exactly one FIT activity; extraction happens in memory and is limited to 64 MB. CSV is available for export only.
+Import a Garmin original activity FIT file or its ZIP download using **Sync with Garmin** or the local ingestion CLI. No conversion or cloud service is required. A ZIP must contain exactly one FIT activity; extraction happens in memory and is limited to 64 MB. CSV is available for export only.
 
 AEROLAB decodes FIT directly with Garmin's pinned FIT SDK. It retains the original FIT bytes in the same SQLite database, so future parser improvements can reprocess the source. Importing the ZIP and its extracted FIT is detected as a duplicate. Existing runs originally imported from CSV remain available.
 

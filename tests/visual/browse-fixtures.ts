@@ -189,25 +189,10 @@ export async function openSettingsFixture(page: Page): Promise<void> {
     }
   } }));
   await page.route('**/api/system/maintenance', route => route.fulfill({ json: { status: 'idle' } }));
-  await page.route('**/api/ingest/settings', route => route.fulfill({ json: {
-    directory: 'C:/Users/Runner/Downloads/Garmin',
-    exists: true
-  } }));
 
   await page.locator('#tab-settings-btn').evaluate(button => (button as HTMLButtonElement).click());
-  await page.locator('.settings-view #garmin-import-directory').waitFor();
   await expect(page.locator('.settings-view')).toBeVisible();
   await expect(page.locator('.backup-management-panel').getByText('329', { exact: true })).toBeVisible();
   await expect(page.locator('.backup-management-panel').getByText('runs-2026-09-19.db')).toBeVisible();
-  await page.evaluate(() => document.fonts.ready);
-}
-
-export async function openUploadFixture(page: Page): Promise<void> {
-  await openBrowseFixture(page);
-  if ((page.viewportSize()?.width ?? 1440) < 768) {
-    await page.locator('.nav-tabs').evaluate(nav => { (nav as HTMLElement).style.visibility = ''; });
-  }
-  await page.locator('#nav-upload-btn').click();
-  await expect(page.locator('.modal-content')).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
 }

@@ -70,13 +70,4 @@ describe('API Error Handling & Dev Diagnostics Integration Tests', () => {
     expect(res.body.code).toBe('ERR_ROUTE_NOT_FOUND');
     expect(res.body.timestamp).toBeTruthy();
   });
-
-  it('POST /api/ingest/upload with empty body returns 400 error schema', async () => {
-    const res = await request(app)
-      .post('/api/ingest/upload')
-      .send({});
-
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBeTruthy();
-  });
 });

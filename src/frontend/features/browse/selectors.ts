@@ -15,7 +15,6 @@ export interface BrowseViewProps {
   selectedActivityId: string | null;
   dataRefreshKey?: number;
   onSelectActivity: (id: string) => void;
-  onOpenUpload: () => void;
   onActivityUpdated?: (activity: ActivityUpdate) => void;
   theme?: 'dark' | 'light';
   readOnly?: boolean;
