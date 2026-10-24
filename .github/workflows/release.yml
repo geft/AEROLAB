@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -56,7 +58,20 @@ jobs:
           elif [[ -n "$REQUESTED_VERSION" ]]; then
             RELEASE_VER="${REQUESTED_VERSION#v}"
           else
-            RELEASE_VER="1.1.${{ github.run_number }}"
+            # Default: bump the patch of the newest v* tag (v1.5.0 -> 1.5.1)
+            # rather than a fixed 1.1.<run_number>, which falls behind real tags.
+            LATEST_TAG="$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
+            if [[ -z "$LATEST_TAG" ]]; then
+              RELEASE_VER="1.0.0"
+            else
+              BASE_VER="${LATEST_TAG#v}"
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VER"
+              if [[ ! "$MAJOR" =~ ^[0-9]+$ || ! "$MINOR" =~ ^[0-9]+$ || ! "$PATCH" =~ ^[0-9]+$ ]]; then
+                echo "::error::Newest tag '$LATEST_TAG' is not a plain MAJOR.MINOR.PATCH version."
+                exit 1
+              fi
+              RELEASE_VER="$MAJOR.$MINOR.$((PATCH + 1))"
+            fi
           fi
           if [[ ! "$RELEASE_VER" =~ ^[0-9A-Za-z._-]+$ ]]; then
             echo "::error::Release tag version '$RELEASE_VER' contains characters that cannot go into the installer filename. Use only [0-9A-Za-z._-]."
