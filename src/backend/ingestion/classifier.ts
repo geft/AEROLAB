@@ -17,7 +17,9 @@ export const CLASSIFICATION_TELEMETRY_POLICY = {
   minVo2Seconds: 20, minVo2Pct: 20, minVo2StreakSeconds: 15,
   longVo2Seconds: 120, longVo2Pct: 25, longVo2MaxRepSeconds: 600,
   thresholdRepPct: 50, thresholdMeanTolerance: 0.5, thresholdMeanMinPct: 25,
-  summaryHrDisagreement: 8
+  summaryHrDisagreement: 8,
+  tempoRepMinSeconds: 90, tempoRepMinTotalSeconds: 300, tempoRepSharePct: 25,
+  tempoRepLt1MarginBpm: 2
 } as const;
 
 export interface ClassificationResult {
@@ -119,6 +121,17 @@ export function classifyRun(
       ((rep.avgHr ?? 0) >= thresholdHrFloor - policy.thresholdMeanTolerance &&
         (rep.atOrAboveLt1Pct ?? 0) >= policy.thresholdMeanMinPct));
   };
+  // Tempo reps sit above LT1 but below the threshold band. A single long block
+  // is handled by the structured_tempo rule; repeated shorter reps need their
+  // own evidence so a fartlek-style session is not filed as an easy run.
+  const tempoRep = (interval: DetectedInterval) => {
+    const rep = repExposure.get(interval)!;
+    const meanHr = rep.avgHr ?? 0;
+    return repCovered(interval) && interval.durationSeconds >= policy.tempoRepMinSeconds &&
+      meanHr > lt1 + policy.tempoRepLt1MarginBpm && meanHr < thresholdHrFloor;
+  };
+  const tempoReps = workIntervals.filter(tempoRep);
+  const tempoRepSeconds = tempoReps.reduce((sum, interval) => sum + interval.durationSeconds, 0);
   const qualityWorkIndexes = detectedIntervals.map((interval, index) => ({ interval, index })).filter(({ interval }) =>
     interval.type === 'work' && interval.durationSeconds >= 120 && thresholdRep(interval));
   const hasRepeatedQualityWork = qualityWorkIndexes.some((work, index) => {
@@ -137,7 +150,8 @@ export function classifyRun(
   const result = (ruleId: ClassificationRuleId, classification: Omit<ClassificationResult, 'evidence'>,
     additional: Record<string, number | null> = {}): ClassificationResult => {
     const structured = ruleId === 'structured_threshold' || ruleId === 'structured_vo2' || ruleId === 'structured_tempo';
-    const support = structured ? supportedRepCount / Math.max(1, workIntervals.length) : 1;
+    const supported = ruleId === 'structured_tempo' ? tempoReps.length : supportedRepCount;
+    const support = structured ? supported / Math.max(1, workIntervals.length) : 1;
     const coverage = structured ? Math.min(1, workHrSeconds / Math.max(1, totalWorkSeconds)) : hrCoverage;
     const confidence = Number((classification.confidence * (0.55 + 0.45 * coverage) *
       (0.8 + 0.2 * movementCoverage) * (0.8 + 0.2 * observedCoverage) * (0.9 + 0.1 * support) *
@@ -297,6 +311,13 @@ export function classifyRun(
 
   // Sustained upper-aerobic work can be diluted by easy warmup/cooldown.
   // Require a substantial work block, not isolated surges or duration alone.
+  if (tempoReps.length >= 2 && tempoRepSeconds >= policy.tempoRepMinTotalSeconds &&
+      validHrSeconds > 0 && tempoRepSeconds >= validHrSeconds * policy.tempoRepSharePct / 100) {
+    return result('structured_tempo', {
+      runType: 'tempo', confidence: 0.86,
+      reason: `Repeated upper-aerobic tempo work (${tempoReps.length} reps, ${(tempoRepSeconds / 60).toFixed(0)} mins above LT1 and below the LT2 training band)`
+    }, { tempoWorkSeconds: tempoRepSeconds });
+  }
   const tempoWorkSeconds = workIntervals.filter(interval => interval.durationSeconds >= 1200 && repCovered(interval) &&
     (repExposure.get(interval)!.avgHr ?? 0) > lt1 && (repExposure.get(interval)!.avgHr ?? Infinity) < thresholdHrFloor)
     .reduce((sum, interval) => sum + interval.durationSeconds, 0);
