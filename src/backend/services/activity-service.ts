@@ -491,6 +491,10 @@ export function getActivityCoachSummaryService(db: Database.Database, id: string
   }
   if (!coachRowValue) return null;
   const coachRow = coachSummaryFromRow(coachRowValue);
+  const steadyRow = db.prepare('SELECT steady_pace_sec_km, steady_heart_rate, steady_cadence, steady_stance_time FROM activities WHERE id = ?').get(id) as {
+    steady_pace_sec_km: number | null; steady_heart_rate: number | null;
+    steady_cadence: number | null; steady_stance_time: number | null;
+  } | undefined;
 
   let analysis: Record<string, unknown> | null = null;
   try {
@@ -531,10 +535,10 @@ export function getActivityCoachSummaryService(db: Database.Database, id: string
       walkAudit: parseWalkAudit(analysis?.walkAudit),
       context: parseCoachContext(analysis?.context),
       ...(coachRow.updated_at ? { updatedAt: coachRow.updated_at } : {}),
-      steadyPaceSecKm: coachRow.steady_pace_sec_km,
-      steadyHeartRate: coachRow.steady_heart_rate,
-      steadyCadence: coachRow.steady_cadence,
-      steadyStanceTime: coachRow.steady_stance_time,
+      steadyPaceSecKm: steadyRow?.steady_pace_sec_km ?? null,
+      steadyHeartRate: steadyRow?.steady_heart_rate ?? null,
+      steadyCadence: steadyRow?.steady_cadence ?? null,
+      steadyStanceTime: steadyRow?.steady_stance_time ?? null,
       pauseBreakdown: coachRow.pause_breakdown_json ? (() => { try { return parsePauseBreakdown(JSON.parse(coachRow.pause_breakdown_json)); } catch { return null; } })() : null
     }
   };
@@ -562,7 +566,6 @@ export async function refreshActivityWeatherService(db: Database.Database, id: s
 
 export interface UpdateActivityInput {
   run_type?: string;
-  is_failed_workout?: boolean;
   name?: string;
   tags?: unknown;
   official_time_seconds?: number | null;
@@ -577,7 +580,7 @@ export type UpdateActivityResult =
 /** PATCH /api/activities/:id - manual override for run_type or notes */
 export function updateActivityService(db: Database.Database, id: string, input: UpdateActivityInput): UpdateActivityResult {
   assertDatabaseWritable();
-  const { run_type, is_failed_workout, name, tags } = input;
+  const { run_type, name, tags } = input;
   const { official_time_seconds, official_distance_meters, official_source } = input;
 
   const updates: string[] = [];
@@ -586,10 +589,6 @@ export function updateActivityService(db: Database.Database, id: string, input: 
   if (run_type) {
     updates.push('run_type = ?', 'manual_run_type = ?');
     params.push(run_type, run_type);
-  }
-  if (is_failed_workout !== undefined) {
-    updates.push('manual_failed_workout = ?');
-    params.push(is_failed_workout ? '1' : '0');
   }
   if (name) {
     updates.push('name = ?');
@@ -643,7 +642,7 @@ export function updateActivityService(db: Database.Database, id: string, input: 
   return db.transaction(() => {
     params.push(id);
     db.prepare(`UPDATE activities SET ${updates.join(', ')} WHERE id = ?`).run(...params);
-    if (run_type || is_failed_workout !== undefined) {
+    if (run_type) {
       rebuildAffectedHistory(db, { fromTime: thresholdTime(previous.start_time) });
     }
     const coachSummary = syncActivityCoachSummary(db, id);
@@ -655,9 +654,8 @@ export function updateActivityService(db: Database.Database, id: string, input: 
 export function parseActivityUpdate(value: unknown): UpdateActivityInput | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
-  if (Object.keys(row).some(key => !['run_type', 'is_failed_workout', 'name', 'tags',
+  if (Object.keys(row).some(key => !['run_type', 'name', 'tags',
     'official_time_seconds', 'official_distance_meters', 'official_source'].includes(key))) return null;
-  if (row.is_failed_workout !== undefined && typeof row.is_failed_workout !== 'boolean') return null;
   if (row.run_type !== undefined && typeof row.run_type !== 'string') return null;
   if (row.name !== undefined && typeof row.name !== 'string') return null;
   if (row.tags !== undefined && typeof row.tags !== 'string' &&

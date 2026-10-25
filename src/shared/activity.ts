@@ -26,10 +26,6 @@ export interface Activity {
   efficiency_factor?: number | null;
   aerobic_decoupling_pct?: number | null;
   meters_per_beat?: number | null;
-  estimated_lt1_hr?: number | null;
-  estimated_lt1_pace_sec_km?: number | null;
-  estimated_lt2_hr?: number | null;
-  estimated_lt2_pace_sec_km?: number | null;
   steady_pace_sec_km?: number | null;
   steady_heart_rate?: number | null;
   steady_cadence?: number | null;

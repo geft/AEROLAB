@@ -166,10 +166,10 @@ export function updateProfileService(db: Database.Database, rawUpdates: UpdatePr
 
     if (baselineChanged) {
       // These columns cache inferred thresholds, not manually entered baselines.
-      db.prepare("UPDATE athlete_profile SET lt1_hr = NULL, lt2_hr = NULL, lt1_min_hr = NULL, lt1_max_hr = NULL, z3_start_hr = NULL, z4_start_hr = NULL WHERE id = 'primary'").run();
+      db.prepare("UPDATE athlete_profile SET lt1_hr = NULL, lt2_hr = NULL, lt1_min_hr = NULL, lt1_max_hr = NULL WHERE id = 'primary'").run();
       const thresholds = getCurrentThresholds(db);
-      db.prepare("UPDATE athlete_profile SET lt1_hr = ?, lt2_hr = ?, lt1_min_hr = ?, lt1_max_hr = ?, z3_start_hr = ?, z4_start_hr = ? WHERE id = 'primary'")
-        .run(thresholds.lt1Hr, thresholds.lt2Hr, thresholds.lt1Hr - 1, thresholds.lt1Hr + 1, thresholds.lt1Hr + 1, thresholds.lt2Hr);
+      db.prepare("UPDATE athlete_profile SET lt1_hr = ?, lt2_hr = ?, lt1_min_hr = ?, lt1_max_hr = ? WHERE id = 'primary'")
+        .run(thresholds.lt1Hr, thresholds.lt2Hr, thresholds.lt1Hr - 1, thresholds.lt1Hr + 1);
     }
 
     if (process.env.NODE_ENV === 'test') {

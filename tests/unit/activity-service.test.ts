@@ -43,8 +43,6 @@ describe('activity service input boundary', () => {
       expect(parseActivityUpdate({ unknown: true })).toBeNull();
       expect(parseActivityUpdate({ name: 4 })).toBeNull();
       expect(parseActivityUpdate({ run_type: 4 })).toBeNull();
-      expect(parseActivityUpdate({ is_failed_workout: 'yes' })).toBeNull();
-      expect(parseActivityUpdate({ is_failed_workout: true })).toEqual({ is_failed_workout: true });
       expect(parseActivityUpdate({ tags: ['Easy Base', 4] })).toBeNull();
       expect(parseActivityUpdate({ tags: 'Easy Base' })).toEqual({ tags: 'Easy Base' });
       expect(parseActivityUpdate({ official_time_seconds: '2758' })).toBeNull();

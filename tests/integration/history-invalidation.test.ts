@@ -21,7 +21,7 @@ describe('Centralized history invalidation', () => {
   const observation = () => db.prepare(`INSERT INTO physiological_thresholds
     (effective_date,source_activity_id,source_kind,lt2_hr,confidence) VALUES('2026-01-02','source','workout',155,0.95)`).run();
   const snapshot = () => ({
-    activities: db.prepare('SELECT id,run_type,auto_run_type,manual_run_type,manual_failed_workout,tags,training_load,z4_seconds FROM activities ORDER BY id').all(),
+    activities: db.prepare('SELECT id,run_type,auto_run_type,manual_run_type,tags,training_load,z4_seconds FROM activities ORDER BY id').all(),
     evidence: db.prepare('SELECT source_activity_id,source_kind,lt1_hr,lt2_hr FROM physiological_thresholds ORDER BY id').all()
   });
 
@@ -33,7 +33,7 @@ describe('Centralized history invalidation', () => {
     expect(snapshot()).toEqual(before);
   });
 
-  it.each([{ is_failed_workout: true }, { run_type: 'recovery' }])('removes ineligible observations without allowing a single source to change later labels for %j', patch => {
+  it.each([{ run_type: 'recovery' }, { run_type: 'tempo' }])('removes ineligible observations without allowing a single source to change later labels for %j', patch => {
     seed('source', '2026-01-02'); observation(); seed('later', '2026-01-03');
     expect(db.prepare("SELECT run_type FROM activities WHERE id='later'").get()).toEqual({ run_type: 'easy_base' });
     expect(updateActivityService(db, 'source', patch).ok).toBe(true);
@@ -48,7 +48,7 @@ describe('Centralized history invalidation', () => {
     seed('source', '2026-01-02'); observation(); seed('later', '2026-01-03');
     db.prepare("INSERT INTO activity_fit_details(activity_id,metadata_json) VALUES('later','bad json')").run();
     const before = snapshot();
-    expect(() => updateActivityService(db, 'source', { is_failed_workout: true })).toThrow('Dependent reanalysis failed');
+    expect(() => updateActivityService(db, 'source', { run_type: 'tempo' })).toThrow('Dependent reanalysis failed');
     expect(snapshot()).toEqual(before);
   });
 

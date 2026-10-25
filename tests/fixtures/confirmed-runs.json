@@ -21,7 +21,7 @@
   "id": "garmin_3611393439_1120656269",
   "date": "2025-07-05 21:24:29",
   "expectedRunType": "race",
-  "failed": true,
+  "failed": null,
   "expectedWorkRepCount": null,
   "confirmation": "Poor time trial attempt; athlete confirmed failure, not an easy run.",
   "metadata": {

@@ -1,10 +1,29 @@
 import { coachMessage, coachDescription } from '../../domain/coaching/messages.js';
 import { category, finding } from '../../domain/coaching/vocabulary.js';
-import { RubricFactor, RubricInput, curve, band, coefficientOfVariation, formatPaceText, splitPace, selectRaceSplits, WalkAudit, walkSharePct, turnoverFactor } from './evidence.js';
+import { RubricFactor, RubricInput, curve, band, coefficientOfVariation, formatPaceText, splitPace, selectRaceSplits, WalkAudit, walkSharePct, turnoverFactor, steadyPaceSegments, gradeAdjustedPace } from './evidence.js';
 export function gradeRace(input: RubricInput, walkAudit: WalkAudit | null): RubricFactor[] {
   const factors: RubricFactor[] = [];
   const raceSplits = selectRaceSplits(input.splits, input.intervals);
-  const paces = raceSplits.map(splitPace).filter((p: number) => p > 120 && p < 720);
+  // Grade the kilometres actually run inside the recorded race effort. Raw
+  // splits charge a race for stops and walk breaks; telemetry lets the pacing
+  // and finish factors ignore them instead of reading them as a fade.
+  const allSplits = input.splits ?? [];
+  const selectedSplits = new Set(raceSplits);
+  const effortKms = new Set<number>();
+  let cumulativeMeters = 0;
+  for (const split of allSplits) {
+    const meters = split.distanceMeters ?? split.distance_meters ?? 1000;
+    const startKm = Math.floor(cumulativeMeters / 1000);
+    cumulativeMeters += meters;
+    if (!selectedSplits.has(split)) continue;
+    for (let km = startKm + 1; km <= Math.ceil(cumulativeMeters / 1000); km++) effortKms.add(km);
+  }
+  const runningPaces = (steadyPaceSegments(input.records) ?? [])
+    .filter(segment => effortKms.size === 0 || effortKms.has(segment.km))
+    .map(segment => gradeAdjustedPace(segment.paceSecKm, Math.max(0, segment.climbM), segment.runDistM));
+  const paces = runningPaces.length >= 2
+    ? runningPaces
+    : raceSplits.map(splitPace).filter((p: number) => p > 120 && p < 720);
   const paceStats = coefficientOfVariation(paces);
   const firstPace = paces[0] ?? null;
   const secondPace = paces[1] ?? null;

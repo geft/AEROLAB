@@ -43,7 +43,6 @@ export function runSchemaMigrations(db: Database.Database, migrations: Runner): 
   register('confirmed-workout-intent-v1', () => {
     const columns = new Set((db.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>).map(column => column.name));
     if (!columns.has('manual_run_type')) db.exec('ALTER TABLE activities ADD COLUMN manual_run_type TEXT');
-    if (!columns.has('manual_failed_workout')) db.exec('ALTER TABLE activities ADD COLUMN manual_failed_workout INTEGER');
     // Earlier versions represented an override by keeping the two labels apart.
     if (columns.has('auto_run_type')) db.exec(`UPDATE activities SET manual_run_type = run_type
       WHERE manual_run_type IS NULL AND auto_run_type IS NOT NULL AND run_type <> auto_run_type`);
@@ -120,6 +119,18 @@ export function runSchemaMigrations(db: Database.Database, migrations: Runner): 
     if (!columns.has('official_time_seconds')) db.exec('ALTER TABLE activities ADD COLUMN official_time_seconds REAL');
     if (!columns.has('official_distance_meters')) db.exec('ALTER TABLE activities ADD COLUMN official_distance_meters REAL');
     if (!columns.has('official_source')) db.exec('ALTER TABLE activities ADD COLUMN official_source TEXT');
+  });
+
+  // Columns that no reader or writer ever populated. Older builds created them,
+  // so existing databases need an explicit, idempotent retirement step.
+  register('unused-columns-v1', () => {
+    const drop = (table: string, names: string[]): void => {
+      const existing = new Set((db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map(column => column.name));
+      for (const name of names) if (existing.has(name)) db.exec(`ALTER TABLE ${table} DROP COLUMN ${name}`);
+    };
+    drop('activities', ['estimated_lt1_hr', 'estimated_lt1_pace_sec_km', 'estimated_lt2_hr', 'estimated_lt2_pace_sec_km', 'manual_failed_workout']);
+    drop('athlete_profile', ['z3_start_hr', 'z4_start_hr']);
+    drop('activity_coach_summaries', ['steady_pace_sec_km', 'steady_heart_rate', 'steady_cadence', 'steady_stance_time']);
   });
 
   for (const step of steps) migrations.run(step.id, step.apply);
@@ -211,10 +222,6 @@ export function runDerivedMigrations(db: Database.Database, migrations: Runner):
         key_insights_json TEXT NOT NULL,
         insight_tones_json TEXT,
         recommendation TEXT NOT NULL,
-        steady_pace_sec_km REAL,
-        steady_heart_rate INTEGER,
-        steady_cadence INTEGER,
-        steady_stance_time REAL,
         pause_breakdown_json TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,

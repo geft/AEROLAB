@@ -38,8 +38,7 @@ describe('database and request boundaries', () => {
 
     const coach = { headline: 'Steady', recommendation: 'Keep going', effectiveness_score: 82,
       key_insights_json: '[]', insight_tones_json: null, score_breakdown_json: null, analysis_json: null,
-      updated_at: null, steady_pace_sec_km: null, steady_heart_rate: null, steady_cadence: null,
-      steady_stance_time: null, pause_breakdown_json: null };
+      updated_at: null, pause_breakdown_json: null };
     expect(coachSummaryFromRow(coach).effectiveness_score).toBe(82);
     expect(() => coachSummaryFromRow({ ...coach, effectiveness_score: '82' })).toThrow('activity_coach_summaries.effectiveness_score');
   });

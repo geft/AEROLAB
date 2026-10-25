@@ -65,17 +65,17 @@ describe('Accepted threshold evidence through SQLite and API', () => {
     expect(db.prepare('SELECT DISTINCT lt1_pace_sec_km FROM physiological_thresholds').all()).toEqual([{ lt1_pace_sec_km: 450 }]);
   });
 
-  it('rechecks failed sources and does not cache rolled-back evidence', () => {
+  it('rechecks excluded sources and does not cache rolled-back evidence', () => {
     aerobic(1); aerobic(2);
     expect(computeRollingThresholds(db).lt1PaceSecKm).toBe(360);
     const transaction = db.transaction(() => {
-      db.prepare("UPDATE activities SET manual_failed_workout=1 WHERE id='source-2'").run();
+      db.prepare("UPDATE activities SET is_treadmill=1 WHERE id='source-2'").run();
       expect(computeRollingThresholds(db).lt1PaceSecKm).toBeNull();
       throw new Error('rollback');
     });
     expect(transaction).toThrow('rollback');
     expect(computeRollingThresholds(db).lt1PaceSecKm).toBe(360);
-    db.prepare("UPDATE activities SET manual_failed_workout=1 WHERE id='source-2'").run();
+    db.prepare("UPDATE activities SET is_treadmill=1 WHERE id='source-2'").run();
     expect(computeRollingThresholds(db).lt1PaceSecKm).toBeNull();
   });
 

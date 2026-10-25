@@ -170,13 +170,13 @@ describe('Historical fitness with stable athlete max HR', () => {
     expect(getHeartRateProfileAtDate(db, '2026-01-04').lt2Hr).toBeLessThan(178);
   });
 
-  it('excludes confirmed failed workout evidence while preserving independent dated measurements', () => {
+  it('excludes treadmill evidence while preserving independent dated measurements', () => {
     measurement('2026-01-01', 130, 155);
-    importSteady('failed', '2026-01-02', 159);
-    db.prepare("UPDATE activities SET manual_failed_workout=1 WHERE id='failed'").run();
+    importSteady('treadmill', '2026-01-02', 159);
+    db.prepare("UPDATE activities SET is_treadmill=1 WHERE id='treadmill'").run();
     expect(getHeartRateProfileAtDate(db, '2026-01-03').lt2Hr).toBe(155);
     expect(realignDatabase(db).activitiesFailed).toEqual([]);
-    expect(db.prepare("SELECT COUNT(*) AS n FROM physiological_thresholds WHERE source_activity_id='failed'").get()).toEqual({ n: 0 });
+    expect(db.prepare("SELECT COUNT(*) AS n FROM physiological_thresholds WHERE source_activity_id='treadmill'").get()).toEqual({ n: 0 });
     expect(db.prepare("SELECT COUNT(*) AS n FROM physiological_thresholds WHERE source_kind='external'").get()).toEqual({ n: 1 });
   });
 

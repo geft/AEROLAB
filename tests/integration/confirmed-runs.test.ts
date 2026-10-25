@@ -66,18 +66,11 @@ describe('Athlete-confirmed historical workouts', () => {
       for (const r of run.records) insert.run(run.id,r.timestamp,r.elapsedSeconds,r.heartRate,r.cadence,r.speedMps,
         r.distanceMeters,r.stanceTime,r.verticalOscillation);
     })();
-    expect(updateActivityService(db, run.id, {
-      run_type: run.expectedRunType, ...(run.failed === true ? { is_failed_workout: true } : {})
-    }).ok).toBe(true);
+    expect(updateActivityService(db, run.id, { run_type: run.expectedRunType }).ok).toBe(true);
     for (let replay = 0; replay < 2; replay++) {
       expect(realignDatabase(db).activitiesFailed).toEqual([]);
       expect(db.prepare('SELECT run_type,manual_run_type FROM activities WHERE id=?').get(run.id))
         .toEqual({run_type:run.expectedRunType,manual_run_type:run.expectedRunType});
-      const coach = db.prepare('SELECT key_insights_json FROM activity_coach_summaries WHERE activity_id=?').get(run.id) as { key_insights_json: string };
-      if (run.failed === true) {
-        expect(JSON.parse(coach.key_insights_json).some((s: string) => s.includes('Incomplete / Aborted'))).toBe(true);
-        expect(db.prepare('SELECT COUNT(*) AS n FROM physiological_thresholds WHERE source_activity_id=?').get(run.id)).toEqual({ n: 0 });
-      }
     }
   });
 });

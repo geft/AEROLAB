@@ -598,7 +598,6 @@ export function syncActivityCoachSummary(
   const activityValue: unknown = db.prepare('SELECT * FROM activities WHERE id = ?').get(activityId);
   if (!activityValue) return null;
   const activity = activityFromRow(activityValue);
-  const confirmedFailure = objectRow(activityValue, 'activities').manual_failed_workout;
 
   const records = loadAnalysisRecords(db, activityId);
   const pauseBreakdown = extractSteadyStateMetrics(records);
@@ -662,13 +661,13 @@ export function syncActivityCoachSummary(
     weatherPm25: activity.weather_pm25_ug_m3 ?? null,
     weatherPm25Source: activity.weather_pm25_source ?? null,
     recentAverageWeatherTempC: weatherBaselineRow?.avg_temp ?? null,
-    isFailedWorkout: overrides?.isFailedWorkout ?? (confirmedFailure == null ? qualityWorkoutFailed(
+    isFailedWorkout: overrides?.isFailedWorkout ?? qualityWorkoutFailed(
       overrides?.runType || activity.run_type || 'easy_base',
       intervals.filter(interval => interval.type === 'work').map(interval => ({
         durationSeconds: (interval.duration_seconds as number | null) ?? 0,
         maxHeartRate: (interval.max_heart_rate as number | null) ?? 0
       })), { maxHr: maxHeartRate, restingHr, lt1Hr, lt2Hr }
-    ) : confirmedFailure === 1),
+    ),
     intervals: overrides?.intervals || intervals,
     splits: overrides?.splits || splits,
     records,
@@ -712,20 +711,15 @@ export function syncActivityCoachSummary(
     db.prepare(`
       INSERT INTO activity_coach_summaries (
         activity_id, headline, effectiveness_score, key_insights_json, insight_tones_json,
-        recommendation, steady_pace_sec_km, steady_heart_rate,
-        steady_cadence, steady_stance_time, pause_breakdown_json, score_breakdown_json,
+        recommendation, pause_breakdown_json, score_breakdown_json,
         analysis_json, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(activity_id) DO UPDATE SET
         headline = excluded.headline,
         effectiveness_score = excluded.effectiveness_score,
         key_insights_json = excluded.key_insights_json,
         insight_tones_json = excluded.insight_tones_json,
         recommendation = excluded.recommendation,
-        steady_pace_sec_km = excluded.steady_pace_sec_km,
-        steady_heart_rate = excluded.steady_heart_rate,
-        steady_cadence = excluded.steady_cadence,
-        steady_stance_time = excluded.steady_stance_time,
         pause_breakdown_json = excluded.pause_breakdown_json,
         score_breakdown_json = excluded.score_breakdown_json,
         analysis_json = excluded.analysis_json,
@@ -737,10 +731,6 @@ export function syncActivityCoachSummary(
       JSON.stringify(coachSummary.keyInsights),
       JSON.stringify(coachSummary.insightTones || []),
       coachSummary.recommendation,
-      pauseBreakdown.steadyPaceSecKm,
-      pauseBreakdown.steadyHeartRate,
-      pauseBreakdown.steadyCadence,
-      pauseBreakdown.steadyStanceTimeMs,
       JSON.stringify(pauseBreakdown),
       JSON.stringify(coachSummary.scoreBreakdown),
       JSON.stringify(analysis)

@@ -28,7 +28,7 @@ export function getStridePaceAnchorSecKmAtDate(db: Database.Database, runDate: s
     const prior = (date: string) => Number.isFinite(thresholdTime(date)) && thresholdTime(date) < ref;
     const lt2Row = (db.prepare(`SELECT lt2_pace_sec_km, effective_date, confidence, source_activity_id
       FROM physiological_thresholds WHERE lt2_pace_sec_km IS NOT NULL
-        AND (source_kind='external' OR source_activity_id NOT IN (SELECT id FROM activities WHERE manual_failed_workout=1 OR is_treadmill=1))
+        AND (source_kind='external' OR source_activity_id NOT IN (SELECT id FROM activities WHERE is_treadmill=1))
       ORDER BY id DESC`).all() as
       Array<{ lt2_pace_sec_km: number; effective_date: string; confidence: number; source_activity_id: string | null }>)
       .filter(row => row.source_activity_id !== excludeActivityId && prior(row.effective_date) && row.confidence > 0 && row.confidence <= 1 &&
@@ -42,7 +42,7 @@ export function getStridePaceAnchorSecKmAtDate(db: Database.Database, runDate: s
       SELECT a.id, a.run_type, a.start_time, i.avg_pace_sec_km
       FROM activities a JOIN activity_intervals i ON i.activity_id = a.id
       WHERE a.run_type IN ('threshold_lt2', 'intervals_vo2')
-        AND COALESCE(a.manual_failed_workout, 0) = 0 AND a.is_treadmill = 0
+        AND a.is_treadmill = 0
         AND i.type = 'work' AND i.duration_seconds >= 60
         AND i.avg_pace_sec_km BETWEEN 120 AND 1200
       ORDER BY a.id DESC, i.interval_index ASC
@@ -668,8 +668,6 @@ export function evaluateThresholdUpdate(
         const promoted = rolling.lt1Evidence.method === 'aerobic_reference';
         const minHr = promoted ? rolling.lt1Hr : range?.lt1_min_hr ?? rolling.lt1Hr - 1;
         const maxHr = promoted ? rolling.lt1Hr : range?.lt1_max_hr ?? rolling.lt1Hr + 1;
-        updates.push('z3_start_hr = ?');
-        params.push(promoted ? rolling.lt1Hr + 1 : maxHr + 1);
         updates.push('lt1_min_hr = ?');
         params.push(minHr);
         updates.push('lt1_max_hr = ?');
@@ -677,8 +675,6 @@ export function evaluateThresholdUpdate(
       }
       if (rolling.lt2Hr) {
         updates.push('lt2_hr = ?');
-        params.push(rolling.lt2Hr);
-        updates.push('z4_start_hr = ?');
         params.push(rolling.lt2Hr);
       }
       if (updates.length > 0) {

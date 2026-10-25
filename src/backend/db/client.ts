@@ -101,9 +101,9 @@ function initializeDatabase(db: Database.Database, validateSchema: boolean): voi
   if (!db.prepare("SELECT id FROM athlete_profile WHERE id = 'primary'").get()) {
     // Explicit nulls also override personal DEFAULT clauses in older schemas.
     db.prepare(`INSERT INTO athlete_profile (id, age, dob, resting_hr, max_hr,
-      lt1_hr, lt2_hr, lt1_min_hr, lt1_max_hr, z3_start_hr, z4_start_hr, pb_5k,
+      lt1_hr, lt2_hr, lt1_min_hr, lt1_max_hr, pb_5k,
       preferences_json, is_max_hr_estimated)
-      VALUES ('primary', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+      VALUES ('primary', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
         '{}', 1)`).run();
   }
 

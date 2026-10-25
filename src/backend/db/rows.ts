@@ -27,8 +27,7 @@ export interface HeartRateRecordDbRow { elapsed_seconds: number; heart_rate: num
 export interface CoachSummaryDbRow {
   headline: string; effectiveness_score: number; key_insights_json: string; insight_tones_json: string | null;
   recommendation: string; score_breakdown_json: string | null; analysis_json: string | null; updated_at: string | null;
-  steady_pace_sec_km: number | null; steady_heart_rate: number | null; steady_cadence: number | null;
-  steady_stance_time: number | null; pause_breakdown_json: string | null;
+  pause_breakdown_json: string | null;
 }
 
 function nullableString(row: Record<string, unknown>, key: string, table: string): string | null {
@@ -51,10 +50,6 @@ export function coachSummaryFromRow(value: unknown): CoachSummaryDbRow {
     score_breakdown_json: nullableString(row, 'score_breakdown_json', 'activity_coach_summaries'),
     analysis_json: nullableString(row, 'analysis_json', 'activity_coach_summaries'),
     updated_at: nullableString(row, 'updated_at', 'activity_coach_summaries'),
-    steady_pace_sec_km: nullableNumber(row, 'steady_pace_sec_km', 'activity_coach_summaries'),
-    steady_heart_rate: nullableNumber(row, 'steady_heart_rate', 'activity_coach_summaries'),
-    steady_cadence: nullableNumber(row, 'steady_cadence', 'activity_coach_summaries'),
-    steady_stance_time: nullableNumber(row, 'steady_stance_time', 'activity_coach_summaries'),
     pause_breakdown_json: nullableString(row, 'pause_breakdown_json', 'activity_coach_summaries')
   };
 }

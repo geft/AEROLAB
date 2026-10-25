@@ -76,17 +76,17 @@ if (comparison) {
     return hash.digest('hex');
   };
   const rawBefore = fingerprint(['activity_records', 'activity_fit_details']);
-  const overridesBefore = JSON.stringify(db.prepare('SELECT id,manual_run_type,manual_failed_workout FROM activities ORDER BY id').all());
+  const overridesBefore = JSON.stringify(db.prepare('SELECT id,manual_run_type FROM activities ORDER BY id').all());
   const started = performance.now();
   const first = realignDatabase(db, { strict: true });
   const chronologicalRows = reportRows(false);
-  const labels = db.prepare('SELECT id,auto_run_type,run_type,manual_run_type,manual_failed_workout FROM activities ORDER BY id').all();
+  const labels = db.prepare('SELECT id,auto_run_type,run_type,manual_run_type FROM activities ORDER BY id').all();
   const analysesBefore = fingerprint(['activities', 'activity_intervals', 'activity_splits', 'activity_coach_summaries', 'physiological_thresholds'], ['id', 'created_at', 'updated_at']);
   const second = realignDatabase(db, { strict: true });
-  const repeatable = JSON.stringify(labels) === JSON.stringify(db.prepare('SELECT id,auto_run_type,run_type,manual_run_type,manual_failed_workout FROM activities ORDER BY id').all());
+  const repeatable = JSON.stringify(labels) === JSON.stringify(db.prepare('SELECT id,auto_run_type,run_type,manual_run_type FROM activities ORDER BY id').all());
   const dependentAnalysesRepeatable = analysesBefore === fingerprint(['activities', 'activity_intervals', 'activity_splits', 'activity_coach_summaries', 'physiological_thresholds'], ['id', 'created_at', 'updated_at']);
   const rawPreserved = rawBefore === fingerprint(['activity_records', 'activity_fit_details']);
-  const overridesPreserved = overridesBefore === JSON.stringify(db.prepare('SELECT id,manual_run_type,manual_failed_workout FROM activities ORDER BY id').all());
+  const overridesPreserved = overridesBefore === JSON.stringify(db.prepare('SELECT id,manual_run_type FROM activities ORDER BY id').all());
   const sharedPipelineAgreement = chronologicalRows.every(row => (labels as Array<{ id: string; auto_run_type: string; run_type: string }>).some(label => label.id === row.id && label.auto_run_type === row.prediction.runType && label.run_type === row.effective));
   fs.writeFileSync(reportPath.replace(/\.json$/, '-chronological.json'), JSON.stringify({ first, second, repeatable, dependentAnalysesRepeatable, rawPreserved, overridesPreserved, sharedPipelineAgreement,
     runtimeMs: performance.now() - started, rows: chronologicalRows, transitions: chronologicalRows.filter(row => row.prediction.runType !== row.storedAuto), labels }, null, 2) + '\n');

@@ -38,7 +38,7 @@ describe('Aerobic reassessment through SQLite and API', () => {
     expect(result.zones.z3[0]).toBe(158);
     expect(changes()).toBe(before);
     expect(db.prepare('SELECT COUNT(*) AS n FROM physiological_thresholds').get()).toEqual({ n: 0 });
-    db.prepare("UPDATE athlete_profile SET lt1_hr=157,lt1_min_hr=157,lt1_max_hr=157,z3_start_hr=158 WHERE id='primary'").run();
+    db.prepare("UPDATE athlete_profile SET lt1_hr=157,lt1_min_hr=157,lt1_max_hr=157 WHERE id='primary'").run();
     expect(getThresholdsService(db).currentThresholds).toMatchObject({ lt1Hr: 157, lt1PaceSecKm: 348,
       lt1Evidence: { method: 'aerobic_reference', supportCount: 3 } });
   });
@@ -50,12 +50,12 @@ describe('Aerobic reassessment through SQLite and API', () => {
     db.prepare("UPDATE athlete_profile SET lt1_hr=157,lt1_min_hr=157,lt1_max_hr=157 WHERE id='primary'").run();
     expect(getHeartRateProfileAtDate(db, '2026-08-14').lt1Hr).toBe(before);
   });
-  it('excludes future sources and invalidates cached evidence when a workout is marked failed', () => {
+  it('excludes future sources and invalidates cached evidence when an activity changes', () => {
     source('a', '2026-08-01'); source('b', '2026-08-08'); source('c', '2026-08-15');
     source('future', '2026-09-01', 165, 'tempo');
     const asOf = '2026-08-30T12:00:00Z';
     expect(getAerobicAssessment(db, asOf)).toMatchObject({ assessedRunCount: 3, reference: { supportCount: 3 } });
-    db.prepare("UPDATE activities SET manual_failed_workout=1 WHERE id='c'").run();
+    db.prepare("UPDATE activities SET is_treadmill=1 WHERE id='c'").run();
     expect(getAerobicAssessment(db, asOf)).toMatchObject({ assessedRunCount: 2, reference: null });
     expect(getAerobicAssessment(db, '2026-08-02').usableRunCount).toBe(1);
   });
@@ -64,7 +64,7 @@ describe('Aerobic reassessment through SQLite and API', () => {
     const asOf = '2026-08-30';
     expect(getAerobicAssessment(db, asOf).reference?.supportCount).toBe(3);
     expect(db.transaction(() => {
-      db.prepare("UPDATE activities SET manual_failed_workout=1 WHERE id='c'").run();
+      db.prepare("DELETE FROM activities WHERE id='c'").run();
       expect(getAerobicAssessment(db, asOf).reference).toBeNull();
       throw new Error('rollback');
     })).toThrow('rollback');

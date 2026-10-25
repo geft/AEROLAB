@@ -128,11 +128,10 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
   // 2. Compute Physiology & Intervals
   // A force re-import deletes and re-inserts the row, so user-entered facts
   // (the run-type override and any official race result) are carried over.
-  const confirmed = existing ? db.prepare(`SELECT manual_run_type, manual_failed_workout,
+  const confirmed = existing ? db.prepare(`SELECT manual_run_type,
       official_time_seconds, official_distance_meters, official_source FROM activities WHERE id = ?`).get(existing.id) as
     {
       manual_run_type: import('./classifier.js').RunType | null;
-      manual_failed_workout: number | null;
       official_time_seconds: number | null;
       official_distance_meters: number | null;
       official_source: string | null;
@@ -308,9 +307,9 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
     );
 
 
-    if (confirmed) db.prepare(`UPDATE activities SET manual_run_type = ?, manual_failed_workout = ?,
+    if (confirmed) db.prepare(`UPDATE activities SET manual_run_type = ?,
         official_time_seconds = ?, official_distance_meters = ?, official_source = ? WHERE id = ?`)
-      .run(confirmed.manual_run_type, confirmed.manual_failed_workout,
+      .run(confirmed.manual_run_type,
         confirmed.official_time_seconds, confirmed.official_distance_meters, confirmed.official_source, metadata.id);
 
     persistWorkoutSegments(db, metadata.id, splits, intervals);
@@ -348,7 +347,7 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
     compressActivity(db, metadata.id);
 
     // Threshold updates
-    if (confirmed?.manual_failed_workout !== 1) evaluateThresholdUpdate(db, metadata.id, metadata.date, runType, metadata, context.records, economy, hrProfile);
+    evaluateThresholdUpdate(db, metadata.id, metadata.date, runType, metadata, context.records, economy, hrProfile);
 
     // A backfill or corrected import may change evidence for existing later
     // workouts. Rebuild those in the same transaction so file order cannot

@@ -86,7 +86,7 @@ describe('named database migrations', () => {
     seedBenchmarkProfile(first);
     const bench = getBenchmark('bench-easy-60');
     importRunContent(first, toCsv(bench), 'run.csv');
-    first.exec('ALTER TABLE activities DROP COLUMN manual_run_type; ALTER TABLE activities DROP COLUMN manual_failed_workout');
+    first.exec('ALTER TABLE activities DROP COLUMN manual_run_type');
     first.prepare("DELETE FROM schema_migrations WHERE name='confirmed-workout-intent-v1'").run();
     first.prepare("UPDATE activities SET run_type='intervals_vo2' WHERE id=?").run(bench.id);
     first.close();

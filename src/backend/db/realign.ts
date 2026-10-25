@@ -62,13 +62,12 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
   };
 
   const classifications = new Map<string, ClassificationEvidence>();
-  type ReplayActivity = Activity & { manual_run_type: RunType | null; manual_failed_workout: number | null };
+  type ReplayActivity = Activity & { manual_run_type: RunType | null };
   const activity = (value: unknown): ReplayActivity => {
     const row = objectRow(value, 'activities');
     const manual = row.manual_run_type;
     if (manual != null && !['easy_base', 'long_run', 'tempo', 'threshold_lt2', 'intervals_vo2', 'race', 'recovery'].includes(String(manual))) throw new Error('Invalid activities.manual_run_type');
-    if (row.manual_failed_workout != null && row.manual_failed_workout !== 0 && row.manual_failed_workout !== 1) throw new Error('Invalid activities.manual_failed_workout');
-    return { ...activityFromRow(row), manual_run_type: manual as RunType | null ?? null, manual_failed_workout: row.manual_failed_workout as number | null ?? null };
+    return { ...activityFromRow(row), manual_run_type: manual as RunType | null ?? null };
   };
   let activities: ReplayActivity[];
   if (options.activityIds && options.activityIds.length > 0) {
@@ -100,7 +99,7 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
         OR source_activity_id IN (
           SELECT t.source_activity_id FROM physiological_thresholds t
           JOIN activities a ON a.id = t.source_activity_id
-          WHERE a.manual_failed_workout = 1 OR a.is_treadmill = 1
+          WHERE a.is_treadmill = 1
             OR (t.lt2_hr IS NOT NULL AND a.run_type NOT IN ('threshold_lt2', 'race'))
             OR (t.lt1_hr IS NOT NULL AND t.lt2_hr IS NULL AND a.run_type NOT IN ('easy_base', 'long_run'))
         )
@@ -188,8 +187,7 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
           act.id
         );
 
-        if (act.manual_failed_workout !== 1)
-          evaluateThresholdUpdate(db, act.id, act.start_time, runType, meta, mapped, economy, hrProfile);
+        evaluateThresholdUpdate(db, act.id, act.start_time, runType, meta, mapped, economy, hrProfile);
         return { runType, intervalCount: intervals.length, evidence: classification.evidence };
       })();
       classifications.set(act.id, rebuilt.evidence);
@@ -225,8 +223,8 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
       const prof = db.prepare('SELECT lt1_hr, lt2_hr FROM athlete_profile WHERE id = ?').get('primary') as { lt1_hr: number | null; lt2_hr: number | null } | undefined;
       if (prof && getAthleteHeartRateProfile(db).hasBaseline) {
         if (current.lt1Hr !== prof.lt1_hr || current.lt2Hr !== prof.lt2_hr) {
-          db.prepare('UPDATE athlete_profile SET lt1_hr = ?, lt2_hr = ?, lt1_min_hr = ?, lt1_max_hr = ?, z3_start_hr = ?, z4_start_hr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-            .run(current.lt1Hr, current.lt2Hr, current.lt1Range[0], current.lt1Range[1], current.lt1Hr + 1, current.lt2Hr, 'primary');
+          db.prepare('UPDATE athlete_profile SET lt1_hr = ?, lt2_hr = ?, lt1_min_hr = ?, lt1_max_hr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+            .run(current.lt1Hr, current.lt2Hr, current.lt1Range[0], current.lt1Range[1], 'primary');
           log(`  profile synced: LT1 ${prof.lt1_hr}->${current.lt1Hr}, LT2 ${prof.lt2_hr}->${current.lt2Hr}`);
         }
         stats.profileLt1Hr = current.lt1Hr;
