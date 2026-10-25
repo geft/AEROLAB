@@ -10,13 +10,16 @@ export type GarminApiErrorCode =
   | 'GARMIN_KEY_INVALID'
   | 'GARMIN_RATE_LIMITED'
   | 'GARMIN_UNAVAILABLE'
+  | 'GARMIN_NO_FILE'
   | 'GARMIN_DOWNLOAD_FAILED';
 
 export class GarminApiError extends Error {
   constructor(
     public readonly code: GarminApiErrorCode,
     message: string,
-    public readonly status = 502
+    public readonly status = 502,
+    /** The HTTP status Garmin returned, when the error came from upstream. */
+    public readonly upstreamStatus: number | null = null
   ) {
     super(message);
     this.name = 'GarminApiError';
@@ -88,7 +91,7 @@ function upstreamError(status: number, action: string): GarminApiError {
   if (status === 429) {
     return new GarminApiError('GARMIN_RATE_LIMITED', 'Garmin is rate limiting requests. Try again in a few minutes.', 429);
   }
-  return new GarminApiError('GARMIN_UNAVAILABLE', `Garmin Connect could not complete the ${action} request.`, 502);
+  return new GarminApiError('GARMIN_UNAVAILABLE', `Garmin Connect could not complete the ${action} request.`, 502, status);
 }
 
 async function garminFetch(url: string, init: RequestInit, action: string): Promise<Response> {
@@ -204,11 +207,21 @@ export async function searchGarminActivities(
 
 /** Downloads the original activity file: a ZIP archive containing one FIT file. */
 export async function downloadGarminActivity(token: GarminAccessToken, activityId: string): Promise<Buffer> {
-  const response = await garminFetch(
-    `${baseUrl()}/download-service/files/activity/${encodeURIComponent(activityId)}`,
-    { headers: { Accept: 'application/zip, application/x-zip-compressed, application/octet-stream', Authorization: `Bearer ${token.accessToken}` } },
-    'activity download'
-  );
+  let response: Response;
+  try {
+    response = await garminFetch(
+      `${baseUrl()}/download-service/files/activity/${encodeURIComponent(activityId)}`,
+      { headers: { Accept: 'application/zip, application/x-zip-compressed, application/octet-stream', Authorization: `Bearer ${token.accessToken}` } },
+      'activity download'
+    );
+  } catch (error) {
+    // A manual entry has no recorded file, so Garmin answers 404. That is a
+    // durable fact about the activity, not a transient failure worth retrying.
+    if (error instanceof GarminApiError && (error.upstreamStatus === 404 || error.upstreamStatus === 410)) {
+      throw new GarminApiError('GARMIN_NO_FILE', 'Garmin has no recorded file for this activity.', 404, error.upstreamStatus);
+    }
+    throw error;
+  }
   const content = Buffer.from(await response.arrayBuffer());
   if (!content.length) {
     throw new GarminApiError('GARMIN_DOWNLOAD_FAILED', 'Garmin Connect returned an empty activity file.', 502);

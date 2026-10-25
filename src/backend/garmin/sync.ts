@@ -136,6 +136,11 @@ function isInvalidKeyError(error: unknown): boolean {
   return error instanceof GarminApiError && error.code === 'GARMIN_KEY_INVALID';
 }
 
+/** No recorded file behind the activity, e.g. a manual entry. Never retryable. */
+function isMissingFileError(error: unknown): boolean {
+  return error instanceof GarminApiError && error.code === 'GARMIN_NO_FILE';
+}
+
 /** A key Garmin rejects can never work again; stop offering it locally. */
 function forgetRejectedKey(source: 'stored' | 'environment'): void {
   resetGarminTokenCache();
@@ -204,6 +209,19 @@ export async function syncGarmin(
     const candidate = plan.candidates[index];
     const filename = `garmin-${candidate.activity.activityId}.zip`;
     if (download.status === 'rejected') {
+      if (isMissingFileError(download.reason)) {
+        // A manual activity has nothing to import. Settle it so the backfill
+        // cursor can move past it instead of retrying the same dead entry on
+        // every sync and blocking everything older than it.
+        if (candidate.direction === 'older') settledOlder.add(candidate.activity.activityId);
+        results.push({
+          filename,
+          activityName: candidate.activity.activityName,
+          date: candidate.time,
+          status: 'skipped_no_file'
+        });
+        return;
+      }
       results.push({
         filename,
         activityName: candidate.activity.activityName,
@@ -279,6 +297,7 @@ export async function syncGarmin(
     imported: results.filter(result => result.status === 'imported').length,
     duplicates: results.filter(result => result.status === 'skipped_duplicate').length,
     nonRunning: results.filter(result => result.status === 'skipped_non_running').length,
+    noFile: results.filter(result => result.status === 'skipped_no_file').length,
     errors: results.filter(result => result.status === 'error').length,
     hasMoreNewer: plan.hasMoreNewer,
     hasMoreOlder: plan.hasMoreOlder,

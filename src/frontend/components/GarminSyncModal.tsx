@@ -111,6 +111,7 @@ export const GarminSyncModal: React.FC<GarminSyncModalProps> = ({
       case 'imported': return t.garminSync.imported;
       case 'skipped_duplicate': return t.garminSync.duplicates;
       case 'skipped_non_running': return t.garminSync.nonRunning;
+      case 'skipped_no_file': return t.garminSync.noFile;
       case 'error': return t.garminSync.errors;
     }
   };
@@ -120,6 +121,7 @@ export const GarminSyncModal: React.FC<GarminSyncModalProps> = ({
       case 'imported': return 'var(--accent-emerald)';
       case 'skipped_duplicate': return 'var(--accent-amber)';
       case 'skipped_non_running': return 'var(--text-secondary)';
+      case 'skipped_no_file': return 'var(--text-secondary)';
       case 'error': return 'var(--accent-rose)';
     }
   };
@@ -247,6 +249,9 @@ export const GarminSyncModal: React.FC<GarminSyncModalProps> = ({
                   <div><strong style={{ color: 'var(--accent-emerald)' }}>{result.imported}</strong><span>{t.garminSync.imported}</span></div>
                   <div><strong style={{ color: 'var(--accent-amber)' }}>{result.duplicates}</strong><span>{t.garminSync.duplicates}</span></div>
                   <div><strong>{result.nonRunning}</strong><span>{t.garminSync.nonRunning}</span></div>
+                  {result.noFile > 0 && (
+                    <div><strong style={{ color: 'var(--text-secondary)' }}>{result.noFile}</strong><span>{t.garminSync.noFile}</span></div>
+                  )}
                   <div><strong style={{ color: result.errors > 0 ? 'var(--accent-rose)' : 'var(--text-muted)' }}>{result.errors}</strong><span>{t.garminSync.errors}</span></div>
                 </div>
                 {hasMore && <p>{format(t.garminSync.hasMore, { count: result.batchLimit })}</p>}

@@ -805,6 +805,7 @@ export interface Translations {
     imported: string;
     duplicates: string;
     nonRunning: string;
+    noFile: string;
     errors: string;
     hasMore: string;
     resultsLabel: string;

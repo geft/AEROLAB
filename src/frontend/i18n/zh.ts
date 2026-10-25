@@ -1341,6 +1341,7 @@ export const zh: Translations = {
     imported: '已导入',
     duplicates: '重复',
     nonRunning: '非跑步',
+    noFile: '无文件',
     errors: '错误',
     hasMore: '再次同步以获取接下来的 {count} 个文件。',
     resultsLabel: 'Garmin 活动结果',

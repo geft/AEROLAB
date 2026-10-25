@@ -748,6 +748,7 @@ export const en: Translations = {
     imported: 'Imported',
     duplicates: 'Duplicates',
     nonRunning: 'Not runs',
+    noFile: 'No file',
     errors: 'Errors',
     hasMore: 'Run the sync again to fetch the next {count} files.',
     resultsLabel: 'Garmin activity results',

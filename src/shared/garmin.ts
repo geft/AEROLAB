@@ -37,7 +37,7 @@ export interface GarminKeyStatus {
   expirySource: 'environment' | 'stored' | null;
 }
 
-export type GarminImportStatus = 'imported' | 'skipped_duplicate' | 'skipped_non_running' | 'error';
+export type GarminImportStatus = 'imported' | 'skipped_duplicate' | 'skipped_non_running' | 'skipped_no_file' | 'error';
 
 export interface GarminSyncResultItem {
   filename: string;
@@ -56,6 +56,8 @@ export interface GarminSyncResponse {
   imported: number;
   duplicates: number;
   nonRunning: number;
+  /** Activities Garmin has no recorded file for, such as manual entries. */
+  noFile: number;
   errors: number;
   hasMoreNewer: boolean;
   hasMoreOlder: boolean;
