@@ -4,10 +4,11 @@ import { Trophy, Medal } from 'lucide-react';
 import { formatPace } from '../utils/formatters.js';
 import { useTranslation } from '../i18n/LanguageContext.js';
 import { getBestEfforts } from '../api/client.js';
+import type { BestEffortSource } from '../../shared/best-efforts.js';
 
 export interface BestEffortRecord {
   /** Missing only in older offline snapshots. */
-  source?: 'measured' | 'estimated';
+  source?: BestEffortSource;
   targetId: string;
   label: string;
   distanceMeters: number;
@@ -98,6 +99,14 @@ export const BestEffortsCard: React.FC = () => {
   const getLocalizedDistanceLabel = (label: string): string =>
     t.bestEfforts.distanceLabels[label] || label;
 
+  // A timing-mat result is not an estimate and not a GPS segment; the badge has
+  // to say which, because the number alone cannot tell them apart.
+  const sourceCopy: Record<BestEffortSource, { label: string; description: string }> = {
+    official: { label: t.bestEfforts.official, description: t.bestEfforts.officialDescription },
+    measured: { label: t.bestEfforts.measured, description: t.bestEfforts.measuredDescription },
+    estimated: { label: t.bestEfforts.estimated, description: t.bestEfforts.estimatedDescription }
+  };
+
   return (
     <div className="card" style={{ padding: '1.25rem' }}>
       {/* Header */}
@@ -172,9 +181,9 @@ export const BestEffortsCard: React.FC = () => {
                 </div>
 
                 {e?.source && (
-                  <span title={e.source === 'estimated' ? t.bestEfforts.estimatedDescription : t.bestEfforts.measuredDescription}
+                  <span title={sourceCopy[e.source].description}
                     style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
-                    {e.source === 'estimated' ? t.bestEfforts.estimated : t.bestEfforts.measured}
+                    {sourceCopy[e.source].label}
                   </span>
                 )}
 

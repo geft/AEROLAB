@@ -50,6 +50,11 @@ export function deduplicateRuns(db: Database.Database, logger?: (msg: string) =>
 
     const updateKeeperGeo = db.prepare('UPDATE activities SET workout_lat = ?, workout_lon = ? WHERE id = ?');
     const updateKeeperName = db.prepare('UPDATE activities SET name = ? WHERE id = ?');
+    const updateKeeperOfficial = db.prepare(`UPDATE activities SET
+      official_time_seconds = ?, official_distance_meters = ?, official_source = ? WHERE id = ?`);
+    const readOfficial = db.prepare(
+      'SELECT official_time_seconds, official_distance_meters, official_source FROM activities WHERE id = ?'
+    );
 
     const purgedSet = new Set<string>();
 
@@ -115,6 +120,20 @@ export function deduplicateRuns(db: Database.Database, logger?: (msg: string) =>
       // Ensure keeper has the best descriptive name
       if (bestName && bestName !== 'Singapore Running') {
         updateKeeperName.run(bestName, keeperId);
+      }
+
+      // A timing-mat result must outlive the duplicate it was attached to.
+      const keeperOfficial = readOfficial.get(keeperId) as
+        { official_time_seconds: number | null; official_distance_meters: number | null; official_source: string | null } | undefined;
+      const discardOfficial = readOfficial.get(discardId) as
+        { official_time_seconds: number | null; official_distance_meters: number | null; official_source: string | null } | undefined;
+      if (keeperOfficial?.official_time_seconds == null && discardOfficial?.official_time_seconds != null) {
+        updateKeeperOfficial.run(
+          discardOfficial.official_time_seconds,
+          discardOfficial.official_distance_meters,
+          discardOfficial.official_source,
+          keeperId
+        );
       }
 
       // Purge discard

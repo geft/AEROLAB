@@ -1,6 +1,7 @@
 import type { CoachSummary } from '../../shared/contracts/activity-detail.js';
 import type { ThresholdEvidence } from '../../shared/threshold-evidence.js';
 import type { AerobicAssessment } from '../../shared/aerobic-assessment.js';
+import type { BestEffortSource } from '../../shared/best-efforts.js';
 /**
  * API response contracts.
  *
@@ -111,7 +112,7 @@ export interface VolumeEntry {
 /** GET /api/activities/best-efforts */
 export interface BestEffortRecord {
   /** Missing only in older offline snapshots. */
-  source?: 'measured' | 'estimated';
+  source?: BestEffortSource;
   targetId: string;
   label: string;
   distanceMeters: number;
@@ -312,6 +313,9 @@ export interface ActivityPatchInput {
   run_type?: string;
   name?: string;
   tags?: string[];
+  official_time_seconds?: number | null;
+  official_distance_meters?: number | null;
+  official_source?: 'chip' | 'gun' | null;
 }
 
 /** POST /api/database/restore */

@@ -180,6 +180,12 @@ export const zh: Translations = {
     viewSwitcherLabel: '浏览视图切换',
     sessionsCount: '训练记录（{count}）',
     exportCsv: '导出 CSV',
+    officialResultTitle: '官方成绩',
+    officialResultHint: '赛事成绩册中的芯片计时。该距离的个人最佳将以它取代 GPS 测量结果。',
+    chipTimeLabel: '芯片时间',
+    certifiedDistanceLabel: '认证距离',
+    officialResultInvalid: '请输入类似 45:58 或 3:52:10 的时间，以及以公里为单位的距离。',
+    officialResultClear: '清除成绩',
     steadyPace: '巡航配速',
     steadyHr: '巡航心率',
     efficiencyFactor: '效率因子 (EF)',
@@ -1439,8 +1445,10 @@ export const zh: Translations = {
     selectedChartPoint: '所选周期：{period}'
   },
   bestEfforts: {
+    official: '官方成绩',
     measured: '实测分段',
     estimated: '估算成绩',
+    officialDescription: '根据赛事成绩册录入的芯片计时。该距离以官方成绩为准，不再参考手表轨迹。',
     measuredDescription: '根据记录的距离与经过时间计算，分段边界使用插值。',
     estimatedDescription: '根据整次跑步平均配速估算，暂无可用的实测分段。',
     loading: '正在加载最佳成绩...',

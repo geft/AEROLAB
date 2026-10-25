@@ -180,6 +180,12 @@ export const en: Translations = {
     viewSwitcherLabel: 'Browse view switcher',
     sessionsCount: 'Sessions ({count})',
     exportCsv: 'Export CSV',
+    officialResultTitle: 'Official result',
+    officialResultHint: 'Timing-mat time from the race results. It replaces the GPS measurement for this distance.',
+    chipTimeLabel: 'Chip time',
+    certifiedDistanceLabel: 'Certified distance',
+    officialResultInvalid: 'Enter a time like 45:58 or 3:52:10, and a distance in km.',
+    officialResultClear: 'Clear result',
     steadyPace: 'Steady Pace',
     steadyHr: 'Steady HR',
     efficiencyFactor: 'Running Economy (EF)',
@@ -833,8 +839,10 @@ export const en: Translations = {
     selectedChartPoint: 'Selected period: {period}'
   },
   bestEfforts: {
+    official: 'Official result',
     measured: 'Measured segment',
     estimated: 'Estimated',
+    officialDescription: 'Timing-mat time entered from the race results. It is authoritative for this distance, so the recorded trace is not consulted.',
     measuredDescription: 'Calculated from recorded distance and elapsed time, with interpolated boundaries.',
     estimatedDescription: 'Estimated from whole-run average pace; no measured segment is available.',
     loading: 'Loading best efforts...',

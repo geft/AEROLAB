@@ -37,6 +37,12 @@ export interface Activity {
   pause_duration_seconds?: number | null;
   walk_duration_seconds?: number | null;
   walk_distance_meters?: number | null;
+  /** Timing-mat result for the race distance, in seconds. */
+  official_time_seconds?: number | null;
+  /** Certified distance the official time was measured over, in metres. */
+  official_distance_meters?: number | null;
+  /** Which clock produced the official time. */
+  official_source?: 'chip' | 'gun' | null;
   weather_temperature_c?: number | null;
   weather_humidity_pct?: number | null;
   weather_apparent_temp_c?: number | null;

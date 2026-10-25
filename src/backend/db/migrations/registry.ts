@@ -112,6 +112,16 @@ export function runSchemaMigrations(db: Database.Database, migrations: Runner): 
     for (const detail of details) update.run(Number(isTreadmillFitMetadata(JSON.parse(decodeStoredJson(detail.metadata_json)))), detail.activity_id);
   });
 
+  // Official race results live beside the recording. A timing mat measures the
+  // course; the watch only witnesses it, and can be short by a full 1.5% on an
+  // urban course, so the certified numbers need their own columns.
+  register('official-result-v1', () => {
+    const columns = new Set((db.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>).map(column => column.name));
+    if (!columns.has('official_time_seconds')) db.exec('ALTER TABLE activities ADD COLUMN official_time_seconds REAL');
+    if (!columns.has('official_distance_meters')) db.exec('ALTER TABLE activities ADD COLUMN official_distance_meters REAL');
+    if (!columns.has('official_source')) db.exec('ALTER TABLE activities ADD COLUMN official_source TEXT');
+  });
+
   for (const step of steps) migrations.run(step.id, step.apply);
 }
 

@@ -10,6 +10,7 @@
 
 import Database from 'better-sqlite3';
 import { distanceSeries, timeAtDistance } from './distance-series.js';
+import { snapToBenchmark, type BestEffortSource } from '../../shared/best-efforts.js';
 
 export interface BestEffortTarget {
   id: '1k' | '5k' | '10k' | 'hm' | 'mar';
@@ -26,8 +27,8 @@ export const BEST_EFFORT_TARGETS: BestEffortTarget[] = [
 ];
 
 export interface BestEffortRecord {
-  /** Interpolated telemetry segment or whole-activity mean-pace fallback. */
-  source: 'measured' | 'estimated';
+  /** Timing-mat result, interpolated telemetry segment, or whole-activity mean-pace fallback. */
+  source: BestEffortSource;
   targetId: string;
   label: string;
   distanceMeters: number;
@@ -84,17 +85,26 @@ export interface BestEffortsReport {
   targets: BestEffortTarget[];
 }
 
+/** The benchmark an official distance stands for. */
+function officialBenchmark(distanceMeters: number): BestEffortTarget | undefined {
+  const benchmark = snapToBenchmark(distanceMeters);
+  return benchmark == null ? undefined : BEST_EFFORT_TARGETS.find(target => target.distanceMeters === benchmark);
+}
+
 /**
  * Retrieves all-time and current calendar year personal bests from database.
  */
 export function getAthleteBestEfforts(db: Database.Database): BestEffortsReport {
   const currentYearStr = new Date().getFullYear().toString();
 
-  // Find candidate activities that are long enough for standard distances
+  // Find candidate activities that are long enough for standard distances. An
+  // official result also qualifies regardless of recorded length: a race whose
+  // watch lost signal still has a certified distance and a chip time.
   const candidateActivities = db.prepare(`
-    SELECT id, name, start_time, distance_meters, duration_seconds
+    SELECT id, name, start_time, distance_meters, duration_seconds,
+           official_time_seconds, official_distance_meters
     FROM activities
-    WHERE distance_meters >= 900
+    WHERE distance_meters >= 900 OR official_time_seconds IS NOT NULL
     ORDER BY start_time DESC
   `).all() as Array<{
     id: string;
@@ -102,6 +112,8 @@ export function getAthleteBestEfforts(db: Database.Database): BestEffortsReport 
     start_time: string;
     distance_meters: number;
     duration_seconds: number;
+    official_time_seconds: number | null;
+    official_distance_meters: number | null;
   }>;
 
   const allTimeBests = new Map<string, BestEffortRecord>();
@@ -114,11 +126,49 @@ export function getAthleteBestEfforts(db: Database.Database): BestEffortsReport 
     ORDER BY elapsed_seconds ASC
   `);
 
+  const consider = (recordItem: BestEffortRecord, isThisYear: boolean): void => {
+    const existingAllTime = allTimeBests.get(recordItem.targetId);
+    if (!existingAllTime || recordItem.timeSeconds < existingAllTime.timeSeconds) {
+      allTimeBests.set(recordItem.targetId, recordItem);
+    }
+    if (!isThisYear) return;
+    const existingYear = currentYearBests.get(recordItem.targetId);
+    if (!existingYear || recordItem.timeSeconds < existingYear.timeSeconds) {
+      currentYearBests.set(recordItem.targetId, recordItem);
+    }
+  };
+
   for (const act of candidateActivities) {
     const isThisYear = act.start_time.startsWith(currentYearStr);
     const records = recStmt.all(act.id) as Array<{ elapsed_seconds: number; distance_m: number | null }>;
 
+    const officialTime = act.official_time_seconds;
+    const officialTarget = officialTime != null && act.official_distance_meters != null
+      ? officialBenchmark(act.official_distance_meters)
+      : undefined;
+
+    const buildRecord = (timeSeconds: number, source: BestEffortSource, target: BestEffortTarget): BestEffortRecord => ({
+      source,
+      targetId: target.id,
+      label: target.label,
+      distanceMeters: target.distanceMeters,
+      timeSeconds,
+      paceSecKm: Math.round((timeSeconds / target.distanceMeters) * 1000),
+      activityId: act.id,
+      activityName: act.name || 'Running Activity',
+      activityDate: act.start_time
+    });
+
     for (const target of BEST_EFFORT_TARGETS) {
+      // A timing mat is the measurement. The fastest-window search below is a
+      // maximiser of GPS error -- one teleport invents a PB -- so an official
+      // result for this distance wins outright and the trace is not consulted.
+      // Comparing across activities still takes the fastest time.
+      if (officialTime != null && officialTarget?.id === target.id) {
+        consider(buildRecord(Math.round(officialTime), 'official', target), isThisYear);
+        continue;
+      }
+
       if (act.distance_meters < target.distanceMeters) continue;
 
       let fastestSec: number | null = null;
@@ -126,39 +176,17 @@ export function getAthleteBestEfforts(db: Database.Database): BestEffortsReport 
         fastestSec = findFastestSegment(records, target.distanceMeters);
       }
 
-      const source = fastestSec != null ? 'measured' : 'estimated';
+      let source: BestEffortSource = 'measured';
 
       // Fallback approximation if records don't have cumulative distance
-      if (!fastestSec && act.distance_meters >= target.distanceMeters && act.duration_seconds > 0) {
+      if (!fastestSec && act.duration_seconds > 0) {
         fastestSec = Math.round((act.duration_seconds / act.distance_meters) * target.distanceMeters);
+        source = 'estimated';
       }
 
       if (!fastestSec || fastestSec <= 0) continue;
 
-      const paceSecKm = Math.round((fastestSec / target.distanceMeters) * 1000);
-      const recordItem: BestEffortRecord = {
-        source,
-        targetId: target.id,
-        label: target.label,
-        distanceMeters: target.distanceMeters,
-        timeSeconds: fastestSec,
-        paceSecKm,
-        activityId: act.id,
-        activityName: act.name || 'Running Activity',
-        activityDate: act.start_time
-      };
-
-      const existingAllTime = allTimeBests.get(target.id);
-      if (!existingAllTime || recordItem.timeSeconds < existingAllTime.timeSeconds) {
-        allTimeBests.set(target.id, recordItem);
-      }
-
-      if (isThisYear) {
-        const existingYear = currentYearBests.get(target.id);
-        if (!existingYear || recordItem.timeSeconds < existingYear.timeSeconds) {
-          currentYearBests.set(target.id, recordItem);
-        }
-      }
+      consider(buildRecord(fastestSec, source, target), isThisYear);
     }
   }
 

@@ -93,6 +93,35 @@ describe('BestEffortsCard UI Tests', () => {
     expect(screen.getByTitle(/整次跑步平均配速/)).toBeDefined();
   });
 
+  it('labels a timing-mat result as official in both languages', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({
+      ...mockBestEffortsData,
+      allTime: [{
+        targetId: '10k',
+        label: '10 km',
+        distanceMeters: 10000,
+        timeSeconds: 2758,
+        paceSecKm: 276,
+        activityId: 'act-race-10k',
+        activityName: 'Singapore 10K',
+        activityDate: '2026-10-25',
+        source: 'official'
+      }]
+    }) })));
+    function Toggle() {
+      const { toggleLanguage } = useTranslation();
+      return <button onClick={toggleLanguage}>Toggle</button>;
+    }
+    render(<LanguageProvider><Toggle /><BestEffortsCard /></LanguageProvider>);
+    await waitFor(() => expect(screen.getByText('Official result')).toBeDefined());
+    expect(screen.getByText('45:58')).toBeDefined();
+    expect(screen.getByText(/4:36\/km/i)).toBeDefined();
+    expect(screen.getByTitle(/Timing-mat time/)).toBeDefined();
+    fireEvent.click(screen.getByText('Toggle'));
+    expect(screen.getByText('官方成绩')).toBeDefined();
+    expect(screen.getByTitle(/芯片计时/)).toBeDefined();
+  });
+
   it('lists every tracked distance and leaves un-raced ones as empty placeholders', async () => {
     const { container } = render(<BestEffortsCard />);
 

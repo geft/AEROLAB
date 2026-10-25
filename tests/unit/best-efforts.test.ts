@@ -1,6 +1,22 @@
 import { describe, it, expect } from 'vitest';
 import Database from 'better-sqlite3';
 import { findFastestSegment, getAthleteBestEfforts, BEST_EFFORT_TARGETS } from '../../src/backend/physiology/best-efforts.js';
+import { BENCHMARK_DISTANCES, snapToBenchmark } from '../../src/shared/best-efforts.js';
+
+/** Minimal schema: only the columns the best-efforts scan reads. */
+function createOfficialDatabase() {
+  const db = new Database(':memory:');
+  db.exec(`
+    CREATE TABLE activities (
+      id TEXT PRIMARY KEY, name TEXT, start_time TEXT, distance_meters REAL, duration_seconds REAL,
+      official_time_seconds REAL, official_distance_meters REAL
+    );
+    CREATE TABLE activity_records (
+      id INTEGER PRIMARY KEY, activity_id TEXT, elapsed_seconds REAL, distance_m REAL
+    );
+  `);
+  return db;
+}
 
 describe('Best Efforts Tracker Unit Tests', () => {
   it('interpolates the finish instead of charging for distance beyond the target', () => {
@@ -138,7 +154,9 @@ describe('Best Efforts Tracker Unit Tests', () => {
         name TEXT,
         start_time TEXT,
         distance_meters REAL,
-        duration_seconds REAL
+        duration_seconds REAL,
+        official_time_seconds REAL,
+        official_distance_meters REAL
       );
       CREATE TABLE activity_records (
         id INTEGER PRIMARY KEY,
@@ -196,7 +214,9 @@ describe('Best Efforts Tracker Unit Tests', () => {
         name TEXT,
         start_time TEXT,
         distance_meters REAL,
-        duration_seconds REAL
+        duration_seconds REAL,
+        official_time_seconds REAL,
+        official_distance_meters REAL
       );
       CREATE TABLE activity_records (
         id INTEGER PRIMARY KEY,
@@ -220,5 +240,92 @@ describe('Best Efforts Tracker Unit Tests', () => {
     expect(efforts.targets.find(t => t.id === 'mar')?.distanceMeters).toBe(42195);
 
     db.close();
+  });
+
+  it('counts a certified result whose recording stopped 11 m short of the distance', () => {
+    const db = createOfficialDatabase();
+    // A 10 km race whose watch recorded 9,988.84 m. No 10,000 m window exists
+    // anywhere in the trace, so only the chip time can produce this PB.
+    db.prepare(`
+      INSERT INTO activities (id, name, start_time, distance_meters, duration_seconds, official_time_seconds, official_distance_meters)
+      VALUES ('race-10k', 'Singapore 10K', '2026-10-25T06:00:25Z', 9988.84, 2817, 2758, 10000)
+    `).run();
+    const insert = db.prepare('INSERT INTO activity_records (activity_id, elapsed_seconds, distance_m) VALUES (?, ?, ?)');
+    insert.run('race-10k', 0, 0);
+    insert.run('race-10k', 1400, 4988);
+    insert.run('race-10k', 2817, 9988.84);
+
+    const efforts = getAthleteBestEfforts(db);
+    const tenK = efforts.allTime.find(e => e.targetId === '10k');
+    expect(tenK?.timeSeconds).toBe(2758);
+    expect(tenK?.source).toBe('official');
+    expect(tenK?.paceSecKm).toBe(276);
+    expect(tenK?.distanceMeters).toBe(10000);
+    expect(tenK?.activityId).toBe('race-10k');
+
+    // A 10K result must not manufacture an official 5K from the halfway mark.
+    expect(efforts.allTime.find(e => e.targetId === '5k')?.source).not.toBe('official');
+    db.close();
+  });
+
+  it('never lets a faster recorded window beat the chip time on the same run', () => {
+    const db = createOfficialDatabase();
+    // The trace covers 10,000 m in 2,600 s, so the search would report 2,600 s.
+    db.prepare(`
+      INSERT INTO activities (id, name, start_time, distance_meters, duration_seconds, official_time_seconds, official_distance_meters)
+      VALUES ('race-10k', 'City 10K', '2026-10-25T06:00:25Z', 10000, 2600, 2758, 10000)
+    `).run();
+    const insert = db.prepare('INSERT INTO activity_records (activity_id, elapsed_seconds, distance_m) VALUES (?, ?, ?)');
+    insert.run('race-10k', 0, 0);
+    insert.run('race-10k', 2600, 10000);
+
+    expect(findFastestSegment([
+      { distance_m: 0, elapsed_seconds: 0 },
+      { distance_m: 10000, elapsed_seconds: 2600 }
+    ], 10000)).toBe(2600);
+
+    const tenK = getAthleteBestEfforts(db).allTime.find(e => e.targetId === '10k');
+    expect(tenK?.timeSeconds).toBe(2758);
+    expect(tenK?.source).toBe('official');
+    db.close();
+  });
+
+  it('still takes the fastest effort across different activities', () => {
+    const db = createOfficialDatabase();
+    db.prepare(`
+      INSERT INTO activities (id, name, start_time, distance_meters, duration_seconds, official_time_seconds, official_distance_meters)
+      VALUES ('race-10k', 'Official 10K', '2026-10-25T06:00:25Z', 9988.84, 2817, 2758, 10000)
+    `).run();
+    // An unrelated longer run holds a faster 10 km window than the race.
+    db.prepare(`
+      INSERT INTO activities (id, name, start_time, distance_meters, duration_seconds)
+      VALUES ('long-run', 'Long Run', '2026-09-05T06:00:00Z', 20000, 6500)
+    `).run();
+    const insert = db.prepare('INSERT INTO activity_records (activity_id, elapsed_seconds, distance_m) VALUES (?, ?, ?)');
+    insert.run('race-10k', 0, 0);
+    insert.run('race-10k', 2817, 9988.84);
+    insert.run('long-run', 0, 0);
+    insert.run('long-run', 3000, 5000);
+    insert.run('long-run', 5000, 15000);
+    insert.run('long-run', 6500, 20000);
+
+    const tenK = getAthleteBestEfforts(db).allTime.find(e => e.targetId === '10k');
+    expect(tenK?.timeSeconds).toBe(2000);
+    expect(tenK?.source).toBe('measured');
+    expect(tenK?.activityId).toBe('long-run');
+    db.close();
+  });
+
+  it('keeps the shared benchmark list and the tracker targets in step', () => {
+    expect(BENCHMARK_DISTANCES).toEqual(BEST_EFFORT_TARGETS.map(t => t.distanceMeters));
+  });
+
+  it('snaps a recorded distance to a benchmark only when it is close enough', () => {
+    expect(snapToBenchmark(9988.84)).toBe(10000);
+    expect(snapToBenchmark(21000)).toBe(21097.5);
+    expect(snapToBenchmark(5020)).toBe(5000);
+    expect(snapToBenchmark(12000)).toBeNull();
+    expect(snapToBenchmark(null)).toBeNull();
+    expect(snapToBenchmark(0)).toBeNull();
   });
 });

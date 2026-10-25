@@ -126,8 +126,17 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
   }
 
   // 2. Compute Physiology & Intervals
-  const confirmed = existing ? db.prepare('SELECT manual_run_type, manual_failed_workout FROM activities WHERE id = ?').get(existing.id) as
-    { manual_run_type: import('./classifier.js').RunType | null; manual_failed_workout: number | null } : undefined;
+  // A force re-import deletes and re-inserts the row, so user-entered facts
+  // (the run-type override and any official race result) are carried over.
+  const confirmed = existing ? db.prepare(`SELECT manual_run_type, manual_failed_workout,
+      official_time_seconds, official_distance_meters, official_source FROM activities WHERE id = ?`).get(existing.id) as
+    {
+      manual_run_type: import('./classifier.js').RunType | null;
+      manual_failed_workout: number | null;
+      official_time_seconds: number | null;
+      official_distance_meters: number | null;
+      official_source: string | null;
+    } : undefined;
   const storedFit = existing && !parsed.fitMetadata ? db.prepare('SELECT metadata_json FROM activity_fit_details WHERE activity_id = ?')
     .get(existing.id) as { metadata_json: string | Buffer } | undefined : undefined;
   const fitMetadata = parsed.fitMetadata ?? (storedFit ? JSON.parse(decodeStoredJson(storedFit.metadata_json)) : undefined);
@@ -299,8 +308,10 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
     );
 
 
-    if (confirmed) db.prepare('UPDATE activities SET manual_run_type = ?, manual_failed_workout = ? WHERE id = ?')
-      .run(confirmed.manual_run_type, confirmed.manual_failed_workout, metadata.id);
+    if (confirmed) db.prepare(`UPDATE activities SET manual_run_type = ?, manual_failed_workout = ?,
+        official_time_seconds = ?, official_distance_meters = ?, official_source = ? WHERE id = ?`)
+      .run(confirmed.manual_run_type, confirmed.manual_failed_workout,
+        confirmed.official_time_seconds, confirmed.official_distance_meters, confirmed.official_source, metadata.id);
 
     persistWorkoutSegments(db, metadata.id, splits, intervals);
 

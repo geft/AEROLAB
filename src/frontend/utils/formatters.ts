@@ -49,6 +49,22 @@ export function formatDuration(seconds: number | null | undefined): string {
 }
 
 /**
+ * Parses a "45:58" or "3:52:10" clock time into seconds.
+ * A bare number is rejected: "2758" is more likely a typo for 27:58.
+ */
+export function parseDuration(input: string): number | null {
+  const trimmed = (input ?? '').trim();
+  if (!trimmed) return null;
+  const parts = trimmed.split(':');
+  if (parts.length < 2 || parts.length > 3) return null;
+  if (!parts.every(part => /^\d{1,3}$/.test(part))) return null;
+  // Only the leading field may exceed 59, so "45:75" is a typo rather than 46:15.
+  if (parts.slice(1).some(part => Number(part) > 59)) return null;
+  const seconds = parts.reduce((total, part) => total * 60 + Number(part), 0);
+  return seconds > 0 ? seconds : null;
+}
+
+/**
  * Formats an Efficiency Factor (EF) with 2 decimal places.
  */
 export function formatEfficiency(ef: number | null | undefined): string {

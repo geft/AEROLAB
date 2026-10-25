@@ -565,19 +565,23 @@ export interface UpdateActivityInput {
   is_failed_workout?: boolean;
   name?: string;
   tags?: unknown;
+  official_time_seconds?: number | null;
+  official_distance_meters?: number | null;
+  official_source?: 'chip' | 'gun' | null;
 }
 
 export type UpdateActivityResult =
   | { ok: true; response: ActivityPatchResponse }
-  | { ok: false; status: 400 | 404; code: 'ERR_INVALID_TAGS' | 'ERR_NO_FIELDS_TO_UPDATE' | 'ERR_ACTIVITY_NOT_FOUND'; error: string };
+  | { ok: false; status: 400 | 404; code: 'ERR_INVALID_TAGS' | 'ERR_NO_FIELDS_TO_UPDATE' | 'ERR_INVALID_OFFICIAL_RESULT' | 'ERR_ACTIVITY_NOT_FOUND'; error: string };
 
 /** PATCH /api/activities/:id - manual override for run_type or notes */
 export function updateActivityService(db: Database.Database, id: string, input: UpdateActivityInput): UpdateActivityResult {
   assertDatabaseWritable();
   const { run_type, is_failed_workout, name, tags } = input;
+  const { official_time_seconds, official_distance_meters, official_source } = input;
 
   const updates: string[] = [];
-  const params: string[] = [];
+  const params: Array<string | number | null> = [];
 
   if (run_type) {
     updates.push('run_type = ?', 'manual_run_type = ?');
@@ -594,14 +598,46 @@ export function updateActivityService(db: Database.Database, id: string, input: 
   if (tags !== undefined) {
     return { ok: false, status: 400, code: 'ERR_INVALID_TAGS', error: 'Tags are derived from the recorded run and cannot be edited.' };
   }
+  if (official_time_seconds !== undefined) {
+    updates.push('official_time_seconds = ?');
+    params.push(official_time_seconds);
+  }
+  if (official_distance_meters !== undefined) {
+    updates.push('official_distance_meters = ?');
+    params.push(official_distance_meters);
+  }
+  if (official_source !== undefined) {
+    updates.push('official_source = ?');
+    params.push(official_source);
+  }
 
   if (updates.length === 0) {
     return { ok: false, status: 400, code: 'ERR_NO_FIELDS_TO_UPDATE', error: 'No fields to update' };
   }
 
-  const previous = db.prepare('SELECT start_time FROM activities WHERE id = ?').get(id) as { start_time: string } | undefined;
+  const previous = db.prepare(
+    'SELECT start_time, official_time_seconds, official_distance_meters FROM activities WHERE id = ?'
+  ).get(id) as { start_time: string; official_time_seconds: number | null; official_distance_meters: number | null } | undefined;
   if (!previous) {
     return { ok: false, status: 404, code: 'ERR_ACTIVITY_NOT_FOUND', error: 'Activity not found' };
+  }
+
+  // A chip time without a certified distance cannot produce a pace, and a
+  // distance without a time cannot produce a PB. Treat them as one fact.
+  const nextOfficialTime = official_time_seconds !== undefined ? official_time_seconds : previous.official_time_seconds;
+  const nextOfficialDistance = official_distance_meters !== undefined ? official_distance_meters : previous.official_distance_meters;
+  if (nextOfficialTime != null || nextOfficialDistance != null) {
+    const valid = nextOfficialTime != null && nextOfficialDistance != null &&
+      Number.isFinite(nextOfficialTime) && nextOfficialTime > 0 &&
+      Number.isFinite(nextOfficialDistance) && nextOfficialDistance > 0;
+    if (!valid) {
+      return {
+        ok: false,
+        status: 400,
+        code: 'ERR_INVALID_OFFICIAL_RESULT',
+        error: 'An official result needs a positive chip time and a positive certified distance'
+      };
+    }
   }
 
   return db.transaction(() => {
@@ -619,11 +655,18 @@ export function updateActivityService(db: Database.Database, id: string, input: 
 export function parseActivityUpdate(value: unknown): UpdateActivityInput | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
-  if (Object.keys(row).some(key => !['run_type', 'is_failed_workout', 'name', 'tags'].includes(key))) return null;
+  if (Object.keys(row).some(key => !['run_type', 'is_failed_workout', 'name', 'tags',
+    'official_time_seconds', 'official_distance_meters', 'official_source'].includes(key))) return null;
   if (row.is_failed_workout !== undefined && typeof row.is_failed_workout !== 'boolean') return null;
   if (row.run_type !== undefined && typeof row.run_type !== 'string') return null;
   if (row.name !== undefined && typeof row.name !== 'string') return null;
   if (row.tags !== undefined && typeof row.tags !== 'string' &&
       (!Array.isArray(row.tags) || !row.tags.every(tag => typeof tag === 'string'))) return null;
+  const isNumberOrNull = (field: unknown): boolean =>
+    field === undefined || field === null || (typeof field === 'number' && Number.isFinite(field));
+  if (!isNumberOrNull(row.official_time_seconds)) return null;
+  if (!isNumberOrNull(row.official_distance_meters)) return null;
+  if (row.official_source !== undefined && row.official_source !== null &&
+      row.official_source !== 'chip' && row.official_source !== 'gun') return null;
   return row as UpdateActivityInput;
 }

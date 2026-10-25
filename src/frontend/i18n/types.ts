@@ -208,6 +208,12 @@ export interface Translations {
     viewSwitcherLabel: string;
     sessionsCount: string;
     exportCsv: string;
+    officialResultTitle: string;
+    officialResultHint: string;
+    chipTimeLabel: string;
+    certifiedDistanceLabel: string;
+    officialResultInvalid: string;
+    officialResultClear: string;
     steadyPace: string;
     steadyHr: string;
     efficiencyFactor: string;
@@ -889,8 +895,10 @@ export interface Translations {
     selectedChartPoint: string;
   };
   bestEfforts: {
+    official: string;
     measured: string;
     estimated: string;
+    officialDescription: string;
     measuredDescription: string;
     estimatedDescription: string;
     loading: string;

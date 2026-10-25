@@ -33,7 +33,10 @@ describe('activity service input boundary', () => {
 
   it('validates update shapes and rejects updates for a missing activity', () => {
     const db = new Database(':memory:');
-    db.exec('CREATE TABLE activities (id TEXT PRIMARY KEY, max_heart_rate REAL, start_time TEXT, run_type TEXT)');
+    db.exec(`CREATE TABLE activities (
+      id TEXT PRIMARY KEY, max_heart_rate REAL, start_time TEXT, run_type TEXT,
+      official_time_seconds REAL, official_distance_meters REAL, official_source TEXT
+    )`);
     try {
       expect(parseActivityUpdate(null)).toBeNull();
       expect(parseActivityUpdate([])).toBeNull();
@@ -44,11 +47,35 @@ describe('activity service input boundary', () => {
       expect(parseActivityUpdate({ is_failed_workout: true })).toEqual({ is_failed_workout: true });
       expect(parseActivityUpdate({ tags: ['Easy Base', 4] })).toBeNull();
       expect(parseActivityUpdate({ tags: 'Easy Base' })).toEqual({ tags: 'Easy Base' });
+      expect(parseActivityUpdate({ official_time_seconds: '2758' })).toBeNull();
+      expect(parseActivityUpdate({ official_distance_meters: NaN })).toBeNull();
+      expect(parseActivityUpdate({ official_source: 'mat' })).toBeNull();
+      expect(parseActivityUpdate({ official_time_seconds: 2758, official_distance_meters: 10000, official_source: 'chip' }))
+        .toEqual({ official_time_seconds: 2758, official_distance_meters: 10000, official_source: 'chip' });
       expect(updateActivityService(db, 'missing', { run_type: 'easy_base' })).toMatchObject({
         ok: false, status: 404, code: 'ERR_ACTIVITY_NOT_FOUND'
       });
       expect(updateActivityService(db, 'missing', { tags: '"Easy Base"' })).toMatchObject({ code: 'ERR_INVALID_TAGS' });
       expect(updateActivityService(db, 'missing', { tags: 'not json' })).toMatchObject({ code: 'ERR_INVALID_TAGS' });
+    } finally {
+      db.close();
+    }
+  });
+
+  it('rejects an official result that has a time but no certified distance', () => {
+    const db = new Database(':memory:');
+    db.exec(`CREATE TABLE activities (
+      id TEXT PRIMARY KEY, start_time TEXT, run_type TEXT,
+      official_time_seconds REAL, official_distance_meters REAL, official_source TEXT
+    )`);
+    db.prepare('INSERT INTO activities (id, start_time) VALUES (?, ?)').run('run-1', '2026-10-25T06:00:25Z');
+    try {
+      expect(updateActivityService(db, 'run-1', { official_time_seconds: 2758 })).toMatchObject({
+        ok: false, status: 400, code: 'ERR_INVALID_OFFICIAL_RESULT'
+      });
+      expect(updateActivityService(db, 'run-1', { official_distance_meters: 0, official_time_seconds: 2758 })).toMatchObject({
+        ok: false, status: 400, code: 'ERR_INVALID_OFFICIAL_RESULT'
+      });
     } finally {
       db.close();
     }

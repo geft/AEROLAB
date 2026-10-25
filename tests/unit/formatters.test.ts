@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatPace, formatDate, formatDuration, formatEfficiency } from '../../src/frontend/utils/formatters.js';
+import { formatPace, formatDate, formatDuration, formatEfficiency, parseDuration } from '../../src/frontend/utils/formatters.js';
 
 describe('Formatters Unit Tests', () => {
   describe('formatPace', () => {
@@ -59,6 +59,32 @@ describe('Formatters Unit Tests', () => {
       expect(formatDuration(undefined)).toBe('0:00');
       expect(formatDuration(0)).toBe('0:00');
       expect(formatDuration(-10)).toBe('0:00');
+    });
+  });
+
+  describe('parseDuration', () => {
+    it('parses M:SS and H:MM:SS clock times into seconds', () => {
+      expect(parseDuration('45:58')).toBe(2758);
+      expect(parseDuration('21:23')).toBe(1283);
+      expect(parseDuration('3:52:10')).toBe(13930);
+      expect(parseDuration('  4:36 ')).toBe(276);
+    });
+
+    it('rejects a bare number and impossible clock times', () => {
+      expect(parseDuration('')).toBeNull();
+      expect(parseDuration('   ')).toBeNull();
+      expect(parseDuration('2758')).toBeNull();
+      expect(parseDuration('45:75')).toBeNull();
+      expect(parseDuration('1:2:3:4')).toBeNull();
+      expect(parseDuration('abc')).toBeNull();
+      expect(parseDuration('45m')).toBeNull();
+      expect(parseDuration('0:00')).toBeNull();
+    });
+
+    it('round-trips with formatDuration', () => {
+      for (const seconds of [2758, 1283, 13930, 276]) {
+        expect(parseDuration(formatDuration(seconds))).toBe(seconds);
+      }
     });
   });
 
