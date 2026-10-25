@@ -64,6 +64,15 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
   const hasOfficialResult = act.official_time_seconds != null;
   const showOfficialResult = act.run_type === 'race' || hasOfficialResult;
 
+  // The official result defines what the race was: distance, time and pace.
+  // Everything else in the header (heart rate, cadence, elevation, load) still
+  // comes from the trace, which is what actually recorded how it was run.
+  const officialTimeSeconds = act.official_time_seconds ?? null;
+  const officialDistanceMeters = act.official_distance_meters ?? null;
+  const officialPaceSecKm = officialTimeSeconds != null && officialDistanceMeters
+    ? Math.round((officialTimeSeconds / officialDistanceMeters) * 1000)
+    : null;
+
   /** Metres to a compact kilometres string: 10000 -> "10", 21097.5 -> "21.1". */
   const formatKilometres = (metres: number): string =>
     (metres / 1000).toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
@@ -283,24 +292,43 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
       <div className="metric-chips-grid">
         <div className="metric-chip">
           <span className="metric-chip-label">{t.browse.distance}</span>
-          <span className="metric-chip-value">{(act.distance_meters / 1000).toFixed(2)}<span className="metric-chip-unit">km</span></span>
+          <span className="metric-chip-value">
+            {((officialDistanceMeters ?? act.distance_meters) / 1000).toFixed(2)}
+            <span className="metric-chip-unit">km</span>
+          </span>
+          {officialDistanceMeters != null && (
+            <span className="metric-chip-detail">
+              {t.browse.raw}: {(act.distance_meters / 1000).toFixed(2)} km
+            </span>
+          )}
         </div>
         <div className="metric-chip">
           <span className="metric-chip-label">{t.browse.movingTime}</span>
-          <span className="metric-chip-value">{formatTime(act.duration_seconds)}</span>
+          <span className="metric-chip-value">{formatTime(officialTimeSeconds ?? act.duration_seconds)}</span>
+          {officialTimeSeconds != null && (
+            <span className="metric-chip-detail">
+              {t.browse.raw}: {formatTime(act.duration_seconds)}
+            </span>
+          )}
         </div>
         <div className="metric-chip">
           <span className="metric-chip-label">
             {t.browse.avgPace}
-            {!!act.steady_pace_sec_km && act.steady_pace_sec_km !== act.avg_pace_sec_km && (
-              <span className="metric-chip-qualifier">{t.browse.steadyPace}</span>
-            )}
+            {officialPaceSecKm != null
+              ? <span className="metric-chip-qualifier">{t.browse.officialResultTitle}</span>
+              : !!act.steady_pace_sec_km && act.steady_pace_sec_km !== act.avg_pace_sec_km && (
+                <span className="metric-chip-qualifier">{t.browse.steadyPace}</span>
+              )}
           </span>
           <span className="metric-chip-value" style={{ color: '#06b6d4' }}>
-            {formatPace(act.steady_pace_sec_km || act.avg_pace_sec_km)}
+            {formatPace(officialPaceSecKm ?? act.steady_pace_sec_km ?? act.avg_pace_sec_km)}
             <span className="metric-chip-unit">/km</span>
           </span>
-          {act.steady_pace_sec_km && act.steady_pace_sec_km !== act.avg_pace_sec_km && (
+          {officialPaceSecKm != null ? (
+            <span className="metric-chip-detail">
+              {t.browse.raw}: {formatPace(act.steady_pace_sec_km ?? act.avg_pace_sec_km)}
+            </span>
+          ) : act.steady_pace_sec_km && act.steady_pace_sec_km !== act.avg_pace_sec_km && (
             <span className="metric-chip-detail">
               {t.browse.raw}: {formatPace(act.avg_pace_sec_km)}
             </span>

@@ -5,6 +5,7 @@ import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-li
 import { ActivityDetailHeader } from '../../src/frontend/components/browse/ActivityDetailHeader.js';
 import { LanguageProvider } from '../../src/frontend/i18n/LanguageContext.js';
 import { en } from '../../src/frontend/i18n/en.js';
+import { formatDuration, formatPace } from '../../src/frontend/utils/formatters.js';
 import type { Activity } from '../../src/frontend/types/api.js';
 
 const baseActivity = {
@@ -26,8 +27,8 @@ const renderHeader = (overrides: Partial<Activity> = {}, onActivityUpdated = vi.
         act={{ ...baseActivity, ...overrides }}
         records={[]}
         getDisplayTitle={activity => activity.name ?? 'Run'}
-        formatPace={sec => (sec ? `${Math.floor(sec / 60)}:00/km` : '—')}
-        formatTime={sec => `${Math.round(sec)}s`}
+        formatPace={formatPace}
+        formatTime={formatDuration}
         getTimeOfDay={() => 'Early morning'}
         onActivityUpdated={onActivityUpdated}
         onRefreshWeather={() => undefined}
@@ -105,6 +106,27 @@ describe('official race result editor', () => {
 
     cleanup();
     renderHeader({ run_type: 'easy_base', official_time_seconds: 2758, official_distance_meters: 10000 });
-    expect(screen.getByText('45:58')).toBeDefined();
+    expect(screen.getAllByText('45:58').length).toBeGreaterThan(0);
+  });
+
+  it('reports the certified distance, time and pace while keeping the trace as raw', () => {
+    renderHeader({
+      official_time_seconds: 2758,
+      official_distance_meters: 10000,
+      distance_meters: 9988.84,
+      duration_seconds: 2817,
+      avg_pace_sec_km: 282,
+      steady_pace_sec_km: null
+    });
+
+    // 2,758 s over 10,000 m is 4:36/km; the recording said 4:42/km.
+    expect(screen.getByText(/4:36\/km/)).toBeDefined();
+    expect(screen.getAllByText('45:58').length).toBeGreaterThan(0);
+    expect(screen.getByText('10.00')).toBeDefined();
+
+    // Nothing is hidden: the recorded values stay visible as raw.
+    expect(screen.getByText(/Raw: 4:42\/km/)).toBeDefined();
+    expect(screen.getByText(/Raw: 46:57/)).toBeDefined();
+    expect(screen.getByText(/Raw: 9\.99 km/)).toBeDefined();
   });
 });
