@@ -184,7 +184,7 @@ export const en: Translations = {
     officialResultHint: 'Timing-mat time from the race results. It replaces the GPS measurement for this distance.',
     chipTimeLabel: 'Chip time',
     certifiedDistanceLabel: 'Certified distance',
-    officialResultInvalid: 'Enter a time like 45:58 or 3:52:10, and a distance in km.',
+    officialResultInvalid: 'Enter a chip time and a certified distance.',
     officialResultClear: 'Clear result',
     steadyPace: 'Steady Pace',
     steadyHr: 'Steady HR',

@@ -184,7 +184,7 @@ export const zh: Translations = {
     officialResultHint: '赛事成绩册中的芯片计时。该距离的个人最佳将以它取代 GPS 测量结果。',
     chipTimeLabel: '芯片时间',
     certifiedDistanceLabel: '认证距离',
-    officialResultInvalid: '请输入类似 45:58 或 3:52:10 的时间，以及以公里为单位的距离。',
+    officialResultInvalid: '请输入芯片时间与认证距离。',
     officialResultClear: '清除成绩',
     steadyPace: '巡航配速',
     steadyHr: '巡航心率',

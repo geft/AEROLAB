@@ -11,7 +11,7 @@ import { translateActivityName } from '../../i18n/coachTranslator.js';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { patchActivity } from '../../api/client.js';
 import { invalidateActivityData } from '../../features/activity-revision.js';
-import { formatDuration, parseDuration } from '../../utils/formatters.js';
+import { formatDuration } from '../../utils/formatters.js';
 import { snapToBenchmark } from '../../../shared/best-efforts.js';
 import { downloadSessionCsv } from '../../utils/sessionCsv.js';
 import { isTreadmillFitMetadata } from '../../../shared/activity-environment.js';
@@ -48,7 +48,9 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
   const [isEditingTitle, setIsEditingTitle] = useState<boolean>(false);
   const [customTitle, setCustomTitle] = useState<string>('');
   const [isEditingOfficial, setIsEditingOfficial] = useState<boolean>(false);
-  const [chipTimeInput, setChipTimeInput] = useState<string>('');
+  const [officialHoursInput, setOfficialHoursInput] = useState<string>('');
+  const [officialMinutesInput, setOfficialMinutesInput] = useState<string>('');
+  const [officialSecondsInput, setOfficialSecondsInput] = useState<string>('');
   const [certifiedDistanceInput, setCertifiedDistanceInput] = useState<string>('');
   const [officialError, setOfficialError] = useState<boolean>(false);
   const { formatDate, language } = useTranslation();
@@ -67,7 +69,16 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
     (metres / 1000).toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
 
   const openOfficialEditor = (): void => {
-    setChipTimeInput(hasOfficialResult ? formatDuration(act.official_time_seconds) : '');
+    const total = act.official_time_seconds;
+    if (total != null) {
+      setOfficialHoursInput(String(Math.floor(total / 3600)));
+      setOfficialMinutesInput(String(Math.floor((total % 3600) / 60)).padStart(2, '0'));
+      setOfficialSecondsInput(String(Math.round(total % 60)).padStart(2, '0'));
+    } else {
+      setOfficialHoursInput('0');
+      setOfficialMinutesInput('');
+      setOfficialSecondsInput('');
+    }
     const metres = act.official_distance_meters
       ?? snapToBenchmark(act.distance_meters)
       ?? act.distance_meters;
@@ -76,16 +87,23 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
     setIsEditingOfficial(true);
   };
 
+  /** Digits only, capped at two, so a stray letter can never reach the parser. */
+  const digitsOnly = (value: string): string => value.replace(/\D/g, '').slice(0, 2);
+
   const saveOfficialResult = async (): Promise<void> => {
-    const seconds = parseDuration(chipTimeInput);
+    const hours = Number(officialHoursInput || 0);
+    const minutes = Number(officialMinutesInput || 0);
+    const seconds = Number(officialSecondsInput || 0);
+    const totalSeconds = hours * 3600 + minutes * 60 + seconds;
+    const timeValid = minutes < 60 && seconds < 60 && totalSeconds > 0;
     const kilometres = Number(certifiedDistanceInput.replace(',', '.'));
-    if (seconds == null || !Number.isFinite(kilometres) || kilometres <= 0) {
+    if (!timeValid || !Number.isFinite(kilometres) || kilometres <= 0) {
       setOfficialError(true);
       return;
     }
     try {
       const response = await patchActivity(act.id, {
-        official_time_seconds: seconds,
+        official_time_seconds: totalSeconds,
         official_distance_meters: Math.round(kilometres * 1000),
         official_source: 'chip'
       });
@@ -120,9 +138,36 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
     color: '#fff',
     border: '1px solid rgba(255,255,255,0.15)',
     borderRadius: 6,
-    padding: '0.3rem 0.55rem',
+    padding: '0 0.55rem',
+    height: '2rem',
     fontSize: '0.85rem',
+    fontFamily: 'inherit',
     width: '8.5rem'
+  };
+
+  const officialFieldLabelStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.2rem',
+    fontSize: '0.65rem',
+    color: 'var(--text-secondary)'
+  };
+
+  const officialButtonStyle: React.CSSProperties = {
+    borderRadius: 6,
+    border: 'none',
+    height: '2rem',
+    padding: '0 0.75rem',
+    fontSize: '0.75rem',
+    fontWeight: 700,
+    fontFamily: 'inherit',
+    cursor: 'pointer'
+  };
+
+  const officialUnitStyle: React.CSSProperties = {
+    fontSize: '0.78rem',
+    fontWeight: 600,
+    color: 'var(--text-secondary)'
   };
 
   return (
@@ -325,7 +370,7 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
         </p>
       )}
       {showOfficialResult && (
-        <div style={{ marginTop: '0.6rem', paddingTop: '0.6rem', borderTop: '1px solid var(--border-subtle)' }}>
+        <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-subtle)' }}>
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
             <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
               {t.browse.officialResultTitle}
@@ -333,10 +378,10 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
 
             {!isEditingOfficial && hasOfficialResult && (
               <>
-                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--accent-amber)' }}>
+                <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--accent-amber)' }}>
                   {formatDuration(act.official_time_seconds)}
                 </span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                   {formatKilometres(act.official_distance_meters ?? 0)} km
                 </span>
                 {!readOnly && (
@@ -363,7 +408,9 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
 
             {!isEditingOfficial && !hasOfficialResult && (
               <>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{t.browse.officialResultHint}</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', flex: '1 1 18rem' }}>
+                  {t.browse.officialResultHint}
+                </span>
                 {!readOnly && (
                   <button
                     type="button"
@@ -375,48 +422,75 @@ export const ActivityDetailHeader: React.FC<ActivityDetailHeaderProps> = ({
                 )}
               </>
             )}
+          </div>
 
-            {isEditingOfficial && (
-              <>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-                  {t.browse.chipTimeLabel}
+          {isEditingOfficial && (
+            <div style={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: '0.6rem', marginTop: '0.5rem' }}>
+              <label style={officialFieldLabelStyle}>
+                {t.browse.chipTimeLabel}
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                   <input
                     type="text"
                     inputMode="numeric"
-                    value={chipTimeInput}
-                    onChange={e => setChipTimeInput(e.target.value)}
-                    placeholder="45:58"
-                    style={officialInputStyle}
+                    value={officialHoursInput}
+                    onChange={e => setOfficialHoursInput(digitsOnly(e.target.value))}
+                    aria-label={`${t.browse.chipTimeLabel} h`}
+                    style={{ ...officialInputStyle, width: '3rem', textAlign: 'center' }}
                   />
-                </label>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-                  {t.browse.certifiedDistanceLabel}
+                  <span style={officialUnitStyle}>h</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={officialMinutesInput}
+                    onChange={e => setOfficialMinutesInput(digitsOnly(e.target.value))}
+                    aria-label={`${t.browse.chipTimeLabel} min`}
+                    style={{ ...officialInputStyle, width: '3rem', textAlign: 'center' }}
+                  />
+                  <span style={officialUnitStyle}>m</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={officialSecondsInput}
+                    onChange={e => setOfficialSecondsInput(digitsOnly(e.target.value))}
+                    aria-label={`${t.browse.chipTimeLabel} s`}
+                    style={{ ...officialInputStyle, width: '3rem', textAlign: 'center' }}
+                  />
+                  <span style={officialUnitStyle}>s</span>
+                </span>
+              </label>
+
+              <label style={officialFieldLabelStyle}>
+                {t.browse.certifiedDistanceLabel}
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <input
                     type="text"
                     inputMode="decimal"
                     value={certifiedDistanceInput}
                     onChange={e => setCertifiedDistanceInput(e.target.value)}
                     placeholder="10"
-                    style={officialInputStyle}
+                    aria-label={t.browse.certifiedDistanceLabel}
+                    style={{ ...officialInputStyle, width: '5.5rem' }}
                   />
-                </label>
-                <button
-                  type="button"
-                  onClick={saveOfficialResult}
-                  style={{ background: '#06b6d4', color: '#07090e', border: 'none', borderRadius: 6, padding: '0.35rem 0.7rem', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
-                >
-                  {t.common.save}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setIsEditingOfficial(false); setOfficialError(false); }}
-                  style={{ background: 'transparent', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, padding: '0.35rem 0.7rem', fontSize: '0.75rem', cursor: 'pointer' }}
-                >
-                  {t.common.cancel}
-                </button>
-              </>
-            )}
-          </div>
+                  <span style={officialUnitStyle}>km</span>
+                </span>
+              </label>
+
+              <button
+                type="button"
+                onClick={saveOfficialResult}
+                style={{ ...officialButtonStyle, background: '#06b6d4', color: '#07090e' }}
+              >
+                {t.common.save}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setIsEditingOfficial(false); setOfficialError(false); }}
+                style={{ ...officialButtonStyle, background: 'transparent', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.15)', fontWeight: 500 }}
+              >
+                {t.common.cancel}
+              </button>
+            </div>
+          )}
 
           {officialError && (
             <p style={{ margin: '0.35rem 0 0', fontSize: '0.72rem', color: '#f87171' }}>
