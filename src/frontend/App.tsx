@@ -21,6 +21,11 @@ const ProfileView = lazy(() => import('./components/ProfileView').then(m => ({ d
 const SettingsView = SNAPSHOT_MODE ? null : lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })));
 const BackupModal = SNAPSHOT_MODE ? null : lazy(() => import('./components/BackupModal').then(m => ({ default: m.BackupModal })));
 const OnboardingPage = SNAPSHOT_MODE ? null : lazy(() => import('./components/OnboardingPage').then(m => ({ default: m.OnboardingPage })));
+// The updater only exists in the packaged desktop app, so the snapshot bundle
+// never pulls it (or its API calls) in.
+const UpdateStartupPrompt = SNAPSHOT_MODE
+  ? null
+  : lazy(() => import('./components/UpdateStartupPrompt').then(m => ({ default: m.UpdateStartupPrompt })));
 
 // Developer diagnostics are excluded from release bundles. Vite statically
 // replaces `import.meta.env.DEV` with `false` in production, so this ternary
@@ -245,6 +250,10 @@ export const App: React.FC = () => {
           {format(t.snapshot.generatedAt, { date: formatDate(snapshotGeneratedAt, { dateStyle: 'medium', timeStyle: 'short' }) })}
         </div>
       )}
+
+      <Suspense fallback={null}>
+        {UpdateStartupPrompt && <UpdateStartupPrompt />}
+      </Suspense>
 
       <main className="main-content">
         <Suspense fallback={<div className="overview-card loading-skeleton" style={{ minHeight: 400 }} />}>

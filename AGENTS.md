@@ -67,3 +67,9 @@ gh release list / gh release view <tag>
 - Conventional Commits: `feat(scope):`, `fix(scope):`, `chore(scope):`, `test:`.
 - Developer tooling (`/api/dev/*`, the diagnostics drawer, the floating dev
   button) is development-only and must never ship in a release build.
+- Desktop updates: the packaged launcher (`scripts/launch-chrome-app.js`) is the
+  only process allowed to close the app window and run the installer. The backend
+  (`src/backend/update/`) downloads and verifies the release, then writes
+  `%APPDATA%\AEROLAB\Updates\pending-update.json`; the launcher applies it and the
+  installer's silent `/S` mode replaces files and relaunches AEROLAB. Keep
+  `AEROLAB_UPDATE_PROTOCOL` in sync with the launcher when changing this flow.

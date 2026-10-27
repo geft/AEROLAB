@@ -11,6 +11,7 @@ import { ingestRouter } from './routes/ingest.js';
 import { profileRouter } from './routes/profile.js';
 import { devRouter, snapshotDeploymentRouter } from './routes/dev.js';
 import { createAutomaticBackupIfDue, databaseRouter } from './routes/database.js';
+import { updateRouter } from './routes/update.js';
 import { requestLogger, globalErrorHandler } from './utils/logger.js';
 import { isDevToolsEnabled } from './utils/dev-mode.js';
 import { getMaintenanceStatus, startMaintenance } from './jobs/maintenance.js';
@@ -98,6 +99,10 @@ export function createServer(options: { sessionToken?: string } = {}) {
   app.use('/api/database/restore', express.json({ limit: '160mb' }));
   app.use(express.json({ limit: '1mb' }));
   app.use(requestLogger);
+  // Updates never touch the workout database, so they are mounted ahead of the
+  // database-busy guard: an auto-update must still work while a migration or
+  // import holds SQLite.
+  app.use('/api/system/update', updateRouter);
   app.use('/api', (req, res, next) => {
     const operation = currentDatabaseOperation();
     if (operation && !['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {

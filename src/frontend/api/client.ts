@@ -21,6 +21,9 @@ import type {
   ServerDiagnostics,
   ThresholdsResponse,
   TrainingLoadResponse,
+  UpdateApplyResponse,
+  UpdateSettingsResponse,
+  UpdateStatus,
   VolumeData
 } from '../types/api.js';
 import { invalidateActivityData } from '../features/activity-revision.js';
@@ -128,6 +131,34 @@ export function refreshActivityWeather(id: string): Promise<{ activity: Partial<
 
 export function getMaintenanceStatus(): Promise<MaintenanceStatus> {
   return requestJson('/api/system/maintenance');
+}
+
+/** GET /api/system/update — last known update state, without a network call. */
+export function getUpdateStatus(): Promise<UpdateStatus> {
+  return requestJson('/api/system/update');
+}
+
+/** POST /api/system/update/check — query GitHub Releases (answers cached for 5 minutes). */
+export function checkForUpdate(force = false): Promise<UpdateStatus> {
+  return requestJson('/api/system/update/check', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ force })
+  });
+}
+
+/** POST /api/system/update/settings — persist the startup auto-update preference. */
+export function saveUpdateSettings(settings: { autoCheck: boolean }): Promise<UpdateSettingsResponse> {
+  return requestJson('/api/system/update/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings)
+  });
+}
+
+/** POST /api/system/update/apply — download the installer and schedule the restart. */
+export function applyUpdate(): Promise<UpdateApplyResponse> {
+  return requestJson('/api/system/update/apply', { method: 'POST' });
 }
 
 /** GET /api/profile — athlete baselines, effective thresholds and derived zones. */

@@ -91,12 +91,20 @@ jobs:
       - name: Prepare changelog for release
         run: node scripts/write-release-notes.js
 
+      - name: Generate installer checksum
+        shell: bash
+        run: |
+          cd release
+          sha256sum "AEROLAB-Setup-v${RELEASE_VERSION}.exe" > "AEROLAB-Setup-v${RELEASE_VERSION}.exe.sha256"
+          cat "AEROLAB-Setup-v${RELEASE_VERSION}.exe.sha256"
+
       - name: Upload Windows Build Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: AEROLAB-Windows-Installer-${{ env.RELEASE_VERSION }}
           path: |
             release/AEROLAB-Setup-v${{ env.RELEASE_VERSION }}.exe
+            release/AEROLAB-Setup-v${{ env.RELEASE_VERSION }}.exe.sha256
             release/release-notes.md
 
   publish:
@@ -117,7 +125,9 @@ jobs:
           tag_name: ${{ format('v{0}', needs.build-and-package.outputs.release_version) }}
           target_commitish: ${{ github.sha }}
           body_path: release/release-notes.md
-          files: release/AEROLAB-Setup-v${{ needs.build-and-package.outputs.release_version }}.exe
+          files: |
+            release/AEROLAB-Setup-v${{ needs.build-and-package.outputs.release_version }}.exe
+            release/AEROLAB-Setup-v${{ needs.build-and-package.outputs.release_version }}.exe.sha256
 
           draft: false
           prerelease: false

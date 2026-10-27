@@ -26,6 +26,13 @@ import type { Activity } from '../../shared/activity.js';
 
 export type { ActivitySplit, ActivityInterval, ActivityRecord, ScoreFactor, CoachContext, WalkAudit, CoachInsightTone, CoachSummary, ActivityWeather, ActivityDetailResponse } from '../../shared/contracts/activity-detail.js';
 export type { GarminKeyStatus, GarminSyncResponse, GarminSyncResultItem, GarminImportStatus } from '../../shared/garmin.js';
+export type {
+  UpdateApplyResponse,
+  UpdatePreferences,
+  UpdateRelease,
+  UpdateSettingsResponse,
+  UpdateStatus
+} from '../../shared/update.js';
 
 /** A calibration point in the threshold history. */
 export interface CalibrationHistoryItem {

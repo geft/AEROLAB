@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.IO.Compression;
 using System.Reflection;
+using System.Threading;
 using System.ComponentModel;
 using System.Windows.Forms;
 using Microsoft.Win32;
@@ -119,76 +120,8 @@ namespace AerolabInstaller
             BackgroundWorker worker = new BackgroundWorker();
             worker.DoWork += (s, args) =>
             {
-                string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                installDir = Path.Combine(localAppData, "Programs", "AEROLAB");
-
-                SetStatus("Creating application directory...");
-                if (!Directory.Exists(installDir))
-                {
-                    Directory.CreateDirectory(installDir);
-                }
-
-                SetStatus("Extracting application files...");
-                Stream zipStream = null;
-                Assembly assembly = Assembly.GetExecutingAssembly();
-
-                foreach (string name in assembly.GetManifestResourceNames())
-                {
-                    if (name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-                    {
-                        zipStream = assembly.GetManifestResourceStream(name);
-                        break;
-                    }
-                }
-
-                if (zipStream != null)
-                {
-                    using (ZipArchive archive = new ZipArchive(zipStream))
-                    {
-                        foreach (ZipArchiveEntry entry in archive.Entries)
-                        {
-                            string destPath = Path.Combine(installDir, entry.FullName);
-                            if (string.IsNullOrEmpty(entry.Name))
-                            {
-                                Directory.CreateDirectory(destPath);
-                            }
-                            else
-                            {
-                                Directory.CreateDirectory(Path.GetDirectoryName(destPath));
-                                entry.ExtractToFile(destPath, true);
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    // Fallback to local zip file if not embedded
-                    string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                    string localZip = Path.Combine(baseDir, "AEROLAB-Windows.zip");
-                    if (File.Exists(localZip))
-                    {
-                        ZipFile.ExtractToDirectory(localZip, installDir);
-                    }
-                    else
-                    {
-                        throw new FileNotFoundException("Application payload zip was not found.");
-                    }
-                }
-
-                SetStatus("Creating Start Menu and Desktop shortcuts...");
-                string exePath = Path.Combine(installDir, "AEROLAB.exe");
-                string icoPath = Path.Combine(installDir, "aerolab.ico");
-
-                // Desktop shortcut
-                string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-                CreateShortcut(Path.Combine(desktop, "AEROLAB.lnk"), exePath, icoPath);
-
-                // Start Menu shortcut
-                string startMenu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs");
-                CreateShortcut(Path.Combine(startMenu, "AEROLAB.lnk"), exePath, icoPath);
-
-                SetStatus("Registering in Windows Programs...");
-                RegisterUninstall(installDir, icoPath);
+                installDir = DefaultInstallDir();
+                Install(installDir, ReportStatus);
             };
 
             worker.RunWorkerCompleted += (s, args) =>
@@ -213,17 +146,125 @@ namespace AerolabInstaller
             worker.RunWorkerAsync();
         }
 
-        private void SetStatus(string text)
+        private void ReportStatus(string text)
         {
             if (InvokeRequired)
             {
-                Invoke(new Action(() => SetStatus(text)));
+                Invoke(new Action<string>(ReportStatus), text);
                 return;
             }
             statusLabel.Text = text;
         }
 
-        private void CreateShortcut(string lnkPath, string targetPath, string iconPath)
+        private static string DefaultInstallDir()
+        {
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            return Path.Combine(Path.Combine(localAppData, "Programs"), "AEROLAB");
+        }
+
+        /**
+         * Shared install routine used by both the interactive window and the silent
+         * switch the in-app updater passes. Silent installs run while the previous
+         * build is still shutting down, so file replacement retries briefly instead
+         * of failing on a transient sharing violation.
+         */
+        private static void Install(string targetDir, Action<string> report)
+        {
+            report("Creating application directory...");
+            if (!Directory.Exists(targetDir))
+            {
+                Directory.CreateDirectory(targetDir);
+            }
+
+            report("Extracting application files...");
+            Stream zipStream = null;
+            Assembly assembly = Assembly.GetExecutingAssembly();
+
+            foreach (string name in assembly.GetManifestResourceNames())
+            {
+                if (name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                {
+                    zipStream = assembly.GetManifestResourceStream(name);
+                    break;
+                }
+            }
+
+            if (zipStream != null)
+            {
+                using (ZipArchive archive = new ZipArchive(zipStream))
+                {
+                    foreach (ZipArchiveEntry entry in archive.Entries)
+                    {
+                        string destPath = Path.Combine(targetDir, entry.FullName);
+                        if (string.IsNullOrEmpty(entry.Name))
+                        {
+                            Directory.CreateDirectory(destPath);
+                        }
+                        else
+                        {
+                            Directory.CreateDirectory(Path.GetDirectoryName(destPath));
+                            ExtractWithRetry(entry, destPath);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // Fallback to local zip file if not embedded
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                string localZip = Path.Combine(baseDir, "AEROLAB-Windows.zip");
+                if (File.Exists(localZip))
+                {
+                    ZipFile.ExtractToDirectory(localZip, targetDir);
+                }
+                else
+                {
+                    throw new FileNotFoundException("Application payload zip was not found.");
+                }
+            }
+
+            report("Creating Start Menu and Desktop shortcuts...");
+            string exePath = Path.Combine(targetDir, "AEROLAB.exe");
+            string icoPath = Path.Combine(targetDir, "aerolab.ico");
+
+            // Desktop shortcut
+            string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            CreateShortcut(Path.Combine(desktop, "AEROLAB.lnk"), exePath, icoPath);
+
+            // Start Menu shortcut
+            string startMenu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs");
+            CreateShortcut(Path.Combine(startMenu, "AEROLAB.lnk"), exePath, icoPath);
+
+            report("Registering in Windows Programs...");
+            RegisterUninstall(targetDir, icoPath);
+        }
+
+        private static void ExtractWithRetry(ZipArchiveEntry entry, string destPath)
+        {
+            int attempt = 0;
+            while (true)
+            {
+                try
+                {
+                    entry.ExtractToFile(destPath, true);
+                    return;
+                }
+                catch (IOException)
+                {
+                    attempt++;
+                    if (attempt >= 30) throw;
+                    Thread.Sleep(500);
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    attempt++;
+                    if (attempt >= 30) throw;
+                    Thread.Sleep(500);
+                }
+            }
+        }
+
+        private static void CreateShortcut(string lnkPath, string targetPath, string iconPath)
         {
             try
             {
@@ -245,7 +286,7 @@ namespace AerolabInstaller
             catch {}
         }
 
-        private void RegisterUninstall(string path, string iconPath)
+        private static void RegisterUninstall(string path, string iconPath)
         {
             try
             {
@@ -276,9 +317,66 @@ namespace AerolabInstaller
             catch {}
         }
 
-        [STAThread]
-        static void Main()
+        /**
+         * Silent install path: /S or --silent. The in-app updater downloads the
+         * installer and the launcher starts it this way, so no window may appear
+         * and AEROLAB has to come back up by itself once files are replaced.
+         */
+        private static void RunSilentInstall()
         {
+            try
+            {
+                string targetDir = DefaultInstallDir();
+                Install(targetDir, IgnoreStatus);
+
+                string exePath = Path.Combine(targetDir, "AEROLAB.exe");
+                if (File.Exists(exePath))
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = exePath,
+                        WorkingDirectory = targetDir
+                    });
+                }
+                Environment.Exit(0);
+            }
+            catch (Exception error)
+            {
+                try
+                {
+                    File.WriteAllText(
+                        Path.Combine(Path.GetTempPath(), "aerolab-update-error.log"),
+                        DateTime.Now.ToString("o") + Environment.NewLine + error.ToString() + Environment.NewLine);
+                }
+                catch {}
+                Environment.Exit(1);
+            }
+        }
+
+        private static void IgnoreStatus(string text)
+        {
+        }
+
+        [STAThread]
+        static void Main(string[] args)
+        {
+            bool silent = false;
+            foreach (string argument in args)
+            {
+                if (string.Equals(argument, "/S", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(argument, "--silent", StringComparison.OrdinalIgnoreCase))
+                {
+                    silent = true;
+                    break;
+                }
+            }
+
+            if (silent)
+            {
+                RunSilentInstall();
+                return;
+            }
+
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new InstallerForm());

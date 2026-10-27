@@ -1,7 +1,13 @@
 # Changelog
 
-## Unreleased
+## 1.5.3 — 2026-10-27
 
+### In-app updates
+
+- Add **Settings → Software Updates**: it shows the running build, checks GitHub Releases on demand and links to the release page.
+- Add a **Check for updates on startup and install them automatically** option, enabled by default. A newer release is downloaded and verified against its published SHA-256 checksum, then the packaged launcher closes the window, runs the installer silently and relaunches AEROLAB.
+- Keep a manual fallback: a build without the packaged launcher only reports the available version and links to GitHub, and every release publishes a `.sha256` file beside its installer.
+- Fix the generic **Garmin sync failed** error. The installed build was older than the shared database schema, so its import path queried a column the newer migration had removed; this release matches the current schema.
 - Keep the Garmin sync action and credentials panel out of snapshot builds, so read-only snapshots never expose or run the sync flow.
 - Show full dates as `YYYY-MM-DD` in both languages instead of the unseparated `YYYYMMDD` form.
 - Classify repeated upper-aerobic work reps as tempo sessions instead of off-target easy runs, and refresh saved analyses once when the app upgrades.

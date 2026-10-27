@@ -219,6 +219,9 @@ This produces a single, self-extracting installer executable in `release/AEROLAB
 - Desktop shortcut creation on install
 - A random per-launch local session: the launcher opens a one-time bootstrap URL, and the API requires the resulting HttpOnly cookie. Only the app's origin may make browser API requests.
 
+### 6. In-App Updates
+Installed desktop builds read `releases/latest` from GitHub. **Settings → Software Updates** shows the running version, a **Check for updates** button and the **check on startup and install automatically** option (enabled by default). A newer release is downloaded, verified against its published SHA-256 file and then applied by the packaged launcher: it closes the app window, runs the installer with the silent `/S` switch and the installer relaunches AEROLAB. Automatic install requires the packaged launcher, so a development server only reports the available version.
+
 ---
 
 ## Data Population & Ingestion Methods

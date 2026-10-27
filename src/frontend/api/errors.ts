@@ -56,6 +56,22 @@ export function apiErrorMessage(t: Translations, err: unknown, fallback: string)
       return t.apiErrors.garminUnavailable;
     case 'ERR_INVALID_GARMIN_EXPIRY':
       return t.apiErrors.invalidGarminExpiry;
+    case 'UPDATE_CHECK_FAILED':
+      return t.apiErrors.updateCheckFailed;
+    case 'UPDATE_RATE_LIMITED':
+      return t.apiErrors.updateRateLimited;
+    case 'UPDATE_DOWNLOAD_FAILED':
+      return t.apiErrors.updateDownloadFailed;
+    case 'UPDATE_CHECKSUM_FAILED':
+      return t.apiErrors.updateChecksumFailed;
+    case 'UPDATE_NOT_AVAILABLE':
+      return t.apiErrors.updateNotAvailable;
+    case 'UPDATE_UNSUPPORTED':
+      return t.apiErrors.updateUnsupported;
+    case 'UPDATE_BUSY':
+      return t.apiErrors.updateBusy;
+    case 'ERR_INVALID_UPDATE_SETTINGS':
+      return t.apiErrors.invalidUpdateSettings;
     default:
       return fallback;
   }

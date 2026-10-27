@@ -59,6 +59,11 @@ export const setDatabaseLocation = (_path: string, _exists: boolean): never => r
 export const getMaintenanceStatus = (): never => readOnly();
 export const getDevDiagnostics = (): never => readOnly();
 export const simulateDevError = (_payload: unknown): never => readOnly();
+/** The updater belongs to the installed desktop app; snapshots never update. */
+export const getUpdateStatus = (): never => readOnly();
+export const checkForUpdate = (_force?: boolean): never => readOnly();
+export const saveUpdateSettings = (_settings: { autoCheck: boolean }): never => readOnly();
+export const applyUpdate = (): never => readOnly();
 
 /** Snapshots are read-only and never contain Garmin credentials. */
 export async function getGarminKeyStatus(): Promise<{ key: GarminKeyStatus }> {

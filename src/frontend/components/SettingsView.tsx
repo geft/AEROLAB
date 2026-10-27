@@ -5,6 +5,7 @@ import { useFontSize, FontSize, FONT_PERCENTAGES } from '../context/FontSizeCont
 import { BackupManagementPanel } from './BackupManagementPanel.js';
 import { DatabaseLocation } from './DatabaseLocation.js';
 import { GarminApiPanel } from './GarminApiPanel.js';
+import { UpdatePanel } from './UpdatePanel.js';
 
 const SNAPSHOT_BUILD = import.meta.env.VITE_AEROLAB_TARGET === 'snapshot';
 
@@ -33,6 +34,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     <div className="settings-view">
       <DatabaseLocation />
       {!SNAPSHOT_BUILD && <GarminApiPanel />}
+      {!SNAPSHOT_BUILD && <UpdatePanel />}
       {/* Section 1: Database Backup & Cloud Sync */}
       <section className="overview-card" style={{ padding: '1.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '1.25rem' }}>

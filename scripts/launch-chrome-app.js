@@ -12,7 +12,7 @@
  * - Automatically terminates local backend when the desktop window is closed.
  */
 
-import { spawn, execSync } from 'child_process';
+import { spawn, spawnSync, execSync } from 'child_process';
 import http from 'http';
 import net from 'net';
 import fs from 'fs';
@@ -151,6 +151,14 @@ async function main() {
 
   const sessionToken = randomBytes(32).toString('hex');
 
+  // The in-app updater writes a pending marker here; this launcher applies it.
+  // Passing the protocol flag lets the backend refuse automatic installs when an
+  // older launcher (without the polling loop) started the app.
+  const updateDir = process.env.APPDATA
+    ? path.join(process.env.APPDATA, 'AEROLAB', 'Updates')
+    : path.join(os.homedir(), '.aerolab', 'updates');
+  const pendingUpdatePath = path.join(updateDir, 'pending-update.json');
+
   backendProcess = spawn(process.execPath, [serverCjsPath], {
     cwd: rootDir,
     env: {
@@ -158,6 +166,8 @@ async function main() {
       PORT: String(port),
       AEROLAB_SESSION_TOKEN: sessionToken,
       AEROLAB_APP_ROOT: rootDir,
+      AEROLAB_UPDATE_DIR: updateDir,
+      AEROLAB_UPDATE_PROTOCOL: '1',
       AEROLAB_DEPLOYMENT_HOME: path.join(process.env.APPDATA || os.homedir(), 'AEROLAB', 'Vercel'),
       // Mark the packaged desktop engine as a production build so developer
       // routes (/api/dev/*) are never mounted in a shipped installer.
@@ -230,7 +240,99 @@ async function main() {
     }
   }
 
+  // The backend downloads and verifies a new installer, then drops
+  // `pending-update.json` next to it. This process owns the app window, so it is
+  // the only place that can close the window, stop the engine and hand control to
+  // the installer without killing unrelated Chrome windows or Node processes.
+  let applyingUpdate = false;
+
+  function removePendingMarker() {
+    try {
+      fs.rmSync(pendingUpdatePath, { force: true });
+    } catch {}
+  }
+
+  function readPendingUpdate() {
+    let payload;
+    try {
+      payload = JSON.parse(fs.readFileSync(pendingUpdatePath, 'utf8'));
+    } catch {
+      return null;
+    }
+    if (!payload || typeof payload.installerPath !== 'string' || !fs.existsSync(payload.installerPath)) {
+      // A marker without its installer is stale (for example a failed download).
+      removePendingMarker();
+      return null;
+    }
+    return payload;
+  }
+
+  function applyPendingUpdate(pending) {
+    if (applyingUpdate) return;
+    applyingUpdate = true;
+
+    const version = typeof pending.version === 'string' ? pending.version : 'new build';
+    console.log(`\x1b[36m[AEROLAB] Installing update ${version}...\x1b[0m`);
+    try {
+      fs.mkdirSync(updateDir, { recursive: true });
+      fs.appendFileSync(
+        path.join(updateDir, 'apply-update.log'),
+        `[${new Date().toISOString()}] applying ${version} from ${pending.installerPath}\n`,
+        'utf8'
+      );
+    } catch {}
+
+    // Close only this app window (its own Chrome profile/process tree), never the
+    // browser the user is working in.
+    try {
+      if (browserProcess && !browserProcess.killed) {
+        if (process.platform === 'win32') {
+          spawnSync('taskkill', ['/pid', String(browserProcess.pid), '/t', '/f'], { stdio: 'ignore' });
+        } else {
+          browserProcess.kill();
+        }
+      }
+    } catch {}
+
+    try {
+      if (ownsBackend && backendProcess) {
+        if (process.platform === 'win32') {
+          spawnSync('taskkill', ['/pid', String(backendProcess.pid), '/f', '/t'], { stdio: 'ignore' });
+        } else {
+          backendProcess.kill('SIGTERM');
+        }
+      }
+    } catch {}
+
+    removePendingMarker();
+
+    // Give Windows a moment to release node.exe and the app files, then run the
+    // installer in its silent mode; it replaces the files and relaunches AEROLAB.
+    setTimeout(() => {
+      try {
+        const installer = spawn(pending.installerPath, ['/S'], { detached: true, stdio: 'ignore' });
+        installer.unref();
+      } catch (error) {
+        console.error('[AEROLAB] Could not start the installer:', error);
+      }
+      process.exit(0);
+    }, 1500);
+  }
+
+  function checkPendingUpdate() {
+    if (applyingUpdate) return;
+    const pending = readPendingUpdate();
+    if (pending) applyPendingUpdate(pending);
+  }
+
+  if (browser) {
+    // Missing an update is harmless; the next start picks the marker up again.
+    setInterval(checkPendingUpdate, 2000);
+    setTimeout(checkPendingUpdate, 1500);
+  }
+
   function cleanup() {
+    if (applyingUpdate) return;
     console.log('\x1b[33m[AEROLAB] Shutting down services...\x1b[0m');
     if (ownsBackend && backendProcess) {
       try {

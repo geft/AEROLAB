@@ -782,6 +782,34 @@ export interface Translations {
     fontLarge: string;
     fontXLarge: string;
   };
+  updates: {
+    title: string;
+    description: string;
+    currentVersion: string;
+    currentBuild: string;
+    checkAction: string;
+    checking: string;
+    upToDate: string;
+    availableTitle: string;
+    publishedOn: string;
+    installAction: string;
+    installing: string;
+    installingHint: string;
+    installStarted: string;
+    installFailed: string;
+    checkFailed: string;
+    autoCheckLabel: string;
+    autoCheckHint: string;
+    autoCheckFailed: string;
+    manualOnly: string;
+    openReleases: string;
+    startupTitle: string;
+    startupDescription: string;
+    startupInstalling: string;
+    updateNow: string;
+    updateLater: string;
+    startupError: string;
+  };
   garminSync: {
     syncButton: string;
     title: string;
@@ -953,5 +981,13 @@ export interface Translations {
     garminRateLimited: string;
     garminUnavailable: string;
     invalidGarminExpiry: string;
+    updateCheckFailed: string;
+    updateRateLimited: string;
+    updateDownloadFailed: string;
+    updateChecksumFailed: string;
+    updateNotAvailable: string;
+    updateUnsupported: string;
+    updateBusy: string;
+    invalidUpdateSettings: string;
   };
 }
