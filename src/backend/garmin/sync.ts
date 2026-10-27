@@ -190,10 +190,11 @@ export async function syncGarmin(
   const parsedFiles: Array<{ filename: string; candidate: SyncCandidate; parsed: NonNullable<ReturnType<typeof parseRunFit>> }> = [];
   const settledOlder = new Set<string>();
 
-  const downloads = await Promise.allSettled(plan.candidates.map(async candidate => ({
-    candidate,
-    buffer: await downloadGarminActivity(token, candidate.activity.activityId)
-  })));
+  const downloads = await Promise.allSettled(plan.candidates.map(candidate =>
+    candidate.activity.isManual
+      ? Promise.resolve(null)
+      : downloadGarminActivity(token, candidate.activity.activityId)
+  ));
   const rejectedKey = downloads.some(download =>
     download.status === 'rejected' && isInvalidKeyError(download.reason));
   if (rejectedKey) {
@@ -231,15 +232,30 @@ export async function syncGarmin(
       });
       return;
     }
+    if (download.value === null) {
+      // A manually logged activity has no recording. Garmin still serves a
+      // header-only FIT holding a session and zero samples, so asking for the
+      // file buys nothing and would only fail the import.
+      if (candidate.direction === 'older') settledOlder.add(candidate.activity.activityId);
+      results.push({
+        filename,
+        activityName: candidate.activity.activityName,
+        date: candidate.time,
+        status: 'skipped_no_file'
+      });
+      return;
+    }
     try {
-      const parsed = parseRunFit(download.value.buffer, filename);
-      if (!parsed) {
+      const parsed = parseRunFit(download.value, filename);
+      if (!parsed || parsed.records.length === 0) {
+        // An activity whose file carries no samples cannot be a run. A manual
+        // entry that slipped past the flag arrives exactly like this.
         if (candidate.direction === 'older') settledOlder.add(candidate.activity.activityId);
         results.push({
           filename,
           activityName: candidate.activity.activityName,
           date: candidate.time,
-          status: 'skipped_non_running'
+          status: parsed ? 'skipped_no_file' : 'skipped_non_running'
         });
         return;
       }

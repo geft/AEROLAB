@@ -40,7 +40,8 @@ function activity(
     startTimeLocal: time,
     startTimeGmt: null,
     activityTypeKey: typeKey,
-    distanceMeters: 10_000
+    distanceMeters: 10_000,
+    isManual: false
   };
 }
 
@@ -391,6 +392,46 @@ describe('Garmin Personal API routes', () => {
     expect(response.body.noFile).toBe(1);
     expect(response.body.errors).toBe(0);
     expect(response.body.imported).toBe(0);
+  });
+
+  it('skips a manual activity without asking Garmin for a file', async () => {
+    saveGarminApiKey('test-key-123456', null);
+    const db = getDatabase();
+    // A local run newer than the Garmin entry makes it a backfill candidate.
+    db.prepare(`INSERT OR REPLACE INTO activities (id, start_time, distance_meters, duration_seconds)
+      VALUES ('local-newest-manual', '2026-10-22 07:00:00', 5000, 1500)`).run();
+    db.prepare("INSERT OR IGNORE INTO athlete_profile (id) VALUES ('primary')").run();
+    db.prepare("UPDATE athlete_profile SET preferences_json = '{}' WHERE id = 'primary'").run();
+
+    const fetchMock = vi.fn(async (input: unknown) => {
+      const url = String(input);
+      if (url.includes('/personal-api-key/token')) return new Response(accessToken, { status: 200 });
+      if (url.includes('/activitylist-service/activities/search/activities')) {
+        return new Response(JSON.stringify([{
+          activityId: 555003,
+          activityName: 'Garmin 10k 2026 - Chip Time',
+          startTimeLocal: '2025-01-01 07:00:00',
+          activityType: { typeKey: 'running' },
+          distance: 10000,
+          isManualActivity: true,
+          manualActivity: true
+        }]), { status: 200 });
+      }
+      throw new Error(`Unexpected Garmin request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await request(app).post('/api/ingest/garmin/sync').send({}).expect(200);
+    expect(response.body.results[0].status).toBe('skipped_no_file');
+    expect(response.body.noFile).toBe(1);
+    expect(response.body.errors).toBe(0);
+    expect(response.body.imported).toBe(0);
+    expect(fetchMock.mock.calls.some(call => String(call[0]).includes('/download-service/files/activity/')))
+      .toBe(false);
+
+    const row = db.prepare("SELECT preferences_json FROM athlete_profile WHERE id = 'primary'")
+      .get() as { preferences_json: string } | undefined;
+    expect(JSON.parse(row!.preferences_json).garminBackfillBefore).toBe('2025-01-01 07:00:00');
   });
 
   it('moves the backfill cursor past an activity with no file', async () => {

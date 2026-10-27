@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.4 — 2026-10-27
+
+### Garmin Connect sync
+
+- Skip manually logged activities instead of reporting a sync error. A manual entry has no recording, so Garmin serves a session-only FIT with zero samples; the sync now lists it as **No file** and advances the backfill cursor past it without downloading anything.
+
 ## 1.5.3 — 2026-10-27
 
 ### In-app updates

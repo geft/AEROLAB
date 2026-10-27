@@ -34,6 +34,8 @@ export interface GarminActivitySummary {
   startTimeGmt: string | null;
   activityTypeKey: string | null;
   distanceMeters: number | null;
+  /** Manually logged entry: a session summary with no recorded samples. */
+  isManual: boolean;
 }
 
 export interface GarminAccessToken {
@@ -164,13 +166,15 @@ function mapActivity(raw: unknown): GarminActivitySummary | null {
       ? (type as Record<string, unknown>).typeKey as string
       : null;
   const distance = record.distance;
+  const manual = record.isManualActivity ?? record.manualActivity;
   return {
     activityId: String(id),
     activityName: typeof record.activityName === 'string' ? record.activityName : undefined,
     startTimeLocal: normalizeGarminStartTime(typeof record.startTimeLocal === 'string' ? record.startTimeLocal : null),
     startTimeGmt: normalizeGarminStartTime(typeof record.startTimeGMT === 'string' ? record.startTimeGMT : null),
     activityTypeKey,
-    distanceMeters: typeof distance === 'number' && Number.isFinite(distance) ? distance : null
+    distanceMeters: typeof distance === 'number' && Number.isFinite(distance) ? distance : null,
+    isManual: manual === true
   };
 }
 
