@@ -1389,12 +1389,15 @@ export const zh: Translations = {
     keyRemoved: 'Garmin API 密钥已移除。',
     sourceEnvironment: '正在使用 {env} 环境变量',
     sourceStored: '密钥已保存在本机',
+    sourceStoredEncrypted: '密钥已保存在本机，并使用 Windows DPAPI 加密',
     notConfigured: '尚未配置 Garmin API 密钥',
+    unreadableKey: '已保存的密钥无法在当前 Windows 账户下解密。这通常发生在重置 Windows 密码或更换电脑之后。请重新输入密钥。',
     expiresOn: '过期时间：{date}',
     noExpiry: '未记录过期日期',
     daysLeft: '还剩 {days} 天',
     envHint: '可在终端或 .env.local 中设置 {env}（可选 {expiryEnv} 用于到期提醒）以跳过此步骤。',
-    storageHint: '密钥保存在数据库之外，因此备份和快照导出永远不会包含它。'
+    storageHint: '密钥保存在数据库之外，因此备份和快照导出永远不会包含它。',
+    storageHintEncrypted: '密钥保存在数据库之外，并使用 Windows DPAPI 按当前账户加密，因此备份、快照导出和其他 Windows 账户都无法读取它。'
   },
   trainingLoad: {
     guideTooltip: "训练负荷指南",

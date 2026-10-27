@@ -75,7 +75,9 @@ export async function getGarminKeyStatus(): Promise<{ key: GarminKeyStatus }> {
       daysUntilExpiry: null,
       expiringSoon: false,
       expired: false,
-      expirySource: null
+      expirySource: null,
+      encrypted: false,
+      unreadable: false
     }
   };
 }

@@ -16,9 +16,11 @@ import {
 import {
   clearStoredGarminCredentials,
   getGarminKeyStatus,
+  resolveGarminCredentials,
   saveGarminApiKey,
   saveGarminKeyExpiry
 } from '../../src/backend/garmin/credentials.js';
+import { setSecretProtectorForTests } from '../../src/backend/garmin/secret-protector.js';
 import { planGarminBatch } from '../../src/backend/garmin/sync.js';
 import type { GarminActivitySummary } from '../../src/backend/garmin/client.js';
 
@@ -223,6 +225,14 @@ describe('Garmin Personal API routes', () => {
   const credentialsPath = path.join(os.tmpdir(), `aerolab-garmin-routes-${randomUUID()}.json`);
   const accessToken = jwt({ exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60, iat: Math.floor(Date.now() / 1000) });
   const fitZip = Buffer.from(zipSync({ 'activity.fit': new Uint8Array(richFit()) }));
+  // Stand-in for Windows DPAPI so the storage rules are testable without the helper.
+  const fakeProtector = {
+    protect: (value: string) => `fake:${Buffer.from(value, 'utf8').toString('base64')}`,
+    unprotect: (blob: string) => {
+      if (!blob.startsWith('fake:')) throw new Error('Not encrypted for this account.');
+      return Buffer.from(blob.slice('fake:'.length), 'base64').toString('utf8');
+    }
+  };
   let app: ReturnType<typeof createServer>;
 
   beforeAll(() => {
@@ -235,12 +245,14 @@ describe('Garmin Personal API routes', () => {
   beforeEach(() => {
     clearStoredGarminCredentials();
     resetGarminTokenCache();
+    setSecretProtectorForTests(undefined);
     delete process.env.GARMIN_API_KEY;
     delete process.env.GARMIN_API_KEY_EXPIRY;
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    setSecretProtectorForTests(undefined);
     delete process.env.GARMIN_API_KEY;
     delete process.env.GARMIN_API_KEY_EXPIRY;
   });
@@ -254,6 +266,71 @@ describe('Garmin Personal API routes', () => {
     const response = await request(app).get('/api/ingest/garmin/status').expect(200);
     expect(response.body.key.configured).toBe(false);
     expect(response.body.key.source).toBeNull();
+    expect(response.body.key.encrypted).toBe(false);
+    expect(response.body.key.unreadable).toBe(false);
+  });
+
+  it('encrypts a saved key at rest when DPAPI is available', async () => {
+    setSecretProtectorForTests(fakeProtector);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(accessToken, { status: 200 })));
+
+    const saved = await request(app)
+      .put('/api/ingest/garmin/key')
+      .send({ apiKey: 'test-key-123456' })
+      .expect(200);
+    expect(saved.body.key.encrypted).toBe(true);
+
+    const raw = JSON.parse(fs.readFileSync(credentialsPath, 'utf8')) as Record<string, unknown>;
+    expect(raw.apiKey).toBeNull();
+    expect(String(raw.apiKeyProtected)).toMatch(/^fake:/);
+    expect(fs.readFileSync(credentialsPath, 'utf8')).not.toContain('test-key-123456');
+    expect(resolveGarminCredentials()?.apiKey).toBe('test-key-123456');
+
+    const status = await request(app).get('/api/ingest/garmin/status').expect(200);
+    expect(status.body.key.configured).toBe(true);
+    expect(status.body.key.encrypted).toBe(true);
+  });
+
+  it('encrypts a plaintext key left by an older build', () => {
+    fs.writeFileSync(credentialsPath, JSON.stringify({
+      apiKey: 'legacy-key-123456',
+      expiresAt: null,
+      updatedAt: '2026-10-01T00:00:00.000Z'
+    }));
+    setSecretProtectorForTests(fakeProtector);
+
+    expect(resolveGarminCredentials()?.apiKey).toBe('legacy-key-123456');
+
+    const raw = JSON.parse(fs.readFileSync(credentialsPath, 'utf8')) as Record<string, unknown>;
+    expect(raw.apiKey).toBeNull();
+    expect(String(raw.apiKeyProtected)).toMatch(/^fake:/);
+  });
+
+  it('reports an unreadable key without deleting it', () => {
+    fs.writeFileSync(credentialsPath, JSON.stringify({
+      apiKey: null,
+      apiKeyProtected: 'foreign-blob',
+      expiresAt: null,
+      updatedAt: '2026-10-01T00:00:00.000Z'
+    }));
+    setSecretProtectorForTests(fakeProtector);
+
+    const status = getGarminKeyStatus();
+    expect(status.configured).toBe(false);
+    expect(status.unreadable).toBe(true);
+    expect(status.encrypted).toBe(false);
+    expect(resolveGarminCredentials()).toBeNull();
+    expect(fs.existsSync(credentialsPath)).toBe(true);
+  });
+
+  it('keeps a plaintext file when no DPAPI helper is available', () => {
+    setSecretProtectorForTests(null);
+    saveGarminApiKey('test-key-123456', null);
+
+    const raw = JSON.parse(fs.readFileSync(credentialsPath, 'utf8')) as Record<string, unknown>;
+    expect(raw.apiKey).toBe('test-key-123456');
+    expect(raw.apiKeyProtected).toBeNull();
+    expect(getGarminKeyStatus().encrypted).toBe(false);
   });
 
   it('validates and stores a key against the token endpoint', async () => {

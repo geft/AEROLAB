@@ -796,12 +796,15 @@ export const en: Translations = {
     keyRemoved: 'Garmin API key removed.',
     sourceEnvironment: 'Using the {env} environment variable',
     sourceStored: 'Key saved on this device',
+    sourceStoredEncrypted: 'Key saved on this device, encrypted with Windows DPAPI',
     notConfigured: 'No Garmin API key configured',
+    unreadableKey: 'A saved key could not be decrypted on this Windows account. That happens after a Windows password reset or on another machine. Enter the key again.',
     expiresOn: 'Expires {date}',
     noExpiry: 'No expiry date recorded',
     daysLeft: '{days} days left',
     envHint: 'Set {env} (and optionally {expiryEnv} for the expiry warning) in your shell or .env.local to skip this step.',
-    storageHint: 'The key is stored outside the database, so backups and snapshot exports never include it.'
+    storageHint: 'The key is stored outside the database, so backups and snapshot exports never include it.',
+    storageHintEncrypted: 'The key is stored outside the database and encrypted with Windows DPAPI for your account, so backups, snapshot exports and other Windows accounts cannot read it.'
   },
   trainingLoad: {
     guideTooltip: "Training Load Guide",

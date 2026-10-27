@@ -35,6 +35,10 @@ export interface GarminKeyStatus {
   expired: boolean;
   /** Where the active expiry date came from, or null when none is recorded. */
   expirySource: 'environment' | 'stored' | null;
+  /** True when the stored key is encrypted at rest with Windows DPAPI. */
+  encrypted: boolean;
+  /** True when a stored key exists but this Windows account cannot decrypt it. */
+  unreadable: boolean;
 }
 
 export type GarminImportStatus = 'imported' | 'skipped_duplicate' | 'skipped_non_running' | 'skipped_no_file' | 'error';

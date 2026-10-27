@@ -29,6 +29,10 @@ if (process.platform === 'win32') {
     const icoArg = fs.existsSync('aerolab.ico') ? ' /win32icon:aerolab.ico' : '';
     execSync(`"${cscPath}" /nologo /target:winexe${icoArg} /out:AEROLAB.exe /r:System.Windows.Forms.dll launcher.cs`, { stdio: 'inherit' });
   }
+  if (fs.existsSync(cscPath) && fs.existsSync('secret-host.cs')) {
+    console.log('🔐 Compiling AEROLAB.Secret.exe DPAPI Secret Host...');
+    execSync(`"${cscPath}" /nologo /target:exe /out:AEROLAB.Secret.exe /r:System.Security.dll secret-host.cs`, { stdio: 'inherit' });
+  }
 }
 
 console.log('✅ AEROLAB Build Complete (Frontend, Backend & Native Launcher)!');

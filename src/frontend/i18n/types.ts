@@ -853,12 +853,15 @@ export interface Translations {
     keyRemoved: string;
     sourceEnvironment: string;
     sourceStored: string;
+    sourceStoredEncrypted: string;
     notConfigured: string;
+    unreadableKey: string;
     expiresOn: string;
     noExpiry: string;
     daysLeft: string;
     envHint: string;
     storageHint: string;
+    storageHintEncrypted: string;
   };
   trainingLoad: {
     guideTooltip: string;

@@ -9,14 +9,19 @@ import {
   type GarminCredentialSource,
   type GarminKeyStatus
 } from '../../shared/garmin.js';
+import { activeSecretProtector } from './secret-protector.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 interface StoredGarminCredentials {
-  /** Null when the record only holds an expiry for an environment key. */
+  /** Decrypted key, or null when the record only holds an expiry. */
   apiKey: string | null;
+  /** DPAPI blob for `apiKey`, written by builds that encrypt at rest. */
+  apiKeyProtected: string | null;
   expiresAt: string | null;
   updatedAt: string;
+  /** True when a protected key exists but this Windows account cannot decrypt it. */
+  unreadable: boolean;
 }
 
 export interface ResolvedGarminCredentials {
@@ -57,32 +62,87 @@ function isPast(value: string | null, now: number): boolean {
 }
 
 function readStoredCredentials(): StoredGarminCredentials | null {
+  let raw: Record<string, unknown>;
   try {
-    const raw = JSON.parse(fs.readFileSync(garminCredentialsPath(), 'utf8')) as Record<string, unknown>;
-    const apiKey = typeof raw.apiKey === 'string' ? raw.apiKey.trim() : null;
-    const expiresAt = parseExpiry(raw.expiresAt);
-    if (!apiKey && !expiresAt) return null;
-    return {
-      apiKey,
-      expiresAt,
-      updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : new Date(0).toISOString()
-    };
+    raw = JSON.parse(fs.readFileSync(garminCredentialsPath(), 'utf8')) as Record<string, unknown>;
   } catch {
     // A missing or unreadable file simply means no key has been saved yet.
     return null;
   }
+
+  const plainKey = typeof raw.apiKey === 'string' ? raw.apiKey.trim() : '';
+  const storedBlob = typeof raw.apiKeyProtected === 'string' ? raw.apiKeyProtected.trim() : '';
+  const expiresAt = parseExpiry(raw.expiresAt);
+  const updatedAt = typeof raw.updatedAt === 'string' ? raw.updatedAt : new Date(0).toISOString();
+  const protector = activeSecretProtector();
+
+  let apiKey = plainKey || null;
+  let apiKeyProtected = storedBlob || null;
+  let unreadable = false;
+
+  if (!apiKey && storedBlob) {
+    if (!protector) {
+      // Another platform or a development build without the helper: keep the
+      // ciphertext so a packaged build can still read it later.
+      unreadable = true;
+    } else {
+      try {
+        apiKey = protector.unprotect(storedBlob);
+      } catch {
+        // Encrypted for another Windows account or on another machine. Never
+        // delete it here; the panel asks the user to enter the key again.
+        unreadable = true;
+      }
+    }
+  }
+
+  if (!apiKey && !expiresAt && !unreadable) return null;
+
+  const stored: StoredGarminCredentials = { apiKey, apiKeyProtected, expiresAt, updatedAt, unreadable };
+
+  // A key saved before at-rest encryption existed is protected in place, once.
+  if (apiKey && !apiKeyProtected && protector) {
+    try {
+      apiKeyProtected = writeStoredCredentials({ apiKey, expiresAt });
+      stored.apiKeyProtected = apiKeyProtected;
+    } catch {
+      // Keep the readable plaintext file; the next read retries the migration.
+    }
+  }
+
+  return stored;
 }
 
-function writeStoredCredentials(credentials: StoredGarminCredentials): void {
+/**
+ * Writes the credential record and returns the DPAPI blob it kept, or null
+ * when the key was stored in plaintext because no helper is available.
+ */
+function writeStoredCredentials(input: {
+  apiKey: string | null;
+  apiKeyProtected?: string | null;
+  expiresAt: string | null;
+}): string | null {
+  const blob = input.apiKeyProtected
+    ? input.apiKeyProtected
+    : input.apiKey
+      ? (activeSecretProtector()?.protect(input.apiKey) ?? null)
+      : null;
+  const record = {
+    apiKey: blob ? null : input.apiKey,
+    apiKeyProtected: blob,
+    expiresAt: input.expiresAt,
+    updatedAt: new Date().toISOString()
+  };
   const target = garminCredentialsPath();
   const temporary = `${target}.${randomUUID()}.tmp`;
   fs.mkdirSync(path.dirname(target), { recursive: true });
   try {
-    fs.writeFileSync(temporary, `${JSON.stringify(credentials, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+    fs.writeFileSync(temporary, `${JSON.stringify(record, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
     fs.renameSync(temporary, target);
   } finally {
     if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
   }
+  return blob;
 }
 
 export function resolveGarminCredentials(): ResolvedGarminCredentials | null {
@@ -108,8 +168,7 @@ export function saveGarminApiKey(apiKey: string, expiresAt: unknown): void {
   }
   writeStoredCredentials({
     apiKey: normalizedKey,
-    expiresAt: normalizeGarminExpiry(expiresAt),
-    updatedAt: new Date().toISOString()
+    expiresAt: normalizeGarminExpiry(expiresAt)
   });
 }
 
@@ -135,8 +194,8 @@ export function saveGarminKeyExpiry(expiresAt: unknown): void {
   }
   writeStoredCredentials({
     apiKey: null,
-    expiresAt: normalized,
-    updatedAt: new Date().toISOString()
+    apiKeyProtected: null,
+    expiresAt: normalized
   });
 }
 
@@ -164,12 +223,15 @@ export function recordDetectedGarminKeyExpiry(expiresAt: string): void {
   if (environmentKey && readEnvironmentExpiry()) return;
   const detected = Date.parse(expiresAt);
   if ((!stored && !environmentKey) || !Number.isFinite(detected)) return;
+  // Never rewrite a record whose key this account cannot decrypt: the rewrite
+  // would drop the ciphertext and lose the key for good.
+  if (stored?.unreadable) return;
   const current = stored?.expiresAt ? Date.parse(stored.expiresAt) : Number.POSITIVE_INFINITY;
   if (detected >= current) return;
   writeStoredCredentials({
     apiKey: stored?.apiKey ?? null,
-    expiresAt: new Date(detected).toISOString(),
-    updatedAt: new Date().toISOString()
+    apiKeyProtected: stored?.apiKeyProtected ?? null,
+    expiresAt: new Date(detected).toISOString()
   });
 }
 
@@ -177,6 +239,7 @@ export function getGarminKeyStatus(now = Date.now()): GarminKeyStatus {
   const stored = readStoredCredentials();
   const environmentKey = process.env[GARMIN_API_KEY_ENV]?.trim();
   const environmentExpiry = environmentKey ? readEnvironmentExpiry() : null;
+  const unreadable = stored?.unreadable === true;
   let expired = false;
 
   if (stored?.apiKey) {
@@ -193,7 +256,9 @@ export function getGarminKeyStatus(now = Date.now()): GarminKeyStatus {
       clearStoredGarminCredentials();
       expired = true;
     }
-  } else if (isPast(stored?.expiresAt ?? null, now)) {
+  } else if (!unreadable && isPast(stored?.expiresAt ?? null, now)) {
+    // Drop a stale expiry, but never the ciphertext of a key that only this
+    // record still holds and that could not be decrypted here.
     clearStoredGarminCredentials();
     expired = true;
   }
@@ -207,7 +272,9 @@ export function getGarminKeyStatus(now = Date.now()): GarminKeyStatus {
       daysUntilExpiry: null,
       expiringSoon: false,
       expired,
-      expirySource: null
+      expirySource: null,
+      encrypted: false,
+      unreadable
     };
   }
 
@@ -226,6 +293,8 @@ export function getGarminKeyStatus(now = Date.now()): GarminKeyStatus {
     daysUntilExpiry,
     expiringSoon: hasExpiry && expiry - now <= GARMIN_KEY_EXPIRY_WARNING_DAYS * DAY_MS,
     expired,
-    expirySource
+    expirySource,
+    encrypted: resolved.source === 'stored' && stored?.apiKeyProtected != null,
+    unreadable: false
   };
 }

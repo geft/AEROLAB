@@ -74,7 +74,9 @@ export const GarminApiPanel: React.FC = () => {
 
   const sourceLabel = status?.source === 'environment'
     ? format(t.garminSync.sourceEnvironment, { env: GARMIN_API_KEY_ENV })
-    : t.garminSync.sourceStored;
+    : status?.encrypted
+      ? t.garminSync.sourceStoredEncrypted
+      : t.garminSync.sourceStored;
   const expiryFromEnvironment = status?.expirySource === 'environment';
   const expiryLabel = status?.expiresAt
     ? [
@@ -125,6 +127,11 @@ export const GarminApiPanel: React.FC = () => {
             {status.source === 'environment'
               ? format(t.garminSync.expiredEnvironmentKeyDescription, { env: GARMIN_API_KEY_ENV })
               : t.garminSync.expiredKeyDescription}
+          </span>
+        )}
+        {status?.unreadable && (
+          <span style={{ color: 'var(--accent-amber)' }}>
+            {t.garminSync.unreadableKey}
           </span>
         )}
         {status?.expiringSoon && !status.expired && (
@@ -188,7 +195,7 @@ export const GarminApiPanel: React.FC = () => {
       </form>
 
       <p style={{ margin: '0.9rem 0 0', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
-        {t.garminSync.storageHint}
+        {status?.encrypted ? t.garminSync.storageHintEncrypted : t.garminSync.storageHint}
       </p>
       <p style={{ margin: '0.35rem 0 0', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
         {format(t.garminSync.envHint, { env: GARMIN_API_KEY_ENV, expiryEnv: GARMIN_API_KEY_EXPIRY_ENV })}

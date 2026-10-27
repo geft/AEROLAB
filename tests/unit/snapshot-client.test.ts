@@ -115,7 +115,9 @@ describe('snapshot API client', () => {
         daysUntilExpiry: null,
         expiringSoon: false,
         expired: false,
-        expirySource: null
+        expirySource: null,
+        encrypted: false,
+        unreadable: false
       }
     });
     expect(fetchMock).not.toHaveBeenCalled();

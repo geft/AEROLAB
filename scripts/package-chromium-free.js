@@ -73,11 +73,20 @@ function copyRecursive(src, dest) {
 // 2. Copy Launchers & Manifest
 const rootFiles = [
   'AEROLAB.exe',
+  'AEROLAB.Secret.exe',
   'AEROLAB.vbs',
   'Create-Desktop-Shortcut.vbs',
   'aerolab.ico',
   'package.json'
 ];
+
+// The backend encrypts the Garmin key with DPAPI through this helper. A build
+// without it would silently fall back to storing the key in plaintext, so
+// refuse to package instead of shipping a weaker build.
+if (process.platform === 'win32' && !fs.existsSync(path.join(rootDir, 'AEROLAB.Secret.exe'))) {
+  console.error('❌ AEROLAB.Secret.exe is missing. Run `npm run build:all` so the Garmin key is encrypted at rest.');
+  process.exit(1);
+}
 
 for (const file of rootFiles) {
   const src = path.join(rootDir, file);
