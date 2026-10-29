@@ -219,6 +219,7 @@ export async function syncGarmin(
           filename,
           activityName: candidate.activity.activityName,
           date: candidate.time,
+          distanceMeters: candidate.activity.distanceMeters ?? undefined,
           status: 'skipped_no_file'
         });
         return;
@@ -227,6 +228,7 @@ export async function syncGarmin(
         filename,
         activityName: candidate.activity.activityName,
         date: candidate.time,
+        distanceMeters: candidate.activity.distanceMeters ?? undefined,
         status: 'error',
         error: download.reason instanceof Error ? download.reason.message : String(download.reason)
       });
@@ -241,6 +243,7 @@ export async function syncGarmin(
         filename,
         activityName: candidate.activity.activityName,
         date: candidate.time,
+        distanceMeters: candidate.activity.distanceMeters ?? undefined,
         status: 'skipped_no_file'
       });
       return;
@@ -255,6 +258,7 @@ export async function syncGarmin(
           filename,
           activityName: candidate.activity.activityName,
           date: candidate.time,
+          distanceMeters: candidate.activity.distanceMeters ?? undefined,
           status: parsed ? 'skipped_no_file' : 'skipped_non_running'
         });
         return;
@@ -285,6 +289,7 @@ export async function syncGarmin(
         filename: file.filename,
         activityName: file.parsed.metadata.name,
         date: file.parsed.metadata.date,
+        distanceMeters: file.parsed.metadata.totalDistanceMeters || undefined,
         status: importStatus(result),
         activityId: result.activityId,
         error: result.error

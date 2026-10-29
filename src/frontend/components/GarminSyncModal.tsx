@@ -126,6 +126,17 @@ export const GarminSyncModal: React.FC<GarminSyncModalProps> = ({
     }
   };
 
+  /** Date and distance tell two runs with the same name apart in the results list. */
+  const resultMeta = (item: GarminSyncResultItem): string => {
+    const parts: string[] = [];
+    const when = item.date ? formatDate(item.date) : '';
+    if (when) parts.push(when);
+    if (item.distanceMeters && item.distanceMeters > 0) {
+      parts.push(`${(item.distanceMeters / 1000).toFixed(2)} ${t.common.km}`);
+    }
+    return parts.join(' · ');
+  };
+
   const configured = status?.configured === true;
   const showSetup = status !== null && !configured && phase !== 'loading' && phase !== 'syncing';
   const loading = phase === 'loading' || (phase === 'ready' && configured);
@@ -261,8 +272,13 @@ export const GarminSyncModal: React.FC<GarminSyncModalProps> = ({
                 <div className="garmin-scan-file-list" aria-label={t.garminSync.resultsLabel}>
                   {fetchAll.map((item, index) => (
                     <div className="garmin-scan-file" key={`${item.filename}-${index}`}>
-                      <div className="garmin-scan-file-name" title={item.error ?? item.filename}>
-                        {item.activityName || item.filename}
+                      <div className="garmin-scan-file-text">
+                        <div className="garmin-scan-file-name" title={item.error ?? item.filename}>
+                          {item.activityName || item.filename}
+                        </div>
+                        {resultMeta(item) && (
+                          <div className="garmin-scan-file-meta">{resultMeta(item)}</div>
+                        )}
                       </div>
                       <span className="garmin-scan-file-status" style={{ color: resultColor(item) }}>
                         {resultLabel(item)}

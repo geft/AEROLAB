@@ -47,6 +47,8 @@ export interface GarminSyncResultItem {
   filename: string;
   activityName?: string;
   date?: string;
+  /** Recorded distance, when Garmin or the FIT file reports one. */
+  distanceMeters?: number;
   status: GarminImportStatus;
   activityId?: string;
   error?: string;
