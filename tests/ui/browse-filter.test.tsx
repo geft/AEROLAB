@@ -31,7 +31,8 @@ describe('Browse classification filters', () => {
       expect(() => getActivityTags({ ...tempo, tags })).not.toThrow();
     }
     expect(doesActivityMatchTag(activity('legacy', '', ['Tempo']), 'Tempo')).toBe(false);
-    expect(getActivityTags(activity('long', 'long_run', ['Marathon Pace', 'Recovery']))).toEqual(['Long Run']);
+    // Structural modifiers survive; a contradictory primary tag does not.
+    expect(getActivityTags(activity('long', 'long_run', ['Marathon Pace', 'Recovery']))).toEqual(['Long Run', 'Marathon Pace']);
   });
 
   it('filters and counts Hills from elevation while keeping the primary run type', () => {

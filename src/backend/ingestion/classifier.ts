@@ -37,6 +37,38 @@ export interface AthleteHrProfile {
   lt2Hr?: number | null;
 }
 
+/** A marathon-pace block must be long enough to be the session's purpose, not a surge. */
+export const MARATHON_PACE_MIN_SECONDS = 20 * 60;
+
+/**
+ * Two hours on feet. A session that only just crosses the long-duration floor
+ * and fills most of it with tempo work is a tempo session; a marathon-pace long
+ * run is an endurance session that happens to carry a block.
+ */
+export const MARATHON_PACE_LONG_RUN_MIN_SECONDS = 120 * 60;
+
+/**
+ * The longest continuous block that sits above LT1 but below the LT2 training
+ * band, which is where marathon-pace work lives. Threshold reps sit inside the
+ * band and easy running sits below LT1, so neither can be mistaken for it.
+ */
+export function marathonPaceBlock(
+  intervals: Pick<DetectedInterval, 'type' | 'durationSeconds' | 'avgHeartRate'>[],
+  profile?: AthleteHrProfile
+): Pick<DetectedInterval, 'type' | 'durationSeconds' | 'avgHeartRate'> | null {
+  const { lt1Hr, lt2Hr } = resolveHeartRateProfile(profile);
+  const [bandFloor] = getLt2TrainingBand(lt2Hr);
+  const margin = CLASSIFICATION_TELEMETRY_POLICY.tempoRepLt1MarginBpm;
+  let best: Pick<DetectedInterval, 'type' | 'durationSeconds' | 'avgHeartRate'> | null = null;
+  for (const interval of intervals) {
+    if (interval.type !== 'work' || interval.durationSeconds < MARATHON_PACE_MIN_SECONDS) continue;
+    const meanHr = interval.avgHeartRate ?? 0;
+    if (meanHr <= lt1Hr + margin || meanHr >= bandFloor) continue;
+    if (!best || interval.durationSeconds > best.durationSeconds) best = interval;
+  }
+  return best;
+}
+
 /** The same quality-session failure evidence is used by import and coaching. */
 export function qualityWorkoutFailed(
   runType: string,
@@ -307,6 +339,20 @@ export function classifyRun(
       confidence: 0.88,
       reason: `Sustained lactate threshold tempo effort (${thresholdHrPct.toFixed(0)}% near or above the LT2 training band, profile-relative)`
     });
+  }
+
+  // A long run whose quality is one sustained sub-threshold block is a
+  // marathon-pace long run, not a tempo session: the warmup and cooldown are
+  // genuine endurance work and the block is the session's purpose. Classifying
+  // it as tempo would drop the run out of the long-run record entirely.
+  // Two hours on feet separates a marathon-pace long run from a tempo session
+  // that merely crosses the long-duration floor.
+  const marathonPace = marathonPaceBlock(workIntervals, profile);
+  if (marathonPace && metadata.totalDurationSeconds >= MARATHON_PACE_LONG_RUN_MIN_SECONDS) {
+    return result('long_run_with_marathon_pace', {
+      runType: 'long_run', confidence: 0.9,
+      reason: `Marathon-pace long run (${(marathonPace.durationSeconds / 60).toFixed(0)} mins continuous above LT1 and below the LT2 band, ${durationMin.toFixed(0)} mins on feet)`
+    }, { tempoWorkSeconds: tempoRepSeconds });
   }
 
   // Sustained upper-aerobic work can be diluted by easy warmup/cooldown.

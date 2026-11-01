@@ -23,6 +23,13 @@ export type { WorkoutPrescription };
 const STRIDE_MIN_DISTANCE_M = 25;
 const STRIDE_MIN_DURATION_SECONDS = 8;
 
+/**
+ * How far above LT1 a fragment with no internal contrast must sit before it is
+ * read as one sustained effort rather than a steady easy stretch. A few bpm is
+ * measurement noise.
+ */
+const FRAGMENT_LT1_MARGIN_BPM = 8;
+
 /** A stride is followed promptly by sustained walking/rest, rather than a jog.
  * HR may peak in this recovery, so it must not define the burst's end or require
  * an immediate HR drop. Confirm elapsed time, not a count of sparse samples.
@@ -86,55 +93,45 @@ export interface DetectIntervalsOptions {
   stridePaceAnchorSecKm?: number;
   maxHr?: number;
   restingHr?: number;
+  /** Baseline from the whole recording, for fragments that cannot be segmented alone. */
+  sessionContrast?: SessionContrast;
 }
 
 /**
- * Detects workout intervals (reps, recoveries, strides) using physiological and biomechanical telemetry:
- * - Cadence & ground contact time (stance time) for kinematic running vs walking/resting
- * - Heart rate relative to athlete maximum / session distribution
- * - Strides require sustained speed contrast and prompt walking recovery.
+ * How one recording separates work from recovery.
+ *
+ * Measured per fragment so each stretch is judged against its own neighbours,
+ * but a fragment that holds one complete effort has no warmup or recovery
+ * inside it: it then has no contrast at all and would be filed entirely as
+ * recovery. Those fragments fall back to the session baseline. See
+ * sessionContrast().
  */
-export function detectIntervals(
-  records: ActivityRecord[],
-  options: DetectIntervalsOptions = {}
-): DetectedInterval[] {
-  if (!records || records.length < 2) return [];
-  // Missing time, reversals and long gaps separate workouts rather than creating
-  // sustained evidence through unobserved portions of a recording.
-  const traces: ActivityRecord[][] = [];
-  let trace: ActivityRecord[] = [];
-  for (const record of records) {
-    if (record.timerActive === false || !Number.isFinite(record.elapsedSeconds)) {
-      if (trace.length) traces.push(trace);
-      trace = [];
-      continue;
-    }
-    const previous = trace.at(-1);
-    if (previous && (record.timerSegment !== previous.timerSegment || record.elapsedSeconds <= previous.elapsedSeconds || record.elapsedSeconds - previous.elapsedSeconds > MAX_OBSERVED_GAP_SECONDS)) {
-      traces.push(trace);
-      trace = [];
-    }
-    trace.push(record);
-  }
-  if (trace.length) traces.push(trace);
-  if (traces.length !== 1 || traces[0].length !== records.length) {
-    return traces.flatMap(part => detectIntervals(part, options)).map((interval, index) => ({ ...interval, intervalIndex: index + 1 }));
-  }
-  if (observedIntervals(records, time).reduce((sum, i) => sum + i.seconds, 0) < 59) return [];
+export interface SessionContrast {
+  baseSpeed: number;
+  baseCad: number;
+  stridePaceAnchorSpeed: number;
+  strideSpeedThreshold: number;
+  strideCadThreshold: number;
+  hasSpeedContrast: boolean;
+  workSpeedThreshold: number;
+  hasCadenceContrast: boolean;
+  workCadenceThreshold: number;
+  hasHrContrast: boolean;
+  hrWorkThreshold: number;
+  isEasyBaseSession: boolean;
+}
 
-  // Continuous time trials and races consist of 1 dominant benchmark work effort.
-  // We identify the primary sustained running segment by cadence onset through to finish line deceleration.
-  if (options.isRace) {
-    return detectRaceInterval(records, options);
-  }
-
-  const lapIntervals = detectLapIntervals(records, options);
-  if (lapIntervals) return lapIntervals;
-
+/**
+ * Measure the contrast baseline for one recording.
+ *
+ * Returns null when there is too little cadence telemetry to describe the
+ * session at all, which is also the caller's signal to produce no intervals.
+ */
+function sessionContrast(records: ActivityRecord[], options: DetectIntervalsOptions): SessionContrast | null {
   const cadences = timeDistribution(records, time, r => r.cadence, v => v > 0);
+  if (cadences.seconds < 30) return null;
   const hrs = timeDistribution(records, time, r => r.heartRate, v => v > 0);
   const movingSpeeds = timeDistribution(records, time, r => r.speedMps, v => v > 0.5);
-  if (cadences.seconds < 30) return [];
   const p90Cad = cadences.quantile(0.90), p50Cad = cadences.quantile(0.50), p20Cad = cadences.quantile(0.20);
   const p85Spd = movingSpeeds.quantile(0.85), p50Spd = movingSpeeds.quantile(0.50), p20Spd = movingSpeeds.quantile(0.20);
 
@@ -191,6 +188,85 @@ export function detectIntervals(
   const walkingSeconds = timeDistribution(records, time, r => r.cadence, v => v >= 0 && v < 125).seconds;
   const lt1Ceiling = athleteLt1;
   const isEasyBaseSession = avgRunningHr <= lt1Ceiling + 2 && walkingSeconds < 60;
+
+  return {
+    baseSpeed, baseCad, stridePaceAnchorSpeed, strideSpeedThreshold, strideCadThreshold,
+    hasSpeedContrast, workSpeedThreshold, hasCadenceContrast, workCadenceThreshold,
+    hasHrContrast, hrWorkThreshold, isEasyBaseSession
+  };
+}
+
+/**
+ * Detects workout intervals (reps, recoveries, strides) using physiological and biomechanical telemetry:
+ * - Cadence & ground contact time (stance time) for kinematic running vs walking/resting
+ * - Heart rate relative to athlete maximum / session distribution
+ * - Strides require sustained speed contrast and prompt walking recovery.
+ */
+export function detectIntervals(
+  records: ActivityRecord[],
+  options: DetectIntervalsOptions = {}
+): DetectedInterval[] {
+  if (!records || records.length < 2) return [];
+  // Missing time, reversals and long gaps separate workouts rather than creating
+  // sustained evidence through unobserved portions of a recording.
+  const traces: ActivityRecord[][] = [];
+  let trace: ActivityRecord[] = [];
+  for (const record of records) {
+    if (record.timerActive === false || !Number.isFinite(record.elapsedSeconds)) {
+      if (trace.length) traces.push(trace);
+      trace = [];
+      continue;
+    }
+    const previous = trace.at(-1);
+    if (previous && (record.timerSegment !== previous.timerSegment || record.elapsedSeconds <= previous.elapsedSeconds || record.elapsedSeconds - previous.elapsedSeconds > MAX_OBSERVED_GAP_SECONDS)) {
+      traces.push(trace);
+      trace = [];
+    }
+    trace.push(record);
+  }
+  if (trace.length) traces.push(trace);
+  if (traces.length !== 1 || traces[0].length !== records.length) {
+    // One baseline for the whole recording, offered to fragments that cannot be
+    // segmented on their own. Blocks still never span a gap: a recording break in
+    // the middle of a sustained effort would otherwise leave both halves with no
+    // warmup or recovery to contrast against, and file the effort as recovery.
+    const session = options.sessionContrast ?? sessionContrast(records, options) ?? undefined;
+    return traces.flatMap(part => detectIntervals(part, { ...options, sessionContrast: session })).map((interval, index) => ({ ...interval, intervalIndex: index + 1 }));
+  }
+  if (observedIntervals(records, time).reduce((sum, i) => sum + i.seconds, 0) < 59) return [];
+
+  // Continuous time trials and races consist of 1 dominant benchmark work effort.
+  // We identify the primary sustained running segment by cadence onset through to finish line deceleration.
+  if (options.isRace) {
+    return detectRaceInterval(records, options);
+  }
+
+  const lapIntervals = detectLapIntervals(records, options);
+  if (lapIntervals) return lapIntervals;
+
+  const local = sessionContrast(records, options);
+  if (!local) return [];
+  const { lt1Hr: localLt1 } = resolveHeartRateProfile(options);
+  const fragmentRunningHr = mean(records, r => (r.cadence ?? 0) >= 128 ? r.heartRate : null);
+  const segmentable = local.hasSpeedContrast || local.hasCadenceContrast || local.hasHrContrast;
+  // A fragment with no contrast of its own cannot be segmented. Use the
+  // whole-recording baseline only when the fragment is itself a sustained effort
+  // clearly above LT1: that is exactly the case a per-fragment baseline mislabels,
+  // and a steady easy stretch must not become work just because another fragment
+  // was faster. A few bpm over LT1 is measurement noise, not an effort.
+  const sustainedEffort = !segmentable && !!options.sessionContrast &&
+    fragmentRunningHr >= localLt1 + FRAGMENT_LT1_MARGIN_BPM;
+  const contrast = sustainedEffort ? options.sessionContrast! : local;
+  const {
+    baseSpeed, baseCad, stridePaceAnchorSpeed, strideSpeedThreshold, strideCadThreshold,
+    hasSpeedContrast, workSpeedThreshold, hasCadenceContrast, workCadenceThreshold,
+    hasHrContrast, hrWorkThreshold, isEasyBaseSession
+  } = contrast;
+
+  const { lt1Hr: athleteLt1, lt2Hr: athleteLt2 } = resolveHeartRateProfile(options);
+
+  // Running cadence vs walking/rest (running jog >= 128 spm, walking recovery < 128 spm)
+  const isRunningCadence = (c: number) => c >= 128;
 
   // Label each second as active effort or recovery
   const states: ('work' | 'recovery')[] = records.map(r => {
@@ -420,7 +496,10 @@ export function detectIntervals(
 
   const activeWorkOrStride = validBlocks.filter(b => b.type === 'work' || b.type === 'stride');
   if (activeWorkOrStride.length === 0) return [];
-  if (activeWorkOrStride.length === 1 && activeWorkOrStride[0].type === 'work') {
+  // A fragment of a larger recording can be work from end to end: the warmup and
+  // cooldown it is measured against live in the other fragments. Only a whole
+  // recording that is nothing but work has no structure to report.
+  if (!options.sessionContrast && activeWorkOrStride.length === 1 && activeWorkOrStride[0].type === 'work') {
     const recs = validBlocks.filter(b => b.type === 'recovery');
     if (recs.length === 0) return [];
   }

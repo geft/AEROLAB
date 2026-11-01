@@ -31,5 +31,6 @@ export function sessionTags(
   const label = RUN_TYPE_LABELS[runType || ''];
   return [...(label ? [label] : []),
     ...(tags.some(tag => tag.toLowerCase() === 'strides') ? ['Strides'] : []),
+    ...(tags.some(tag => tag.toLowerCase() === 'marathon pace') ? ['Marathon Pace'] : []),
     ...(hasHills(elevation) ? ['Hills'] : [])];
 }

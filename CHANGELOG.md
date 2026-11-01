@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Analysis
+
+- Detect a sustained effort that a recording break cuts in two. Contrast was measured separately inside each recording fragment, so a block split by a pause or a lost sample had no warmup or cooldown to compare against and was filed entirely as recovery: a 23 km long run with 17 km at marathon pace reported 27 seconds of work and was graded off-target as an aerobic over-intensity failure. The baseline now belongs to the session, while blocks still never span an unobserved gap.
+- Classify a run of two hours or more that carries a sustained block between LT1 and the LT2 band as a marathon-pace long run rather than a tempo session, so it keeps its place in the long-run record and is graded on the block. The `Marathon Pace` tag, already in the tag vocabulary and read by the coach, is now derived from the recording instead of never being produced.
+
 ## 1.5.4 — 2026-10-27
 
 ### Garmin Connect sync
