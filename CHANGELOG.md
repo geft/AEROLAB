@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.5.5 — 2026-11-01
 
 ### Analysis
 
