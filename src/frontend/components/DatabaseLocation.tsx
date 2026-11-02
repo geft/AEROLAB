@@ -10,7 +10,7 @@ export const DatabaseLocation: React.FC = () => {
   const [selected, setSelected] = useState<{ path: string; exists: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ error: boolean; text: string } | null>(null);
-  const [maintenance, setMaintenance] = useState<MaintenanceStatus['status']>('idle');
+  const [maintenance, setMaintenance] = useState<MaintenanceStatus>({ status: 'idle' });
 
   useEffect(() => {
     void getDatabaseStatus()
@@ -19,7 +19,7 @@ export const DatabaseLocation: React.FC = () => {
   }, [t.databaseLocation.statusFailed]);
 
   useEffect(() => {
-    const refresh = () => { void getMaintenanceStatus().then(data => setMaintenance(data.status)).catch(() => {}); };
+    const refresh = () => { void getMaintenanceStatus().then(data => setMaintenance(data)).catch(() => {}); };
     refresh();
     const interval = window.setInterval(refresh, 3000);
     return () => window.clearInterval(interval);
@@ -86,8 +86,16 @@ export const DatabaseLocation: React.FC = () => {
         {selected ? selected.exists ? t.databaseLocation.existingHint : t.databaseLocation.newHint : t.databaseLocation.pickerHint}
       </p>
       {message && <p role="status" style={{ color: message.error ? '#f87171' : '#4ade80', fontSize: '0.8rem' }}>{message.text}</p>}
-      {maintenance === 'running' && <p role="status" style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{t.databaseLocation.maintenanceRunning}</p>}
-      {(maintenance === 'failed' || maintenance === 'interrupted') && <p role="status" style={{ color: '#f87171', fontSize: '0.8rem' }}>{t.databaseLocation.maintenanceFailed}</p>}
+      {maintenance.status === 'running' && (
+        <p role="status" style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+          {maintenance.compacting ? t.maintenance.compacting : t.databaseLocation.maintenanceRunning}
+        </p>
+      )}
+      {(maintenance.status === 'failed' || maintenance.status === 'interrupted') && (
+        <p role="status" style={{ color: '#f87171', fontSize: '0.8rem' }}>
+          {maintenance.compacting ? t.maintenance.compactFailed : t.databaseLocation.maintenanceFailed}
+        </p>
+      )}
     </section>
   );
 };

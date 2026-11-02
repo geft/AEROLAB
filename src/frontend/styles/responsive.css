@@ -1193,6 +1193,27 @@
   text-align: center;
 }
 
+.compaction-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: fit-content;
+  max-width: calc(100% - 2rem);
+  margin: 0.65rem auto 0;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  border-radius: 999px;
+  background: rgba(6, 182, 212, 0.1);
+  color: var(--accent-cyan);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.compaction-indicator-hint {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
 .backup-snapshot-header-actions {
   display: flex;
   align-items: center;

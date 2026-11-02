@@ -15,6 +15,14 @@ export interface MaintenanceStatus {
   completedMigrations?: number;
   syncedActivitiesCount?: number;
   task?: 'startup' | 'profile';
+  /** Bytes of the database file after the last completed task. */
+  databaseBytes?: number;
+  /** Unused bytes SQLite still holds after the last completed task. */
+  reclaimableBytes?: number;
+  /** Bytes released by compaction in the last completed task. */
+  reclaimedBytes?: number;
+  /** True while the worker is rewriting the database file. */
+  compacting?: boolean;
 }
 
 let worker: Worker | null = null;
@@ -84,9 +92,17 @@ export function startMaintenance(databasePath: string, onComplete?: () => void, 
     return;
   }
   worker.on('message', (message: MaintenanceStatus) => {
-    if (message.status === 'complete') {
+    if (message.status === 'running') {
+      // Interim report: the worker is inside VACUUM, so the retained task label
+      // (startup) no longer describes what is happening on disk.
+      saveStatus({ status: 'running', startedAt, task, compacting: true });
+    } else if (message.status === 'complete') {
       completed = true;
-      terminal = { status: 'complete', startedAt, finishedAt: new Date().toISOString(), completedMigrations: message.completedMigrations, syncedActivitiesCount: message.syncedActivitiesCount, task };
+      terminal = {
+        status: 'complete', startedAt, finishedAt: new Date().toISOString(),
+        completedMigrations: message.completedMigrations, syncedActivitiesCount: message.syncedActivitiesCount, task,
+        databaseBytes: message.databaseBytes, reclaimableBytes: message.reclaimableBytes, reclaimedBytes: message.reclaimedBytes
+      };
     } else if (message.status === 'failed') {
       saveStatus({ status: 'failed', startedAt, finishedAt: new Date().toISOString(), error: message.error });
       logger.error('DB', 'Background maintenance failed', message.error);

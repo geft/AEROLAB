@@ -37,6 +37,10 @@ describe('native FIT and Garmin ZIP ingestion', () => {
       const fit = richFit();
       const parsed = parseRunFit(fit, 'run.fit')!;
       expect(importParsedRun(db, parsed, 'run.fit').status).toBe('imported');
+      // Raw FIT record fields are archived, never left inline: writing them wide
+      // and clearing them later is what fragments the record pages.
+      expect(db.prepare('SELECT COUNT(*) AS n FROM activity_records WHERE fit_fields_json IS NOT NULL').get()).toEqual({ n: 0 });
+      expect(db.prepare('SELECT COUNT(*) AS n FROM activity_record_archives').get()).toEqual({ n: 1 });
       const stored = db.prepare('SELECT * FROM activity_fit_details').get() as { metadata_json: string; source_fit: Buffer };
       expect(decodeSourceFit(stored.source_fit)).toEqual(fit);
       const metadata = JSON.parse(decodeStoredJson(stored.metadata_json));

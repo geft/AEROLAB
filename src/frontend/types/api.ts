@@ -158,6 +158,16 @@ export interface DatabaseStatus {
 
 export interface MaintenanceStatus {
   status: 'idle' | 'running' | 'complete' | 'failed' | 'interrupted';
+  task?: 'startup' | 'profile';
+  startedAt?: string;
+  finishedAt?: string;
+  error?: string;
+  completedMigrations?: number;
+  syncedActivitiesCount?: number;
+  databaseBytes?: number;
+  reclaimableBytes?: number;
+  reclaimedBytes?: number;
+  compacting?: boolean;
 }
 
 /** A structured log line returned by /api/dev/diagnostics. */

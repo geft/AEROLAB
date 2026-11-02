@@ -29,21 +29,33 @@ export const RECORD_ARCHIVE_SCHEMA = `CREATE TABLE IF NOT EXISTS activity_record
 )`;
 
 /** Must be called inside the import/migration transaction. Preserve exact JSON strings. */
-export function compressActivity(db: Database.Database, activityId: string): void {
-  const fields = db.prepare('SELECT id, fit_fields_json FROM activity_records WHERE activity_id = ? AND fit_fields_json IS NOT NULL ORDER BY id')
-    .all(activityId) as Array<{ id: number; fit_fields_json: string }>;
-  if (fields.length) {
-    const previous = loadArchivedFields(db, activityId);
-    for (const row of fields) previous.set(row.id, row.fit_fields_json);
-    db.prepare(`INSERT INTO activity_record_archives(activity_id, fields_gzip) VALUES (?, ?)
-      ON CONFLICT(activity_id) DO UPDATE SET fields_gzip = excluded.fields_gzip`)
-      .run(activityId, gzipSync(Buffer.from(JSON.stringify([...previous])), { level: 9 }));
-    db.prepare('UPDATE activity_records SET fit_fields_json = NULL WHERE activity_id = ?').run(activityId);
-  }
+export function archiveRecordFields(db: Database.Database, activityId: string,
+  entries: ReadonlyArray<readonly [number, string]>): void {
+  if (!entries.length) return;
+  const previous = loadArchivedFields(db, activityId);
+  for (const [id, json] of entries) previous.set(id, json);
+  db.prepare(`INSERT INTO activity_record_archives(activity_id, fields_gzip) VALUES (?, ?)
+    ON CONFLICT(activity_id) DO UPDATE SET fields_gzip = excluded.fields_gzip`)
+    .run(activityId, gzipSync(Buffer.from(JSON.stringify([...previous])), { level: 9 }));
+}
+
+/** gzip the original FIT payloads; safe to call when they are already compressed. */
+export function compressActivityFitDetails(db: Database.Database, activityId: string): void {
   const fit = db.prepare('SELECT metadata_json, source_fit FROM activity_fit_details WHERE activity_id = ?').get(activityId) as
     { metadata_json: string | Buffer; source_fit: Buffer | null } | undefined;
   if (fit) db.prepare('UPDATE activity_fit_details SET metadata_json = ?, source_fit = ? WHERE activity_id = ?')
     .run(encodeStoredJson(fit.metadata_json), fit.source_fit ? encodeSourceFit(fit.source_fit) : null, activityId);
+}
+
+/** Legacy/migration path: archive whatever raw JSON is still inline, then clear it. */
+export function compressActivity(db: Database.Database, activityId: string): void {
+  const fields = db.prepare('SELECT id, fit_fields_json FROM activity_records WHERE activity_id = ? AND fit_fields_json IS NOT NULL ORDER BY id')
+    .all(activityId) as Array<{ id: number; fit_fields_json: string }>;
+  if (fields.length) {
+    archiveRecordFields(db, activityId, fields.map(row => [row.id, row.fit_fields_json]));
+    db.prepare('UPDATE activity_records SET fit_fields_json = NULL WHERE activity_id = ?').run(activityId);
+  }
+  compressActivityFitDetails(db, activityId);
 }
 
 export function loadArchivedFields(db: Database.Database, activityId: string): Map<number, string> {

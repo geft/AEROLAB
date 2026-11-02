@@ -26,6 +26,10 @@ const OnboardingPage = SNAPSHOT_MODE ? null : lazy(() => import('./components/On
 const UpdateStartupPrompt = SNAPSHOT_MODE
   ? null
   : lazy(() => import('./components/UpdateStartupPrompt').then(m => ({ default: m.UpdateStartupPrompt })));
+// Compaction status is desktop-only; snapshots have no maintenance worker.
+const CompactionIndicator = SNAPSHOT_MODE
+  ? null
+  : lazy(() => import('./components/CompactionIndicator').then(m => ({ default: m.CompactionIndicator })));
 
 // Developer diagnostics are excluded from release bundles. Vite statically
 // replaces `import.meta.env.DEV` with `false` in production, so this ternary
@@ -253,6 +257,7 @@ export const App: React.FC = () => {
 
       <Suspense fallback={null}>
         {UpdateStartupPrompt && <UpdateStartupPrompt />}
+        {CompactionIndicator && <CompactionIndicator />}
       </Suspense>
 
       <main className="main-content">

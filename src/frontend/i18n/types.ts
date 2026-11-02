@@ -666,6 +666,11 @@ export interface Translations {
     maintenanceRunning: string;
     maintenanceFailed: string;
   };
+  maintenance: {
+    compacting: string;
+    compactingHint: string;
+    compactFailed: string;
+  };
   onboarding: {
     restingHrPlaceholder: string;
     enterDob: string;

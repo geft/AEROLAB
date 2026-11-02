@@ -610,6 +610,11 @@ export const en: Translations = {
     maintenanceRunning: 'Updating saved workout analysis in the background…',
     maintenanceFailed: 'Workout analysis update was interrupted. Restart the app to retry.'
   },
+  maintenance: {
+    compacting: 'Compacting database…',
+    compactingHint: 'This can take a moment. Your run data is not affected.',
+    compactFailed: 'Database compaction failed. It will retry on the next start.'
+  },
   onboarding: {
     restingHrPlaceholder: "e.g. 54",
     enterDob: "Enter DOB above",

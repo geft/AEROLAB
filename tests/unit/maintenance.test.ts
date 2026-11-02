@@ -132,6 +132,17 @@ describe('background maintenance worker lifecycle', () => {
     expect(maintenance.getMaintenanceStatus()).toMatchObject({ status: 'interrupted', error: 'Worker exited with code 7' });
   });
 
+  it('reports the interim compacting phase, then the final footprint', async () => {
+    const maintenance = await loadMaintenance();
+    maintenance.startMaintenance('temp.db');
+    FakeWorker.instances[0].emit('message', { status: 'running', compacting: true });
+    expect(maintenance.getMaintenanceStatus()).toMatchObject({ status: 'running', task: 'startup', compacting: true });
+    FakeWorker.instances[0].emit('message', { status: 'complete', reclaimedBytes: 1024, databaseBytes: 2048, reclaimableBytes: 0 });
+    FakeWorker.instances[0].emit('exit', 0);
+    expect(maintenance.getMaintenanceStatus()).toMatchObject({ status: 'complete', task: 'startup', reclaimedBytes: 1024 });
+    expect(maintenance.getMaintenanceStatus().compacting).toBeUndefined();
+  });
+
   it('coalesces queued profile recomputes and preserves baseline changes through the next start', async () => {
     const maintenance = await loadMaintenance();
     maintenance.startMaintenance('first.db');

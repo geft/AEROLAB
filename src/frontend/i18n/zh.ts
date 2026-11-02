@@ -1203,6 +1203,11 @@ export const zh: Translations = {
     maintenanceRunning: '正在后台更新已保存的训练分析…',
     maintenanceFailed: '训练分析更新中断。请重启应用后重试。'
   },
+  maintenance: {
+    compacting: '正在压缩数据库…',
+    compactingHint: '可能需要一点时间，跑步数据不受影响。',
+    compactFailed: '数据库压缩失败，将在下次启动时重试。'
+  },
   onboarding: {
     restingHrPlaceholder: "例如 54",
     enterDob: "请先输入出生日期",

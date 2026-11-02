@@ -38,3 +38,25 @@ compression on a temporary copy, then migrates in place. It compares hashes of
 all logical rows, decoding raw JSON and FIT bytes for comparison, and checks
 SQLite integrity and foreign keys. Omitting `--apply` verifies only the copy.
 Safety backups are retained separately and still consume disk space.
+
+## Automatic compaction
+
+Imports and reprocessing leave unused space inside pages: a row is written with
+its raw FIT JSON and then shrunk once that JSON moves to
+`activity_record_archives`. Imports now insert the record rows without the JSON
+and archive the fields from the returned row ids in the same transaction, so a
+fresh import does not create that free space. Existing databases still need a
+repack.
+
+The maintenance worker measures the footprint at startup and vacuums
+automatically when the file is at least 64 MB, holds at least 32 MB of unused
+page space, and at least 15% of the file is reclaimable. The rewrite runs in the
+worker thread after the API is listening; while it runs the app shows an
+indeterminate "Compacting database…" status, because a percentage would not be
+honest. Status is available from `GET /api/system/maintenance` (with
+`compacting: true` and, on completion, `reclaimedBytes`).
+
+There is no manual trigger in the UI: the startup check covers imports and
+offline reprocessing on the next launch. To compact immediately with the app
+closed, use the script above.
+

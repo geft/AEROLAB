@@ -1,4 +1,4 @@
-import { decodeStoredJson, compressActivity } from '../db/compression.js';
+import { decodeStoredJson, archiveRecordFields, compressActivityFitDetails } from '../db/compression.js';
 import { isTreadmillFitMetadata } from '../../shared/activity-environment.js';
 import { persistWorkoutSegments } from '../db/workout-segments.js';
 import { assertDatabaseWritable } from '../application/database-operations.js';
@@ -316,9 +316,13 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
 
     // Keep every telemetry sample. The workout centroid is enough for weather;
     // store it once so a CSV export can still be reimported with that location.
+    // Raw FIT fields are archived in a second pass from the returned row ids:
+    // inserting them wide and then clearing them leaves large freeblocks in the
+    // page and bloats the file without a full VACUUM.
+    const archivedFields: Array<[number, string]> = [];
     for (let index = 0; index < records.length; index++) {
       const r = records[index];
-      insertRecord.run(
+      const inserted = insertRecord.run(
         metadata.id,
         r.timestamp,
         r.elapsedSeconds,
@@ -334,9 +338,11 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
         r.stanceTime,
         r.power ?? null, r.verticalRatio ?? null, r.stanceTimeBalance ?? null, r.stepLength ?? null,
         r.respirationRate ?? null, r.coreTemperature ?? null, r.fractionalCadence ?? null,
-        r.fitFields ? JSON.stringify(r.fitFields) : null
+        null
       );
+      if (r.fitFields) archivedFields.push([Number(inserted.lastInsertRowid), JSON.stringify(r.fitFields)]);
     }
+    archiveRecordFields(db, metadata.id, archivedFields);
 
     const fitMetadataJson = parsed.fitMetadata ? JSON.stringify(parsed.fitMetadata) : previousFit?.metadata_json;
     if (fitMetadataJson) db.prepare(`INSERT INTO activity_fit_details (activity_id, metadata_json, source_fit)
@@ -344,7 +350,7 @@ export function importParsedRun(db: Database.Database, parsed: ParsedCSV, filena
       source_fit = COALESCE(excluded.source_fit, activity_fit_details.source_fit)`)
       .run(metadata.id, fitMetadataJson, parsed.sourceFit ?? previousFit?.source_fit ?? null);
 
-    compressActivity(db, metadata.id);
+    compressActivityFitDetails(db, metadata.id);
 
     // Threshold updates
     evaluateThresholdUpdate(db, metadata.id, metadata.date, runType, metadata, context.records, economy, hrProfile);
