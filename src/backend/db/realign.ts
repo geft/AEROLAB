@@ -15,6 +15,7 @@ import { evaluateThresholdUpdate, getCurrentThresholds, getStridePaceAnchorSecKm
 import { thresholdTime } from '../../shared/threshold-trend.js';
 import { calculateActivityTrainingLoad } from '../physiology/training-load.js';
 import { syncAllCoachSummaries } from '../physiology/coach-summary.js';
+import { withDerivedAnalysisBatch } from '../application/analysis/derived-batch.js';
 
 export interface RealignStats {
   activitiesProcessed: number;
@@ -25,6 +26,10 @@ export interface RealignStats {
   thresholdsPruned: number;
   profileLt1Hr: number | null;
   profileLt2Hr: number | null;
+  /** Wall-clock seconds, split by phase so a slow pass is diagnosable. */
+  replaySeconds: number;
+  coachSyncSeconds: number;
+  totalSeconds: number;
 }
 
 export interface RealignOptions {
@@ -34,7 +39,7 @@ export interface RealignOptions {
   /** Restrict to specific activity ids (default: all). */
   activityIds?: string[];
   precomputed?: Map<string, { economy: EconomyMetrics; splits: SplitLap[] }>;
-  onProgress?: (completed: number, total: number) => void;
+  onProgress?: (completed: number, total: number, phase?: 'replay' | 'coach') => void;
 }
 
 /**
@@ -49,7 +54,14 @@ export interface RealignOptions {
  */
 export function realignDatabase(db: Database.Database, options: RealignOptions = {}): RealignStats {
   assertDatabaseWritable();
+  // The pass recomputes derived metrics from telemetry it never rewrites, so
+  // decoded records and aerobic observations are reused across the whole replay.
+  return withDerivedAnalysisBatch(db, () => replayDatabase(db, options));
+}
+
+function replayDatabase(db: Database.Database, options: RealignOptions): RealignStats {
   const log = options.logger ?? (() => {});
+  const startedAt = Date.now();
   const stats: RealignStats = {
     activitiesProcessed: 0,
     activitiesSkipped: 0,
@@ -58,7 +70,10 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
     intervalsRebuilt: 0,
     thresholdsPruned: 0,
     profileLt1Hr: null,
-    profileLt2Hr: null
+    profileLt2Hr: null,
+    replaySeconds: 0,
+    coachSyncSeconds: 0,
+    totalSeconds: 0
   };
 
   const classifications = new Map<string, ClassificationEvidence>();
@@ -199,12 +214,18 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
       stats.activitiesFailed.push(`${act.id}: ${err instanceof Error ? err.message : String(err)}`);
       log(`  FAILED ${act.id}: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
-      options.onProgress?.(index + 1, activities.length);
+      options.onProgress?.(index + 1, activities.length, 'replay');
     }
   }
 
   // A strict correction reports replay failures before finalization can mask them.
-  if (options.strict && stats.activitiesFailed.length) return stats;
+  if (options.strict && stats.activitiesFailed.length) {
+    stats.totalSeconds = secondsSince(startedAt);
+    return stats;
+  }
+
+  stats.replaySeconds = secondsSince(startedAt);
+  log(`  replay finished in ${durationText(stats.replaySeconds)}`);
 
   // Clean up any duplicate calibrations for identical source activities
   try {
@@ -237,15 +258,31 @@ export function realignDatabase(db: Database.Database, options: RealignOptions =
   }
 
   try {
-    const synced = syncAllCoachSummaries(db, options.activityIds, classifications);
-    log(`  coach summaries re-synced for ${synced} activities`);
+    const coachStartedAt = Date.now();
+    const total = options.activityIds?.length ?? activities.length;
+    log(`  re-syncing coach summaries for ${total} activities...`);
+    const synced = syncAllCoachSummaries(db, options.activityIds, classifications, {
+      onProgress: (completed, count) => options.onProgress?.(completed, count, 'coach')
+    });
+    stats.coachSyncSeconds = secondsSince(coachStartedAt);
+    log(`  coach summaries re-synced for ${synced} activities in ${durationText(stats.coachSyncSeconds)}`);
   } catch (err) {
     if (options.strict) throw err;
     log(`  coach re-sync skipped: ${err instanceof Error ? err.message : String(err)}`);
   }
 
+  stats.totalSeconds = secondsSince(startedAt);
   log(`Done: ${stats.activitiesProcessed} processed, ${stats.activitiesSkipped} skipped, ` +
     `${stats.activitiesFailed.length} failed, ${stats.runTypeChanges.length} run-type changes, ` +
-    `${stats.thresholdsPruned} stale threshold rows pruned.`);
+    `${stats.thresholdsPruned} stale threshold rows pruned in ${durationText(stats.totalSeconds)}.`);
   return stats;
+}
+
+function secondsSince(startedAt: number): number {
+  return Math.round((Date.now() - startedAt) / 100) / 10;
+}
+
+function durationText(seconds: number): string {
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  return `${Math.floor(seconds / 60)}m${String(Math.round(seconds % 60)).padStart(2, '0')}s`;
 }

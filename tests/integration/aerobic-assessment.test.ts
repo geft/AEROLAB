@@ -77,7 +77,11 @@ describe('Aerobic reassessment through SQLite and API', () => {
     const before = getHeartRateProfileAtDate(db, '2026-08-15', 'c').lt1Hr;
     const prepare = vi.spyOn(db, 'prepare');
     expect(refreshHeartRateAnalysis(db, ['c', 'later'])).toBe(2);
-    expect(prepare.mock.calls.filter(([sql]) => sql.includes("SELECT id, start_time FROM activities WHERE sport"))).toHaveLength(1);
+    // Eligibility stays live inside a batch (a run-type edit must not be masked),
+    // but the expensive telemetry decode happens at most once per activity.
+    const decodes = prepare.mock.calls.filter(([sql]) => sql.includes('FROM activity_records WHERE activity_id'));
+    expect(decodes.length).toBeGreaterThan(0);
+    expect(decodes.length).toBeLessThanOrEqual(4);
     prepare.mockRestore();
     for (const [id, expected] of [['c', before], ['later', 157]] as const) {
       const summary = db.prepare('SELECT analysis_json FROM activity_coach_summaries WHERE activity_id=?').get(id) as { analysis_json: string };

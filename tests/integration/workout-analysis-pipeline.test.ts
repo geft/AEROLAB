@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { openDatabase } from '../../src/backend/db/client.js';
 import { realignDatabase } from '../../src/backend/db/realign.js';
 import { importParsedRun } from '../../src/backend/ingestion/importer.js';
@@ -55,6 +55,26 @@ describe('Import and replay share workout analysis', () => {
       }
       expect(run.records).toEqual(raw);
       expect(db.prepare('SELECT COUNT(*) count FROM activity_records').get()).toEqual({ count: raw.length });
+    } finally { db.close(); }
+  });
+
+  it('reuses decoded telemetry across a replay instead of re-reading it per activity', () => {
+    const db = openDatabase(':memory:');
+    try {
+      db.prepare("UPDATE athlete_profile SET age=26,dob=NULL,max_hr=190,resting_hr=50,is_max_hr_estimated=1 WHERE id='primary'").run();
+      for (const [index, date] of ['2026-08-01', '2026-08-08', '2026-08-15'].entries()) {
+        const run = workoutTrace([{ seconds: 3600, hr: 150 }], { id: `run-${index}`, date });
+        expect(importParsedRun(db, { ...run, fileHash: `run-${index}` }, `run-${index}.csv`).status).toBe('imported');
+      }
+      const prepare = vi.spyOn(db, 'prepare');
+      expect(realignDatabase(db).activitiesProcessed).toBe(3);
+      const decodes = prepare.mock.calls.filter(([sql]) =>
+        typeof sql === 'string' && sql.includes('FROM activity_records WHERE activity_id'));
+      prepare.mockRestore();
+      // One fetch per replayed activity, plus one decode per activity to seed the
+      // batch. Re-calibration and coaching reuse them instead of re-reading.
+      expect(decodes.length).toBeGreaterThan(0);
+      expect(decodes.length).toBeLessThanOrEqual(6);
     } finally { db.close(); }
   });
 });

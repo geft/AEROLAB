@@ -87,35 +87,49 @@ export function extractAerobicObservation(records: ActivityRecord[], activityId:
     decouplingPct: strongest.drift, basis: 'run_walk' } : null;
 }
 
-type EvidenceSnapshot = { observations: AerobicObservation[]; activities: Array<{ id: string; start_time: string }> };
-const cache = new WeakMap<Database.Database, EvidenceSnapshot & { revision: string }>();
-const batchSnapshots = new WeakMap<Database.Database, EvidenceSnapshot>();
+type ObservationMap = Map<string, AerobicObservation | null>;
+const cache = new WeakMap<Database.Database, { revision: string; observations: ObservationMap }>();
+const batchSnapshots = new WeakMap<Database.Database, ObservationMap>();
 
-function loadEvidence(db: Database.Database, fromDate: string, toDate: string): EvidenceSnapshot {
+type EligibleActivity = { id: string; start_time: string };
+
+function eligibleActivities(db: Database.Database, fromDate: string, toDate: string): EligibleActivity[] {
   const columns = new Set((db.prepare('PRAGMA table_info(activities)').all() as Array<{ name: string }>).map(row => row.name));
-  if (['id', 'start_time', 'sport', 'run_type', 'duration_seconds'].some(name => !columns.has(name)))
-    return { activities: [], observations: [] };
+  if (['id', 'start_time', 'sport', 'run_type', 'duration_seconds'].some(name => !columns.has(name))) return [];
   const environment = columns.has('is_treadmill') ? 'AND is_treadmill = 0' : '';
-  const activities = db.prepare(`SELECT id, start_time FROM activities WHERE sport = 'running'
+  return db.prepare(`SELECT id, start_time FROM activities WHERE sport = 'running'
     AND (run_type = 'long_run' OR run_type IN ('easy_base', 'tempo') AND duration_seconds >= 3600) ${environment}
     AND datetime(start_time) BETWEEN datetime(?) AND datetime(?) ORDER BY start_time`)
-    .all(fromDate, toDate) as EvidenceSnapshot['activities'];
-  const observations = activities.flatMap(activity => {
-    const row = extractAerobicObservation(loadAnalysisRecords(db, activity.id), activity.id, activity.start_time);
-    return row ? [row] : [];
-  });
-  return { activities, observations };
+    .all(fromDate, toDate) as EligibleActivity[];
+}
+
+/**
+ * An observation is a pure function of one activity's telemetry and date, so it
+ * outlives the date window that selected it. Eligibility is re-queried every
+ * call: run-type edits change which runs count without changing their telemetry.
+ */
+function collectObservations(db: Database.Database, activities: EligibleActivity[], store: ObservationMap): AerobicObservation[] {
+  const observations: AerobicObservation[] = [];
+  for (const activity of activities) {
+    let observation = store.get(activity.id);
+    if (observation === undefined) {
+      observation = extractAerobicObservation(loadAnalysisRecords(db, activity.id), activity.id, activity.start_time);
+      store.set(activity.id, observation);
+    }
+    if (observation) observations.push(observation);
+  }
+  return observations;
 }
 
 /** Reuse unchanged telemetry during a synchronous derived-analysis-only batch. */
-export function withAerobicEvidenceSnapshot<T>(db: Database.Database, action: () => T,
-  bounds?: { fromDate: string; toDate: string }): T {
+export function withAerobicEvidenceSnapshot<T>(db: Database.Database, action: () => T): T {
   const previous = batchSnapshots.get(db);
-  batchSnapshots.set(db, previous ?? loadEvidence(db, bounds?.fromDate ?? '0001-01-01', bounds?.toDate ?? '9999-12-31'));
+  batchSnapshots.set(db, previous ?? new Map());
   try { return action(); } finally {
     if (previous) batchSnapshots.set(db, previous); else batchSnapshots.delete(db);
   }
 }
+
 export function getAerobicAssessment(db: Database.Database, asOfDate = new Date().toISOString(),
   options: { strictlyBefore?: boolean; excludeActivityId?: string } = {}): AerobicAssessment {
   const ref = thresholdTime(asOfDate);
@@ -123,17 +137,17 @@ export function getAerobicAssessment(db: Database.Database, asOfDate = new Date(
   if (!Number.isFinite(ref)) return assessAerobicEvidence([], 0, asOfDate);
   const fromDate = new Date(cutoff - 86400000).toISOString().slice(0, 10);
   const toDate = new Date(ref + 86400000).toISOString().slice(0, 10);
-  const revision = `${db.pragma('data_version', { simple: true })}:${(db.prepare('SELECT total_changes() AS n').get() as { n: number }).n}:${fromDate}:${toDate}`;
   const batch = batchSnapshots.get(db);
-  let saved: EvidenceSnapshot | undefined = batch ?? cache.get(db);
-  if (!batch && (db.inTransaction || !saved || cache.get(db)?.revision !== revision)) {
-    // Cache dates and observations, not an as-of result, so historical reads
-    // remain causal and freshness changes without database writes.
-    saved = loadEvidence(db, fromDate, toDate);
-    if (!db.inTransaction) cache.set(db, { ...saved, revision });
-  }
-  const count = saved!.activities.filter(activity => activity.id !== options.excludeActivityId &&
+  const revision = `${db.pragma('data_version', { simple: true })}:${(db.prepare('SELECT total_changes() AS n').get() as { n: number }).n}`;
+  // Observations only survive writes while a batch promises telemetry is still.
+  const persistent = !batch && !db.inTransaction;
+  const cached = cache.get(db);
+  const store = batch ?? (persistent && cached?.revision === revision ? cached.observations : new Map());
+  if (persistent && store !== cached?.observations) cache.set(db, { revision, observations: store });
+  const activities = eligibleActivities(db, fromDate, toDate);
+  const observations = collectObservations(db, activities, store);
+  const count = activities.filter(activity => activity.id !== options.excludeActivityId &&
     (options.strictlyBefore ? thresholdTime(activity.start_time) < ref : thresholdTime(activity.start_time) <= ref) &&
     thresholdTime(activity.start_time) >= cutoff).length;
-  return assessAerobicEvidence(saved!.observations, count, asOfDate, options);
+  return assessAerobicEvidence(observations, count, asOfDate, options);
 }

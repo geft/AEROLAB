@@ -756,7 +756,8 @@ export function syncActivityCoachSummary(
  * Re-evaluates and updates all coach summaries across all activities.
  * Useful when athlete profile thresholds, gear, or baseline changes.
  */
-export function syncAllCoachSummaries(db: Database.Database, activityIds?: string[], classifications?: Map<string, ClassificationEvidence>): number {
+export function syncAllCoachSummaries(db: Database.Database, activityIds?: string[], classifications?: Map<string, ClassificationEvidence>,
+  options: { onProgress?: (completed: number, total: number) => void } = {}): number {
   const rows = activityIds?.length
     ? db.prepare(`SELECT id FROM activities WHERE id IN (${activityIds.map(() => '?').join(',')})`).all(...activityIds)
     : db.prepare('SELECT id FROM activities').all();
@@ -766,10 +767,11 @@ export function syncAllCoachSummaries(db: Database.Database, activityIds?: strin
     return { id: row.id };
   });
   let count = 0;
-  for (const act of activities) {
+  for (const [index, act] of activities.entries()) {
     if (syncActivityCoachSummary(db, act.id, undefined, { classificationEvidence: classifications?.get(act.id) })) {
       count++;
     }
+    options.onProgress?.(index + 1, activities.length);
   }
   return count;
 }

@@ -3,11 +3,10 @@ import { loadAnalysisRecords } from '../db/analysis-records.js';
 import { getHeartRateProfileAtDate } from './threshold-tracker.js';
 import { calculateActivityTrainingLoad } from './training-load.js';
 import { syncActivityCoachSummary } from './coach-summary.js';
-import { withAerobicEvidenceSnapshot } from './aerobic-assessment.js';
+import { withDerivedAnalysisBatch } from '../application/analysis/derived-batch.js';
 import { withThresholdEvidenceSnapshot } from './threshold-evidence.js';
 import { AEROBIC_HISTORY_DAYS } from '../../shared/aerobic-assessment.js';
 import { thresholdTime } from '../../shared/threshold-trend.js';
-import { LAST_SIMILAR_WINDOW_DAYS } from './coach-history.js';
 
 /** Automatic upgrades refresh recent derived data; earlier runs remain available on demand. */
 export function refreshRecentHeartRateAnalysis(db: Database.Database, asOfDate = new Date().toISOString()): number {
@@ -26,13 +25,7 @@ export function refreshHeartRateAnalysis(db: Database.Database, activityIds?: st
     .filter(activity => !selected || selected.has(activity.id));
   const update = db.prepare('UPDATE activities SET training_load=?,z1_seconds=?,z2_seconds=?,z3_seconds=?,z4_seconds=?,z5_seconds=? WHERE id=?');
   if (!activities.length) return 0;
-  const dates = activities.map(activity => thresholdTime(activity.start_time));
-  const bounds = {
-    // Coaching also evaluates the preceding similar run's historical threshold.
-    fromDate: new Date(Math.min(...dates) - (AEROBIC_HISTORY_DAYS + LAST_SIMILAR_WINDOW_DAYS + 1) * 86400000).toISOString(),
-    toDate: new Date(Math.max(...dates) + 86400000).toISOString()
-  };
-  return withThresholdEvidenceSnapshot(db, () => withAerobicEvidenceSnapshot(db, () => {
+  return withThresholdEvidenceSnapshot(db, () => withDerivedAnalysisBatch(db, () => {
     for (const activity of activities) {
       const profile = getHeartRateProfileAtDate(db, activity.start_time, activity.id);
       const load = calculateActivityTrainingLoad(loadAnalysisRecords(db, activity.id), profile,
@@ -44,5 +37,5 @@ export function refreshHeartRateAnalysis(db: Database.Database, activityIds?: st
       })();
     }
     return activities.length;
-  }, bounds));
+  }));
 }

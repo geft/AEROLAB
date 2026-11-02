@@ -26,7 +26,8 @@ export function rebuildAffectedHistory(db: Database.Database, options: HistoryRe
     const ids = affectedActivityIds(db, options.fromTime);
     // An empty explicit list means "all" to the legacy realigner. Avoid that fallback.
     if (!ids.length) return { activitiesProcessed: 0, activitiesSkipped: 0, activitiesFailed: [],
-      runTypeChanges: [], intervalsRebuilt: 0, thresholdsPruned: 0, profileLt1Hr: null, profileLt2Hr: null };
+      runTypeChanges: [], intervalsRebuilt: 0, thresholdsPruned: 0, profileLt1Hr: null, profileLt2Hr: null,
+      replaySeconds: 0, coachSyncSeconds: 0, totalSeconds: 0 };
     const remove = db.prepare("DELETE FROM physiological_thresholds WHERE source_activity_id = ? AND source_kind = 'workout'");
     let pruned = 0;
     for (const id of ids) pruned += remove.run(id).changes;

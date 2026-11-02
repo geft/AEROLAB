@@ -314,7 +314,7 @@ export function runDerivedMigrations(db: Database.Database, migrations: Runner):
     // These historical algorithm checkpoints all request the current full replay.
     // Complete them in one transaction and one pass; retain every legacy ID.
     migrations.runGroup(ANALYSIS_UPGRADES, () => {
-      const result = realignDatabase(db, { strict: true });
+      const result = realignDatabase(db, { strict: true, logger: (msg) => logger.info('DB', `[realign] ${msg}`) });
       if (result.activitiesFailed.length) throw new Error(`Analysis refresh failed: ${result.activitiesFailed.join('; ')}`);
     });
     migrations.run('aerobic-reference-v1', () => { refreshRecentHeartRateAnalysis(db); });

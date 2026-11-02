@@ -42,12 +42,54 @@ export function analysisRecordToRow(r: ActivityRecord) {
   };
 }
 
+type RecordBatch = { samples: number; entries: Map<string, ActivityRecord[]> };
+/** Decoding is the expensive part of every derived-metric pass, so a batch may reuse it. */
+const batchRecords = new WeakMap<Database.Database, RecordBatch>();
+const MAX_BATCH_SAMPLES = 200_000;
+
+/**
+ * Reuse decoded telemetry for the duration of one synchronous batch. The caller
+ * promises the batch does not write `activity_records` or `activity_fit_details`
+ * — replay, recalibration and coaching re-sync all satisfy that. Entries are
+ * bounded, so a long batch cannot accumulate the whole history.
+ */
+export function withAnalysisRecordCache<T>(db: Database.Database, action: () => T): T {
+  const previous = batchRecords.get(db);
+  const batch = previous ?? { samples: 0, entries: new Map<string, ActivityRecord[]>() };
+  batchRecords.set(db, batch);
+  try {
+    return action();
+  } finally {
+    if (previous) batchRecords.set(db, previous); else batchRecords.delete(db);
+  }
+}
+
 export function loadAnalysisRecords(db: Database.Database, activityId: string): ActivityRecord[] {
+  const batch = batchRecords.get(db);
+  const cached = batch?.entries.get(activityId);
+  if (cached) {
+    // Refresh recency without copying the decoded records themselves.
+    batch!.entries.delete(activityId);
+    batch!.entries.set(activityId, cached);
+    // Callers own their array; the record objects are treated as immutable.
+    return cached.slice();
+  }
   // Legacy snapshots can predate optional FIT columns and the metadata table.
   const columns = new Set((db.prepare('PRAGMA table_info(activity_records)').all() as Array<{ name: string }>).map(row => row.name));
   const selection = ANALYSIS_RECORD_COLUMNS.split(', ').map(column => columns.has(column) ? column : `NULL AS ${column}`).join(', ');
   const records = db.prepare(`SELECT ${selection} FROM activity_records WHERE activity_id = ? ORDER BY elapsed_seconds ASC`).all(activityId).map(analysisRecordFromRow);
   const hasFit = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='activity_fit_details'").get();
   const fit = hasFit ? db.prepare('SELECT metadata_json FROM activity_fit_details WHERE activity_id = ?').get(activityId) as { metadata_json: string | Buffer } | undefined : undefined;
-  return repairSpeedTelemetry(prepareFitAnalysis(records, fit ? JSON.parse(decodeStoredJson(fit.metadata_json)) : undefined).records);
+  const decoded = repairSpeedTelemetry(prepareFitAnalysis(records, fit ? JSON.parse(decodeStoredJson(fit.metadata_json)) : undefined).records);
+  if (batch) {
+    batch.entries.set(activityId, decoded);
+    batch.samples += decoded.length;
+    for (const [id, value] of batch.entries) {
+      if (batch.samples <= MAX_BATCH_SAMPLES || batch.entries.size <= 1) break;
+      batch.entries.delete(id);
+      batch.samples -= value.length;
+    }
+    return decoded.slice();
+  }
+  return decoded;
 }
