@@ -196,7 +196,7 @@ describe('StatsView UI Tests', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Aerobic Turnpoint Margin Guide' })).toBeDefined();
       expect(screen.getByText(/What is the Aerobic Turnpoint Margin\?/i)).toBeDefined();
-      expect(screen.getByText(/Inconclusive runs preserve the previous estimate/i)).toBeDefined();
+      expect(screen.getByText(/Estimates, not lab tests/i)).toBeDefined();
       expect(screen.queryByText(/35–50s\/km Gap/i)).toBeNull();
       expect(screen.queryByText(/50–70s\/km Gap/i)).toBeNull();
     });

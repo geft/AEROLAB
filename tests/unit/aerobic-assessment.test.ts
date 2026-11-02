@@ -53,6 +53,24 @@ describe('Independent aerobic reassessment', () => {
     expect(promoteAerobicReference(external, assessment, 177)).toEqual(external);
     expect(promoteAerobicReference({ ...external, hr: 165 }, assessment, 177).hr).toBe(165);
   });
+  it('bounds an upward revision to a small step unless a second period confirms it', () => {
+    const accepted = supportedThreshold([{ sourceId: 'test', effective_date: '2026-08-01',
+      hr: 157, pace: 348, confidence: 1, external: true, usable: true }], '2026-08-30');
+    // Three comparable efforts inside one week cannot lift LT1 by 13 bpm.
+    expect(promoteAerobicReference(accepted, assess([effort(10, 170, 320), effort(11, 170, 320),
+      effort(12, 170, 320)], '2026-08-30'), 175)).toMatchObject({ hr: 157 });
+    // The same effort spread over two confirmation periods inside the window can.
+    expect(promoteAerobicReference(accepted, assess([effort(1, 170, 320), effort(14, 170, 320),
+      effort(25, 170, 320)], '2026-08-30'), 175)).toMatchObject({ hr: 170, pace: 320,
+      evidence: { method: 'aerobic_reference', supportCount: 3 } });
+  });
+  it('keeps a promoted reference clearly below LT2', () => {
+    const accepted = supportedThreshold([{ sourceId: 'test', effective_date: '2026-08-01',
+      hr: 157, pace: 348, confidence: 1, external: true, usable: true }], '2026-08-30');
+    const assessment = assess([effort(1, 170, 320), effort(14, 170, 320), effort(25, 170, 320)], '2026-08-30');
+    expect(promoteAerobicReference(accepted, assessment, 167)).toMatchObject({ hr: 157 });
+    expect(promoteAerobicReference(accepted, assessment, 170)).toMatchObject({ hr: 170 });
+  });
   it('requires corroborating efforts to precede the workout when replaying history', () => {
     const rows = [effort(1), effort(2), effort(3)];
     expect(assessAerobicEvidence(rows, 3, effort(3).date, { strictlyBefore: true }).reference).toBeNull();
@@ -70,6 +88,16 @@ describe('Sustained telemetry evidence', () => {
     expect(extractAerobicObservation(rows, 'mp', '2026-10-03')).toMatchObject({
       activityId: 'mp', hr: 165, basis: 'continuous', decouplingPct: 0
     });
+  });
+  it('reports the freshest comparable window and keeps the higher one as a range', () => {
+    const rows: ActivityRecord[] = Array.from({ length: 7201 }, (_, second) => ({
+      timestamp: '', elapsedSeconds: second, heartRate: second < 3600 ? 170 : 175,
+      speedMps: second >= 3560 && second < 3640 ? 1 : 1000 / 348,
+      altitudeMeters: 0, timerActive: true, timerSegment: 0
+    } as ActivityRecord));
+    const result = extractAerobicObservation(rows, 'drifted', '2026-11-01');
+    expect(result).toMatchObject({ activityId: 'drifted', hr: 170, hrHigh: 175, basis: 'continuous' });
+    expect(result?.paceSecKm).toBeCloseTo(348, 0);
   });
   it('weights time instead of irregular sample density', () => {
     const rows = records().filter(row => row.elapsedSeconds < 2400 || row.elapsedSeconds % 5 === 0);

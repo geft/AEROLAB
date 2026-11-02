@@ -6,7 +6,7 @@ import { thresholdTime } from '../../shared/threshold-trend.js';
 import { supportedThreshold, type ThresholdEvidence } from '../../shared/threshold-evidence.js';
 import { aerobicEvidenceAnchor, thresholdEvidenceObservations } from './threshold-evidence.js';
 import { getAerobicAssessment } from './aerobic-assessment.js';
-import { promoteAerobicReference } from '../../shared/aerobic-assessment.js';
+import { promoteAerobicReference, LT1_LT2_MIN_SEPARATION_BPM } from '../../shared/aerobic-assessment.js';
 import Database from 'better-sqlite3';
 import { ActivityMetadata, ActivityRecord } from '../ingestion/csv-parser';
 import { EconomyMetrics } from './economy';
@@ -723,8 +723,11 @@ export function computeRollingThresholds(
   const legacyLt1 = supportedThreshold(eligible(evidence.lt1), refDateStr,
     { ...options, aerobicAnchorHr: options.strictlyBefore ? independent.lt1Hr : aerobicEvidenceAnchor(db) });
   const rolledLt2 = supportedThreshold(eligible(evidence.lt2), refDateStr, options);
-  const rolledLt1 = promoteAerobicReference(legacyLt1, getAerobicAssessment(db, refDateStr, options),
-    (rolledLt2.hr ?? independent.lt2Hr) - 2);
+  // A promoted aerobic reference must stay clearly below a measured LT2; a
+  // provisional LT2 estimate is itself soft, so keep the original 2 bpm floor.
+  const lt2ForLt1 = rolledLt2.hr ?? independent.lt2Hr;
+  const maximumLt1Hr = rolledLt2.hr != null ? lt2ForLt1 - LT1_LT2_MIN_SEPARATION_BPM : lt2ForLt1 - 2;
+  const rolledLt1 = promoteAerobicReference(legacyLt1, getAerobicAssessment(db, refDateStr, options), maximumLt1Hr);
 
   return {
     lt1Hr: rolledLt1?.hr ?? null,

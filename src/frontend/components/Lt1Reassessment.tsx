@@ -8,9 +8,11 @@ export function Lt1Reassessment({ assessment }: { assessment: AerobicAssessment 
     date: formatDate(value, { month: 'short', day: 'numeric' }),
     year: formatDate(value, { year: 'numeric' })
   });
-  const metric = (hr: number, pace: number) => format(t.progress.lt1AssessmentMetric, {
-    hr: Math.round(hr), pace: formatPace(pace, false)
-  });
+  const metric = (hr: number, pace: number, hrHigh?: number) => hrHigh != null && Math.round(hrHigh) > Math.round(hr)
+    ? format(t.progress.lt1AssessmentMetricRange, {
+      low: Math.round(hr), high: Math.round(hrHigh), pace: formatPace(pace, false)
+    })
+    : format(t.progress.lt1AssessmentMetric, { hr: Math.round(hr), pace: formatPace(pace, false) });
   const { reference, candidate } = assessment;
   return (
     <section className="aerobic-evidence-panel">
@@ -37,7 +39,7 @@ export function Lt1Reassessment({ assessment }: { assessment: AerobicAssessment 
         </article>
         {candidate && <article className="aerobic-evidence-card">
           <h4>{t.progress.lt1AssessmentCandidateTitle}</h4>
-          <strong>{metric(candidate.hr, candidate.paceSecKm)}</strong>
+          <strong>{metric(candidate.hr, candidate.paceSecKm, candidate.hrHigh)}</strong>
           <p>{format(t.progress.lt1AssessmentCandidate, {
             minutes: Math.round(candidate.runningSeconds / 60), drift: candidate.decouplingPct.toFixed(1), date: date(candidate.date)
           })}</p>

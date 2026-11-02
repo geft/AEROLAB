@@ -10,6 +10,8 @@ type Interval = ReturnType<typeof observedIntervals<ActivityRecord>>[number];
 const SETTLE_SECONDS = 60;
 const WARMUP_SECONDS = 600;
 const MIN_CONTINUOUS_SECONDS = 1800;
+/** A comparable window can set the low end of a range without being the anchor. */
+const MIN_COMPARABLE_SECONDS = 900;
 const MIN_ASSISTED_BOUT_SECONDS = 300;
 
 function measure(pairs: Interval[], from: number, to: number) {
@@ -56,12 +58,23 @@ export function extractAerobicObservation(records: ActivityRecord[], activityId:
     if (whole.cv > 0.10 || whole.terrain > 30) return [];
     return [{ pairs, from, to, whole, drift }];
   });
-  const continuous = settled.filter(b => b.whole.seconds >= MIN_CONTINUOUS_SECONDS && b.drift >= -8 && b.drift <= 5 &&
+  const eligible = settled.filter(b => b.whole.seconds >= MIN_COMPARABLE_SECONDS && b.drift >= -8 && b.drift <= 5 &&
     !settled.some(earlier => earlier.from < b.from && Math.abs(earlier.whole.pace / b.whole.pace - 1) <= 0.03 &&
-      100 * (1 - b.whole.ef / earlier.whole.ef) > 5))
-    .sort((a, b) => b.whole.seconds - a.whole.seconds)[0];
-  if (continuous) return { activityId, date, hr: continuous.whole.hr, paceSecKm: continuous.whole.pace,
-    runningSeconds: continuous.whole.seconds, decouplingPct: continuous.drift, basis: 'continuous' };
+      100 * (1 - b.whole.ef / earlier.whole.ef) > 5));
+  // The longest bout of a long run is usually its most drifted part, so report
+  // the freshest window at comparable pace and keep the higher one as a range
+  // instead of averaging drift into a single ceiling value. A shorter
+  // comparable window may set the low end, but the effort must still contain a
+  // full continuous block.
+  const longest = eligible.slice().sort((a, b) => b.whole.seconds - a.whole.seconds)[0];
+  const comparable = longest ? eligible.filter(b => Math.abs(b.whole.pace / longest.whole.pace - 1) <= 0.03) : [];
+  const freshest = comparable.slice().sort((a, b) => a.whole.hr - b.whole.hr || b.whole.seconds - a.whole.seconds)[0];
+  if (freshest && comparable.some(b => b.whole.seconds >= MIN_CONTINUOUS_SECONDS)) {
+    const hrHigh = Math.max(...comparable.map(b => b.whole.hr));
+    return { activityId, date, hr: freshest.whole.hr, hrHigh: hrHigh > freshest.whole.hr + 0.5 ? hrHigh : undefined,
+      paceSecKm: freshest.whole.pace, runningSeconds: freshest.whole.seconds, decouplingPct: freshest.drift,
+      basis: 'continuous' };
+  }
   // Match whole settled bouts at a similar speed. Recovery-assisted evidence
   // describes supported performance, not uninterrupted threshold confirmation.
   if (settled.length < 2) return null;

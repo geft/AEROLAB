@@ -10,16 +10,16 @@ describe('LT1 reassessment copy', () => {
     render(<Lt1Reassessment assessment={{ assessedRunCount: 18, usableRunCount: 12, latestEvidenceDate: '2026-10-03',
       reference: { activityId: 'reference', date: '2026-08-15', hr: 157, paceSecKm: 348, runningSeconds: 2400,
         decouplingPct: 2, basis: 'run_walk', supportCount: 4, supportingActivityIds: ['a', 'b', 'c', 'd'], stale: true },
-      candidate: { activityId: 'mp', date: '2026-10-03', hr: 165, paceSecKm: 329, runningSeconds: 3480,
+      candidate: { activityId: 'mp', date: '2026-10-03', hr: 165, hrHigh: 171, paceSecKm: 329, runningSeconds: 3480,
         decouplingPct: 4, basis: 'continuous' } }} />);
     expect(screen.getByRole('heading', { name: 'LT1 Reassessment' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Stable-running reference' }).closest('article')?.textContent).toContain('157 bpm at 5:48/km');
     expect(screen.getByRole('heading', { name: 'Stable-running reference' }).closest('article')?.textContent).toContain('4 supporting efforts');
     expect(screen.getByRole('heading', { name: 'Stable-running reference' }).closest('article')?.textContent).toContain('older reference retained');
-    expect(screen.getByRole('heading', { name: 'Higher effort awaiting corroboration' }).closest('article')?.textContent).toContain('165 bpm at 5:29/km');
+    expect(screen.getByRole('heading', { name: 'Higher effort, unconfirmed' }).closest('article')?.textContent).toContain('165–171 bpm at 5:29/km');
     expect(screen.getByText('Latest evidence: Oct 3, 2026')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Stable-running reference' }).closest('article')?.textContent).toContain('Aug 15, 2026');
     expect(screen.getByText('How this estimate is updated').closest('details')?.open).toBe(false);
-    expect(screen.getByText(/Corroborated running evidence updates/).textContent).toContain('LT1 remains a workout estimate');
+    expect(screen.getByText(/Corroborated steady runs update LT1/).textContent).toContain('repeat confirmation');
   });
 });

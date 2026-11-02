@@ -367,6 +367,7 @@ export interface Translations {
     lt1AssessmentReferenceTitle: string;
     lt1AssessmentCandidateTitle: string;
     lt1AssessmentMetric: string;
+    lt1AssessmentMetricRange: string;
     lt1AssessmentLatest: string;
     lt1AssessmentDate: string;
     lt1AssessmentMethod: string;
