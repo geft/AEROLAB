@@ -11,6 +11,8 @@ import {
 } from '../src/backend/services/activity-service.js';
 import { getProfileService } from '../src/backend/services/profile-service.js';
 import { getThresholdsService } from '../src/backend/services/thresholds-service.js';
+import { withThresholdEvidenceSnapshot } from '../src/backend/physiology/threshold-evidence.js';
+import { withAerobicEvidenceSnapshot } from '../src/backend/physiology/aerobic-assessment.js';
 import { sampleSnapshotTelemetry } from './snapshot-telemetry.js';
 import { encodeSnapshot, SNAPSHOT_FILENAME, SNAPSHOT_SCHEMA_VERSION, validateSnapshotDocument } from '../src/shared/snapshot-codec.js';
 
@@ -59,50 +61,56 @@ export function exportSnapshot(dbPath = getDatabasePath(), destination = outputP
     db.pragma('query_only = ON');
     db.exec('BEGIN');
     const activities = listActivitiesService(db).activities.map(activity => pickObject(activity, activityFields));
-    const details: Record<string, unknown> = {};
-    for (const activity of activities) {
-      const detail = getActivityDetailService(db, String(activity.id), { persistCoachSummary: false });
-      if (!detail) throw new Error(`Activity disappeared during snapshot export: ${activity.id}`);
-      // Original FIT metadata is only used for desktop CSV export.
-      const { fitMetadata: _fitMetadata, ...readOnlyDetail } = detail;
-      details[String(activity.id)] = {
-        ...(scrub(readOnlyDetail) as Record<string, unknown>),
-        activity: pickObject(detail.activity, activityFields),
-        records: sampleSnapshotTelemetry(detail.records, detail.intervals).map(record => pickObject(record, recordFields))
-      };
-    }
-    const profileResponse = getProfileService(db);
-    if (!profileResponse) throw new Error('The active database has no athlete profile.');
-    const profile = {
-      ...profileResponse,
-      profile: {
-        ...pickObject(profileResponse.profile, profileFields),
-        age: profileResponse.profile.age ?? null,
-        gender: profileResponse.profile.gender ?? null
+    // Each activity's detail resolves thresholds as of that run's date, which
+    // re-derives the whole history's threshold evidence and aerobic observations.
+    // This export reads a frozen database, so compute that evidence once instead
+    // of once per activity; the open transaction otherwise disables both caches.
+    const snapshot = withAerobicEvidenceSnapshot(db, () => withThresholdEvidenceSnapshot(db, () => {
+      const details: Record<string, unknown> = {};
+      for (const activity of activities) {
+        const detail = getActivityDetailService(db, String(activity.id), { persistCoachSummary: false });
+        if (!detail) throw new Error(`Activity disappeared during snapshot export: ${activity.id}`);
+        // Original FIT metadata is only used for desktop CSV export.
+        const { fitMetadata: _fitMetadata, ...readOnlyDetail } = detail;
+        details[String(activity.id)] = {
+          ...(scrub(readOnlyDetail) as Record<string, unknown>),
+          activity: pickObject(detail.activity, activityFields),
+          records: sampleSnapshotTelemetry(detail.records, detail.intervals).map(record => pickObject(record, recordFields))
+        };
       }
-    };
-    const runTypes = ['all', 'easy', 'threshold', ...new Set(activities.map(activity => String(activity.run_type || 'Other')))];
-    const progressByRunType = Object.fromEntries(runTypes.map(type => [type, scrub(getProgressHistoryService(db, type))]));
-    const thresholdsByRunType = Object.fromEntries(runTypes.map(type => [type, scrub(getThresholdsService(db, type === 'all' ? undefined : type))]));
-    const months = [...new Set(activities.map(activity => String(activity.start_time).slice(0, 7)))];
-    const years = [...new Set(activities.map(activity => String(activity.start_time).slice(0, 4)))];
-    const volume: Record<string, unknown> = {};
-    for (const month of months) volume[`month:${month}`] = scrub(getVolumeService(db, { period: 'month', month }));
-    for (const year of years) volume[`year:${year}`] = scrub(getVolumeService(db, { period: 'year', year }));
-    for (const period of ['week', 'month', 'year', 'all']) volume[`${period}:current`] = scrub(getVolumeService(db, { period }));
-    const trainingLoadByDays = Object.fromEntries([7, 14, 30, 60, 90, 180].map(days => [days, scrub(getTrainingLoadService(db, days))]));
-    const snapshot = {
-      schemaVersion: SNAPSHOT_SCHEMA_VERSION,
-      generatedAt: new Date().toISOString(),
-      activities,
-      details,
-      profile,
-      bestEfforts: scrub(getBestEffortsService(db)),
-      progressByRunType,
-      thresholdsByRunType,
-      volume,
-      trainingLoadByDays
-    };
+      const profileResponse = getProfileService(db);
+      if (!profileResponse) throw new Error('The active database has no athlete profile.');
+      const profile = {
+        ...profileResponse,
+        profile: {
+          ...pickObject(profileResponse.profile, profileFields),
+          age: profileResponse.profile.age ?? null,
+          gender: profileResponse.profile.gender ?? null
+        }
+      };
+      const runTypes = ['all', 'easy', 'threshold', ...new Set(activities.map(activity => String(activity.run_type || 'Other')))];
+      const progressByRunType = Object.fromEntries(runTypes.map(type => [type, scrub(getProgressHistoryService(db, type))]));
+      const thresholdsByRunType = Object.fromEntries(runTypes.map(type => [type, scrub(getThresholdsService(db, type === 'all' ? undefined : type))]));
+      const months = [...new Set(activities.map(activity => String(activity.start_time).slice(0, 7)))];
+      const years = [...new Set(activities.map(activity => String(activity.start_time).slice(0, 4)))];
+      const volume: Record<string, unknown> = {};
+      for (const month of months) volume[`month:${month}`] = scrub(getVolumeService(db, { period: 'month', month }));
+      for (const year of years) volume[`year:${year}`] = scrub(getVolumeService(db, { period: 'year', year }));
+      for (const period of ['week', 'month', 'year', 'all']) volume[`${period}:current`] = scrub(getVolumeService(db, { period }));
+      const trainingLoadByDays = Object.fromEntries([7, 14, 30, 60, 90, 180].map(days => [days, scrub(getTrainingLoadService(db, days))]));
+      return {
+        schemaVersion: SNAPSHOT_SCHEMA_VERSION,
+        generatedAt: new Date().toISOString(),
+        activities,
+        details,
+        profile,
+        bestEfforts: scrub(getBestEffortsService(db)),
+        progressByRunType,
+        thresholdsByRunType,
+        volume,
+        trainingLoadByDays
+      };
+    }));
     validateSnapshot(snapshot);
     db.exec('COMMIT');
     fs.mkdirSync(path.dirname(destination), { recursive: true });
