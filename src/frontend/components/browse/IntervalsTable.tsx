@@ -26,6 +26,10 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
 
   const allIntervals = intervals || [];
   const workIntervals = allIntervals.filter((i: ActivityInterval) => i.type === 'work' || i.type === 'stride');
+  // Work reps and strides are the only thing that gives a run a structure to warm
+  // up for or cool down from. With neither, the whole recording is one segment and
+  // calling it a warm-up misreports the session as something it never was.
+  const hasStructuredSegment = workIntervals.length > 0;
   const displayedIntervals = intervalFilter === 'work_only' && workIntervals.length > 0
     ? workIntervals
     : allIntervals;
@@ -116,15 +120,19 @@ export const IntervalsTable: React.FC<IntervalsTableProps> = ({
               {displayedIntervals.map((inv: ActivityInterval) => {
                 const isFirst = inv.interval_index === 1;
                 const isLast = inv.interval_index === allIntervals.length;
-                const isWarmup = isFirst && inv.duration_seconds > 180 && inv.type === 'recovery';
-                const isCooldown = isLast && inv.duration_seconds > 180 && inv.type === 'recovery';
+                const isWarmup = hasStructuredSegment && isFirst && inv.duration_seconds > 180 && inv.type === 'recovery';
+                const isCooldown = hasStructuredSegment && isLast && inv.duration_seconds > 180 && inv.type === 'recovery';
 
                 const allIdx = allIntervals.findIndex((x: ActivityInterval) => x.id === inv.id);
                 const nextSegment = allIdx >= 0 && allIdx + 1 < allIntervals.length ? allIntervals[allIdx + 1] : null;
                 const nextRecoveryDrop = nextSegment && nextSegment.type === 'recovery' ? nextSegment.hr_drop : null;
                 const effectiveDrop = inv.hr_drop || nextRecoveryDrop;
 
-                const typeLabel = isWarmup ? 'Warmup' : (isCooldown ? 'Cooldown' : (inv.type === 'work' && !isQualityRun ? 'Steady' : inv.type));
+                const typeLabel = isWarmup ? t.browse.segmentWarmup
+                  : isCooldown ? t.browse.segmentCooldown
+                    : inv.type === 'work' ? (isQualityRun ? t.browse.segmentWork : t.browse.segmentSteady)
+                      : inv.type === 'stride' ? t.browse.segmentStride
+                        : hasStructuredSegment ? t.browse.segmentRecovery : t.browse.segmentEasy;
                 const badgeClass = inv.type === 'stride'
                   ? 'badge-intervals_vo2'
                   : (inv.type === 'work' ? (isQualityRun ? 'badge-threshold_lt2' : 'badge-easy_base') : 'badge-easy_base');

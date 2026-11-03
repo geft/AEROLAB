@@ -190,6 +190,13 @@ export interface Translations {
     intervalWorkReps: string;
     steadySegments: string;
     segmentsRecoveries: string;
+    segmentWarmup: string;
+    segmentCooldown: string;
+    segmentWork: string;
+    segmentSteady: string;
+    segmentEasy: string;
+    segmentRecovery: string;
+    segmentStride: string;
     intervalExplanation: string;
     allSegmentsCount: string;
     averagePeak: string;

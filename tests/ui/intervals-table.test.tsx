@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { IntervalsTable } from '../../src/frontend/components/browse/IntervalsTable.js';
 import type { ActivityInterval } from '../../src/frontend/types/api.js';
 
@@ -59,5 +59,41 @@ describe('Interval table prescription hint', () => {
     );
 
     expect(screen.getByText('2x15:00')).toBeTruthy();
+  });
+});
+
+describe('Interval table segment labels', () => {
+  it('calls an unstructured easy run easy, not a warm-up', () => {
+    // 3 Nov 2026: 77 min of easy running with one stride. The single recovery
+    // segment is both first and last, so the warm-up rule claimed the whole run.
+    render(
+      <IntervalsTable
+        intervals={[seg(1, 'recovery', 4630)]}
+        activityRunType="easy_base"
+        formatPace={(secKm) => `${secKm}s/km`}
+        formatTime={(sec) => `${sec}s`}
+      />
+    );
+
+    expect(screen.getByText('Easy')).toBeTruthy();
+    expect(screen.queryByText('Warmup')).toBeNull();
+    expect(screen.queryByText('Cooldown')).toBeNull();
+  });
+
+  it('still labels the easy running either side of a work rep', () => {
+    render(
+      <IntervalsTable
+        intervals={[seg(1, 'recovery', 1200), seg(2, 'work', 900), seg(3, 'recovery', 600)]}
+        activityRunType="threshold_lt2"
+        formatPace={(secKm) => `${secKm}s/km`}
+        formatTime={(sec) => `${sec}s`}
+      />
+    );
+
+    // The default view hides the easy segments. The all-segments view has to keep
+    // naming them a warm-up and a cool-down.
+    fireEvent.click(screen.getByText(/All Segments/));
+    expect(screen.getByText('Warmup')).toBeTruthy();
+    expect(screen.getByText('Cooldown')).toBeTruthy();
   });
 });
