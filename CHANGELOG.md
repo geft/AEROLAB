@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.5.7 — 2026-11-03
+
+### Analysis
+
+- Keep a stride that ends in a walk. The burst was found and promoted, then discarded by the recovery check, which measured promptness from the last sample above stride pace: slowing from 5 m/s to a walk takes ten seconds and belongs to the stride. On the 3 Nov easy run that demoted a 26 s surge to ordinary work and absorbed it into a 77-minute recovery block. Promptness is now measured from the moment the athlete stopped running.
+- Keep that check working across a stopped watch. Timer segments are analysed one at a time, so a stride that ended where the timer was stopped could not see the walking recorded in the next segment. The recovery check now reads the whole recording, while a work block still never spans an unobserved gap.
+- Bound LT1 promotions and report a settled range. The aerobic reference took the longest bout of an effort, which on a long run is its most drifted part, and a promotion could lift LT1 by any amount below LT2 - 2. LT1 is now promoted from the low end of a settled range, requires a 10 bpm gap below a measured LT2, and moves at most 3 bpm unless a second confirmation period inside the 42-day window supports the jump.
+
+### Browse
+
+- Stop calling an easy run a warm-up. A run with no work rep and no stride is one segment, so it is both first and last and the warm-up rule claimed all of it, reporting 77 minutes as a warm-up. Warm-up and cool-down now require a work or stride segment to warm up for, and the segment names come from the dictionaries in both languages.
+
+### Storage and speed
+
+- Compact fragmented databases automatically. Imports wrote wide record rows with the raw FIT JSON and then cleared the column, leaving free space that only a full VACUUM reclaims; the fields worth keeping are now archived from the returned row ids, so new imports never create that space. The maintenance worker compacts a file of at least 64 MB when at least 15% is reclaimable, and the app shows an indeterminate status while it rewrites. Verified on a 586 MB copy: 2.1 s and 384 MB reclaimed.
+- Export the history in seconds instead of minutes. The export resolved each run's thresholds as of its own date, which re-derived the whole history's threshold evidence and aerobic observations for every activity: 359 activities meant 359 identical passes. Both caches are now reused across an export, which cannot change the database anyway. 265 s becomes 27 s.
+
+## 1.5.6 — 2026-11-02
+
+### Speed
+
+- Replay the history in seconds instead of minutes. A full realign spent almost all of its time recomputing threshold evidence rather than analysing: aerobic assessments reloaded and re-observed every run inside the 180-day window on each call, and the cache was keyed by the as-of window so it missed on every activity. Both caches now key on what actually determines the value, and decoded records are reused inside a declared batch. Measured on a 359-activity, 586 MB history: 17m35s to 21.7s, with identical stored results. The replay also reports phase timings and throttled progress with a per-activity rate and an ETA.
+
 ## 1.5.5 — 2026-11-01
 
 ### Analysis

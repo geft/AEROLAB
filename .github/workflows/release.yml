@@ -82,14 +82,16 @@ jobs:
           echo "RELEASE_VERSION=$RELEASE_VER" >> "$GITHUB_ENV"
           echo "release_version=$RELEASE_VER" >> "$GITHUB_OUTPUT"
 
+      # Before packaging, so a missing changelog entry fails in seconds instead
+      # of after a five-minute build.
+      - name: Prepare changelog for release
+        run: npx tsx scripts/write-release-notes.ts
+
       - name: Package Chromium-Free Windows Distribution (Zero Terminal)
         run: node scripts/package-chromium-free.js
 
       - name: Smoke test packaged backend
         run: npm run smoke:packaged
-
-      - name: Prepare changelog for release
-        run: node scripts/write-release-notes.js
 
       - name: Generate installer checksum
         shell: bash
