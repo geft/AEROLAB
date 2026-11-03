@@ -30,17 +30,39 @@ const STRIDE_MIN_DURATION_SECONDS = 8;
  */
 const FRAGMENT_LT1_MARGIN_BPM = 8;
 
+/** Slowing from stride pace to a walk takes about fifteen seconds. It belongs to
+ * the stride, but anything longer than that is resumed running, not the end of
+ * one, and must not be credited as the stride's recovery.
+ */
+const STRIDE_DECELERATION_SECONDS = 15;
+
 /** A stride is followed promptly by sustained walking/rest, rather than a jog.
  * HR may peak in this recovery, so it must not define the burst's end or require
  * an immediate HR drop. Confirm elapsed time, not a count of sparse samples.
  */
-function hasStrideRecovery(records: ActivityRecord[], endIndex: number): boolean {
-  const burstEnd = records[endIndex].elapsedSeconds;
+function hasStrideRecovery(records: ActivityRecord[], burstEnd: number): boolean {
+  // Slowing from stride pace to a walk takes about ten seconds and belongs to
+  // the stride, so promptness is measured from the moment the athlete stopped
+  // running, not from the last sample above stride pace. On 3 Nov 2026 the
+  // burst ended at 5.0 m/s and the walk began 18 s later, 8 s after the last
+  // running sample, which the old window read as a jog rather than a stride.
+  const startIndex = records.findIndex(record => record.elapsedSeconds > burstEnd);
+  if (startIndex < 0) return false;
+  const decelerationEnd = burstEnd + STRIDE_DECELERATION_SECONDS;
+  let runningUntil = burstEnd;
+  for (let index = startIndex; index < records.length; index++) {
+    const record = records[index];
+    if (record.elapsedSeconds > decelerationEnd) break;
+    const speed = record.speedMps;
+    if (speed == null || !Number.isFinite(speed) || speed <= 2) break;
+    runningUntil = record.elapsedSeconds;
+  }
+  const windowEnd = runningUntil + 30;
   let slowStart: number | null = null;
   let slowSeconds = 0;
-  for (let index = endIndex + 1; index < records.length - 1; index++) {
+  for (let index = startIndex; index < records.length - 1; index++) {
     const record = records[index];
-    if (record.elapsedSeconds > burstEnd + 30) break;
+    if (record.elapsedSeconds > windowEnd) break;
     const seconds = records[index + 1].elapsedSeconds - record.elapsedSeconds;
     const speed = record.speedMps;
     const cadence = record.cadence;
@@ -55,8 +77,8 @@ function hasStrideRecovery(records: ActivityRecord[], endIndex: number): boolean
       continue;
     }
     slowStart ??= record.elapsedSeconds;
-    if (slowStart - burstEnd > 12) return false;
-    slowSeconds += Math.min(seconds, burstEnd + 30 - record.elapsedSeconds);
+    if (slowStart - runningUntil > 12) return false;
+    slowSeconds += Math.min(seconds, windowEnd - record.elapsedSeconds);
     if (slowSeconds >= 15) return true;
   }
   return false;
@@ -95,6 +117,12 @@ export interface DetectIntervalsOptions {
   restingHr?: number;
   /** Baseline from the whole recording, for fragments that cannot be segmented alone. */
   sessionContrast?: SessionContrast;
+  /**
+   * Every record in the recording, when this call is analysing one timer
+   * segment of it. A stride that ends at a stop has its walking in the next
+   * segment, and without the full recording that recovery is invisible.
+   */
+  recoveryRecords?: ActivityRecord[];
 }
 
 /**
@@ -231,7 +259,8 @@ export function detectIntervals(
     // the middle of a sustained effort would otherwise leave both halves with no
     // warmup or recovery to contrast against, and file the effort as recovery.
     const session = options.sessionContrast ?? sessionContrast(records, options) ?? undefined;
-    return traces.flatMap(part => detectIntervals(part, { ...options, sessionContrast: session })).map((interval, index) => ({ ...interval, intervalIndex: index + 1 }));
+    const recoveryRecords = options.recoveryRecords ?? records;
+    return traces.flatMap(part => detectIntervals(part, { ...options, sessionContrast: session, recoveryRecords })).map((interval, index) => ({ ...interval, intervalIndex: index + 1 }));
   }
   if (observedIntervals(records, time).reduce((sum, i) => sum + i.seconds, 0) < 59) return [];
 
@@ -434,7 +463,7 @@ export function detectIntervals(
   // A brief acceleration followed by continued running is a surge. Delayed HR
   // rise can persist into genuine walking recovery and must not veto a stride.
   for (const block of rawBlocks) {
-    if (block.type === 'stride' && !hasStrideRecovery(records, block.endIndex)) block.type = 'work';
+    if (block.type === 'stride' && !hasStrideRecovery(options.recoveryRecords ?? records, records[block.endIndex].elapsedSeconds)) block.type = 'work';
   }
   const validRawBlocks = rawBlocks.filter(
     b => b.startIndex <= b.endIndex && b.startIndex >= 0 && b.endIndex < records.length

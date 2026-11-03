@@ -163,8 +163,7 @@ describe('Interval & Stride Detector (Unit)', () => {
     expect(detectIntervals(records).filter(i => i.type === 'stride')).toEqual([]);
   });
 
-  it('rejects a 7-second, 21-meter burst in the middle of a long run as a stride', () => {
-    const records: ActivityRecord[] = [];
+  it('rejects a 7-second, 21-meter burst in the middle of a long run as a stride', () => {    const records: ActivityRecord[] = [];
     let sec = 0;
     let dist = 0;
     const push = (cad: number, spd: number, advance: number) => {
@@ -462,5 +461,65 @@ describe('Interval & Stride Detector (Unit)', () => {
     expect(workReps.length).toBe(1);
     expect(workReps[0].avgHeartRate).toBeGreaterThanOrEqual(180);
     expect(workReps[0].durationSeconds).toBeGreaterThanOrEqual(1150);
+  });
+
+  describe('stride recovery after the deceleration', () => {
+    /** 3 Nov 2026: steady easy running, a 26 s surge at 4.7-5.15 m/s, then the
+     * athlete slows to a walk. `decelerationSeconds` is how long the slowing
+     * takes; `timerStop` puts the walk in the next timer segment, which is what
+     * happens when the watch is stopped right after a stride.
+     */
+    function strideThenWalk(options: { decelerationSeconds?: number; timerStop?: boolean } = {}): ActivityRecord[] {
+      const records: ActivityRecord[] = [];
+      let sec = 0;
+      let dist = 0;
+      const push = (step: number, cad: number, spd: number, hr: number, segment = 0) => {
+        dist += spd * step;
+        records.push({
+          ...makeRecord(sec, cad, spd, hr),
+          elapsedSeconds: sec,
+          distanceMeters: dist,
+          timerActive: true,
+          timerSegment: segment
+        });
+        sec += step;
+      };
+
+      for (let i = 0; i < 300; i++) push(3, 175, 2.46, 143);
+      // The held part of the stride: 26 s at 4.7-5.15 m/s.
+      const burst: [number, number, number, number][] = [
+        [1, 175, 4.70, 145], [1, 175, 4.87, 145], [1, 175, 4.70, 145], [1, 175, 4.90, 145],
+        [3, 175, 4.77, 145], [1, 185, 4.82, 146], [2, 185, 4.93, 146], [1, 186, 4.94, 146],
+        [1, 186, 5.05, 147], [2, 185, 5.15, 147], [3, 183, 5.06, 148], [2, 183, 4.83, 149],
+        [1, 183, 4.79, 150], [3, 183, 3.90, 151], [4, 184, 3.69, 152]
+      ];
+      for (const [step, cad, spd, hr] of burst) push(step, cad, spd, hr);
+      // Slowing out of the stride: still running, so still part of the effort.
+      const decel = options.decelerationSeconds ?? 18;
+      const slowing: [number, number, number][] = [[6, 181, 3.58], [5, 179, 3.15], [4, 179, 2.85], [2, 179, 2.88], [1, 179, 2.88]];
+      let remaining = decel;
+      for (const [step, cad, spd] of slowing) {
+        if (remaining <= 0) break;
+        const use = Math.min(step, remaining);
+        push(use, cad, spd, 160);
+        remaining -= use;
+      }
+      if (options.timerStop) sec += 5;
+      for (let i = 0; i < 40; i++) push(3, 110, 1.2, 150, options.timerStop ? 1 : 0);
+      return records;
+    }
+
+    it('confirms a stride when the walk begins after a long deceleration', () => {
+      const strides = detectIntervals(strideThenWalk(), { stridePaceAnchorSecKm: 274 })
+        .filter(i => i.type === 'stride');
+      expect(strides).toHaveLength(1);
+      expect(strides[0].durationSeconds).toBeGreaterThanOrEqual(20);
+    });
+
+    it('confirms a stride that ends where the timer was stopped', () => {
+      const strides = detectIntervals(strideThenWalk({ decelerationSeconds: 5, timerStop: true }), { stridePaceAnchorSecKm: 274 })
+        .filter(i => i.type === 'stride');
+      expect(strides).toHaveLength(1);
+    });
   });
 });
